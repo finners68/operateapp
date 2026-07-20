@@ -542,7 +542,7 @@ function viewSettings(){
     <div class="set-title">Account</div>
     <div class="set-group">
       <div class="set-row tap" onclick="sheetAccount()"><div class="ic" style="background:${syncActive()?'var(--green-soft)':'var(--card-2)'};color:${syncActive()?'var(--green)':'var(--text-2)'}">${ICON.globe(17)}</div>
-        <div class="body"><b>${authUser ? esc(authUser.email) : 'Sign in & sync'}</b><span id="sync-row-sub">${syncStatusLabel()}</span></div>
+        <div class="body"><b>${authUser ? esc(authUser.email) : (isAuthRequired() ? 'Sign in & sync' : 'Local only')}</b><span id="sync-row-sub">${syncStatusLabel()}</span></div>
         <div class="trail">Manage ${ICON.chevR(15)}</div></div>
     </div>
 

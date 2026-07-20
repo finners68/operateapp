@@ -3,7 +3,7 @@ let authUser = null;
 let authBootDone = false;
 
 function authRequired(){
-  return isSupabaseConfigured() && !authUser;
+  return isAuthRequired() && !authUser;
 }
 
 function showAuthSheet(){
@@ -79,7 +79,7 @@ async function signOut(){
   if(sb) await sb.auth.signOut();
   try{ localStorage.removeItem(ORG_KEY); }catch(e){}
   hideAuthSheet();
-  showAuthSheet();
+  if(isAuthRequired()) showAuthSheet();
   toast('Signed out', 'check');
   if(overlay && overlay.type === 'settings') renderView();
 }
@@ -102,6 +102,11 @@ async function authBoot(){
     return;
   }
 
+  if(!isAuthRequired()){
+    bootApp();
+    return;
+  }
+
   showAuthSheet();
 
   sb.auth.onAuthStateChange(async (event, session) => {
@@ -110,7 +115,7 @@ async function authBoot(){
     }
     if(event === 'SIGNED_OUT'){
       authUser = null;
-      showAuthSheet();
+      if(isAuthRequired()) showAuthSheet();
     }
   });
 }
@@ -118,6 +123,10 @@ async function authBoot(){
 function sheetAccount(){
   if(!isSupabaseConfigured()){
     openSheet('Account', `<div class="hint" style="text-align:left;padding:2px 2px 16px;line-height:1.5">Cloud sync is not configured. Copy <code>js/config.example.js</code> to <code>js/config.js</code> and add your Supabase credentials.</div><div class="spacer"></div>`);
+    return;
+  }
+  if(!isAuthRequired() && !authUser){
+    openSheet('Account', `<div class="hint" style="text-align:left;padding:2px 2px 16px;line-height:1.5">Cloud sync is not enabled yet. Your tour data stays on this device.</div><div class="spacer"></div>`);
     return;
   }
   const email = authUser?.email || 'Not signed in';

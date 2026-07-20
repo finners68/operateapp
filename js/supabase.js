@@ -8,6 +8,10 @@ function isSupabaseConfigured(){
     && !c.SUPABASE_ANON_KEY.includes('YOUR-ANON'));
 }
 
+function isAuthRequired(){
+  return isSupabaseConfigured() && OPERATE_CONFIG.REQUIRE_AUTH === true;
+}
+
 let _supa = null;
 function getSupabase(){
   if(!isSupabaseConfigured()) return null;
