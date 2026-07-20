@@ -1,5 +1,5 @@
-/* ArtistHQ service worker — app-shell offline cache */
-const VERSION = 'operate-v2';
+/* Operate service worker — app-shell offline cache */
+const VERSION = 'operate-v3';
 const SHELL = [
   './',
   './index.html',
@@ -35,6 +35,12 @@ self.addEventListener('activate', (e) => {
 self.addEventListener('fetch', (e) => {
   const req = e.request;
   if (req.method !== 'GET') return;
+
+  const url = new URL(req.url);
+  // Never intercept cross-origin requests (Supabase images/API, maps, etc.).
+  // Letting those fail inside respondWith breaks <img> and background-image loads.
+  if (url.origin !== self.location.origin) return;
+
   // Network-first for the HTML document so updates land; fall back to cache offline.
   if (req.mode === 'navigate') {
     e.respondWith(
@@ -46,7 +52,20 @@ self.addEventListener('fetch', (e) => {
     );
     return;
   }
-  // Cache-first for everything else (icons, manifest).
+
+  // Network-first for CSS/JS so deploys aren't stuck behind a stale shell cache.
+  if (url.pathname.endsWith('.css') || url.pathname.endsWith('.js')) {
+    e.respondWith(
+      fetch(req).then((res) => {
+        const copy = res.clone();
+        caches.open(VERSION).then((c) => c.put(req, copy));
+        return res;
+      }).catch(() => caches.match(req))
+    );
+    return;
+  }
+
+  // Cache-first for same-origin static assets (icons, manifest).
   e.respondWith(
     caches.match(req).then((hit) => hit || fetch(req).then((res) => {
       const copy = res.clone();
