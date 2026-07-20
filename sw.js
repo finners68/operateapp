@@ -1,9 +1,18 @@
 /* ArtistHQ service worker — app-shell offline cache */
-const VERSION = 'operate-v1';
+const VERSION = 'operate-v2';
 const SHELL = [
   './',
   './index.html',
+  './styles.css',
   './manifest.json',
+  './js/state.js',
+  './js/shows.js',
+  './js/trip.js',
+  './js/calendar.js',
+  './js/ideas.js',
+  './js/notes.js',
+  './js/app.js',
+  './js/pwa.js',
   './icons/icon-180.png',
   './icons/icon-192.png',
   './icons/icon-512.png'
