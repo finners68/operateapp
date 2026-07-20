@@ -1,0 +1,16 @@
+﻿# Operate — Netlify production deploy
+# https://operate-app.netlify.app
+
+[build]
+  command = "node scripts/generate-config.mjs"
+  publish = "."
+
+[[headers]]
+  for = "/sw.js"
+  [headers.values]
+    Cache-Control = "no-cache"
+
+[[headers]]
+  for = "/js/config.js"
+  [headers.values]
+    Cache-Control = "no-cache"
