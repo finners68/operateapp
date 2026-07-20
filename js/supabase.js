@@ -12,6 +12,16 @@ function isAuthRequired(){
   return isSupabaseConfigured() && OPERATE_CONFIG.REQUIRE_AUTH === true;
 }
 
+function isSyncEnabled(){
+  return isSupabaseConfigured() && OPERATE_CONFIG.SYNC_ENABLED === true;
+}
+
+function getFixedOrgId(){
+  const id = OPERATE_CONFIG && OPERATE_CONFIG.OPERATE_ORG_ID;
+  if(!id || typeof id !== 'string' || id.includes('YOUR-ORG')) return null;
+  return id;
+}
+
 let _supa = null;
 function getSupabase(){
   if(!isSupabaseConfigured()) return null;

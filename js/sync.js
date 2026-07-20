@@ -9,7 +9,7 @@ function syncActive(){ return isSupabaseConfigured() && !!currentOrgId; }
 
 function syncStatusLabel(){
   if(!isSupabaseConfigured()) return 'Local only';
-  if(!currentOrgId) return isAuthRequired() ? 'Sign in to sync' : 'Local only';
+  if(!currentOrgId) return (isAuthRequired() || isSyncEnabled()) ? 'Sign in to sync' : 'Local only';
   if(syncStatus === 'synced') return 'Synced' + (syncLastSync ? ' · ' + timeAgo(syncLastSync) : '');
   if(syncStatus === 'syncing') return 'Syncing…';
   if(syncStatus === 'offline') return 'Offline · will retry';

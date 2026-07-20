@@ -63,7 +63,8 @@ async function onSignedIn(user){
     bootApp();
   }catch(e){
     console.error('bootstrap', e);
-    toast('Could not load cloud data', 'x');
+    if(e.message === 'not_linked_to_dev_org') toast('Not linked to dev org — run seed SQL','x');
+    else toast('Could not load cloud data', 'x');
     bootApp();
   }
 }
@@ -104,6 +105,18 @@ async function authBoot(){
 
   if(!isAuthRequired()){
     bootApp();
+    if(isSyncEnabled()){
+      sb.auth.onAuthStateChange(async (event, session) => {
+        if(event === 'SIGNED_IN' && session?.user){
+          await onSignedIn(session.user);
+        }
+        if(event === 'SIGNED_OUT'){
+          authUser = null;
+          syncTeardown();
+          if(overlay && overlay.type === 'settings') renderView();
+        }
+      });
+    }
     return;
   }
 
@@ -126,6 +139,16 @@ function sheetAccount(){
     return;
   }
   if(!isAuthRequired() && !authUser){
+    if(isSyncEnabled()){
+      openSheet('Account & sync', `
+        <div class="hint" style="text-align:left;padding:2px 2px 14px;line-height:1.5">Sign in once to sync with the dev org. The app stays usable without signing in.</div>
+        <div class="field"><label>Email</label><input id="auth-email" type="email" class="input" placeholder="you@example.com" autocomplete="email"></div>
+        <p id="auth-msg" class="auth-msg"></p>
+        <button class="btn" id="auth-send" onclick="sendMagicLink()">Send magic link</button>
+        <div class="spacer"></div>
+      `);
+      return;
+    }
     openSheet('Account', `<div class="hint" style="text-align:left;padding:2px 2px 16px;line-height:1.5">Cloud sync is not enabled yet. Your tour data stays on this device.</div><div class="spacer"></div>`);
     return;
   }

@@ -65,6 +65,14 @@ async function ensureOrgForUser(){
   const user = await getAuthUser();
   if(!sb || !user) throw new Error('no_auth');
 
+  const fixed = getFixedOrgId();
+  if(fixed){
+    const { data: ok } = await sb.from('org_members').select('org_id').eq('org_id', fixed).eq('user_id', user.id).maybeSingle();
+    if(!ok) throw new Error('not_linked_to_dev_org');
+    setStoredOrgId(fixed);
+    return fixed;
+  }
+
   const stored = getStoredOrgId();
   if(stored){
     const { data: ok } = await sb.from('org_members').select('org_id').eq('org_id', stored).eq('user_id', user.id).maybeSingle();
