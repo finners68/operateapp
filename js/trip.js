@@ -169,7 +169,7 @@ function tlActions(s){
   return btns.join('');
 }
 function viewItemPass(itemId){ const it=store.events.find(x=>x.id===itemId); const p=(it&&it.passes||[])[0]; if(!p){toast('No pass','x');return;} if(p.kind==='image') openViewer(p.data); else toast('PDF pass saved on device','file'); }
-function uploadItemPass(itemId, input){ toast('Uploading pass…','ticket'); readFile(input, att=>{ const it=store.events.find(x=>x.id===itemId); (it.passes=it.passes||[]).push(att); persist(); renderView(); toast('Boarding pass added','check'); hostImg(att); }); }
+function uploadItemPass(itemId, input){ toast('Uploading pass…','ticket'); readFile(input, att=>{ const it=store.events.find(x=>x.id===itemId); (it.passes=it.passes||[]).push(att); persist(); renderView(); toast('Boarding pass added','check'); hostImg(att, itemId, 'pass'); }); }
 /* Group the run timeline by day (clearer, day-by-day) */
 function runTimelineByDay(run){
   const rows=runTimeline(run); const byDay={};

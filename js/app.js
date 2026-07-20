@@ -6,7 +6,6 @@ function boot(){
   render();
   if(appLockActive()) requireUnlock('app', ()=>render());
   initGestures();
-  syncBoot();
   // live tick for countdowns
   setInterval(()=>{ if((store.tab==='home'||store.tab==='calendar') && !overlay && !sheetEl) renderView(); }, 30000);
 }
@@ -334,7 +333,7 @@ function submitItinerary(input){
     const n=new Date(); const date=`${n.getFullYear()}-${pad(n.getMonth()+1)}-${pad(n.getDate())}`;
     const entry={id:uid('itin'), source:'', date, time:'', note:'', showId:'', imgs, created:Date.now()};
     store.itineraries.unshift(entry); persist(); renderView();
-    imgs.forEach(hostImg);
+    imgs.forEach(im => hostImg(im, 'itinerary', 'itinerary'));
     sheetItinerary(entry.id);
   });
 }
@@ -366,7 +365,7 @@ function saveItinerary(id){
 }
 function addItineraryShots(id,input){
   const it=(store.itineraries||[]).find(x=>x.id===id); if(!it) return;
-  readFiles(input, imgs=>{ if(imgs.length){ it.imgs=(it.imgs||[]).concat(imgs); persist(); imgs.forEach(hostImg); sheetItinerary(id); } });
+  readFiles(input, imgs=>{ if(imgs.length){ it.imgs=(it.imgs||[]).concat(imgs); persist(); imgs.forEach(im=>hostImg(im,'itinerary','itinerary')); sheetItinerary(id); } });
 }
 /* ---- Phase 2: read an itinerary screenshot and fill ONLY the missing show fields ---- */
 function applyScanToShow(e, f){
@@ -408,13 +407,15 @@ async function scanItinerary(id){
   const e=sel.event(showId); if(!e){ toast('Show not found','x'); return; }
   const img=(it.imgs||[]).find(im=>im.kind==='image');
   if(!img){ toast('Add a screenshot first','x'); return; }
-  if(!syncConfigured()){ toast('Cloud sync not connected','x'); return; }
+  if(!isSupabaseConfigured() || !authUser){ toast('Sign in to scan itineraries','x'); return; }
+  const token = await getAccessToken();
+  if(!token){ toast('Sign in to scan itineraries','x'); return; }
   const btn=$('#itn-scan'); if(btn){ btn.disabled=true; btn.textContent='Scanning…'; }
   toast('Scanning itinerary…','image');
   try{
-    const res=await fetch(SYNC_CONFIG.url.replace(/\/$/,'')+'/functions/v1/scan-itinerary', {
+    const res=await fetch(OPERATE_CONFIG.SUPABASE_URL.replace(/\/$/,'')+'/functions/v1/scan-itinerary', {
       method:'POST',
-      headers:{ 'apikey':SYNC_CONFIG.anon, 'Authorization':'Bearer '+SYNC_CONFIG.anon, 'Content-Type':'application/json' },
+      headers:{ 'apikey':OPERATE_CONFIG.SUPABASE_ANON_KEY, 'Authorization':'Bearer '+token, 'Content-Type':'application/json' },
       body: JSON.stringify({ image: img.data })
     });
     const data=await res.json().catch(()=>({}));
@@ -433,9 +434,9 @@ function delItinShot(id,imid){
 function delItinerary(id){
   confirmSheet('Delete submission?','','Delete',()=>{ store.itineraries=(store.itineraries||[]).filter(x=>x.id!==id); persist(); closeSheet(); renderView(); toast('Deleted','trash'); }, true);
 }
-function uploadAttachment(eid,input){ toast('Uploading…','image'); readFile(input, att=>{ const e=sel.event(eid); (e.attachments=e.attachments||[]).push(att); persist(); renderView(); toast('Attached','check'); hostImg(att); }); }
+function uploadAttachment(eid,input){ toast('Uploading…','image'); readFile(input, att=>{ const e=sel.event(eid); (e.attachments=e.attachments||[]).push(att); persist(); renderView(); toast('Attached','check'); hostImg(att, eid, 'attachment'); }); }
 function delAttachment(eid,aid){ const e=sel.event(eid); e.attachments=e.attachments.filter(a=>a.id!==aid); persist(); renderView(); toast('Removed','trash'); }
-function uploadPass(eid,fid,input){ toast('Uploading pass…','ticket'); readFile(input, att=>{ const e=sel.event(eid); const f=e.flights.find(x=>x.id===fid); (f.passes=f.passes||[]).push(att); persist(); renderView(); toast('Boarding pass added','check'); hostImg(att); }); }
+function uploadPass(eid,fid,input){ toast('Uploading pass…','ticket'); readFile(input, att=>{ const e=sel.event(eid); const f=e.flights.find(x=>x.id===fid); (f.passes=f.passes||[]).push(att); persist(); renderView(); toast('Boarding pass added','check'); hostImg(att, eid, 'pass', fid); }); }
 function delFlightPass(eid,fid,pid){ const e=sel.event(eid); const f=e&&e.flights&&e.flights.find(x=>x.id===fid); if(f&&f.passes){ f.passes=f.passes.filter(p=>p.id!==pid); } persist(); renderView(); toast('Boarding pass removed','trash'); }
 function delItemPass(itemId){ const it=store.events.find(x=>x.id===itemId); if(it){ it.passes=[]; } persist(); renderView(); toast('Boarding pass removed','trash'); }
 function removeHotel(eid){ const e=sel.event(eid); if(e){ e.hotel=null; } persist(); closeSheet(); renderView(); toast('Hotel removed','trash'); }
@@ -538,11 +539,11 @@ function viewSettings(){
       <div class="set-row tap" onclick="sheetPacking()"><div class="ic" style="background:var(--card-2);color:var(--text-2)">${ICON.bag(17)}</div><div class="body"><b>Default packing list</b><span>${(s.packingTemplate||[]).length} items</span></div><div class="trail">${ICON.chevR(15)}</div></div>
     </div>
 
-    <div class="set-title">Cloud sync</div>
+    <div class="set-title">Account</div>
     <div class="set-group">
-      <div class="set-row tap" onclick="sheetSync()"><div class="ic" style="background:${syncActive()?'var(--green-soft)':'var(--card-2)'};color:${syncActive()?'var(--green)':'var(--text-2)'}">${ICON.globe(17)}</div>
-        <div class="body"><b>${syncActive()?'Workspace · '+esc(SYNC.code):'Sync across devices'}</b><span id="sync-row-sub">${syncStatusLabel()}</span></div>
-        <div class="trail">${syncActive()?'Manage':'Set up'} ${ICON.chevR(15)}</div></div>
+      <div class="set-row tap" onclick="sheetAccount()"><div class="ic" style="background:${syncActive()?'var(--green-soft)':'var(--card-2)'};color:${syncActive()?'var(--green)':'var(--text-2)'}">${ICON.globe(17)}</div>
+        <div class="body"><b>${authUser ? esc(authUser.email) : 'Sign in & sync'}</b><span id="sync-row-sub">${syncStatusLabel()}</span></div>
+        <div class="trail">Manage ${ICON.chevR(15)}</div></div>
     </div>
 
     <div class="set-title">Data</div>
@@ -551,7 +552,7 @@ function viewSettings(){
       <label class="set-row tap"><div class="ic" style="background:var(--card-2);color:var(--text-2)">${ICON.archive(17)}</div><div class="body"><b>Restore from backup</b><span>Import a backup file to bring your data here</span></div><div class="trail">${ICON.chevR(15)}</div><input type="file" accept="application/json,.json" style="display:none" onchange="importData(this)"></label>
       <div class="set-row tap" onclick="confirmReset()"><div class="ic" style="background:var(--red-soft);color:var(--red)">${ICON.trash(17)}</div><div class="body"><b style="color:var(--red)">Reset all data</b><span>Reload the imported schedule</span></div><div class="trail">${ICON.chevR(15)}</div></div>
     </div>
-    <div class="hint">Operate · Phase 1 (local). Data stored privately on this device. Phase 2 adds secure cloud sync.</div>
+    <div class="hint">Operate · local-first with optional cloud sync via Supabase.</div>
     <div class="spacer"></div>
   </div>`;
 }
@@ -625,7 +626,7 @@ function editProfileName(){
   setTimeout(()=>{const i=document.getElementById('pf-name');if(i)i.focus();},300);
 }
 function uploadHomeHeader(input){ toast('Uploading photo…','image'); readFile(input, att=>{ if(att.kind!=='image'){ toast('Pick an image','x'); return; } store.settings.homeHeader=att.data; persist(); renderView(); toast('Header photo set','check');
-  if(syncActive() && att.data.startsWith('data:')) uploadToStorage(att.data,'header_'+(store.settings.artistName||'x')).then(url=>{ store.settings.homeHeader=url; persist(); }).catch(()=>{}); }); }
+  if(syncActive() && att.data.startsWith('data:')) uploadFileDataUrl(att.data,'header','header','home_header').then(({path,url})=>{ store.settings._homeHeaderPath=path; store.settings.homeHeader=url; persist(); renderView(); }).catch(()=>{}); }); }
 function removeHomeHeader(){ confirmSheet('Remove header photo?','','Remove',()=>{ store.settings.homeHeader=null; persist(); closeSheet(); renderView(); toast('Removed','trash'); }, true); }
 function toggleSecurity(){
   const sec=store.settings.security;
@@ -674,7 +675,7 @@ function importData(input){
     confirmSheet('Restore this backup?', 'This replaces the data currently on this device with the backup ('+data.events.length+' events).', 'Restore', ()=>{
       store = data; if(store.tab==null) store.tab='home';
       migrate(); persist(); overlay=null; closeSheet(); render();
-      if(syncActive()){ syncPushNow(); _imgMigrateRunning=false; setTimeout(migrateImagesToStorage, 1500); }
+      if(syncActive()) queueSync();
       toast('Backup restored','check');
     });
   };

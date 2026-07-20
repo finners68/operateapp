@@ -39,7 +39,7 @@ function viewHome(){
   const trips = runs().filter(r=>parseDT(r.end)>=today0).slice(0,2);
 
   const nameBit = store.settings.artistName&&store.settings.artistName!=='You'?', '+esc(store.settings.artistName):'';
-  const photo = store.settings.homeHeader;
+  const photo = store.settings._homeHeaderUrl || store.settings.homeHeader;
   const header = photo ? `
   <div class="home-hero" style="background-image:url('${photo}')">
     <div class="home-hero-actions">
@@ -475,12 +475,14 @@ function flightInfoWidget(e){
 async function flightTrack(id){
   const e=store.events.find(x=>x.id===id); if(!e) return;
   if(!e.flightNo){ toast('Add a flight number first','x'); sheetFlightInfo(id); return; }
-  if(!syncConfigured()){ toast('Set up cloud first','x'); return; }
+  if(!isSupabaseConfigured() || !authUser){ toast('Sign in to track flights','x'); return; }
+  const token = await getAccessToken();
+  if(!token){ toast('Sign in to track flights','x'); return; }
   toast('Checking live status…','plane');
   try{
-    const res=await fetch(SYNC_CONFIG.url.replace(/\/$/,'')+'/functions/v1/flight-status', {
+    const res=await fetch(OPERATE_CONFIG.SUPABASE_URL.replace(/\/$/,'')+'/functions/v1/flight-status', {
       method:'POST',
-      headers:{ 'Content-Type':'application/json', 'apikey':SYNC_CONFIG.anon, 'Authorization':'Bearer '+SYNC_CONFIG.anon },
+      headers:{ 'Content-Type':'application/json', 'apikey':OPERATE_CONFIG.SUPABASE_ANON_KEY, 'Authorization':'Bearer '+token },
       body: JSON.stringify({ flight:e.flightNo, date:e.date })
     });
     const d=await res.json().catch(()=>null);

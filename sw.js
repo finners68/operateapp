@@ -1,11 +1,16 @@
 /* Operate service worker — app-shell offline cache */
-const VERSION = 'operate-v3';
+const VERSION = 'operate-v4';
 const SHELL = [
   './',
   './index.html',
   './styles.css',
   './manifest.json',
+  './js/config.js',
+  './js/supabase.js',
   './js/state.js',
+  './js/db.js',
+  './js/sync.js',
+  './js/auth.js',
   './js/shows.js',
   './js/trip.js',
   './js/calendar.js',

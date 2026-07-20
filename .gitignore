@@ -1,0 +1,4 @@
+# Supabase credentials (never commit real keys)
+js/config.js
+.env
+.env.local
