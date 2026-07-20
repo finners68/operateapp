@@ -1,5 +1,18 @@
 # Operate — Supabase setup
 
+**New to Supabase?** Start with the click-by-click guide: [`SETUP_WALKTHROUGH.md`](SETUP_WALKTHROUGH.md)
+
+Quick wire-up after creating a project:
+
+```powershell
+.\scripts\setup-dev.ps1
+npx serve . -l 3000
+```
+
+Verify: `node scripts/verify-supabase.mjs`
+
+---
+
 ## 1. Create projects
 
 Create two Supabase projects (recommended):
