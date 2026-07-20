@@ -5,7 +5,11 @@ let realtimeChannel = null;
 let syncStatus = 'off';
 let syncLastSync = 0;
 
-function syncActive(){ return isSupabaseConfigured() && !!currentOrgId; }
+function syncActive(){
+  if(!isSupabaseConfigured() || !currentOrgId) return false;
+  if(getAllowedUserId() && (!authUser || !isAllowedUser(authUser))) return false;
+  return true;
+}
 
 function syncStatusLabel(){
   if(!isSupabaseConfigured()) return 'Local only';

@@ -22,6 +22,31 @@ function getFixedOrgId(){
   return id;
 }
 
+function getAllowedUserId(){
+  const id = OPERATE_CONFIG && OPERATE_CONFIG.OPERATE_ALLOWED_USER_ID;
+  if(!id || typeof id !== 'string' || id.includes('YOUR-USER')) return null;
+  return id;
+}
+
+function getAllowedEmail(){
+  const e = OPERATE_CONFIG && OPERATE_CONFIG.OPERATE_ALLOWED_EMAIL;
+  if(!e || typeof e !== 'string' || e.includes('@example')) return null;
+  return e.trim().toLowerCase();
+}
+
+function isSingleAccountMode(){
+  return !!(getFixedOrgId() && getAllowedUserId());
+}
+
+function isAllowedUser(user){
+  if(!user) return false;
+  const allowedId = getAllowedUserId();
+  if(allowedId && user.id !== allowedId) return false;
+  const allowedEmail = getAllowedEmail();
+  if(allowedEmail && (user.email || '').trim().toLowerCase() !== allowedEmail) return false;
+  return true;
+}
+
 let _supa = null;
 function getSupabase(){
   if(!isSupabaseConfigured()) return null;

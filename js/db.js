@@ -64,6 +64,7 @@ async function ensureOrgForUser(){
   const sb = getSupabase();
   const user = await getAuthUser();
   if(!sb || !user) throw new Error('no_auth');
+  if(getAllowedUserId() && !isAllowedUser(user)) throw new Error('wrong_user');
 
   const fixed = getFixedOrgId();
   if(fixed){
@@ -84,6 +85,8 @@ async function ensureOrgForUser(){
     setStoredOrgId(memberships[0].org_id);
     return memberships[0].org_id;
   }
+
+  if(getAllowedUserId() || getFixedOrgId()) throw new Error('not_linked_to_dev_org');
 
   const { data: org, error: orgErr } = await sb.from('orgs').insert({ name: 'My Tour' }).select('id').single();
   if(orgErr) throw orgErr;
