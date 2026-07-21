@@ -6,6 +6,7 @@ function boot(){
   render();
   if(appLockActive()) requireUnlock('app', ()=>render());
   initGestures();
+  initKeyboard();
   // live tick for countdowns
   setInterval(()=>{ if((store.tab==='home'||store.tab==='calendar') && !overlay && !sheetEl) renderView(); }, 30000);
 }
@@ -66,6 +67,16 @@ function calMoveAnimated(dir){
   const grid = document.querySelector('.cal-grid') || document.querySelector('.cal-month');
   if(grid){ grid.style.animation='none'; void grid.offsetWidth; grid.style.animation = (dir>0?'calSlideR':'calSlideL')+' .26s cubic-bezier(.2,.8,.2,1)'; }
 }
+function initKeyboard(){
+  document.addEventListener('keydown', (e)=>{
+    if(e.key !== 'Escape') return;
+    const tag = document.activeElement?.tagName;
+    if(tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+    if(document.getElementById('viewer')?.classList.contains('on')){ closeViewer(); return; }
+    if(sheetEl) closeSheet();
+    else if(overlay) back();
+  });
+}
 /* ---------- Navigation ---------- */
 const TABS = [
   {id:'home', label:'Home', icon:'home'},
@@ -88,7 +99,9 @@ function back(){
 }
 
 function renderNav(){
-  $('#nav').innerHTML = TABS.map(t=>`
+  $('#nav').innerHTML = `
+    <div class="nav-brand"><span class="nav-brand-mark">O</span><span class="nav-brand-name">Operate</span></div>
+  ` + TABS.map(t=>`
     <button class="nav-item ${store.tab===t.id&&!overlay?'active':''}" onclick="go('${t.id}')">
       <span class="ic">${ICON[t.icon](25)}</span><span>${t.label}</span>
     </button>`).join('');

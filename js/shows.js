@@ -61,6 +61,8 @@ function viewHome(){
     ${run?activeTripBanner(run):''}
     ${hero}
 
+    <div class="desktop-home-grid">
+    <div class="desktop-home-main">
     <div class="section">
       <div class="section-head"><div class="section-title">Quick add</div></div>
       <div class="qa-grid">
@@ -77,6 +79,21 @@ function viewHome(){
       </div>
     </div>
 
+    ${(()=>{ const st=computeStats(); if(!st.shows) return ''; return `
+    <div class="section">
+      <div class="section-head"><div class="section-title">Your schedule</div><div class="section-link" onclick="openView('stats')">All stats</div></div>
+      <div class="card tap" onclick="openView('stats')" style="padding:0;overflow:hidden">
+        <div style="display:grid;grid-template-columns:1fr 1fr">
+          ${homeStat(ICON.music(15),'var(--accent-2)', st.upcoming, 'shows ahead', 0)}
+          ${homeStat(ICON.plane(15),'var(--blue)', st.flightHrs+'h', 'in the air', 1)}
+          ${homeStat(ICON.trips(15),'var(--green)', st.daysAway, 'days away', 2)}
+          ${homeStat(ICON.globe(15),'var(--pink)', st.cities, 'cities', 3)}
+        </div>
+      </div>
+    </div>`; })()}
+    </div>
+
+    <div class="desktop-home-side">
     ${todayChecklist.length?`
     <div class="section">
       <div class="section-head"><div class="section-title">Today's checklist</div><div class="section-link" onclick="openView('event','${e.id}')">Open show</div></div>
@@ -100,19 +117,9 @@ function viewHome(){
       <div class="section-head"><div class="section-title">Recent notes</div><div class="section-link" onclick="go('notes')">All</div></div>
       <div class="card flush">${recentNotes.map(noteRow).join('')}</div>
     </div>`:''}
+    </div>
+    </div>
 
-    ${(()=>{ const st=computeStats(); if(!st.shows) return ''; return `
-    <div class="section">
-      <div class="section-head"><div class="section-title">Your schedule</div><div class="section-link" onclick="openView('stats')">All stats</div></div>
-      <div class="card tap" onclick="openView('stats')" style="padding:0;overflow:hidden">
-        <div style="display:grid;grid-template-columns:1fr 1fr">
-          ${homeStat(ICON.music(15),'var(--accent-2)', st.upcoming, 'shows ahead', 0)}
-          ${homeStat(ICON.plane(15),'var(--blue)', st.flightHrs+'h', 'in the air', 1)}
-          ${homeStat(ICON.trips(15),'var(--green)', st.daysAway, 'days away', 2)}
-          ${homeStat(ICON.globe(15),'var(--pink)', st.cities, 'cities', 3)}
-        </div>
-      </div>
-    </div>`; })()}
     <div class="spacer"></div>
   </div>`;
 }
@@ -211,6 +218,8 @@ function viewEvent(id){
       ${showQuickLinks(e)}
     </div>
 
+    <div class="desktop-detail-grid">
+    <div class="desktop-detail-col">
 
     ${(()=>{ const linked=store.ideas.filter(x=>x.eventId===e.id); if(!e.content && !linked.length) return '';
       return `<div class="block"><div class="block-title">Content to capture ${linked.length?`<button class="add" onclick="attachIdeaPickForEvent('${e.id}')">Add idea</button>`:''}</div>
@@ -221,10 +230,8 @@ function viewEvent(id){
       return `<div class="block"><div class="block-title">Content to capture <button class="add" onclick="attachIdeaPickForEvent('${e.id}')">Add idea</button></div>
       <div class="card tap" onclick="sheetEvent('${e.id}')" style="text-align:center;color:var(--text-3);padding:18px;font-weight:600">${ICON.camera(20)} Set what to film / capture</div></div>`; })()}
 
-    <!-- Money -->
     ${moneyBlock(e)}
 
-    <!-- Venue -->
     <div class="block"><div class="block-title">Venue</div>
       <div class="card flush">
         <div class="info-line" onclick="sheetVenueAddr('${e.id}')"><div class="ic">${ICON.pin(17)}</div><div class="tx"><div class="k">Address</div><div class="v addr-trunc">${esc(e.venueAddr || (e.city?cleanVenue(e.venue)+' · '+e.city+(e.country?', '+e.country:''):cleanVenue(e.venue)) || 'Tap to add')}</div></div>
@@ -255,6 +262,9 @@ function viewEvent(id){
         return legHtml+manual;
       })()}
     </div>
+
+    </div>
+    <div class="desktop-detail-col">
 
     <!-- Flights — populated from the show's flight legs + any manual flights -->
     <div class="block"><div class="block-title">Flights <button class="add" onclick="sheetFlight('${e.id}')">Add</button></div>
@@ -310,7 +320,11 @@ function viewEvent(id){
       <div class="card"><textarea class="textarea" placeholder="Anything to remember about this show…" onblur="saveEventNotes('${e.id}',this.value)">${esc(e.notes||'')}</textarea></div>
     </div>
 
+    </div>
+    </div>
+
     <!-- Trip Mode -->
+    <div class="desktop-detail-foot">
     ${(()=>{ const run=runOf(e.id); const otherShows=run?run.shows.length-1:0;
       const active = store.activeShowId && runOf(store.activeShowId) && runOf(store.activeShowId).key===(run&&run.key);
       return `<div class="section" style="margin-top:20px">
@@ -320,6 +334,7 @@ function viewEvent(id){
         ${otherShows>0?`<div class="hint" style="text-align:left;padding:8px 2px 0">Auto-grouped with ${otherShows} nearby show${otherShows>1?'s':''} into one tour — no naming needed.</div>`:''}
       </div>`; })()}
     <div class="section"><button class="btn danger" onclick="confirmDeleteEvent('${e.id}')">${ICON.trash(17)} Delete show</button></div>
+    </div>
     <div class="spacer"></div><div class="spacer"></div>
   </div>`;
 }

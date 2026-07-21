@@ -42,16 +42,7 @@ function viewCalendar(){
   if(calSel){ listEvents = (byDate[calSel]||[]).slice().sort((a,b)=>(a.setTime||'').localeCompare(b.setTime||'')); }
   else { listEvents = store.events.filter(e=>{ const d=parseDT(e.date); return d&&d.getFullYear()===y&&d.getMonth()===m; }).sort((a,b)=>a.date.localeCompare(b.date)); }
 
-  return `
-  <div class="lg-header">
-    <div><div class="lg-title">Calendar</div><div class="lg-sub">${sel.events().length} shows · master schedule</div></div>
-    <div style="display:flex;gap:9px;align-items:center">
-      <button class="header-btn" style="width:auto;padding:0 12px;gap:4px;border-radius:20px" onclick="toggleCalGrid()">${ICON.calendar(17)} ${(calGridOpen?ICON.chevUp:ICON.chevDown)(15)}</button>
-      <button class="header-btn" onclick="sheetEvent()">${ICON.plus(22)}</button>
-    </div>
-  </div>
-  <div class="screen-pad">
-    ${calGridOpen?`<div class="card fade-in" style="padding:16px 14px 14px">
+  const calGridCard = `<div class="card fade-in cal-grid-expanded" style="padding:16px 14px 14px">
       <div class="cal-head">
         <div class="cal-month">${MONTHS[m]} ${y}</div>
         <div class="cal-nav">
@@ -61,18 +52,35 @@ function viewCalendar(){
         </div>
       </div>
       <div class="cal-grid">${DOW.map(d=>`<div class="cal-dow">${d[0]}</div>`).join('')}${cells}</div>
-    </div>`:`
-    <div class="card tap fade-in" style="padding:12px 16px;display:flex;align-items:center;gap:12px" onclick="toggleCalGrid()">
+    </div>`;
+  const calCollapsedStrip = `<div class="card tap fade-in cal-grid-collapsed-strip" style="padding:12px 16px;display:flex;align-items:center;gap:12px" onclick="toggleCalGrid()">
       <div style="color:var(--accent-2)">${ICON.calendar(18)}</div>
       <div style="flex:1"><b style="font-size:15px">${MONTHS[m]} ${y}</b></div>
       <div class="cal-nav"><button onclick="event.stopPropagation();calMove(-1)">${ICON.chevL(16)}</button><button onclick="event.stopPropagation();calMove(1)">${ICON.chevR(16)}</button></div>
       <span style="color:var(--text-3)">${ICON.chevDown(18)}</span>
-    </div>`}
+    </div>`;
 
-    ${(()=>{ const n=store.events.filter(showPassed).length; return n?`<div class="past-link" onclick="openView('pastshows')">${ICON.archive(13)} Past shows · ${n}${ICON.chevR(13)}</div>`:''; })()}
-    <div class="section" ${calGridOpen?'':'style="margin-top:8px"'}>
-      <div class="section-head"><div class="section-title">${calSel?relDay(calSel):MONTHS[m]+' Agenda'}</div>${calSel?`<div class="section-link" onclick="clearCalSel()">Show whole month</div>`:''}</div>
-      ${monthAgenda(y,m,todayStr)}
+  return `
+  <div class="lg-header">
+    <div><div class="lg-title">Calendar</div><div class="lg-sub">${sel.events().length} shows · master schedule</div></div>
+    <div style="display:flex;gap:9px;align-items:center">
+      <button class="header-btn" style="width:auto;padding:0 12px;gap:4px;border-radius:20px" onclick="toggleCalGrid()">${ICON.calendar(17)} ${(calGridOpen?ICON.chevUp:ICON.chevDown)(15)}</button>
+      <button class="header-btn" onclick="sheetEvent()">${ICON.plus(22)}</button>
+    </div>
+  </div>
+  <div class="screen-pad">
+    <div class="desktop-cal-split ${calGridOpen?'':'cal-grid-collapsed'}">
+      <div class="desktop-cal-grid-col">
+        ${calGridCard}
+        ${calCollapsedStrip}
+      </div>
+      <div class="desktop-cal-agenda-col">
+        ${(()=>{ const n=store.events.filter(showPassed).length; return n?`<div class="past-link" onclick="openView('pastshows')">${ICON.archive(13)} Past shows · ${n}${ICON.chevR(13)}</div>`:''; })()}
+        <div class="section" style="margin-top:8px">
+          <div class="section-head"><div class="section-title">${calSel?relDay(calSel):MONTHS[m]+' Agenda'}</div>${calSel?`<div class="section-link" onclick="clearCalSel()">Show whole month</div>`:''}</div>
+          ${monthAgenda(y,m,todayStr)}
+        </div>
+      </div>
     </div>
     <div class="spacer"></div>
   </div>`;
