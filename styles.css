@@ -738,6 +738,9 @@ img{-webkit-touch-callout:none;}
 .shows-month{font-size:12px;font-weight:750;color:var(--text-3);text-transform:uppercase;letter-spacing:.05em;margin:16px 4px 8px;}
 .show-row .show-row-edit{width:34px;height:34px;flex-shrink:0;align-self:center;color:var(--text-3);}
 .show-row .show-row-edit:active{color:var(--accent-2);}
+.show-date-ic{flex-direction:column;gap:0;line-height:1;font-variant-numeric:tabular-nums;padding:4px 2px;}
+.show-date-ic .show-date-day{font-size:17px;font-weight:850;letter-spacing:-0.03em;line-height:1.05;}
+.show-date-ic .show-date-mon{font-size:9px;font-weight:750;text-transform:uppercase;letter-spacing:.05em;opacity:.88;margin-top:2px;}
 .prio-head{font-size:12px;font-weight:750;color:var(--text-3);text-transform:uppercase;letter-spacing:.05em;margin:16px 4px 10px;display:flex;align-items:center;gap:7px;}
 .prio-head .pd{width:8px;height:8px;border-radius:50%;}
 

@@ -62,8 +62,12 @@ function showListRow(e){
   const meta = [e.city, e.country].filter(Boolean).map(x=>esc(x)).join(', ');
   const timeBit = e.setTime ? esc(e.setTime)+(e.endTime?' – '+esc(e.endTime):'') : '—';
   const detail = [meta, timeBit].filter(Boolean).join(' · ');
+  const d = parseDT(e.date);
+  const dateIc = d
+    ? `<div class="ic show-date-ic" style="background:${col}22;color:${col}" aria-label="${esc(fmtDate(e.date))}"><span class="show-date-day">${d.getDate()}</span><span class="show-date-mon">${MON[d.getMonth()]}</span></div>`
+    : `<div class="ic show-date-ic" style="background:${col}22;color:${col}">—</div>`;
   return `<div class="row show-row" onclick="openView('event','${e.id}')">
-    <div class="ic" style="background:${col}22;color:${col}">${ICON.music(18)}</div>
+    ${dateIc}
     <div class="body"><b>${esc(e.venue||'Untitled show')}${statusTag}</b><span>${detail}</span></div>
     <button type="button" class="header-btn show-row-edit" onclick="event.stopPropagation();sheetEvent('${e.id}')" title="Edit show">${ICON.edit(16)}</button>
     <div class="trail"><span style="font-size:12px;font-weight:600">${esc(relDay(e.date))}</span>${ICON.chevR(15)}</div>
