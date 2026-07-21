@@ -359,9 +359,16 @@ function sheetEvent(eid){
   const e = eid? sel.event(eid):null;
   const today = new Date();
   const defDate = e?e.date:`${today.getFullYear()}-${pad(today.getMonth()+1)}-${pad(today.getDate())}`;
+  const initCat = e?e.color:'purple';
+  const initC = CATS[initCat]||CATS.purple;
   const swatches = Object.entries(CATS).map(([k,v])=>`<div class="sw" style="background:${v}" data-cat="${k}" onclick="pickCat(this)"></div>`).join('');
   openSheet(eid?'Edit show':'New show', `
-    <div class="field"><label>Venue</label><input id="ev-venue" class="input" placeholder="e.g. Shelter" value="${esc(e?e.venue:'')}"></div>
+    <div class="dhero sheet-event-preview" id="ev-preview" style="background:linear-gradient(155deg,${initC}33,var(--card) 65%);border-color:${initC}44">
+      <div class="cat-bar" style="background:${initC}"></div>
+      <div class="sheet-event-tone" style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:${initC}">${eid?'Edit show':'New show'}</div>
+      <div id="ev-preview-venue" style="font-size:20px;font-weight:800;margin-top:4px">${esc(e?e.venue:'Venue name')}</div>
+    </div>
+    <div class="field"><label>Venue</label><input id="ev-venue" class="input" placeholder="e.g. Shelter" value="${esc(e?e.venue:'')}" oninput="updateEventPreviewVenue()"></div>
     <div class="row-2">
       <div class="field"><label>City</label><input id="ev-city" class="input" placeholder="Amsterdam" value="${esc(e?e.city:'')}"></div>
       <div class="field"><label>Country</label><input id="ev-country" class="input" placeholder="Netherlands" value="${esc(e?e.country:'')}"></div>
@@ -381,9 +388,40 @@ function sheetEvent(eid){
     <button class="btn" id="ev-save" onclick="saveEvent('${eid||''}')">${eid?'Save changes':'Add show'}</button>
     <div class="spacer"></div>
   `);
-  setTimeout(()=>{ const cat=e?e.color:'purple'; const el=document.querySelector(`#ev-cat .sw[data-cat="${cat}"]`); if(el) el.classList.add('on'); },40);
+  setTimeout(()=>{
+    const cat = e?e.color:'purple';
+    const el = document.querySelector(`#ev-cat .sw[data-cat="${cat}"]`);
+    if(el) el.classList.add('on');
+    applyEventSheetColor(cat);
+  },40);
 }
-function pickCat(el){ el.parentElement.querySelectorAll('.sw').forEach(s=>s.classList.remove('on')); el.classList.add('on'); haptic(); }
+function applyEventSheetColor(cat){
+  const c = CATS[cat]||CATS.purple;
+  const preview = document.getElementById('ev-preview');
+  if(preview){
+    preview.style.background = `linear-gradient(155deg,${c}33,var(--card) 65%)`;
+    preview.style.borderColor = c + '44';
+    const bar = preview.querySelector('.cat-bar');
+    if(bar) bar.style.background = c;
+    const toneLabel = preview.querySelector('.sheet-event-tone');
+    if(toneLabel) toneLabel.style.color = c;
+  }
+  if(sheetEl){
+    sheetEl.style.setProperty('--sheet-tone', c);
+    sheetEl.classList.add('sheet-toned');
+  }
+}
+function updateEventPreviewVenue(){
+  const v = val('ev-venue') || 'Venue name';
+  const el = document.getElementById('ev-preview-venue');
+  if(el) el.textContent = v;
+}
+function pickCat(el){
+  el.parentElement.querySelectorAll('.sw').forEach(s=>s.classList.remove('on'));
+  el.classList.add('on');
+  haptic();
+  if(el.dataset.cat) applyEventSheetColor(el.dataset.cat);
+}
 function segPick(el){ el.parentElement.querySelectorAll('button').forEach(b=>b.classList.remove('on')); el.classList.add('on'); haptic(); }
 function getSeg(id){ const el=document.querySelector('#'+id+' button.on'); return el?el.dataset.v:''; }
 function getCat(id){ const el=document.querySelector('#'+id+' .sw.on'); return el?el.dataset.cat:'purple'; }
@@ -396,18 +434,21 @@ function saveEvent(eid){
     setTime:rawVal('ev-set'), arrival:rawVal('ev-arr'), status:getSeg('ev-status')||'confirmed',
     content:val('ev-content'), color:getCat('ev-cat'),
   };
-  withButton($('#ev-save'), ()=>{
-    if(eid){ Object.assign(sel.event(eid), data); }
-    else {
-      const e = Object.assign({id:uid('evt'), artist:store.settings.artistName, tripId:null,
-        venueAddr:'', hotel:null, flights:[], driver:null, promoter:null, notes:'',
-        checklist:[], timeline:[], attachments:[],
-        finance:{fee:0, currency:store.settings.baseCurrency, dealType:'Guarantee', expenses:[], perDiem:0, commission:0, paid:false}}, data);
-      store.events.push(e);
-    }
-    persist(); closeSheet(); renderView();
-    if(!eid) setTimeout(()=>offerAssign(store.events[store.events.length-1].id), 400);
-  }, eid?'Show updated':'Show added');
+  const btn = document.getElementById('ev-save');
+  if(btn) btn.disabled = true;
+  if(eid){ Object.assign(sel.event(eid), data); }
+  else {
+    const ev = Object.assign({id:uid('evt'), artist:store.settings.artistName, tripId:null,
+      venueAddr:'', hotel:null, flights:[], driver:null, promoter:null, notes:'',
+      checklist:[], timeline:[], attachments:[],
+      finance:{fee:0, currency:store.settings.baseCurrency, dealType:'Guarantee', expenses:[], perDiem:0, commission:0, paid:false}}, data);
+    store.events.push(ev);
+  }
+  persist();
+  closeSheet(true);
+  renderView();
+  toast(eid?'Show updated':'Show added','check');
+  if(btn) btn.disabled = false;
 }
 function offerAssign(eid){ /* shows auto-group into tours — nothing to assign */ }
 
