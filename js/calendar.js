@@ -3,10 +3,16 @@
 function passEditable(){
   return store.tab==='calendar' || (overlay && overlay.type==='event');
 }
-function passThumb(pass, delAction){
+function passThumb(itemId, pass, delAction, flightId){
   const del = delAction?`<div class="del-badge" onclick="event.stopPropagation();${delAction}">${ICON.x(13)}</div>`:'';
-  if(pass.kind==='image') return `<div class="thumb" onclick="openViewer('${pass.data}')"><img src="${pass.data}">${del}</div>`;
-  return `<div class="thumb"><div class="pdf">${ICON.file(26)}<span>${esc(pass.name||'Pass')}</span></div>${del}</div>`;
+  const open = flightId
+    ? `openPassByRef('${itemId}','${pass.id}','${flightId}')`
+    : `openPassByRef('${itemId}','${pass.id}')`;
+  if(pass.kind==='image'){
+    const src = esc(pass.data || '');
+    return `<div class="thumb" onclick="${open}"><img src="${src}" alt="">${del}</div>`;
+  }
+  return `<div class="thumb" onclick="${open}"><div class="pdf">${ICON.file(26)}<span>${esc(pass.name||'Pass')}</span></div>${del}</div>`;
 }
 
 /* ============================================================
@@ -238,7 +244,7 @@ function journeyRow(l){
     </div>
     ${btns?`<div class="jitem-actions">${btns}</div>`:''}
     ${isFlight?flightInfoWidget(l):''}
-    ${isFlight&&l.passes&&l.passes.length?`<div class="jitem-passes"><div class="thumb-row">${l.passes.map(p=>passThumb(p, passEditable()?`delItemPass('${l.id}','${p.id}')`:null)).join('')}</div></div>`:''}
+    ${isFlight&&l.passes&&l.passes.length?`<div class="jitem-passes"><div class="thumb-row">${l.passes.map(p=>passThumb(l.id, p, passEditable()?`delItemPass('${l.id}','${p.id}')`:null)).join('')}</div></div>`:''}
   </div>`;
 }
 /* Journey grouped by day, chronological, each day collapsible */

@@ -63,7 +63,10 @@ function scheduleRemoteReload(){
     dbRemoteLoading = true;
     try{
       await loadFromSupabase(currentOrgId);
-      if(!sheetEl && storeSnapshot() !== before) render();
+      if(!sheetEl && storeSnapshot() !== before){
+        renderNav();
+        renderView();
+      }
       syncSetStatus('synced');
       syncMarkLastSync();
     }catch(e){

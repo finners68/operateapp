@@ -184,8 +184,24 @@ function tlActions(s){
   if(isDriver&&sh&&sh.driver&&sh.driver.phone){ btns.push(`<button class="tl-btn" onclick="event.stopPropagation();callNumber('${sh.driver.phone}')">${ICON.phone(15)}</button>`); }
   return btns.join('');
 }
-function viewItemPass(itemId){ const it=store.events.find(x=>x.id===itemId); const p=(it&&it.passes||[])[0]; if(!p){toast('No pass','x');return;} if(p.kind==='image') openViewer(p.data); else toast('PDF pass saved on device','file'); }
-function uploadItemPass(itemId, input){ toast('Uploading pass…','ticket'); readFile(input, att=>{ const it=store.events.find(x=>x.id===itemId); if(!it) return; (it.passes=it.passes||[]).push(att); persist(); renderView(); toast('Boarding pass added','check'); hostImg(att, it.showId||it.id, 'pass', itemId); }); }
+function viewItemPass(itemId, passId){
+  if(passId) openPassByRef(itemId, passId);
+  else {
+    const it=store.events.find(x=>x.id===itemId);
+    const p=(it&&it.passes||[])[0];
+    if(!p){toast('No pass','x');return;}
+    openPassByRef(itemId, p.id);
+  }
+}
+function uploadItemPass(itemId, input){
+  toast('Uploading pass…','ticket');
+  readFile(input, att=>{
+    attachPassToLogisticsItem(itemId, att).then(ok=>{
+      if(ok) toast('Boarding pass added','check');
+      else toast('Could not attach pass','x');
+    });
+  });
+}
 /* Group the run timeline by day (clearer, day-by-day) */
 function runTimelineByDay(run){
   const rows=runTimeline(run); const byDay={};

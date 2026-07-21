@@ -337,9 +337,29 @@ function relDay(dstr){
   const d = parseDT(dstr); if(!d) return '';
   const today = new Date(); today.setHours(0,0,0,0);
   const dd = new Date(d); dd.setHours(0,0,0,0);
-  const diff = Math.round((dd-today)/86400000);
-  if(diff===0) return 'Today'; if(diff===1) return 'Tomorrow'; if(diff===-1) return 'Yesterday';
-  if(diff>1 && diff<7) return 'In '+diff+' days'; if(diff<0) return Math.abs(diff)+' days ago';
+  const diff = Math.round((dd - today) / 86400000);
+  if(diff === 0) return 'Today';
+  if(diff === 1) return 'Tomorrow';
+  if(diff === -1) return 'Yesterday';
+  if(diff > 1){
+    if(diff <= 6) return 'In ' + diff + ' days';
+    if(diff <= 41){
+      const w = Math.round(diff / 7) || 1;
+      return 'In ' + w + ' week' + (w === 1 ? '' : 's');
+    }
+    const mo = Math.round(diff / 30) || 1;
+    return 'In ' + mo + ' month' + (mo === 1 ? '' : 's');
+  }
+  const abs = Math.abs(diff);
+  if(abs <= 6) return abs + ' day' + (abs === 1 ? '' : 's') + ' ago';
+  if(abs <= 41){
+    const w = Math.round(abs / 7) || 1;
+    return w + ' week' + (w === 1 ? '' : 's') + ' ago';
+  }
+  if(abs <= 365){
+    const mo = Math.round(abs / 30) || 1;
+    return mo + ' month' + (mo === 1 ? '' : 's') + ' ago';
+  }
   return fmtDate(dstr);
 }
 function nowMs(){ return Date.now(); }

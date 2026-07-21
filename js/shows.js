@@ -69,7 +69,7 @@ function showListRow(e){
   return `<div class="row show-row" onclick="openView('event','${e.id}')">
     ${dateIc}
     <div class="body"><b>${esc(e.venue||'Untitled show')}${statusTag}</b><span>${detail}</span></div>
-    <button type="button" class="header-btn show-row-edit" onclick="event.stopPropagation();sheetEvent('${e.id}')" title="Edit show">${ICON.edit(16)}</button>
+    <button type="button" class="header-btn show-row-edit" onclick="event.stopPropagation();eventMenu('${e.id}')" title="Edit show">${ICON.edit(16)}</button>
     <div class="trail"><span style="font-size:12px;font-weight:600">${esc(relDay(e.date))}</span>${ICON.chevR(15)}</div>
   </div>`;
 }
@@ -109,8 +109,8 @@ function viewHome(){
 
   // Today's checklist = next event's checklist
   const todayChecklist = e && e.checklist && e.checklist.length ? e.checklist : [];
-  const ideasWaiting = sel.ideas().filter(i=>!i.done).slice(0,4);
-  const recentNotes = sel.notes().slice(0,3);
+  const ideasWaiting = sel.ideas().filter(i=>!i.done).slice(0,2);
+  const recentNotes = sel.notes().slice(0,2);
   const today0 = new Date(); today0.setHours(0,0,0,0);
   const trips = runs().filter(r=>parseDT(r.end)>=today0).slice(0,2);
 
@@ -146,11 +146,12 @@ function viewHome(){
       </div>
     </div>` : '';
 
-  const asideBits = [
+  const feedPanels = [
+    statsBlock,
     todayChecklist.length ? homePanel('Today\'s checklist', `<button type="button" class="home-panel-link" onclick="openView('event','${e.id}')">Open show</button>`,
-      `<div class="card flush home-inset">${todayChecklist.slice(0,5).map(i=>checkRow(i, `toggleEventCheck('${e.id}','${i.id}')`)).join('')}</div>`) : '',
+      `<div class="card flush home-inset">${todayChecklist.slice(0,4).map(i=>checkRow(i, `toggleEventCheck('${e.id}','${i.id}')`)).join('')}</div>`) : '',
     ideasWaiting.length ? homePanel('Ideas', `<button type="button" class="home-panel-link" onclick="go('ideas')">All</button>`,
-      `<div class="card flush home-inset">${ideasWaiting.slice(0,3).map(homeIdeaRow).join('')}</div>`) : '',
+      `<div class="card flush home-inset">${ideasWaiting.map(homeIdeaRow).join('')}</div>`) : '',
     trips.length ? homePanel('Upcoming tours', `<button type="button" class="home-panel-link" onclick="go('trips')">All</button>`,
       `<div class="card flush home-inset">${trips.map(runRow).join('')}</div>`) : '',
     recentNotes.length ? homePanel('Recent notes', `<button type="button" class="home-panel-link" onclick="go('notes')">All</button>`,
@@ -163,34 +164,31 @@ function viewHome(){
     ${run?activeTripBanner(run):''}
     <section class="home-focus">${hero}</section>
 
-    <div class="home-layout desktop-home-grid">
-      <div class="home-main desktop-home-main">
-        <div class="home-panel">
-          <div class="home-panel-head">Shortcuts</div>
-          <div class="home-panel-body">
-            <div class="home-sc-group">
-              <div class="home-sc-label">Tour</div>
-              <div class="home-sc-row">
-                ${homeShortcut(`go('shows')`, ICON.music(18), 'var(--accent-2)', 'Shows')}
-                ${homeShortcut(`go('trips')`, ICON.trips(18), 'var(--pink)', 'Tours')}
-                ${homeShortcut(`openView('itinerary')`, ICON.file(18), 'var(--blue)', 'Itinerary')}
-              </div>
+    <div class="home-layout">
+      <div class="home-panel">
+        <div class="home-panel-head">Shortcuts</div>
+        <div class="home-panel-body">
+          <div class="home-sc-group">
+            <div class="home-sc-label">Tour</div>
+            <div class="home-sc-row home-sc-grid">
+              ${homeShortcut(`go('shows')`, ICON.music(18), 'var(--accent-2)', 'Shows')}
+              ${homeShortcut(`go('trips')`, ICON.trips(18), 'var(--pink)', 'Tours')}
+              ${homeShortcut(`openView('itinerary')`, ICON.file(18), 'var(--blue)', 'Itinerary')}
             </div>
-            <div class="home-sc-group">
-              <div class="home-sc-label">Desk</div>
-              <div class="home-sc-row">
-                ${homeShortcut(`sheetIdea()`, ICON.idea(18), 'var(--orange)', 'New idea')}
-                ${homeShortcut(`sheetNote()`, ICON.note(18), 'var(--blue)', 'New note')}
-                ${homeShortcut(`openView('finance')`, ICON.coins(18), 'var(--green)', 'Finance')}
-                ${homeShortcut(`openView('invoices')`, ICON.receipt(18), 'var(--blue)', 'Invoice')}
-                ${homeShortcut(`openView('contacts')`, ICON.users(18), 'var(--accent-2)', 'Contacts')}
-              </div>
+          </div>
+          <div class="home-sc-group">
+            <div class="home-sc-label">Desk</div>
+            <div class="home-sc-row home-sc-grid">
+              ${homeShortcut(`sheetIdea()`, ICON.idea(18), 'var(--orange)', 'New idea')}
+              ${homeShortcut(`sheetNote()`, ICON.note(18), 'var(--blue)', 'New note')}
+              ${homeShortcut(`openView('finance')`, ICON.coins(18), 'var(--green)', 'Finance')}
+              ${homeShortcut(`openView('invoices')`, ICON.receipt(18), 'var(--blue)', 'Invoice')}
+              ${homeShortcut(`openView('contacts')`, ICON.users(18), 'var(--accent-2)', 'Contacts')}
             </div>
           </div>
         </div>
-        ${statsBlock}
       </div>
-      ${asideBits ? `<aside class="home-aside desktop-home-side">${asideBits}</aside>` : ''}
+      ${feedPanels ? `<div class="home-feed">${feedPanels}</div>` : ''}
     </div>
 
     <div class="spacer"></div>
@@ -568,7 +566,7 @@ function flightLine(eid,f){
     ${detailTx(esc(f.code||'Flight'), esc(route), meta)}
     <label class="header-btn" style="width:34px;height:34px;align-self:center">${ICON.ticket(16)}<input type="file" accept="image/*,application/pdf" style="display:none" onchange="uploadPass('${eid}','${f.id}',this)"></label>
     <button class="del" style="opacity:.5;align-self:center" onclick="delFlight('${eid}','${f.id}')">${ICON.x(15)}</button>
-  </div>${f.passes&&f.passes.length?`<div style="padding:0 16px 12px"><div class="thumb-row">${f.passes.map(p=>passThumb(p, passEditable()?`delFlightPass('${eid}','${f.id}','${p.id}')`:null)).join('')}</div></div>`:''}`;
+  </div>${f.passes&&f.passes.length?`<div style="padding:0 16px 12px"><div class="thumb-row">${f.passes.map(p=>passThumb(eid, p, passEditable()?`delFlightPass('${eid}','${f.id}','${p.id}')`:null, f.id)).join('')}</div></div>`:''}`;
 }
 function attachThumb(eid,a){
   const inner = a.kind==='image'?`<img src="${a.data}">`:`<div class="pdf">${ICON.file(26)}<span>${esc(a.name||'File')}</span></div>`;
@@ -585,6 +583,14 @@ function sheetEvent(eid){
   const initCat = e?e.color:'purple';
   const initC = CATS[initCat]||CATS.purple;
   const swatches = Object.entries(CATS).map(([k,v])=>`<div class="sw" style="background:${v}" data-cat="${k}" onclick="pickCat(this)"></div>`).join('');
+  const editExtras = eid ? `
+    <div class="row-2">
+      <div class="field"><label>End time</label><input id="ev-end" type="time" class="input" value="${e.endTime||''}"></div>
+      <div class="field"><label>Artist</label><input id="ev-artist" class="input" placeholder="${esc(store.settings.artistName||'Artist')}" value="${esc(e.artist||'')}"></div>
+    </div>
+    <div class="field"><label>Venue address</label><textarea id="ev-addr" class="textarea" placeholder="Full address for maps & day sheet">${esc(e.venueAddr||'')}</textarea></div>
+    <div class="field"><label>Internal notes</label><textarea id="ev-notes" class="textarea" placeholder="Team-only notes">${esc(e.notes||'')}</textarea></div>
+  ` : '';
   openSheet(eid?'Edit show':'New show', `
     <div class="dhero sheet-event-preview" id="ev-preview" style="background:linear-gradient(155deg,${initC}33,var(--card) 65%);border-color:${initC}44">
       <div class="cat-bar" style="background:${initC}"></div>
@@ -607,7 +613,9 @@ function sheetEvent(eid){
       </div>
     </div>
     <div class="field"><label>Content to capture</label><input id="ev-content" class="input" placeholder="e.g. 2x reels · crowd clip" value="${esc(e?e.content:'')}"></div>
+    ${editExtras}
     <div class="field"><label>Colour</label><div class="swatches" id="ev-cat">${swatches}</div></div>
+    ${eid?`<button type="button" class="btn secondary" style="margin-bottom:10px" onclick="closeSheet();eventMenu('${eid}')">${ICON.edit(16)} All show sections…</button>`:''}
     <button class="btn" id="ev-save" onclick="saveEvent('${eid||''}')">${eid?'Save changes':'Add show'}</button>
     <div class="spacer"></div>
   `);
@@ -657,6 +665,14 @@ function saveEvent(eid){
     setTime:rawVal('ev-set'), arrival:rawVal('ev-arr'), status:getSeg('ev-status')||'confirmed',
     content:val('ev-content'), color:getCat('ev-cat'),
   };
+  if(eid){
+    Object.assign(data, {
+      endTime: rawVal('ev-end'),
+      venueAddr: val('ev-addr'),
+      notes: val('ev-notes'),
+      artist: val('ev-artist') || store.settings.artistName,
+    });
+  }
   const btn = document.getElementById('ev-save');
   if(btn) btn.disabled = true;
   if(eid){ Object.assign(sel.event(eid), data); }
@@ -919,6 +935,65 @@ function saveEventContact(eid,cid){
   }, 'Contact saved');
 }
 function delEventContact(eid,cid){ const e=sel.event(eid); e.contacts=(e.contacts||[]).filter(x=>x.id!==cid); persist(); closeSheet(); renderView(); toast('Contact removed','trash'); }
+function sheetShowChecklist(eid){
+  const e = sel.event(eid);
+  if(!e) return;
+  const rows = (e.checklist||[]).length
+    ? `<div class="card flush">${e.checklist.map(i=>`<div class="check ${i.done?'done':''}"><div class="box" onclick="toggleEventCheck('${eid}','${i.id}')">${ICON.check(15)}</div><div class="lbl" onclick="toggleEventCheck('${eid}','${i.id}')">${esc(i.label)}</div><button class="del" onclick="delEventCheck('${eid}','${i.id}')">${ICON.x(16)}</button></div>`).join('')}</div>`
+    : `<div class="hint" style="padding:8px 4px 12px">No items yet — add what you need to prep.</div>`;
+  openSheet('Checklist', `
+    ${rows}
+    <button type="button" class="btn secondary" onclick="addEventCheckPrompt('${eid}')">${ICON.plus(16)} Add item</button>
+    <div class="spacer"></div>
+  `, { full: true });
+}
+function sheetShowTimeline(eid){
+  const e = sel.event(eid);
+  if(!e) return;
+  const tl = e.timeline || [];
+  const rows = tl.length
+    ? `<div class="card flush">${tl.map(s=>`<div class="check ${s.done?'done':''}"><div class="box" onclick="toggleShowTimelineStep('${eid}','${s.id}')">${ICON.check(15)}</div><div class="lbl" onclick="toggleShowTimelineStep('${eid}','${s.id}')"><b>${esc(s.time||'—')}</b> ${esc(s.title)}${s.sub?`<span style="display:block;font-size:12px;color:var(--text-3);font-weight:600;margin-top:2px">${esc(s.sub)}</span>`:''}</div><button class="del" onclick="delShowTimelineStep('${eid}','${s.id}')">${ICON.x(16)}</button></div>`).join('')}</div>`
+    : `<div class="hint" style="padding:8px 4px 12px">Build the running order for show day.</div>`;
+  openSheet('Day timeline', `
+    ${rows}
+    <button type="button" class="btn secondary" onclick="sheetShowTimelineStep('${eid}')">${ICON.plus(16)} Add step</button>
+    <div class="spacer"></div>
+  `, { full: true });
+}
+function sheetShowTimelineStep(eid){
+  openSheet('Add timeline step', `
+    <div class="row-2">
+      <div class="field" style="flex:0 0 40%"><label>Time</label><input id="est-time" type="time" class="input"></div>
+      <div class="field"><label>What</label><input id="est-title" class="input" placeholder="Soundcheck"></div>
+    </div>
+    <div class="field"><label>Detail (optional)</label><input id="est-sub" class="input" placeholder="Venue, note…"></div>
+    <button class="btn" id="est-save" onclick="saveShowTimelineStep('${eid}')">Add step</button>
+    <div class="spacer"></div>
+  `);
+}
+function saveShowTimelineStep(eid){
+  const e = sel.event(eid);
+  const time = rawVal('est-time');
+  const title = val('est-title');
+  if(!title){ toast('What happens?','x'); return; }
+  withButton($('#est-save'), ()=>{
+    (e.timeline = e.timeline || []).push({ id: uid('tl'), time: time||'', title, sub: val('est-sub'), done: false });
+    e.timeline.sort((a,b)=>(a.time||'').localeCompare(b.time||''));
+    persist(); closeSheet(); sheetShowTimeline(eid);
+  }, 'Step added');
+}
+function toggleShowTimelineStep(eid,sid){
+  const e = sel.event(eid);
+  const s = e && (e.timeline||[]).find(x=>x.id===sid);
+  if(!s) return;
+  s.done = !s.done; haptic(); persist(); renderView();
+}
+function delShowTimelineStep(eid,sid){
+  const e = sel.event(eid);
+  if(!e || !e.timeline) return;
+  e.timeline = e.timeline.filter(x=>x.id!==sid);
+  persist(); renderView(); toast('Step removed','trash');
+}
 function sheetTimelineStep(tid){
   openSheet('Add timeline step', `
     <div class="row-2">

@@ -18,7 +18,7 @@ function markMigrated(orgId){ try{ localStorage.setItem(migrationKey(orgId), '1'
 
 function storeSnapshot(){
   if(!store) return '';
-  return (store._seq || 0) + '|' + (store.events?.length || 0) + '|' + (store.tab || '') + '|' + (store.activeShowId || '');
+  return (store._seq || 0) + '|' + (store.events?.length || 0) + '|' + (store.ideas?.length || 0) + '|' + (store.notes?.length || 0);
 }
 
 function dedupeEventsById(events){
@@ -57,6 +57,83 @@ function mergePassesById(...lists){
   const m = new Map();
   lists.flat().forEach(p => { if(p && p.id) m.set(p.id, p); });
   return [...m.values()];
+}
+function passHasDisplayData(p){
+  if(!p) return false;
+  if(p._storagePath) return true;
+  const d = p.data;
+  return typeof d === 'string' && d.length > 0 && (d.startsWith('data:') || d.startsWith('http'));
+}
+function mergePassesKeepLocal(remoteList, localList){
+  const merged = mergePassesById(remoteList, localList);
+  const localById = new Map((localList || []).filter(p => p && p.id).map(p => [p.id, p]));
+  return merged.map(p => {
+    const local = localById.get(p.id);
+    if(!local) return p;
+    if(passHasDisplayData(p)) return p;
+    if(!passHasDisplayData(local)) return p;
+    return { ...p, data: local.data, _storagePath: p._storagePath || local._storagePath };
+  });
+}
+function applyLocalPassMerge(prevEvents, nextEvents){
+  if(!prevEvents?.length || !nextEvents?.length) return nextEvents;
+  const prevById = new Map(prevEvents.map(e => [e.id, e]));
+  nextEvents.forEach(e => {
+    const prev = prevById.get(e.id);
+    if(!prev) return;
+    if(e.kind === 'travel' || e.kind === 'stay'){
+      e.passes = mergePassesKeepLocal(e.passes || [], prev.passes || []);
+    }
+    if((e.kind || 'show') === 'show' && e.flights && prev.flights){
+      const prevFl = new Map(prev.flights.map(f => [f.id, f]));
+      e.flights.forEach(f => {
+        const pf = prevFl.get(f.id);
+        if(pf) f.passes = mergePassesKeepLocal(f.passes || [], pf.passes || []);
+      });
+    }
+  });
+  return nextEvents;
+}
+async function attachPassToLogisticsItem(itemId, att){
+  const it = store.events.find(x => x.id === itemId);
+  if(!it || !att) return false;
+  (it.passes = it.passes || []).push(att);
+  if(syncActive()) await ensurePassUploaded(att, it.showId || it.id, it.id);
+  persist();
+  renderView();
+  queueSync();
+  return true;
+}
+async function attachPassToShowFlight(showId, flightId, att){
+  const e = sel.event(showId);
+  const f = e && e.flights && e.flights.find(x => x.id === flightId);
+  if(!f || !att) return false;
+  (f.passes = f.passes || []).push(att);
+  if(syncActive()) await ensurePassUploaded(att, showId, flightId);
+  persist();
+  renderView();
+  queueSync();
+  return true;
+}
+function openPassByRef(itemId, passId, flightId){
+  let p;
+  if(flightId){
+    const e = sel.event(itemId);
+    const f = e && e.flights && e.flights.find(x => x.id === flightId);
+    p = f && (f.passes || []).find(x => x.id === passId);
+  } else {
+    const it = store.events.find(x => x.id === itemId);
+    p = it && (it.passes || []).find(x => x.id === passId);
+  }
+  if(!p){ toast('Pass not found','x'); return; }
+  if(p.kind === 'image'){
+    if(!passHasDisplayData(p)){ toast('Pass not found','x'); return; }
+    if(p._storagePath && (!p.data || (!p.data.startsWith('data:') && !p.data.startsWith('http')))){
+      resolveAttachment(p).then(() => openViewer(p.data));
+      return;
+    }
+    openViewer(p.data);
+  } else toast('PDF pass saved on device','file');
 }
 async function ensurePassUploaded(att, showLegacyId, parentLegacyId){
   if(!att) return null;
@@ -427,6 +504,7 @@ async function pushToSupabase(orgId){
 async function loadFromSupabase(orgId){
   const sb = getSupabase();
   if(!sb || !orgId) return;
+  const prevEvents = store?.events ? store.events.slice() : [];
   dbRemoteLoading = true;
   try{
     const [
@@ -536,7 +614,8 @@ async function loadFromSupabase(orgId){
     for(const l of (logistics || [])){
       const fromJson = (l.passes || []).map(p => ({
         id: p.id || p.legacy_id || uid('pp'), name: p.name, kind: p.kind || 'image',
-        _storagePath: passStoragePath(p), data: passStoragePath(p) || p.data
+        _storagePath: p._storagePath || passStoragePath(p),
+        data: p._storagePath || passStoragePath(p) || (typeof p.data === 'string' ? p.data : null)
       }));
       const fromFiles = passesByLogistic[l.legacy_id] || [];
       const passes = mergePassesById(fromJson, fromFiles);
@@ -553,13 +632,15 @@ async function loadFromSupabase(orgId){
 
     events.sort((a, b) => (a.date || '').localeCompare(b.date || ''));
     events = dedupeEventsById(events);
+    applyLocalPassMerge(prevEvents, events);
 
     const st = settingsRow || {};
+    const uiTab = store?.tab;
     store = {
       _seq: st.seq || 1,
       activeTripId: st.active_trip_id,
       activeShowId: st.active_show_id,
-      tab: st.tab || 'home',
+      tab: uiTab || 'home',
       settings: st.settings || {},
       artists: st.artists || [],
       events,
