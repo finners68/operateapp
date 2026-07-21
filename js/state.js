@@ -99,6 +99,7 @@ const PRIO = {high:'#ff453a', med:'#ff9f0a', low:'#32d74b'};
 
 /* ---------- Persistence layer (swap-able) ---------- */
 const DB_KEY = 'artisthq.v2';
+const DB_BACKUP_KEY = DB_KEY + '.prelogistics';
 const db = {
   read(){ try{ return JSON.parse(localStorage.getItem(DB_KEY)); }catch(e){ return null; } },
   write(state){ try{ localStorage.setItem(DB_KEY, JSON.stringify(state)); }catch(e){ toast('Storage full','x'); } },
@@ -164,10 +165,50 @@ function inferIconFromLogisticTitle(title){
 }
 function parseLogisticRouteFromLegacy(title){
   if(!title) return null;
-  let rest = String(title).replace(/^(flight|transfer|ferry|driver|hotel|stay|walk)\s*[-–:]\s*/i,'').trim();
+  let rest = String(title).replace(/^\[[^\]]*\]\s*-?\s*/,'').trim();
+  rest = rest.replace(/^(flight|transfer|ferry|driver|hotel|stay|walk)\s*(?:\d+\s*)?[-–:]\s*/i,'').trim();
   const m = rest.match(/^(.+?)\s*(?:→|->|>|–|-)\s*(.+)$/i);
   if(!m) return null;
   return { from: m[1].trim(), to: m[2].trim() };
+}
+function isNormalizedLogisticTitle(title){
+  return ['Flight','Hotel','Driver','Ferry','Walk','Transfer'].includes(title);
+}
+function extractFlightNoFromTitle(title){
+  const t = String(title||'');
+  const m = t.match(/\b([A-Z]{2,3}\s*\d{2,4}[A-Z]?)\b/i);
+  if(!m) return '';
+  const code = m[1].replace(/\s/g,'').toUpperCase();
+  return /^[A-Z0-9]{2,}\d/.test(code) ? code : '';
+}
+function extractLegacyLogisticFields(e){
+  let source = e.legacyTitle;
+  if(!source && e.title && !isNormalizedLogisticTitle(e.title)) source = e.title;
+  if(!source) return;
+  if(!e.legacyTitle) e.legacyTitle = source;
+  const raw = String(source).trim();
+  if(!e.icon) e.icon = inferIconFromLogisticTitle(raw);
+  const ic = e.icon || 'plane';
+  if(!e.from && !e.to){
+    const leg = parseLogisticRouteFromLegacy(raw);
+    if(leg){
+      e.from = leg.from.toUpperCase();
+      e.to = leg.to.toUpperCase();
+    } else if(ic==='car'){
+      let name = raw.replace(/^\[[^\]]*\]\s*-?\s*/,'').replace(/^driver\s*[-–:]?\s*/i,'').trim();
+      if(name && !/^transfer$/i.test(name) && !/>|→/.test(name)) e.driverName = name;
+    }
+  }
+  if(!e.flightNo && ic==='plane') e.flightNo = extractFlightNoFromTitle(raw);
+}
+function extractLegacyStayFields(e){
+  let source = e.legacyTitle;
+  if(!source && e.title && !isNormalizedLogisticTitle(e.title)) source = e.title;
+  if(!source) return;
+  if(!e.legacyTitle) e.legacyTitle = source;
+  if(!e.place && /^hotel/i.test(source)){
+    e.place = String(source).replace(/^\[[^\]]*\]\s*-?\s*/,'').replace(/^hotel\s*[-–:]?\s*/i,'').trim();
+  }
 }
 function unpackLogisticInfoFields(e){
   const raw = e.info;
@@ -181,6 +222,12 @@ function unpackLogisticInfoFields(e){
       if(o.flightNo) e.flightNo = o.flightNo;
       if(o.phone) e.phone = o.phone;
       if(o.whatsapp) e.whatsapp = o.whatsapp;
+      if(o.driverName) e.driverName = o.driverName;
+      if(o.legacyTitle) e.legacyTitle = o.legacyTitle;
+      if(o.gate != null) e.gate = o.gate;
+      if(o.terminal != null) e.terminal = o.terminal;
+      if(o.fstatus != null) e.fstatus = o.fstatus;
+      if(o.delay != null) e.delay = o.delay;
       e.info = o.note || '';
     } else if(e.kind==='stay'){
       if(o.place) e.place = o.place;
@@ -191,8 +238,16 @@ function unpackLogisticInfoFields(e){
   }catch(err){}
 }
 function packLogisticInfo(e){
-  if(e.kind==='travel' && (e.from || e.to || e.flightNo || e.phone || e.whatsapp)){
-    return JSON.stringify({ v:2, from:e.from||'', to:e.to||'', flightNo:e.flightNo||'', note:e.info||'', phone:e.phone||'', whatsapp:e.whatsapp||'' });
+  if(e.kind==='travel'){
+    const has = e.from || e.to || e.flightNo || e.phone || e.whatsapp || e.driverName || e.gate || e.terminal || e.fstatus || e.delay || e.info;
+    if(has){
+      return JSON.stringify({
+        v:2, from:e.from||'', to:e.to||'', flightNo:e.flightNo||'', note:e.info||'',
+        phone:e.phone||'', whatsapp:e.whatsapp||'', driverName:e.driverName||'',
+        legacyTitle:e.legacyTitle||'',
+        gate:e.gate||'', terminal:e.terminal||'', fstatus:e.fstatus||'', delay:e.delay||''
+      });
+    }
   }
   if(e.kind==='stay' && (e.place || e.addr || e.bookingRef)){
     return JSON.stringify({ v:2, place:e.place||'', checkIn:e.info||'', addr:e.addr||'', bookingRef:e.bookingRef||'' });
@@ -203,17 +258,11 @@ function normalizeLogisticItem(e){
   if(!e || (e.kind!=='travel' && e.kind!=='stay')) return;
   unpackLogisticInfoFields(e);
   if(e.kind==='travel'){
-    if(!e.icon) e.icon = inferIconFromLogisticTitle(e.title);
-    if(!e.from && !e.to && e.title){
-      const leg = parseLogisticRouteFromLegacy(e.title);
-      if(leg){ e.from = leg.from.toUpperCase(); e.to = leg.to.toUpperCase(); }
-    }
+    extractLegacyLogisticFields(e);
     e.title = logisticTypeLabel(e);
   }
   if(e.kind==='stay'){
-    if(/^hotel/i.test(e.title||'') && !e.place){
-      e.place = String(e.title).replace(/^hotel\s*[-–:]?\s*/i,'').trim();
-    }
+    extractLegacyStayFields(e);
     e.title = 'Hotel';
   }
 }
@@ -241,6 +290,15 @@ function logisticDisplayLines(l){
   normalizeLogisticItem(l);
   if(l.kind==='stay'){
     return { title: logisticTypeLabel(l), primary: l.place || '', meta: [l.info, l.addr].filter(Boolean).join(' · ') };
+  }
+  const isDrv = (l.icon||'plane')==='car' || !!l.driverName;
+  if(isDrv){
+    const route = logisticRoute(l);
+    return {
+      title: 'Driver',
+      primary: l.driverName || route,
+      meta: [l.driverName && route ? route : '', logisticMetaLine(l)].filter(Boolean).join(' · ')
+    };
   }
   return { title: logisticTypeLabel(l), primary: logisticRoute(l), meta: logisticMetaLine(l) };
 }
@@ -777,6 +835,72 @@ function assignLogistics(){
     e.showId = best?best.id:null;
   });
 }
+function snapshotPreLogisticsBackup(){
+  try{
+    if(localStorage.getItem(DB_BACKUP_KEY)) return;
+    const raw = localStorage.getItem(DB_KEY);
+    if(!raw || !/(FLIGHT|DRIVER|HOTEL|FERRY)\s*[-–]/i.test(raw)) return;
+    localStorage.setItem(DB_BACKUP_KEY, raw);
+  }catch(e){}
+}
+function logisticsMatchKey(e){
+  const icon = e.kind==='stay' ? 'bed' : (e.icon || 'plane');
+  return `${e.date}|${e.start||''}|${e.end||''}|${icon}|${e.kind}`;
+}
+function logisticsNeedsRecovery(e){
+  if(e.kind==='stay') return isNormalizedLogisticTitle(e.title) && !e.place;
+  if(e.kind==='travel'){
+    if(!isNormalizedLogisticTitle(e.title)) return false;
+    return !(e.from||e.to||e.flightNo||e.driverName);
+  }
+  return false;
+}
+function recoverLogisticsMetadata(){
+  let n = 0;
+  try{
+    const bak = localStorage.getItem(DB_BACKUP_KEY);
+    if(bak){
+      const old = JSON.parse(bak);
+      const byId = {};
+      (old.events||[]).forEach(o=>{ if(o.id) byId[o.id]=o; });
+      store.events.forEach(e=>{
+        if(e.kind!=='travel' && e.kind!=='stay') return;
+        const o = byId[e.id];
+        if(!o) return;
+        if(o.title && !isNormalizedLogisticTitle(o.title)){
+          e.legacyTitle = o.title; n++;
+        }
+        if(o.passes?.length && (!e.passes||!e.passes.length)){
+          e.passes = JSON.parse(JSON.stringify(o.passes)); n++;
+        }
+      });
+    }
+  }catch(err){}
+  if(typeof buildTourLogisticsCatalog === 'function'){
+    const byKey = {};
+    buildTourLogisticsCatalog().forEach(row=>{
+      const k = `${row.date}|${row.start||''}|${row.end||''}|${row.icon}|${row.kind}`;
+      (byKey[k]=byKey[k]||[]).push(row);
+    });
+    store.events.forEach(e=>{
+      if(!logisticsNeedsRecovery(e)) return;
+      const hits = byKey[logisticsMatchKey(e)];
+      if(!hits || hits.length!==1) return;
+      if(!e.legacyTitle) e.legacyTitle = hits[0].title;
+      if(e.kind==='stay' && hits[0].info && !e.info) e.info = hits[0].info;
+      n++;
+    });
+  }
+  return n;
+}
+function restoreMissingLogistics(){
+  const n = recoverLogisticsMetadata();
+  store.events.forEach(e=>{ if(e.kind==='travel'||e.kind==='stay') normalizeLogisticItem(e); });
+  if(store.events.some(e=>(e.kind==='travel'||e.kind==='stay') && e.showId===undefined)) assignLogistics();
+  persist();
+  renderView();
+  toast(n ? `Restored details on ${n} journey item${n>1?'s':''}` : 'No extra journey details found to restore','check');
+}
 /* Forward-compat: backfill fields added in later versions */
 function migrate(){
   const s=store.settings;
@@ -796,6 +920,8 @@ function migrate(){
   if(!s.security) s.security={enabled:false,pin:'',scope:'finance',biometric:false};
   if(!store.packing) store.packing = (s.packingTemplate||[]).map(x=>({id:uid('pk'),label:x,done:false}));
   store.events.forEach(e=>{ if((e.kind||'show')==='show' && !e.finance) e.finance={fee:0,currency:s.baseCurrency,dealType:'Guarantee',expenses:[],perDiem:0,commission:0,paid:false}; });
+  snapshotPreLogisticsBackup();
+  recoverLogisticsMetadata();
   store.events.forEach(e=>{ if(e.kind==='travel'||e.kind==='stay') normalizeLogisticItem(e); });
   if(store.events.some(e=>(e.kind==='travel'||e.kind==='stay') && e.showId===undefined)) assignLogistics();
   persist();

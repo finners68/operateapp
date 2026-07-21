@@ -515,7 +515,13 @@ function uploadAttachment(eid,input){ toast('Uploading…','image'); readFile(in
 function delAttachment(eid,aid){ const e=sel.event(eid); e.attachments=e.attachments.filter(a=>a.id!==aid); persist(); renderView(); toast('Removed','trash'); }
 function uploadPass(eid,fid,input){ toast('Uploading pass…','ticket'); readFile(input, att=>{ const e=sel.event(eid); const f=e.flights.find(x=>x.id===fid); (f.passes=f.passes||[]).push(att); persist(); renderView(); toast('Boarding pass added','check'); hostImg(att, eid, 'pass', fid); }); }
 function delFlightPass(eid,fid,pid){ const e=sel.event(eid); const f=e&&e.flights&&e.flights.find(x=>x.id===fid); if(f&&f.passes){ f.passes=f.passes.filter(p=>p.id!==pid); } persist(); renderView(); toast('Boarding pass removed','trash'); }
-function delItemPass(itemId){ const it=store.events.find(x=>x.id===itemId); if(it){ it.passes=[]; } persist(); renderView(); toast('Boarding pass removed','trash'); }
+function delItemPass(itemId, passId){
+  const it=store.events.find(x=>x.id===itemId);
+  if(!it || !it.passes) return;
+  if(passId) it.passes=it.passes.filter(p=>p.id!==passId);
+  else it.passes=[];
+  persist(); renderView(); toast('Boarding pass removed','trash');
+}
 function removeHotel(eid){ const e=sel.event(eid); if(e){ e.hotel=null; } persist(); closeSheet(); renderView(); toast('Hotel removed','trash'); }
 function removeDriver(eid){ const e=sel.event(eid); if(e){ e.driver=null; } persist(); closeSheet(); renderView(); toast('Driver removed','trash'); }
 function removePromoter(eid){ const e=sel.event(eid); if(e){ e.promoter=null; } persist(); closeSheet(); renderView(); toast('Contact removed','trash'); }
@@ -637,6 +643,7 @@ function viewSettings(){
     <div class="set-group">
       <div class="set-row tap" onclick="exportData()"><div class="ic" style="background:var(--card-2);color:var(--text-2)">${ICON.file(17)}</div><div class="body"><b>Export my data</b><span>Download a backup of everything you've entered</span></div><div class="trail">${ICON.chevR(15)}</div></div>
       <label class="set-row tap"><div class="ic" style="background:var(--card-2);color:var(--text-2)">${ICON.archive(17)}</div><div class="body"><b>Restore from backup</b><span>Import a backup file to bring your data here</span></div><div class="trail">${ICON.chevR(15)}</div><input type="file" accept="application/json,.json" style="display:none" onchange="importData(this)"></label>
+      <div class="set-row tap" onclick="restoreMissingLogistics()"><div class="ic" style="background:var(--blue-soft);color:var(--blue)">${ICON.map(17)}</div><div class="body"><b>Restore journey details</b><span>Re-fill routes, hotels &amp; flight labels from backup or tour catalog</span></div><div class="trail">${ICON.chevR(15)}</div></div>
       <div class="set-row tap" onclick="confirmReset()"><div class="ic" style="background:var(--red-soft);color:var(--red)">${ICON.trash(17)}</div><div class="body"><b style="color:var(--red)">Reset all data</b><span>Reload the imported schedule</span></div><div class="trail">${ICON.chevR(15)}</div></div>
     </div>
     <div class="hint">Operate · local-first with optional cloud sync via Supabase.</div>

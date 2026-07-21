@@ -401,6 +401,8 @@ select.input{appearance:none;-webkit-appearance:none;background-image:url("data:
 .ag-log-b .detail-primary{display:block;font-size:14px;font-weight:600;color:var(--text-2);margin-top:3px;}
 .ag-log-b .detail-meta{display:block;font-size:13px;font-weight:600;color:var(--text-3);margin-top:4px;font-variant-numeric:tabular-nums;}
 .jitem-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:11px;padding-left:58px;}
+.jitem-passes{margin-top:10px;padding-left:58px;padding-right:4px;}
+.jitem-passes .thumb-row{display:flex;gap:8px;overflow-x:auto;padding-bottom:2px;}
 
 /* ---------- Calendar ---------- */
 .cal-head{display:flex;align-items:center;justify-content:space-between;padding:4px 6px 14px;}

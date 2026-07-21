@@ -31,6 +31,65 @@ function dedupeEventsById(events){
 }
 
 function mimeToKind(m){ return (m||'').startsWith('image/') ? 'image' : 'pdf'; }
+function mimeFromPassKind(kind){
+  if(kind === 'pdf') return 'application/pdf';
+  if(kind === 'image') return 'image/jpeg';
+  return kind || 'application/octet-stream';
+}
+function passStoragePath(p){
+  if(!p) return null;
+  if(p._storagePath) return p._storagePath;
+  const d = p.data;
+  if(typeof d === 'string' && d && !d.startsWith('data:') && !d.startsWith('http')) return d;
+  return null;
+}
+function serializePassForSync(p){
+  const path = passStoragePath(p);
+  return { id: p.id, name: p.name || null, kind: p.kind || 'image', _storagePath: path };
+}
+function passFromFileRow(f){
+  return {
+    id: f.legacy_id, name: f.name, kind: mimeToKind(f.mime_type),
+    _storagePath: f.storage_path, data: f.storage_path
+  };
+}
+function mergePassesById(...lists){
+  const m = new Map();
+  lists.flat().forEach(p => { if(p && p.id) m.set(p.id, p); });
+  return [...m.values()];
+}
+async function ensurePassUploaded(att, showLegacyId, parentLegacyId){
+  if(!att) return null;
+  const existing = passStoragePath(att);
+  if(existing){ att._storagePath = existing; return existing; }
+  if(!att.data || !att.data.startsWith('data:')) return null;
+  if(!isSupabaseConfigured() || !currentOrgId) return null;
+  try{
+    const up = await uploadFileDataUrl(att.data, showLegacyId || parentLegacyId, 'pass', att.id, parentLegacyId);
+    att._storagePath = up.path;
+    att.data = up.url;
+    return up.path;
+  }catch(e){ return null; }
+}
+async function uploadPassForLogisticsItem(itemId, att){
+  const it = store.events.find(x => x.id === itemId);
+  if(!it || !att) return;
+  const path = await ensurePassUploaded(att, it.showId || it.id, it.id);
+  if(path){ persist(); renderView(); }
+}
+
+function hostImg(att, showLegacyId, fileRole, parentLegacyId){
+  if(!isSupabaseConfigured() || !currentOrgId) return;
+  if(!att || typeof att.data !== 'string' || !att.data.startsWith('data:')) return;
+  const logItem = parentLegacyId && store.events.find(x => x.id === parentLegacyId && (x.kind === 'travel' || x.kind === 'stay'));
+  if(fileRole === 'pass' && logItem){
+    uploadPassForLogisticsItem(parentLegacyId, att).catch(()=>{});
+    return;
+  }
+  uploadFileDataUrl(att.data, showLegacyId, fileRole || 'attachment', att.id, parentLegacyId)
+    .then(({ path, url }) => { att.data = url; att._storagePath = path; persist(); })
+    .catch(() => {});
+}
 
 async function signedUrlForPath(path){
   if(!path || path.startsWith('data:') || path.startsWith('http')) return path;
@@ -66,14 +125,6 @@ async function uploadFileDataUrl(dataUrl, showLegacyId, fileRole, legacyId, pare
   if(error) throw error;
   const url = await signedUrlForPath(path);
   return { path, url, mime: blob.type || 'application/octet-stream' };
-}
-
-function hostImg(att, showLegacyId, fileRole, parentLegacyId){
-  if(!isSupabaseConfigured() || !currentOrgId) return;
-  if(!att || typeof att.data !== 'string' || !att.data.startsWith('data:')) return;
-  uploadFileDataUrl(att.data, showLegacyId, fileRole || 'attachment', att.id, parentLegacyId)
-    .then(({ path, url }) => { att.data = url; att._storagePath = path; persist(); })
-    .catch(() => {});
 }
 
 async function ensureOrgForUser(){
@@ -182,7 +233,7 @@ function logisticsToRow(e, orgId, showUuidMap){
     info: packLogisticInfo(e),
     all_day: !!e.allDay,
     done: !!e.done,
-    passes: e.passes || []
+    passes: (e.passes || []).map(serializePassForSync)
   };
 }
 
@@ -234,12 +285,28 @@ async function pushToSupabase(orgId){
     const showUuidMap = {};
     (showDb || []).forEach(r => { showUuidMap[r.legacy_id] = r.id; });
 
-    // Logistics
-    const logRows = logistics.map(l => logisticsToRow(l, org, showUuidMap));
+    const fileRows = [];
+
+    // Logistics — upload passes to Storage + show_files; keep path refs in jsonb
+    const logRows = [];
+    for(const l of logistics){
+      const sid = l.showId && showUuidMap[l.showId] ? showUuidMap[l.showId] : null;
+      for(const pp of (l.passes || [])){
+        const path = await ensurePassUploaded(pp, l.showId || l.id, l.id);
+        if(path){
+          fileRows.push({
+            org_id: org, show_id: sid, legacy_id: pp.id, file_role: 'pass',
+            name: pp.name || null, mime_type: mimeFromPassKind(pp.kind),
+            storage_path: path, parent_legacy_id: l.id, sort_order: fileRows.length
+          });
+        }
+      }
+      logRows.push(logisticsToRow(l, org, showUuidMap));
+    }
     if(logRows.length) await sb.from('logistics_items').upsert(logRows, { onConflict: 'org_id,legacy_id' });
 
     // Child rows per show
-    const flightRows = [], passRows = [], fileRows = [], chkRows = [], tlRows = [];
+    const flightRows = [], passRows = [], chkRows = [], tlRows = [];
     for(const s of shows){
       const sid = showUuidMap[s.id];
       if(!sid) continue;
@@ -291,16 +358,11 @@ async function pushToSupabase(orgId){
         const fid = flightUuidMap[f.id];
         if(!fid) continue;
         for(const pp of (f.passes || [])){
-          let path = pp._storagePath || null;
-          if(!path && pp.data && pp.data.startsWith('data:')){
-            try{
-              const up = await uploadFileDataUrl(pp.data, s.id, 'pass', pp.id, f.id);
-              path = up.path; pp._storagePath = path; pp.data = up.url;
-            }catch(e){}
-          }
+          const path = await ensurePassUploaded(pp, s.id, f.id);
+          if(!path) continue;
           passRows.push({
             org_id: org, flight_id: fid, legacy_id: pp.id,
-            name: pp.name || null, mime_type: pp.kind || null,
+            name: pp.name || null, mime_type: mimeFromPassKind(pp.kind),
             storage_path: path, sort_order: passRows.length
           });
         }
@@ -328,6 +390,14 @@ async function pushToSupabase(orgId){
     const localTripIds = new Set((store.trips || []).map(t => t.id));
     const localIdeaIds = new Set((store.ideas || []).map(x => x.id));
     const localNoteIds = new Set((store.notes || []).map(x => x.id));
+    const localFileIds = new Set();
+    shows.forEach(s => {
+      (s.attachments || []).forEach(a => { if(a.id) localFileIds.add(a.id); });
+      (s.flights || []).forEach(f => (f.passes || []).forEach(p => { if(p.id) localFileIds.add(p.id); }));
+    });
+    logistics.forEach(l => (l.passes || []).forEach(p => { if(p.id) localFileIds.add(p.id); }));
+    const localFlightPassIds = new Set();
+    shows.forEach(s => (s.flights || []).forEach(f => (f.passes || []).forEach(p => { if(p.id) localFlightPassIds.add(p.id); })));
 
     async function deleteOrphans(table, localSet){
       const { data: rows } = await sb.from(table).select('legacy_id').eq('org_id', org);
@@ -339,6 +409,8 @@ async function pushToSupabase(orgId){
     await deleteOrphans('trips', localTripIds);
     await deleteOrphans('ideas', localIdeaIds);
     await deleteOrphans('notes', localNoteIds);
+    await deleteOrphans('show_files', localFileIds);
+    await deleteOrphans('show_flight_passes', localFlightPassIds);
 
     db.write(store);
     syncSetStatus('synced');
@@ -399,7 +471,13 @@ async function loadFromSupabase(orgId){
     });
 
     const filesByShow = {};
+    const passesByLogistic = {};
     (files || []).forEach(f => {
+      if(f.file_role === 'pass' && f.parent_legacy_id){
+        const leg = f.parent_legacy_id;
+        (passesByLogistic[leg] = passesByLogistic[leg] || []).push(passFromFileRow(f));
+        return;
+      }
       const leg = showUuidToLegacy[f.show_id];
       if(!leg) return;
       (filesByShow[leg] = filesByShow[leg] || []).push(f);
@@ -456,16 +534,19 @@ async function loadFromSupabase(orgId){
     }
 
     for(const l of (logistics || [])){
-      const passes = (l.passes || []).map(p => ({
+      const fromJson = (l.passes || []).map(p => ({
         id: p.id || p.legacy_id || uid('pp'), name: p.name, kind: p.kind || 'image',
-        data: p.data, _storagePath: p._storagePath
+        _storagePath: passStoragePath(p), data: passStoragePath(p) || p.data
       }));
+      const fromFiles = passesByLogistic[l.legacy_id] || [];
+      const passes = mergePassesById(fromJson, fromFiles);
       for(const p of passes) await resolveAttachment(p);
       const it = {
         id: l.legacy_id, kind: l.kind, date: l.item_date, showId: l.show_legacy_id,
         title: l.title, start: l.start_time, end: l.end_time, icon: l.icon,
         info: l.info, allDay: l.all_day, done: l.done, passes
       };
+      if(l.title && !isNormalizedLogisticTitle(l.title)) it.legacyTitle = l.title;
       normalizeLogisticItem(it);
       events.push(it);
     }

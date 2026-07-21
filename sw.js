@@ -1,5 +1,5 @@
 /* Operate service worker — app-shell offline cache */
-const VERSION = 'operate-v19';
+const VERSION = 'operate-v22';
 const SHELL = [
   './',
   './index.html',
@@ -7,6 +7,7 @@ const SHELL = [
   './manifest.json',
   './js/config.js',
   './js/supabase.js',
+  './js/tour-logistics-catalog.js',
   './js/state.js',
   './js/db.js',
   './js/sync.js',

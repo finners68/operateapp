@@ -1,6 +1,8 @@
 /* Removal of uploaded items is only offered while editing from the Calendar tab,
    never in Trip Mode (day-of view stays clean). */
-function passEditable(){ return store.tab==='calendar'; }
+function passEditable(){
+  return store.tab==='calendar' || (overlay && overlay.type==='event');
+}
 function passThumb(pass, delAction){
   const del = delAction?`<div class="del-badge" onclick="event.stopPropagation();${delAction}">${ICON.x(13)}</div>`:'';
   if(pass.kind==='image') return `<div class="thumb" onclick="openViewer('${pass.data}')"><img src="${pass.data}">${del}</div>`;
@@ -236,6 +238,7 @@ function journeyRow(l){
     </div>
     ${btns?`<div class="jitem-actions">${btns}</div>`:''}
     ${isFlight?flightInfoWidget(l):''}
+    ${isFlight&&l.passes&&l.passes.length?`<div class="jitem-passes"><div class="thumb-row">${l.passes.map(p=>passThumb(p, passEditable()?`delItemPass('${l.id}','${p.id}')`:null)).join('')}</div></div>`:''}
   </div>`;
 }
 /* Journey grouped by day, chronological, each day collapsible */
@@ -274,8 +277,11 @@ function toggleLogisticAddFields(){
   const kind = getSeg('al-kind') || 'travel';
   const tr = document.getElementById('al-travel-fields');
   const st = document.getElementById('al-stay-fields');
+  const icon = getSeg('al-icon') || 'plane';
+  const dr = document.getElementById('al-driver-name-wrap');
   if(tr) tr.style.display = kind==='travel' ? '' : 'none';
   if(st) st.style.display = kind==='stay' ? '' : 'none';
+  if(dr) dr.style.display = (kind==='travel' && icon==='car') ? '' : 'none';
 }
 function addLogisticFor(showId){
   const e=sel.event(showId);
@@ -285,7 +291,7 @@ function addLogisticFor(showId){
     </div></div>
     <div id="al-travel-fields">
       <div class="field"><label>Travel mode</label><div class="seg" id="al-icon">
-        ${[['plane','Flight'],['car','Driver'],['ferry','Ferry'],['walk','Walk']].map(([k,l],i)=>`<button type="button" data-v="${k}" class="${i===0?'on':''}" onclick="segPick(this)">${l}</button>`).join('')}
+        ${[['plane','Flight'],['car','Driver'],['ferry','Ferry'],['walk','Walk']].map(([k,l],i)=>`<button type="button" data-v="${k}" class="${i===0?'on':''}" onclick="segPick(this);toggleLogisticAddFields()">${l}</button>`).join('')}
       </div></div>
       <div class="field"><label>Flight number (optional)</label><input id="al-code" class="input" placeholder="KL1008"></div>
       <div class="row-2">
@@ -296,6 +302,7 @@ function addLogisticFor(showId){
         <div class="field"><label>Departure</label><input id="al-start" type="time" class="input"></div>
         <div class="field"><label>Arrival</label><input id="al-end" type="time" class="input"></div>
       </div>
+      <div class="field" id="al-driver-name-wrap" style="display:none"><label>Driver / company name</label><input id="al-driver-name" class="input" placeholder="e.g. Marco · Uber"></div>
     </div>
     <div id="al-stay-fields" style="display:none">
       <div class="field"><label>Hotel name</label><input id="al-place" class="input" placeholder="e.g. Hilton"></div>
@@ -319,7 +326,8 @@ function saveLogisticFor(showId){
     it.flightNo = (val('al-code')||'').toUpperCase().trim();
     it.start = rawVal('al-start');
     it.end = rawVal('al-end');
-    if(!it.from && !it.to && !it.start){ toast('Add a route or time','x'); return; }
+    if(icon==='car') it.driverName = val('al-driver-name');
+    if(!it.from && !it.to && !it.start && !it.driverName){ toast('Add a route, driver name, or time','x'); return; }
     it.title = logisticTypeLabel(it);
   } else {
     it.place = val('al-place');
@@ -342,6 +350,7 @@ function openItem(id){
     ${e.kind==='travel'?`
       <div class="field"><label>Travel mode</label><div class="seg" id="it-icon">${iconOpts.slice(0,4).map(ic=>`<button type="button" data-v="${ic}" class="${(e.icon||'plane')===ic?'on':''}" onclick="segPick(this)">${ic==='plane'?'Flight':ic==='car'?'Driver':ic==='ferry'?'Ferry':'Walk'}</button>`).join('')}</div></div>
       <div class="field"><label>Flight number (optional)</label><input id="it-code" class="input" value="${esc(e.flightNo||'')}" placeholder="KL1008"></div>
+      ${(e.icon||'plane')==='car'?`<div class="field"><label>Driver / company name</label><input id="it-driver-name" class="input" value="${esc(e.driverName||'')}" placeholder="Marco"></div>`:''}
       <div class="row-2">
         <div class="field"><label>From</label><input id="it-from" class="input" value="${esc(e.from||'')}" placeholder="AMS"></div>
         <div class="field"><label>To</label><input id="it-to" class="input" value="${esc(e.to||'')}" placeholder="ZTH"></div>
@@ -369,6 +378,8 @@ function saveItem(id){
     e.flightNo=(val('it-code')||'').toUpperCase().trim();
     e.start=rawVal('it-start');
     e.end=rawVal('it-end');
+    if((e.icon||'plane')==='car') e.driverName=val('it-driver-name');
+    else e.driverName='';
     e.title=logisticTypeLabel(e);
     if(isDriverItem(e)){ e.phone=val('it-phone'); e.whatsapp=val('it-wa'); }
   }
