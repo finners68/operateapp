@@ -65,7 +65,7 @@ function viewCalendar(){
       </div>
       <div class="cal-grid">${DOW.map(d=>`<div class="cal-dow">${d[0]}</div>`).join('')}${cells}</div>
     </div>`;
-  const calCollapsedStrip = `<div class="card tap${fadeClass} cal-grid-collapsed-strip" style="padding:12px 16px;display:flex;align-items:center;gap:12px" onclick="toggleCalGrid()">
+  const calCollapsedStrip = `<div class="card tap${fadeClass} cal-grid-collapsed-strip" onclick="toggleCalGrid()">
       <div style="color:var(--accent-2)">${ICON.calendar(18)}</div>
       <div style="flex:1"><b style="font-size:15px">${MONTHS[m]} ${y}</b></div>
       <div class="cal-nav"><button onclick="event.stopPropagation();calMove(-1)">${ICON.chevL(16)}</button><button onclick="event.stopPropagation();calMove(1)">${ICON.chevR(16)}</button></div>

@@ -343,8 +343,8 @@ function relDay(dstr){
   if(diff === -1) return 'Yesterday';
   if(diff > 1){
     if(diff <= 6) return 'In ' + diff + ' days';
-    if(diff <= 41){
-      const w = Math.round(diff / 7) || 1;
+    if(diff <= 28){
+      const w = Math.min(4, Math.max(1, Math.round(diff / 7)));
       return 'In ' + w + ' week' + (w === 1 ? '' : 's');
     }
     const mo = Math.round(diff / 30) || 1;
@@ -352,8 +352,8 @@ function relDay(dstr){
   }
   const abs = Math.abs(diff);
   if(abs <= 6) return abs + ' day' + (abs === 1 ? '' : 's') + ' ago';
-  if(abs <= 41){
-    const w = Math.round(abs / 7) || 1;
+  if(abs <= 28){
+    const w = Math.min(4, Math.max(1, Math.round(abs / 7)));
     return w + ' week' + (w === 1 ? '' : 's') + ' ago';
   }
   if(abs <= 365){
