@@ -4,6 +4,7 @@ let reloadTimer = null;
 let realtimeChannel = null;
 let syncStatus = 'off';
 let syncLastSync = 0;
+let focusListenersBound = false;
 
 function syncActive(){
   if(!isSupabaseConfigured() || !currentOrgId) return false;
@@ -53,13 +54,16 @@ function stopRealtime(){
 
 function scheduleRemoteReload(){
   if(dbRemoteLoading || dbSyncInProgress || sheetEl) return;
+  if(Date.now() - lastPushAt < PUSH_ECHO_MS) return;
   clearTimeout(reloadTimer);
   reloadTimer = setTimeout(async () => {
-    if(!currentOrgId || sheetEl) return;
+    if(!currentOrgId || sheetEl || dbSyncInProgress) return;
+    if(Date.now() - lastPushAt < PUSH_ECHO_MS) return;
+    const before = storeSnapshot();
     dbRemoteLoading = true;
     try{
       await loadFromSupabase(currentOrgId);
-      if(!sheetEl) render();
+      if(!sheetEl && storeSnapshot() !== before) render();
       syncSetStatus('synced');
       syncMarkLastSync();
     }catch(e){
@@ -68,6 +72,15 @@ function scheduleRemoteReload(){
       dbRemoteLoading = false;
     }
   }, 1200);
+}
+
+function bindFocusReload(){
+  if(focusListenersBound) return;
+  focusListenersBound = true;
+  document.addEventListener('visibilitychange', () => {
+    if(!document.hidden && syncActive()) scheduleRemoteReload();
+  });
+  window.addEventListener('focus', () => { if(syncActive()) scheduleRemoteReload(); });
 }
 
 function startRealtime(orgId){
@@ -89,11 +102,7 @@ function startRealtime(orgId){
     }, () => scheduleRemoteReload());
   });
   realtimeChannel.subscribe();
-
-  document.addEventListener('visibilitychange', () => {
-    if(!document.hidden && syncActive()) scheduleRemoteReload();
-  });
-  window.addEventListener('focus', () => { if(syncActive()) scheduleRemoteReload(); });
+  bindFocusReload();
 }
 
 async function syncPullNow(){

@@ -6,6 +6,8 @@ const BUCKET = STORAGE_BUCKET;
 let currentOrgId = null;
 let dbRemoteLoading = false;
 let dbSyncInProgress = false;
+let lastPushAt = 0;
+const PUSH_ECHO_MS = 3000;
 const signedUrlCache = new Map(); // path -> { url, exp }
 
 function getStoredOrgId(){ try{ return localStorage.getItem(ORG_KEY); }catch(e){ return null; } }
@@ -13,6 +15,11 @@ function setStoredOrgId(id){ try{ localStorage.setItem(ORG_KEY, id); }catch(e){}
 function migrationKey(orgId){ return MIGRATION_PREFIX + orgId; }
 function isMigrated(orgId){ return !!localStorage.getItem(migrationKey(orgId)); }
 function markMigrated(orgId){ try{ localStorage.setItem(migrationKey(orgId), '1'); }catch(e){} }
+
+function storeSnapshot(){
+  if(!store) return '';
+  return (store._seq || 0) + '|' + (store.events?.length || 0) + '|' + (store.tab || '') + '|' + (store.activeShowId || '');
+}
 
 function mimeToKind(m){ return (m||'').startsWith('image/') ? 'image' : 'pdf'; }
 
@@ -327,6 +334,7 @@ async function pushToSupabase(orgId){
     db.write(store);
     syncSetStatus('synced');
     syncMarkLastSync();
+    lastPushAt = Date.now();
   }catch(e){
     console.error('pushToSupabase', e);
     syncSetStatus('error');

@@ -378,7 +378,7 @@ function saveTrip(tid){
 /* ============================================================
    Trip Mode  (runs — no named trips)
    ============================================================ */
-function startTripFromShow(showId){ store.activeShowId=showId; persist(); overlay=null; store.tab='home'; render(); $('#screen').scrollTop=0; toast('Trip Mode on','play'); }
+function startTripFromShow(showId){ store.activeShowId=showId; persist(); overlay=null; store.tab='home'; render({ resetScroll: true }); toast('Trip Mode on','play'); }
 function endTripMode(){ confirmSheet('End Trip Mode?','This turns off the live tour view. Nothing is deleted.','End Trip Mode',()=>{ store.activeShowId=null; persist(); overlay=null; store.tab='home'; render(); toast('Trip Mode off','flag'); }); }
 function completeRunStep(runKey, stepId){
   if(stepId.startsWith('set_')){ const sh=sel.event(stepId.slice(4)); if(sh){ sh.setDone=!sh.setDone; } }

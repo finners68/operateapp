@@ -8,8 +8,24 @@ function boot(){
   initGestures();
   initKeyboard();
   initSidebar();
-  // live tick for countdowns
-  setInterval(()=>{ if((store.tab==='home'||store.tab==='calendar') && !overlay && !sheetEl) renderView(); }, 30000);
+  setInterval(()=>{ if(store.tab==='home' && !overlay && !sheetEl) tickCountdowns(); }, 30000);
+}
+
+function tickCountdowns(){
+  document.querySelectorAll('[data-countdown-ms]').forEach(el=>{
+    const ms = +el.dataset.countdownMs;
+    if(!ms) return;
+    const c = countdown(ms);
+    const txt = el.querySelector('.cd-txt') || el;
+    const unit = el.querySelector('.cd-unit');
+    if(c.done){
+      txt.textContent = el.dataset.countdownOff || '—';
+      if(unit) unit.textContent = '';
+    } else {
+      txt.textContent = c.txt;
+      if(unit) unit.textContent = c.unit;
+    }
+  });
 }
 /* ============================================================
    Gestures — swipe to change calendar months, edge-swipe to go back.
@@ -111,15 +127,15 @@ const TABS = [
 ];
 let overlay = null; // {type, id} for detail views on top of a tab
 let navStack = []; // history of overlays for proper Back behaviour
-function go(tab){ navStack=[]; overlay=null; store.tab=tab; haptic(); commit(); $('#screen').scrollTop=0; }
+function go(tab){ navStack=[]; overlay=null; store.tab=tab; haptic(); persist(); render({ resetScroll: true }); }
 function openView(type, id){
   if(type==='finance' && financeLockActive()){ requireUnlock('finance', ()=>openView('finance', id)); return; }
   if(overlay) navStack.push(overlay);   // remember where we came from
-  overlay={type, id}; haptic(); renderView(); $('#screen').scrollTop=0;
+  overlay={type, id}; haptic(); renderView({ resetScroll: true });
 }
 function back(){
   overlay = navStack.length ? navStack.pop() : null;   // step back one screen, not all the way out
-  renderView(); $('#screen').scrollTop=0;
+  renderView({ resetScroll: true });
 }
 
 function renderNav(){
@@ -136,8 +152,10 @@ function renderNav(){
 }
 
 /* ---------- Master render ---------- */
-function render(){ renderNav(); renderView(); }
-function renderView(){
+function render(opts={}){ renderNav(); renderView(opts); }
+function renderView(opts={}){
+  const screen = $('#screen');
+  const scrollY = opts.resetScroll ? 0 : (screen?.scrollTop || 0);
   const v = $('#view');
   if(overlay){
     if(overlay.type==='event') v.innerHTML = viewEvent(overlay.id);
@@ -154,6 +172,7 @@ function renderView(){
     else if(overlay.type==='settings') v.innerHTML = viewSettings();
     else if(overlay.type==='stats') v.innerHTML = viewStats();
     renderNav(); setFab();
+    if(screen) screen.scrollTop = scrollY;
     return;
   }
   const tab = store.tab;
@@ -163,6 +182,7 @@ function renderView(){
   else if(tab==='ideas') v.innerHTML = viewIdeas();
   else if(tab==='notes') v.innerHTML = viewNotes();
   renderNav(); setFab();
+  if(screen) screen.scrollTop = scrollY;
 }
 /* Persistent floating + button — anchored to the app frame so it never scrolls away.
    Its action follows the current tab; hidden where there's nothing to add. */

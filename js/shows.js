@@ -19,8 +19,8 @@ function viewHome(){
         <div class="hero-city">${ICON.pin(14)} ${esc(e.city)}${e.country?', '+esc(e.country):''}</div>
         <div class="count-row">
           <div class="count"><div class="count-k">${ICON.music(12)} Set time</div><div class="count-v" style="font-size:19px">${e.setTime?esc(e.setTime):'TBA'}${e.endTime?`<small> – ${esc(e.endTime)}</small>`:''}</div></div>
-          <div class="count"><div class="count-k">${ICON.clock(12)} Starts in</div><div class="count-v">${cS&&!cS.done?cS.txt:'—'}<small>${cS&&!cS.done?cS.unit:''}</small></div></div>
-          ${flight?`<div class="count"><div class="count-k">${ICON.plane(12)} Flight</div><div class="count-v">${cF.done?'Off':cF.txt}<small>${cF.done?'':cF.unit}</small></div></div>`:''}
+          <div class="count"><div class="count-k">${ICON.clock(12)} Starts in</div><div class="count-v"${setMs?` data-countdown-ms="${setMs}"`:''}><span class="cd-txt">${cS&&!cS.done?cS.txt:'—'}</span><small class="cd-unit">${cS&&!cS.done?cS.unit:''}</small></div></div>
+          ${flight?`<div class="count"><div class="count-k">${ICON.plane(12)} Flight</div><div class="count-v"${flightMs?` data-countdown-ms="${flightMs}" data-countdown-off="Off"`:''}><span class="cd-txt">${cF.done?'Off':cF.txt}</span><small class="cd-unit">${cF.done?'':cF.unit}</small></div></div>`:''}
         </div>
         <div class="hero-info">
           ${e.hotel?`<div class="pill" onclick="event.stopPropagation();openMaps('${esc((e.hotel.name||'')+' '+(e.hotel.address||''))}')"><div class="ic">${ICON.bed(16)}</div><div class="tx"><b>${esc(e.hotel.name||'Hotel')}</b><span>Tap for maps</span></div></div>`:''}
