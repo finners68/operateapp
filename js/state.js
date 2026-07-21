@@ -114,34 +114,13 @@ function commit(){ persist(); render(); }
 /* ---------- Utilities ---------- */
 const $ = sel => document.querySelector(sel);
 const esc = s => (s==null?'':String(s)).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-function detailParts(title, primary, meta){
+function detailTx(title, primary, meta){
   const p = primary ? `<div class="detail-primary">${primary}</div>` : '';
   const m = meta ? `<div class="detail-meta">${meta}</div>` : '';
-  return `<div class="detail-title">${title}</div>${p}${m}`;
-}
-function detailTx(title, primary, meta){
-  return `<div class="tx">${detailParts(title, primary, meta)}</div>`;
+  return `<div class="tx"><div class="detail-title">${title}</div>${p}${m}</div>`;
 }
 function fieldTx(label, value){
   return `<div class="tx"><div class="k">${label}</div><div class="v">${value}</div></div>`;
-}
-function showGroup(title, iconHTML, summary, bodyHTML){
-  return `<section class="show-group">
-    <div class="show-group-head">
-      <div class="show-group-ic">${iconHTML}</div>
-      <div class="show-group-titles"><b>${esc(title)}</b>${summary?`<span>${esc(summary)}</span>`:''}</div>
-    </div>
-    <div class="show-group-body">${bodyHTML}</div>
-  </section>`;
-}
-function showSubsection(title, addBtnHTML, bodyHTML){
-  return `<div class="show-subsection">
-    <div class="show-subsection-head"><span>${esc(title)}</span>${addBtnHTML||''}</div>
-    <div class="show-subsection-body">${bodyHTML}</div>
-  </div>`;
-}
-function showSourceLabel(text){
-  return `<div class="show-source-label">${esc(text)}</div>`;
 }
 function haptic(){ if(navigator.vibrate) try{navigator.vibrate(8);}catch(e){} }
 let toastT;
