@@ -236,9 +236,9 @@ function viewEvent(id){
 
     <div class="block"><div class="block-title">Venue</div>
       <div class="card flush">
-        <div class="info-line" onclick="sheetVenueAddr('${e.id}')"><div class="ic">${ICON.pin(17)}</div><div class="tx"><div class="k">Address</div><div class="v addr-trunc">${esc(e.venueAddr || (e.city?cleanVenue(e.venue)+' · '+e.city+(e.country?', '+e.country:''):cleanVenue(e.venue)) || 'Tap to add')}</div></div>
+        <div class="info-line" onclick="sheetVenueAddr('${e.id}')"><div class="ic">${ICON.pin(17)}</div>${fieldTx('Address', `<span class="addr-trunc">${esc(e.venueAddr || (e.city?cleanVenue(e.venue)+' · '+e.city+(e.country?', '+e.country:''):cleanVenue(e.venue)) || 'Tap to add')}</span>`)}
           <button class="header-btn" style="width:34px;height:34px;align-self:center" onclick="event.stopPropagation();openMaps('${esc(cleanVenue(e.venue)+' '+(e.venueAddr||e.city||''))}')">${ICON.map(17)}</button></div>
-        ${e.promoter?`<div class="info-line"><div class="ic">${ICON.user(17)}</div><div class="tx"><div class="k">Promoter</div><div class="v">${esc(e.promoter.name)}</div></div>
+        ${e.promoter?`<div class="info-line"><div class="ic">${ICON.user(17)}</div>${fieldTx('Promoter', esc(e.promoter.name))}
           ${e.promoter.phone?`<button class="header-btn" style="width:34px;height:34px;align-self:center" onclick="callNumber('${e.promoter.phone}')">${ICON.phone(16)}</button>`:''}</div>`:`<div class="info-line" onclick="sheetPromoter('${e.id}')"><div class="ic">${ICON.plus(17)}</div><div class="tx"><div class="v" style="color:var(--accent-2)">Add promoter contact</div></div></div>`}
       </div>
     </div>
@@ -254,11 +254,11 @@ function viewEvent(id){
       ${(()=>{ const legs=showLegs(e.id).filter(x=>x.kind==='stay').sort(legSort);
         const legHtml=legs.length?`<div class="card flush">${legs.map(journeyRow).join('')}</div>`:'';
         const manual=e.hotel?`<div class="card flush"${legHtml?' style="margin-top:10px"':''}>
-          <div class="info-line"><div class="ic">${ICON.bed(17)}</div><div class="tx"><div class="k">${esc(e.hotel.name||'Hotel')}</div><div class="v">${esc(e.hotel.address||'')}</div></div>
+          <div class="info-line"><div class="ic">${ICON.bed(17)}</div>${detailTx(esc(e.hotel.name||'Hotel'), esc(e.hotel.address||''))}
             <button class="header-btn" style="width:34px;height:34px;align-self:center" onclick="openMaps('${esc((e.hotel.name||'')+' '+(e.hotel.address||''))}')">${ICON.map(16)}</button></div>
-          <div class="info-line"><div class="ic">${ICON.clock(17)}</div><div class="tx"><div class="k">Check in / out</div><div class="v">${e.hotel.checkin?fmtDate(e.hotel.checkin):'—'} → ${e.hotel.checkout?fmtDate(e.hotel.checkout):'—'}</div></div></div>
-          ${e.hotel.conf?`<div class="info-line" onclick="copyText('${esc(e.hotel.conf)}')"><div class="ic">${ICON.ticket(17)}</div><div class="tx"><div class="k">Confirmation</div><div class="v">${esc(e.hotel.conf)}</div></div><button class="header-btn" style="width:34px;height:34px;align-self:center">${ICON.copy(16)}</button></div>`:''}
-          ${e.hotel.notes?`<div class="info-line"><div class="ic">${ICON.note(17)}</div><div class="tx"><div class="k">Room notes</div><div class="v">${esc(e.hotel.notes)}</div></div></div>`:''}
+          <div class="info-line"><div class="ic">${ICON.clock(17)}</div>${fieldTx('Check in / out', `${e.hotel.checkin?fmtDate(e.hotel.checkin):'—'} → ${e.hotel.checkout?fmtDate(e.hotel.checkout):'—'}`)}</div>
+          ${e.hotel.conf?`<div class="info-line" onclick="copyText('${esc(e.hotel.conf)}')"><div class="ic">${ICON.ticket(17)}</div>${fieldTx('Confirmation', esc(e.hotel.conf))}<button class="header-btn" style="width:34px;height:34px;align-self:center">${ICON.copy(16)}</button></div>`:''}
+          ${e.hotel.notes?`<div class="info-line"><div class="ic">${ICON.note(17)}</div>${fieldTx('Room notes', esc(e.hotel.notes))}</div>`:''}
         </div>`:'';
         if(!legHtml && !manual) return `<div class="card tap" onclick="sheetHotel('${e.id}')" style="text-align:center;color:var(--text-3);padding:20px">${ICON.bed(22)}<div style="margin-top:6px;font-weight:600">Add hotel details</div></div>`;
         return legHtml+manual;
@@ -283,7 +283,7 @@ function viewEvent(id){
       ${(()=>{ const legs=showLegs(e.id).filter(x=>x.kind==='travel' && isDriverItem(x)).sort(legSort);
         const legHtml=legs.length?`<div class="card flush">${legs.map(journeyRow).join('')}</div>`:'';
         const manual=e.driver?`<div class="card flush"${legHtml?' style="margin-top:10px"':''}>
-          <div class="info-line"><div class="ic">${ICON.car(17)}</div><div class="tx"><div class="k">${esc(e.driver.name||'Driver')}</div><div class="v">${esc(e.driver.pickup||'')}</div></div></div>
+          <div class="info-line"><div class="ic">${ICON.car(17)}</div>${detailTx(esc(e.driver.name||'Driver'), esc(e.driver.pickup||''))}</div>
           ${e.driver.notes?`<div class="info-line"><div class="ic">${ICON.note(17)}</div><div class="tx"><div class="v" style="font-size:14px">${esc(e.driver.notes)}</div></div></div>`:''}
           <div style="display:flex;gap:9px;padding:12px 16px">
             <button class="btn secondary" style="padding:11px" onclick="callNumber('${e.driver.phone}')">${ICON.phone(16)} Call</button>
@@ -341,10 +341,17 @@ function viewEvent(id){
   </div>`;
 }
 function flightLine(eid,f){
+  const depTime = f.dep ? (f.dep.split(' ')[1] || f.dep) : '';
+  const arrTime = f.arr ? (f.arr.split(' ')[1] || f.arr) : '';
+  const route = `${f.from||'?'} → ${f.to||'?'}`;
+  const meta = [
+    depTime ? 'Dep '+esc(depTime) : '',
+    arrTime ? 'Arr '+esc(arrTime) : '',
+    f.seat ? 'Seat '+esc(f.seat) : ''
+  ].filter(Boolean).join(' · ');
   return `<div class="info-line">
     <div class="ic">${ICON.plane(17)}</div>
-    <div class="tx"><div class="k">${esc(f.code||'Flight')} ${f.seat?'· Seat '+esc(f.seat):''}</div>
-      <div class="v">${esc(f.from||'')} ${f.dep?f.dep.split(' ')[1]||'':''} → ${esc(f.to||'')} ${f.arr?f.arr.split(' ')[1]||'':''}</div></div>
+    ${detailTx(esc(f.code||'Flight'), esc(route), meta)}
     <label class="header-btn" style="width:34px;height:34px;align-self:center">${ICON.ticket(16)}<input type="file" accept="image/*,application/pdf" style="display:none" onchange="uploadPass('${eid}','${f.id}',this)"></label>
     <button class="del" style="opacity:.5;align-self:center" onclick="delFlight('${eid}','${f.id}')">${ICON.x(15)}</button>
   </div>${f.passes&&f.passes.length?`<div style="padding:0 16px 12px"><div class="thumb-row">${f.passes.map(p=>passThumb(p, passEditable()?`delFlightPass('${eid}','${f.id}','${p.id}')`:null)).join('')}</div></div>`:''}`;
@@ -628,7 +635,7 @@ function savePromoter(eid){
   withButton($('#pr-save'), ()=>{ e.promoter={name,phone:val('pr-phone')}; persist(); closeSheet(); renderView(); }, 'Promoter saved');
 }
 /* ---- Advancing: rich, ABOSS-depth show-day info. Every field hidden unless filled. ---- */
-function advRow(icon,k,v,extra){ if(!v) return ''; return `<div class="info-line"><div class="ic">${icon}</div><div class="tx"><div class="k">${k}</div><div class="v" style="white-space:pre-wrap">${esc(v)}</div></div>${extra||''}</div>`; }
+function advRow(icon,k,v,extra){ if(!v) return ''; return `<div class="info-line"><div class="ic">${icon}</div>${fieldTx(k, `<span style="white-space:pre-wrap">${esc(v)}</span>`)}${extra||''}</div>`; }
 function advanceBlock(e){
   const a=e.advance||{};
   const sched=(a.schedule||[]).filter(s=>(s.time||s.label));

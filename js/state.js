@@ -114,6 +114,14 @@ function commit(){ persist(); render(); }
 /* ---------- Utilities ---------- */
 const $ = sel => document.querySelector(sel);
 const esc = s => (s==null?'':String(s)).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+function detailTx(title, primary, meta){
+  const p = primary ? `<div class="detail-primary">${primary}</div>` : '';
+  const m = meta ? `<div class="detail-meta">${meta}</div>` : '';
+  return `<div class="tx"><div class="detail-title">${title}</div>${p}${m}</div>`;
+}
+function fieldTx(label, value){
+  return `<div class="tx"><div class="k">${label}</div><div class="v">${value}</div></div>`;
+}
 function haptic(){ if(navigator.vibrate) try{navigator.vibrate(8);}catch(e){} }
 let toastT;
 function toast(msg, icon='check'){

@@ -160,7 +160,7 @@ function agendaItem(e){
 }
 function showBlock(e){
   const c = e.color==='orange' ? 'var(--orange)' : 'var(--green)';
-  const time = e.setTime ? `${e.setTime}${e.endTime?' - '+e.endTime:''}` : 'TBA';
+  const time = e.setTime ? `${e.setTime}${e.endTime?' – '+e.endTime:''}` : 'TBA';
   return `<div class="ag-show" style="background:${c}" onclick="openView('event','${e.id}')">
     <div class="ag-show-b"><b>${esc(e.venue||e.title||'Show')}</b><span>${time}</span></div>
     <div class="ag-loc">LOC</div>
@@ -169,7 +169,7 @@ function showBlock(e){
 function travBlock(e){
   return `<div class="ag-log" onclick="openItem('${e.id}')">
     <div class="ag-ic">${(ICON[e.icon]||ICON.plane)(18)}</div>
-    <div class="ag-log-b"><b>${esc(e.title)}</b>${e.start?`<span>${esc(e.start)}${e.end?' - '+esc(e.end):''}</span>`:''}</div>
+    <div class="ag-log-b"><b>${esc(e.title)}</b>${e.start?`<span>${esc(e.start)}${e.end?' – '+esc(e.end):''}</span>`:''}</div>
     <div class="ag-loc2">LOC</div>
   </div>`;
 }
@@ -221,7 +221,7 @@ function setButtons(s){ const sh=sel.event(s.showId); const mq=tlMapsQuery(s); c
 function stepButtons(s){ return s.kind==='set'?setButtons(s):itemButtons(s.ref); }
 function journeyRow(l){
   const icon = l.kind==='stay'?'bed':(l.icon||'plane');
-  const time = l.kind==='stay' ? (l.info||'Stay') : (l.start?l.start+(l.end?' - '+l.end:''):'');
+  const time = l.kind==='stay' ? (l.info||'Stay') : (l.start?l.start+(l.end?' – '+l.end:''):'');
   const col = logColor(l);
   const btns = itemButtons(l);
   const isFlight = l.kind==='travel' && (l.icon||'plane')==='plane';
