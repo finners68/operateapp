@@ -255,15 +255,239 @@ function noteRow(n){
   </div>`;
 }
 /* ============================================================
-   EVENT DETAIL
+   EVENT DETAIL — grouped panels
    ============================================================ */
+function countAdvanceFields(a){
+  if(!a) return 0;
+  let n = 0;
+  if(a.stage) n++;
+  if((a.schedule||[]).some(s=>s.time||s.label)) n++;
+  ['access','soundcheck','curfew','dressingRoom','guestlist','catering','parking','wifi','navAddr','remarks'].forEach(k=>{ if(a[k]) n++; });
+  return n;
+}
+function travelGroupSummary(e){
+  const flightLegs = showLegs(e.id).filter(x=>x.kind==='travel' && (x.icon||'plane')==='plane').length;
+  const manualFlights = (e.flights&&e.flights.length)||0;
+  const flightN = flightLegs + manualFlights;
+  const hotel = !!(e.hotel || showLegs(e.id).some(x=>x.kind==='stay'));
+  const driver = !!(e.driver || showLegs(e.id).some(x=>x.kind==='travel' && isDriverItem(x)));
+  const transferN = showLegs(e.id).filter(x=>x.kind==='travel' && (x.icon||'plane')!=='plane' && !isDriverItem(x)).length;
+  const parts = [];
+  if(flightN) parts.push(flightN+' flight'+(flightN>1?'s':''));
+  if(hotel) parts.push('hotel');
+  if(driver) parts.push('driver');
+  if(transferN) parts.push(transferN+' transfer'+(transferN>1?'s':''));
+  return parts.length ? parts.join(' · ') : 'Nothing added yet';
+}
+function venueGroupSummary(e){
+  const n = countAdvanceFields(e.advance);
+  const venue = cleanVenue(e.venue) || 'Venue';
+  const contacts = (e.contacts||[]).length;
+  const bits = [venue];
+  if(n) bits.push(n+' advance field'+(n>1?'s':''));
+  if(contacts) bits.push(contacts+' contact'+(contacts>1?'s':''));
+  return bits.join(' · ');
+}
+function prepGroupSummary(e){
+  const cp = sel.eventChecklistProgress(e);
+  const ideas = store.ideas.filter(x=>x.eventId===e.id).length;
+  const contentN = ideas + (e.content?1:0);
+  const attachN = (e.attachments||[]).length;
+  const parts = [];
+  if(cp.total) parts.push('checklist '+cp.done+'/'+cp.total);
+  if(contentN) parts.push(contentN+' content item'+(contentN>1?'s':''));
+  if(attachN) parts.push(attachN+' attachment'+(attachN>1?'s':''));
+  if(e.notes&&e.notes.trim()) parts.push('notes');
+  return parts.length ? parts.join(' · ') : 'Nothing added yet';
+}
+function dealGroupSummary(e){
+  if(e.finance&&e.finance.notDisclosed) return 'Not disclosed';
+  const c = money.eventCalc(e);
+  if(!c.gross) return 'Not set';
+  return fmtMoney(c.gross,c.cur)+(c.paid?' · paid':' · unpaid');
+}
+function flightsSubsection(e){
+  const legs = showLegs(e.id).filter(x=>x.kind==='travel' && (x.icon||'plane')==='plane').sort(legSort);
+  const manual = e.flights&&e.flights.length;
+  let body = '';
+  if(!legs.length && !manual){
+    body = `<div class="card tap" onclick="sheetFlight('${e.id}')" style="text-align:center;color:var(--text-3);padding:20px">${ICON.plane(22)}<div style="margin-top:6px;font-weight:600">Add flight</div></div>`;
+  } else {
+    if(legs.length) body += showSourceLabel('From journey')+`<div class="card flush">${legs.map(journeyRow).join('')}</div>`;
+    if(manual) body += showSourceLabel('Added to show')+`<div class="card flush">${e.flights.map(f=>flightLine(e.id,f)).join('')}</div>`;
+  }
+  return showSubsection('Flights', `<button type="button" class="add" onclick="sheetFlight('${e.id}')">Add</button>`, body);
+}
+function hotelSubsection(e){
+  const legs = showLegs(e.id).filter(x=>x.kind==='stay').sort(legSort);
+  let body = '';
+  if(legs.length) body += showSourceLabel('From journey')+`<div class="card flush">${legs.map(journeyRow).join('')}</div>`;
+  if(e.hotel){
+    if(legs.length) body += showSourceLabel('Added to show');
+    body += `<div class="card flush">
+      <div class="info-line info-line-stacked"><div class="ic">${ICON.bed(17)}</div>${detailTx(esc(e.hotel.name||'Hotel'), esc(e.hotel.address||''))}
+        <button class="header-btn" style="width:34px;height:34px;align-self:center" onclick="openMaps('${esc((e.hotel.name||'')+' '+(e.hotel.address||''))}')">${ICON.map(16)}</button></div>
+      <div class="info-line"><div class="ic">${ICON.clock(17)}</div>${fieldTx('Check in / out', `${e.hotel.checkin?fmtDate(e.hotel.checkin):'—'} → ${e.hotel.checkout?fmtDate(e.hotel.checkout):'—'}`)}</div>
+      ${e.hotel.conf?`<div class="info-line" onclick="copyText('${esc(e.hotel.conf)}')"><div class="ic">${ICON.ticket(17)}</div>${fieldTx('Confirmation', esc(e.hotel.conf))}<button class="header-btn" style="width:34px;height:34px;align-self:center">${ICON.copy(16)}</button></div>`:''}
+      ${e.hotel.notes?`<div class="info-line"><div class="ic">${ICON.note(17)}</div>${fieldTx('Room notes', esc(e.hotel.notes))}</div>`:''}
+    </div>`;
+  }
+  if(!body) body = `<div class="card tap" onclick="sheetHotel('${e.id}')" style="text-align:center;color:var(--text-3);padding:20px">${ICON.bed(22)}<div style="margin-top:6px;font-weight:600">Add hotel details</div></div>`;
+  return showSubsection('Hotel', `<button type="button" class="add" onclick="sheetHotel('${e.id}')">${e.hotel?'Edit':'Add'}</button>`, body);
+}
+function driverSubsection(e){
+  const legs = showLegs(e.id).filter(x=>x.kind==='travel' && isDriverItem(x)).sort(legSort);
+  let body = '';
+  if(legs.length) body += showSourceLabel('From journey')+`<div class="card flush">${legs.map(journeyRow).join('')}</div>`;
+  if(e.driver){
+    if(legs.length) body += showSourceLabel('Added to show');
+    body += `<div class="card flush">
+      <div class="info-line info-line-stacked"><div class="ic">${ICON.car(17)}</div>${detailTx(esc(e.driver.name||'Driver'), esc(e.driver.pickup||''))}</div>
+      ${e.driver.notes?`<div class="info-line"><div class="ic">${ICON.note(17)}</div>${fieldTx('Notes', esc(e.driver.notes))}</div>`:''}
+      <div style="display:flex;gap:9px;padding:12px 16px">
+        <button class="btn secondary" style="padding:11px" onclick="callNumber('${e.driver.phone}')">${ICON.phone(16)} Call</button>
+        <button class="btn secondary" style="padding:11px" onclick="whatsapp('${e.driver.whatsapp||e.driver.phone}')">${ICON.chat(16)} WhatsApp</button>
+        <button class="btn secondary" style="padding:11px;flex:0 0 auto" onclick="copyText('${esc(e.driver.phone||'')}')">${ICON.copy(16)}</button>
+      </div>
+    </div>`;
+  }
+  if(!body) body = `<div class="card tap" onclick="sheetDriver('${e.id}')" style="text-align:center;color:var(--text-3);padding:20px">${ICON.car(22)}<div style="margin-top:6px;font-weight:600">Add driver</div></div>`;
+  return showSubsection('Driver', `<button type="button" class="add" onclick="sheetDriver('${e.id}')">${e.driver?'Edit':'Add'}</button>`, body);
+}
+function transfersSubsection(e){
+  const legs = showLegs(e.id).filter(x=>x.kind==='travel' && (x.icon||'plane')!=='plane' && !isDriverItem(x)).sort(legSort);
+  if(!legs.length) return '';
+  const body = showSourceLabel('From journey')+`<div class="card flush">${legs.map(journeyRow).join('')}</div>`;
+  return showSubsection('Transfers', `<button type="button" class="add" onclick="addLogisticFor('${e.id}')">Add</button>`, body);
+}
+function travelGroupBody(e){
+  return flightsSubsection(e)+hotelSubsection(e)+driverSubsection(e)+transfersSubsection(e);
+}
+function venueSubsection(e){
+  const body = `<div class="card flush">
+    <div class="info-line" onclick="sheetVenueAddr('${e.id}')"><div class="ic">${ICON.pin(17)}</div>${fieldTx('Address', `<span class="addr-trunc">${esc(e.venueAddr || (e.city?cleanVenue(e.venue)+' · '+e.city+(e.country?', '+e.country:''):cleanVenue(e.venue)) || 'Tap to add')}</span>`)}
+      <button class="header-btn" style="width:34px;height:34px;align-self:center" onclick="event.stopPropagation();openMaps('${esc(cleanVenue(e.venue)+' '+(e.venueAddr||e.city||''))}')">${ICON.map(17)}</button></div>
+    ${e.promoter?`<div class="info-line"><div class="ic">${ICON.user(17)}</div>${fieldTx('Promoter', esc(e.promoter.name))}
+      ${e.promoter.phone?`<button class="header-btn" style="width:34px;height:34px;align-self:center" onclick="callNumber('${e.promoter.phone}')">${ICON.phone(16)}</button>`:''}</div>`:`<div class="info-line" onclick="sheetPromoter('${e.id}')"><div class="ic">${ICON.plus(17)}</div><div class="tx"><div class="v" style="color:var(--accent-2)">Add promoter contact</div></div></div>`}
+  </div>`;
+  return showSubsection('Venue & promoter', '', body);
+}
+function advanceSubsection(e){
+  const a = e.advance||{};
+  const sched = (a.schedule||[]).filter(s=>(s.time||s.label));
+  const schedHTML = sched.length?`<div class="ro-list">${sched.map(s=>`<div class="ro-row"><div class="ro-lab">${esc(s.label||'')}</div><div class="ro-time">${esc(s.time||'')}</div></div>`).join('')}</div>`:'';
+  const navExtra = a.navAddr?`<button class="header-btn" style="width:34px;height:34px;align-self:center" onclick="openMaps('${esc(a.navAddr)}')">${ICON.map(16)}</button>`:'';
+  const hasAny = countAdvanceFields(a) > 0;
+  const editBtn = `<button type="button" class="add" onclick="sheetAdvance('${e.id}')">${hasAny?'Edit':'Add'}</button>`;
+  if(!hasAny){
+    return showSubsection('Advancing', editBtn, `<div class="card tap" onclick="sheetAdvance('${e.id}')" style="text-align:center;color:var(--text-3);padding:18px;font-weight:600">${ICON.checkList(20)} Add show-day details</div>`);
+  }
+  const scheduleRows = [advRow(ICON.pin(17),'Stage / area',a.stage), schedHTML?`<div class="info-line" style="align-items:flex-start"><div class="ic">${ICON.clock(17)}</div><div class="tx" style="width:100%"><div class="k">Running order</div>${schedHTML}</div></div>`:''].filter(Boolean).join('');
+  const accessRows = [advRow(ICON.planeUp(17),'Access / arrival',a.access), advRow(ICON.music(17),'Sound check',a.soundcheck), advRow(ICON.clock(17),'Curfew',a.curfew), advRow(ICON.pin(17),'Navigation address',a.navAddr,navExtra)].filter(Boolean).join('');
+  const backstageRows = [advRow(ICON.face(17),'Dressing room',a.dressingRoom), advRow(ICON.users(17),'Guest list',a.guestlist), advRow(ICON.bag(17),'Catering / rider',a.catering), advRow(ICON.car(17),'Parking',a.parking), advRow(ICON.globe(17),'WiFi',a.wifi)].filter(Boolean).join('');
+  const otherRows = advRow(ICON.note(17),'Remarks',a.remarks);
+  const mini = (title, rows)=> rows ? `<div class="show-adv-mini"><div class="show-adv-mini-head">${esc(title)}</div><div class="card flush">${rows}</div></div>` : '';
+  const body = mini('Schedule', scheduleRows)+mini('Access', accessRows)+mini('Backstage', backstageRows)+mini('Other', otherRows);
+  return showSubsection('Advancing', editBtn, body);
+}
+function contactsSubsection(e){
+  const cs = e.contacts||[];
+  const addBtn = `<button type="button" class="add" onclick="sheetEventContact('${e.id}')">Add</button>`;
+  if(!cs.length){
+    return showSubsection('Key contacts', addBtn, `<div class="card tap" onclick="sheetEventContact('${e.id}')" style="text-align:center;color:var(--text-3);padding:18px;font-weight:600">${ICON.users(20)} Add a key contact</div>`);
+  }
+  const body = `<div class="card flush">${cs.map(ct=>`<div class="info-line info-line-stacked">
+    <div class="ic">${ICON.user(17)}</div>
+    <div class="tx" style="flex:1;min-width:0" onclick="sheetEventContact('${e.id}','${ct.id}')">${detailParts(esc(ct.name||'Contact'), ct.role?esc(ct.role):'', ct.phone?esc(ct.phone):'')}</div>
+    ${ct.phone?`<button class="header-btn" style="width:34px;height:34px;align-self:center" onclick="callNumber('${esc(ct.phone)}')">${ICON.phone(15)}</button>`:''}
+    ${(ct.whatsapp||ct.phone)?`<button class="header-btn" style="width:34px;height:34px;align-self:center" onclick="whatsapp('${esc(ct.whatsapp||ct.phone)}')">${ICON.chat(15)}</button>`:''}
+  </div>`).join('')}</div>`;
+  return showSubsection('Key contacts', addBtn, body);
+}
+function venueGroupBody(e){
+  return venueSubsection(e)+advanceSubsection(e)+contactsSubsection(e);
+}
+function contentSubsection(e){
+  const linked = store.ideas.filter(x=>x.eventId===e.id);
+  const addBtn = `<button type="button" class="add" onclick="attachIdeaPickForEvent('${e.id}')">Add idea</button>`;
+  let body = '';
+  if(e.content) body += `<div class="card show-brief" style="background:linear-gradient(150deg,var(--accent-soft),var(--card));margin:10px"><div class="show-brief-k">${ICON.camera(14)} Brief</div><div class="show-brief-v">${esc(e.content)}</div></div>`;
+  if(linked.length) body += `<div class="card flush">${linked.map(i=>{const t=IDEA_TYPES[i.type]||IDEA_TYPES.other;return `<div class="row" onclick="openView('idea','${i.id}')"><div class="ic" style="background:${t.color}22;color:${t.color}">${ICON[t.icon](16)}</div><div class="body"><b>${esc(i.title)}</b><span>${t.label}${i.done?' · done':''}</span></div>${ICON.chevR(15)}</div>`;}).join('')}</div>`;
+  if(!body) body = `<div class="card tap" onclick="sheetEvent('${e.id}')" style="text-align:center;color:var(--text-3);padding:18px;font-weight:600;margin:10px">${ICON.camera(20)} Set what to film / capture</div>`;
+  return showSubsection('Content to capture', addBtn, body);
+}
+function checklistSubsection(e){
+  const cp = sel.eventChecklistProgress(e);
+  const addBtn = `<button type="button" class="add" onclick="addEventCheckPrompt('${e.id}')">Add</button>`;
+  const title = cp.total ? `Checklist · ${cp.done}/${cp.total}` : 'Checklist';
+  const body = e.checklist&&e.checklist.length
+    ? `<div class="card flush">${e.checklist.map(i=>`<div class="check ${i.done?'done':''}"><div class="box" onclick="toggleEventCheck('${e.id}','${i.id}')">${ICON.check(15)}</div><div class="lbl" onclick="toggleEventCheck('${e.id}','${i.id}')">${esc(i.label)}</div><button class="del" onclick="delEventCheck('${e.id}','${i.id}')">${ICON.x(16)}</button></div>`).join('')}</div>`
+    : `<div class="card tap" onclick="addEventCheckPrompt('${e.id}')" style="text-align:center;color:var(--text-3);padding:18px;font-weight:600">${ICON.checkList(20)} Add a checklist item</div>`;
+  return showSubsection(title, addBtn, body);
+}
+function attachmentsSubsection(e){
+  const body = `<div class="thumb-row">
+    ${(e.attachments||[]).map(a=>attachThumb(e.id,a)).join('')}
+    <label class="thumb thumb-add">${ICON.plus(22)}<span>Add</span><input type="file" accept="image/*,application/pdf" style="display:none" onchange="uploadAttachment('${e.id}',this)"></label>
+  </div>`;
+  return showSubsection('Attachments', '', body);
+}
+function notesSubsection(e){
+  const body = `<div class="card" style="margin:10px"><textarea class="textarea" placeholder="Anything to remember about this show…" onblur="saveEventNotes('${e.id}',this.value)">${esc(e.notes||'')}</textarea></div>`;
+  return showSubsection('Internal notes', '', body);
+}
+function prepGroupBody(e){
+  return contentSubsection(e)+checklistSubsection(e)+attachmentsSubsection(e)+notesSubsection(e);
+}
+function moneyGroupBody(e){
+  if(e.finance && e.finance.notDisclosed){
+    return `<div class="card tap deal-card" onclick="sheetFinance('${e.id}')" style="padding:15px 16px;display:flex;align-items:center;gap:12px">
+      <div class="deal-card-ic">${ICON.coins(17)}</div>
+      <div class="deal-card-body"><span class="deal-card-k">Deal</span><span class="deal-card-v">Not disclosed</span></div>
+      ${ICON.chevR(15)}
+    </div>`;
+  }
+  const c = money.eventCalc(e);
+  const base = store.settings.baseCurrency;
+  const showBase = c.cur!==base;
+  if(!c.gross){
+    return `<div class="card tap" onclick="sheetFinance('${e.id}')" style="text-align:center;color:var(--text-3);padding:16px">${ICON.money(22)}<div style="margin-top:6px;font-weight:600">Add the deal / fee</div></div>`;
+  }
+  return `<div class="card" style="padding:14px 16px">
+    <div class="deal-head">
+      <div>
+        <div class="deal-k">${esc((e.finance.dealType)||'Fee')}${e.finance.estimated?' · est.':''}</div>
+        <div class="deal-amount">${fmtMoney(c.gross,c.cur)}</div>
+        ${showBase?`<div class="deal-meta">≈ ${fmtBase(c.grossBase)}</div>`:''}
+      </div>
+      <div class="deal-head-actions">
+        <span class="tag ${c.paid?'confirmed':'hold'}">${c.paid?'Paid':'Unpaid'}</span>
+        <button class="header-btn" style="width:38px;height:38px;${c.paid?'background:var(--green-soft);color:var(--green)':''}" onclick="togglePaid('${e.id}')">${ICON.check2(19)}</button>
+      </div>
+    </div>
+    <div class="divi" style="margin:13px 0"></div>
+    <div class="deal-rows">
+      <div class="deal-row"><span class="deal-row-k">Fee</span><span class="deal-row-v">${fmtMoney(c.gross,c.cur)}</span></div>
+      ${c.commissionAmt?`<div class="deal-row"><span class="deal-row-k">Agent commission (${e.finance.commission}%)</span><span class="deal-row-v neg">− ${fmtMoney(c.commissionAmt,c.cur)}</span></div>`:''}
+      ${c.expenses?`<div class="deal-row"><span class="deal-row-k">Expenses</span><span class="deal-row-v neg">− ${fmtMoney(c.expenses,c.cur)}</span></div>`:''}
+      ${c.perDiem?`<div class="deal-row"><span class="deal-row-k">Per diem</span><span class="deal-row-v pos">+ ${fmtMoney(c.perDiem,c.cur)}</span></div>`:''}
+      <div class="divi" style="margin:4px 0"></div>
+      <div class="deal-row deal-row-total"><span class="deal-row-k">Net take-home</span><span class="deal-row-v">${fmtMoney(c.net,c.cur)}</span></div>
+      ${showBase?`<div class="deal-row"><span class="deal-row-k"></span><span class="deal-meta">≈ ${fmtBase(c.netBase)}</span></div>`:''}
+    </div>
+    ${(e.finance.expenses||[]).length?`<div class="deal-expenses">${e.finance.expenses.map(x=>`<div class="deal-row"><span class="deal-row-k">${esc(x.label||'Expense')}</span><span class="deal-row-v">${fmtMoney(x.amount,c.cur)} <button class="del" style="opacity:.6;padding:0 4px" onclick="delExpense('${e.id}','${x.id}')">${ICON.x(13)}</button></span></div>`).join('')}</div>`:''}
+    <div class="btn-row" style="margin-top:12px">
+      <button class="btn secondary" style="padding:11px" onclick="sheetFinance('${e.id}')">${ICON.edit(15)} Edit deal</button>
+      <button class="btn secondary" style="padding:11px" onclick="createInvoiceFromEvent('${e.id}')">${ICON.receipt(15)} Invoice</button>
+    </div>
+  </div>`;
+}
+
 function viewEvent(id){
   const e = sel.event(id);
   if(!e) return backStub();
   const c = CATS[e.color]||CATS.purple;
   const trip = e.tripId? sel.trip(e.tripId):null;
-  const cp = sel.eventChecklistProgress(e);
-  const flight = e.flights&&e.flights[0];
   return `
   <div class="detail-top"><div class="detail-bar">
     <button class="back-btn" onclick="back()">${ICON.chevL(20)} ${trip?esc(trip.name):overlayBackLabel()}</button>
@@ -272,133 +496,36 @@ function viewEvent(id){
       <button class="header-btn" style="width:36px;height:36px" onclick="eventMenu('${e.id}')">${ICON.edit(18)}</button>
     </div>
   </div></div>
-  <div class="screen-pad stagger">
-    <div class="dhero" style="background:linear-gradient(155deg,${c}33,var(--card) 65%)">
+  <div class="screen-pad stagger show-detail">
+    <div class="dhero show-hero" style="background:linear-gradient(155deg,${c}33,var(--card) 65%)">
       <div class="cat-bar" style="background:${c}"></div>
-      <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
         <span class="tag ${e.status}">${e.status}</span>
         ${trip?`<span class="tag" style="background:${c}22;color:${c}" onclick="openView('trip','${trip.id}')">${esc(trip.name)}</span>`:''}
       </div>
-      <h1>${esc(e.venue||'Untitled show')}</h1>
-      <div class="sub">${ICON.pin(14)} ${esc(e.city)}${e.country?', '+esc(e.country):''}</div>
-      <div class="meta-row">
-        <span class="meta-chip">${ICON.calendar(13)} ${esc(fmtDate(e.date))}</span>
-        <span class="meta-chip">${ICON.music(13)} ${e.setTime?'Set '+esc(e.setTime)+(e.endTime?' - '+esc(e.endTime):''):'TBA'}</span>
-        ${e.arrival?`<span class="meta-chip">${ICON.clock(13)} Arrive ${esc(e.arrival)}</span>`:''}
+      <div class="show-hero-eyebrow">${ICON.music(12)} Show · ${esc(relDay(e.date))}</div>
+      <h1 class="show-hero-title">${esc(e.venue||'Untitled show')}</h1>
+      <div class="show-hero-location">${ICON.pin(14)} ${esc(e.city||'City TBA')}${e.country?', '+esc(e.country):''}</div>
+      <div class="show-stats">
+        <div class="show-stat"><span class="show-stat-k">Date</span><span class="show-stat-v">${esc(fmtDate(e.date))}</span></div>
+        <div class="show-stat"><span class="show-stat-k">Set time</span><span class="show-stat-v">${e.setTime?esc(e.setTime)+(e.endTime?' – '+esc(e.endTime):''):'TBA'}</span></div>
+        ${e.arrival?`<div class="show-stat"><span class="show-stat-k">Arrival</span><span class="show-stat-v">${esc(e.arrival)}</span></div>`:''}
       </div>
     </div>
 
-    <div class="section" style="margin-top:16px">
+    <div class="show-detail-quick">
+      <div class="block-title">Quick access</div>
       ${showQuickLinks(e)}
     </div>
 
-    <div class="desktop-detail-grid">
-    <div class="desktop-detail-col">
-
-    ${(()=>{ const linked=store.ideas.filter(x=>x.eventId===e.id); if(!e.content && !linked.length) return '';
-      return `<div class="block"><div class="block-title">Content to capture ${linked.length?`<button class="add" onclick="attachIdeaPickForEvent('${e.id}')">Add idea</button>`:''}</div>
-      ${e.content?`<div class="card" style="background:linear-gradient(150deg,var(--accent-soft),var(--card));margin-bottom:${linked.length?'10px':'0'}"><div style="display:flex;gap:11px;align-items:flex-start"><div style="color:var(--accent-2);flex-shrink:0;margin-top:1px">${ICON.camera(20)}</div><div style="font-size:15px;font-weight:550;line-height:1.45">${esc(e.content)}</div></div></div>`:''}
-      ${linked.length?`<div class="card flush">${linked.map(i=>{const t=IDEA_TYPES[i.type]||IDEA_TYPES.other;return `<div class="row" onclick="openView('idea','${i.id}')"><div class="ic" style="background:${t.color}22;color:${t.color}">${ICON[t.icon](16)}</div><div class="body"><b>${esc(i.title)}</b><span>${t.label}${i.done?' · done':''}</span></div>${ICON.chevR(15)}</div>`;}).join('')}</div>`:''}
-      </div>`; })()}
-    ${(()=>{ const linked=store.ideas.filter(x=>x.eventId===e.id); if(e.content||linked.length) return '';
-      return `<div class="block"><div class="block-title">Content to capture <button class="add" onclick="attachIdeaPickForEvent('${e.id}')">Add idea</button></div>
-      <div class="card tap" onclick="sheetEvent('${e.id}')" style="text-align:center;color:var(--text-3);padding:18px;font-weight:600">${ICON.camera(20)} Set what to film / capture</div></div>`; })()}
-
-    ${moneyBlock(e)}
-
-    <div class="block"><div class="block-title">Venue</div>
-      <div class="card flush">
-        <div class="info-line" onclick="sheetVenueAddr('${e.id}')"><div class="ic">${ICON.pin(17)}</div>${fieldTx('Address', `<span class="addr-trunc">${esc(e.venueAddr || (e.city?cleanVenue(e.venue)+' · '+e.city+(e.country?', '+e.country:''):cleanVenue(e.venue)) || 'Tap to add')}</span>`)}
-          <button class="header-btn" style="width:34px;height:34px;align-self:center" onclick="event.stopPropagation();openMaps('${esc(cleanVenue(e.venue)+' '+(e.venueAddr||e.city||''))}')">${ICON.map(17)}</button></div>
-        ${e.promoter?`<div class="info-line"><div class="ic">${ICON.user(17)}</div>${fieldTx('Promoter', esc(e.promoter.name))}
-          ${e.promoter.phone?`<button class="header-btn" style="width:34px;height:34px;align-self:center" onclick="callNumber('${e.promoter.phone}')">${ICON.phone(16)}</button>`:''}</div>`:`<div class="info-line" onclick="sheetPromoter('${e.id}')"><div class="ic">${ICON.plus(17)}</div><div class="tx"><div class="v" style="color:var(--accent-2)">Add promoter contact</div></div></div>`}
-      </div>
+    <div class="show-groups">
+      ${showGroup('Travel', ICON.plane(20), travelGroupSummary(e), travelGroupBody(e))}
+      ${showGroup('Venue & show day', ICON.pin(20), venueGroupSummary(e), venueGroupBody(e))}
+      ${showGroup('Deal', ICON.coins(20), dealGroupSummary(e), moneyGroupBody(e))}
+      ${showGroup('Prep', ICON.checkList(20), prepGroupSummary(e), prepGroupBody(e))}
     </div>
 
-    <!-- Advancing: ABOSS-depth show-day detail, only surfaces what's filled in -->
-    ${advanceBlock(e)}
-
-    <!-- Key contacts -->
-    ${contactsBlock(e)}
-
-    <!-- Hotel — populated from the show's stay legs + any manual hotel -->
-    <div class="block"><div class="block-title">Hotel <button class="add" onclick="sheetHotel('${e.id}')">${e.hotel?'Edit':'Add'}</button></div>
-      ${(()=>{ const legs=showLegs(e.id).filter(x=>x.kind==='stay').sort(legSort);
-        const legHtml=legs.length?`<div class="card flush">${legs.map(journeyRow).join('')}</div>`:'';
-        const manual=e.hotel?`<div class="card flush"${legHtml?' style="margin-top:10px"':''}>
-          <div class="info-line"><div class="ic">${ICON.bed(17)}</div>${detailTx(esc(e.hotel.name||'Hotel'), esc(e.hotel.address||''))}
-            <button class="header-btn" style="width:34px;height:34px;align-self:center" onclick="openMaps('${esc((e.hotel.name||'')+' '+(e.hotel.address||''))}')">${ICON.map(16)}</button></div>
-          <div class="info-line"><div class="ic">${ICON.clock(17)}</div>${fieldTx('Check in / out', `${e.hotel.checkin?fmtDate(e.hotel.checkin):'—'} → ${e.hotel.checkout?fmtDate(e.hotel.checkout):'—'}`)}</div>
-          ${e.hotel.conf?`<div class="info-line" onclick="copyText('${esc(e.hotel.conf)}')"><div class="ic">${ICON.ticket(17)}</div>${fieldTx('Confirmation', esc(e.hotel.conf))}<button class="header-btn" style="width:34px;height:34px;align-self:center">${ICON.copy(16)}</button></div>`:''}
-          ${e.hotel.notes?`<div class="info-line"><div class="ic">${ICON.note(17)}</div>${fieldTx('Room notes', esc(e.hotel.notes))}</div>`:''}
-        </div>`:'';
-        if(!legHtml && !manual) return `<div class="card tap" onclick="sheetHotel('${e.id}')" style="text-align:center;color:var(--text-3);padding:20px">${ICON.bed(22)}<div style="margin-top:6px;font-weight:600">Add hotel details</div></div>`;
-        return legHtml+manual;
-      })()}
-    </div>
-
-    </div>
-    <div class="desktop-detail-col">
-
-    <!-- Flights — populated from the show's flight legs + any manual flights -->
-    <div class="block"><div class="block-title">Flights <button class="add" onclick="sheetFlight('${e.id}')">Add</button></div>
-      ${(()=>{ const legs=showLegs(e.id).filter(x=>x.kind==='travel' && (x.icon||'plane')==='plane').sort(legSort);
-        const legHtml=legs.length?`<div class="card flush">${legs.map(journeyRow).join('')}</div>`:'';
-        const manual=(e.flights&&e.flights.length)?`<div class="card flush"${legHtml?' style="margin-top:10px"':''}>${e.flights.map(f=>flightLine(e.id,f)).join('')}</div>`:'';
-        if(!legHtml && !manual) return `<div class="card tap" onclick="sheetFlight('${e.id}')" style="text-align:center;color:var(--text-3);padding:20px">${ICON.plane(22)}<div style="margin-top:6px;font-weight:600">Add flight</div></div>`;
-        return legHtml+manual;
-      })()}
-    </div>
-
-    <!-- Driver — populated from the show's driver/transfer legs + any manual driver -->
-    <div class="block"><div class="block-title">Driver <button class="add" onclick="sheetDriver('${e.id}')">${e.driver?'Edit':'Add'}</button></div>
-      ${(()=>{ const legs=showLegs(e.id).filter(x=>x.kind==='travel' && isDriverItem(x)).sort(legSort);
-        const legHtml=legs.length?`<div class="card flush">${legs.map(journeyRow).join('')}</div>`:'';
-        const manual=e.driver?`<div class="card flush"${legHtml?' style="margin-top:10px"':''}>
-          <div class="info-line"><div class="ic">${ICON.car(17)}</div>${detailTx(esc(e.driver.name||'Driver'), esc(e.driver.pickup||''))}</div>
-          ${e.driver.notes?`<div class="info-line"><div class="ic">${ICON.note(17)}</div><div class="tx"><div class="v" style="font-size:14px">${esc(e.driver.notes)}</div></div></div>`:''}
-          <div style="display:flex;gap:9px;padding:12px 16px">
-            <button class="btn secondary" style="padding:11px" onclick="callNumber('${e.driver.phone}')">${ICON.phone(16)} Call</button>
-            <button class="btn secondary" style="padding:11px" onclick="whatsapp('${e.driver.whatsapp||e.driver.phone}')">${ICON.chat(16)} WhatsApp</button>
-            <button class="btn secondary" style="padding:11px;flex:0 0 auto" onclick="copyText('${esc(e.driver.phone||'')}')">${ICON.copy(16)}</button>
-          </div>
-        </div>`:'';
-        if(!legHtml && !manual) return `<div class="card tap" onclick="sheetDriver('${e.id}')" style="text-align:center;color:var(--text-3);padding:20px">${ICON.car(22)}<div style="margin-top:6px;font-weight:600">Add driver</div></div>`;
-        return legHtml+manual;
-      })()}
-    </div>
-
-    <!-- Transfers — any other travel legs (ferry, transfer, walk) so nothing is lost -->
-    ${(()=>{ const legs=showLegs(e.id).filter(x=>x.kind==='travel' && (x.icon||'plane')!=='plane' && !isDriverItem(x)).sort(legSort);
-      if(!legs.length) return '';
-      return `<div class="block"><div class="block-title">Transfers <button class="add" onclick="addLogisticFor('${e.id}')">Add</button></div>
-        <div class="card flush">${legs.map(journeyRow).join('')}</div></div>`;
-    })()}
-
-    <!-- Checklist -->
-    <div class="block"><div class="block-title">Checklist ${cp.total?`· ${cp.done}/${cp.total}`:''} <button class="add" onclick="addEventCheckPrompt('${e.id}')">Add</button></div>
-      ${e.checklist&&e.checklist.length?`<div class="card flush">${e.checklist.map(i=>`<div class="check ${i.done?'done':''}"><div class="box" onclick="toggleEventCheck('${e.id}','${i.id}')">${ICON.check(15)}</div><div class="lbl" onclick="toggleEventCheck('${e.id}','${i.id}')">${esc(i.label)}</div><button class="del" onclick="delEventCheck('${e.id}','${i.id}')">${ICON.x(16)}</button></div>`).join('')}</div>`
-        :`<div class="card tap" onclick="addEventCheckPrompt('${e.id}')" style="text-align:center;color:var(--text-3);padding:18px;font-weight:600">${ICON.checkList(20)} Add a checklist item</div>`}
-    </div>
-
-    <!-- Attachments -->
-    <div class="block"><div class="block-title">Attachments</div>
-      <div class="thumb-row">
-        ${(e.attachments||[]).map(a=>attachThumb(e.id,a)).join('')}
-        <label class="thumb thumb-add">${ICON.plus(22)}<span>Add</span><input type="file" accept="image/*,application/pdf" style="display:none" onchange="uploadAttachment('${e.id}',this)"></label>
-      </div>
-    </div>
-
-    <!-- Notes -->
-    <div class="block"><div class="block-title">Internal notes</div>
-      <div class="card"><textarea class="textarea" placeholder="Anything to remember about this show…" onblur="saveEventNotes('${e.id}',this.value)">${esc(e.notes||'')}</textarea></div>
-    </div>
-
-    </div>
-    </div>
-
-    <!-- Trip Mode -->
-    <div class="desktop-detail-foot">
+    <div class="show-detail-foot">
     ${(()=>{ const run=runOf(e.id); const otherShows=run?run.shows.length-1:0;
       const active = store.activeShowId && runOf(store.activeShowId) && runOf(store.activeShowId).key===(run&&run.key);
       return `<div class="section" style="margin-top:20px">
@@ -421,7 +548,7 @@ function flightLine(eid,f){
     arrTime ? 'Arr '+esc(arrTime) : '',
     f.seat ? 'Seat '+esc(f.seat) : ''
   ].filter(Boolean).join(' · ');
-  return `<div class="info-line">
+  return `<div class="info-line info-line-stacked">
     <div class="ic">${ICON.plane(17)}</div>
     ${detailTx(esc(f.code||'Flight'), esc(route), meta)}
     <label class="header-btn" style="width:34px;height:34px;align-self:center">${ICON.ticket(16)}<input type="file" accept="image/*,application/pdf" style="display:none" onchange="uploadPass('${eid}','${f.id}',this)"></label>
@@ -708,43 +835,6 @@ function savePromoter(eid){
 }
 /* ---- Advancing: rich, ABOSS-depth show-day info. Every field hidden unless filled. ---- */
 function advRow(icon,k,v,extra){ if(!v) return ''; return `<div class="info-line"><div class="ic">${icon}</div>${fieldTx(k, `<span style="white-space:pre-wrap">${esc(v)}</span>`)}${extra||''}</div>`; }
-function advanceBlock(e){
-  const a=e.advance||{};
-  const sched=(a.schedule||[]).filter(s=>(s.time||s.label));
-  const schedHTML = sched.length?`<div class="ro-list">${sched.map(s=>`<div class="ro-row"><div class="ro-time">${esc(s.time||'')}</div><div class="ro-lab">${esc(s.label||'')}</div></div>`).join('')}</div>`:'';
-  const navExtra = a.navAddr?`<button class="header-btn" style="width:34px;height:34px;align-self:center" onclick="openMaps('${esc(a.navAddr)}')">${ICON.map(16)}</button>`:'';
-  const rows = [
-    advRow(ICON.pin(17),'Stage / area',a.stage),
-    schedHTML?`<div class="info-line" style="align-items:flex-start"><div class="ic">${ICON.clock(17)}</div><div class="tx" style="width:100%"><div class="k">Running order</div>${schedHTML}</div></div>`:'',
-    advRow(ICON.planeUp(17),'Access / arrival',a.access),
-    advRow(ICON.music(17),'Sound check',a.soundcheck),
-    advRow(ICON.clock(17),'Curfew',a.curfew),
-    advRow(ICON.face(17),'Dressing room',a.dressingRoom),
-    advRow(ICON.users(17),'Guest list',a.guestlist),
-    advRow(ICON.bag(17),'Catering / rider',a.catering),
-    advRow(ICON.car(17),'Parking',a.parking),
-    advRow(ICON.globe(17),'WiFi',a.wifi),
-    advRow(ICON.pin(17),'Navigation address',a.navAddr,navExtra),
-    advRow(ICON.note(17),'Remarks',a.remarks),
-  ].filter(Boolean).join('');
-  return `<div class="block"><div class="block-title">Advancing <button class="add" onclick="sheetAdvance('${e.id}')">${rows?'Edit':'Add'}</button></div>
-    ${rows?`<div class="card flush">${rows}</div>`
-      :`<div class="card tap" onclick="sheetAdvance('${e.id}')" style="text-align:center;color:var(--text-3);padding:18px;font-weight:600">${ICON.checkList(20)} Add show-day details</div>`}
-  </div>`;
-}
-function contactsBlock(e){
-  const cs=e.contacts||[];
-  if(!cs.length) return `<div class="block"><div class="block-title">Key contacts <button class="add" onclick="sheetEventContact('${e.id}')">Add</button></div>
-    <div class="card tap" onclick="sheetEventContact('${e.id}')" style="text-align:center;color:var(--text-3);padding:18px;font-weight:600">${ICON.users(20)} Add a key contact</div></div>`;
-  return `<div class="block"><div class="block-title">Key contacts <button class="add" onclick="sheetEventContact('${e.id}')">Add</button></div>
-    <div class="card flush">${cs.map(ct=>`<div class="info-line">
-      <div class="ic">${ICON.user(17)}</div>
-      <div class="tx" onclick="sheetEventContact('${e.id}','${ct.id}')"><div class="k">${esc(ct.name||'Contact')}</div><div class="v">${esc(ct.role||'')}${ct.phone?' · '+esc(ct.phone):''}</div></div>
-      ${ct.phone?`<button class="header-btn" style="width:34px;height:34px;align-self:center" onclick="callNumber('${esc(ct.phone)}')">${ICON.phone(15)}</button>`:''}
-      ${(ct.whatsapp||ct.phone)?`<button class="header-btn" style="width:34px;height:34px;align-self:center" onclick="whatsapp('${esc(ct.whatsapp||ct.phone)}')">${ICON.chat(15)}</button>`:''}
-    </div>`).join('')}</div>
-  </div>`;
-}
 function sheetAdvance(eid){
   const e=sel.event(eid); const a=e.advance||{};
   const sched=(a.schedule&&a.schedule.length?a.schedule:[{time:'',label:''}]);
@@ -851,47 +941,7 @@ function saveEmergency(tid){
    MONEY — event block, editor, overview
    ============================================================ */
 function moneyBlock(e){
-  if(e.finance && e.finance.notDisclosed){
-    return `<div class="block"><div class="card tap" onclick="sheetFinance('${e.id}')" style="padding:15px 16px;display:flex;align-items:center;gap:12px">
-      <div style="width:34px;height:34px;border-radius:10px;background:var(--card-2);display:flex;align-items:center;justify-content:center;color:var(--text-2);flex-shrink:0">${ICON.coins(17)}</div>
-      <div style="flex:1;min-width:0"><b style="font-size:16px;font-weight:700">Deal</b><div style="font-size:13px;color:var(--text-2);margin-top:1px">Not disclosed</div></div>
-      ${ICON.chevR(15)}
-    </div></div>`;
-  }
-  const c = money.eventCalc(e);
-  const base = store.settings.baseCurrency;
-  const showBase = c.cur!==base;
-  const inner = c.gross ? `
-    <div class="fold-pad">
-      <div style="display:flex;align-items:center;justify-content:space-between">
-        <div><div style="font-size:12px;color:var(--text-3);font-weight:700;text-transform:uppercase;letter-spacing:.05em">${esc((e.finance.dealType)||'Fee')}${e.finance.estimated?' · est.':''}</div>
-          <div style="font-size:28px;font-weight:850;letter-spacing:-0.02em;margin-top:2px">${fmtMoney(c.gross,c.cur)}</div>
-          ${showBase?`<div style="font-size:13px;color:var(--text-3);font-weight:600">≈ ${fmtBase(c.grossBase)}</div>`:''}
-        </div>
-        <div style="text-align:right">
-          <span class="tag ${c.paid?'confirmed':'hold'}">${c.paid?'Paid':'Unpaid'}</span>
-          <button class="header-btn" style="width:38px;height:38px;margin-top:8px;margin-left:auto;${c.paid?'background:var(--green-soft);color:var(--green)':''}" onclick="togglePaid('${e.id}')">${ICON.check2(19)}</button>
-        </div>
-      </div>
-      <div class="divi" style="margin:13px 0"></div>
-      <div style="display:flex;flex-direction:column;gap:9px;font-size:14.5px">
-        <div style="display:flex;justify-content:space-between"><span style="color:var(--text-2)">Fee</span><span style="font-weight:650">${fmtMoney(c.gross,c.cur)}</span></div>
-        ${c.commissionAmt?`<div style="display:flex;justify-content:space-between"><span style="color:var(--text-2)">Agent commission (${e.finance.commission}%)</span><span style="font-weight:650;color:var(--red)">− ${fmtMoney(c.commissionAmt,c.cur)}</span></div>`:''}
-        ${c.expenses?`<div style="display:flex;justify-content:space-between"><span style="color:var(--text-2)">Expenses</span><span style="font-weight:650;color:var(--red)">− ${fmtMoney(c.expenses,c.cur)}</span></div>`:''}
-        ${c.perDiem?`<div style="display:flex;justify-content:space-between"><span style="color:var(--text-2)">Per diem</span><span style="font-weight:650;color:var(--green)">+ ${fmtMoney(c.perDiem,c.cur)}</span></div>`:''}
-        <div class="divi" style="margin:4px 0"></div>
-        <div style="display:flex;justify-content:space-between;font-size:16px"><span style="font-weight:750">Net take-home</span><span style="font-weight:850">${fmtMoney(c.net,c.cur)}</span></div>
-        ${showBase?`<div style="display:flex;justify-content:space-between;font-size:12.5px;color:var(--text-3)"><span></span><span>≈ ${fmtBase(c.netBase)}</span></div>`:''}
-      </div>
-      ${(e.finance.expenses||[]).length?`<div style="margin-top:12px">${e.finance.expenses.map(x=>`<div style="display:flex;justify-content:space-between;padding:7px 0;border-top:1px solid var(--stroke);font-size:13.5px"><span style="color:var(--text-2)">${esc(x.label||'Expense')}</span><span>${fmtMoney(x.amount,c.cur)} <button class="del" style="opacity:.6;padding:0 4px" onclick="delExpense('${e.id}','${x.id}')">${ICON.x(13)}</button></span></div>`).join('')}</div>`:''}
-      <div class="btn-row" style="margin-top:12px">
-        <button class="btn secondary" style="padding:11px" onclick="sheetFinance('${e.id}')">${ICON.edit(15)} Edit deal</button>
-        <button class="btn secondary" style="padding:11px" onclick="createInvoiceFromEvent('${e.id}')">${ICON.receipt(15)} Invoice</button>
-      </div>
-    </div>`
-    : `<div class="fold-pad"><div class="card tap" onclick="sheetFinance('${e.id}')" style="text-align:center;color:var(--text-3);padding:16px">${ICON.money(22)}<div style="margin-top:6px;font-weight:600">Add the deal / fee</div></div></div>`;
-  const sub = c.gross ? (e.finance.estimated?'Estimated — tap to view/edit':'Private — tap to view') : 'Not set';
-  return `<div class="block">${foldSection('money'+e.id, ICON.coins(17), 'Deal', sub, inner, false)}</div>`;
+  return showGroup('Deal', ICON.coins(20), dealGroupSummary(e), moneyGroupBody(e));
 }
 function sheetFinance(eid){
   const e=sel.event(eid); const f=e.finance||{};
