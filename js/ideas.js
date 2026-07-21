@@ -16,7 +16,7 @@ function viewIdeas(){
   let body;
   const grouped = (ideaFilter==='all'||ideaFilter==='active');
   if(!list.length){
-    body = `<div class="empty"><div class="ic">${ICON.idea(28)}</div><b>No ideas here</b><span>Capture a reel concept, hook or caption above.</span></div>`;
+    body = `<div class="empty"><div class="ic">${ICON.idea(28)}</div><b>No ideas yet</b><span>Type above to capture a reel hook, caption or content plan — link it to a show later.</span><button class="btn secondary" style="margin-top:14px;max-width:240px" onclick="sheetIdea()">${ICON.plus(18)} New idea</button></div>`;
   } else if(grouped){
     const active = list.filter(i=>!i.done);
     const done = ideaFilter==='all'? list.filter(i=>i.done):[];
@@ -31,10 +31,12 @@ function viewIdeas(){
 
   return `
   <div class="lg-header">
-    <div><div class="lg-title">Ideas</div><div class="lg-sub">Your creative brain · ${toUse} to use</div></div>
+    <div><div class="lg-title">Ideas</div><div class="lg-sub">Content to shoot · ${toUse} waiting</div></div>
     <button class="header-btn" onclick="sheetIdea()">${ICON.plus(22)}</button>
   </div>
   <div class="screen-pad">
+    ${pageIntro('ideas', 'Capture content ideas', 'Save hooks, reels and captions here. Open an idea to link it to a show so it appears on that show\'s page.')}
+    ${tabBlurb('Type in the box below for a quick capture, or tap + for full details.')}
     <div class="idea-capture">
       <input id="idea-quick" placeholder="Capture an idea…" onkeydown="if(event.key==='Enter')quickIdea()">
       <button onclick="quickIdea()">${ICON.plus(20)}</button>

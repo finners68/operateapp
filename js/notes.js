@@ -9,14 +9,16 @@ function viewNotes(){
   const folders = [...new Set(all.map(n=>n.folder).filter(Boolean))];
   return `
   <div class="lg-header">
-    <div><div class="lg-title">Notes</div><div class="lg-sub">${all.length} note${all.length!==1?'s':''}${folders.length?' · '+folders.length+' folders':''}</div></div>
+    <div><div class="lg-title">Notes</div><div class="lg-sub">${all.length} note${all.length!==1?'s':''}${folders.length?' · '+folders.length+' folder'+(folders.length!==1?'s':''):''} · free-form text</div></div>
     <button class="header-btn" onclick="sheetNote()">${ICON.plus(22)}</button>
   </div>
   <div class="screen-pad">
+    ${pageIntro('notes', 'Your notepad', 'Set lists, rider reminders, track IDs — anything text-based. Use folders to group notes (e.g. "Riders" or "Admin").')}
+    ${tabBlurb('Search by title or body. Tap + for a new note.')}
     <div class="searchbar"><span class="ic">${ICON.search(18)}</span><input placeholder="Search notes" value="${esc(noteSearch)}" oninput="noteSearch=this.value;debouncedNotes()"></div>
     <div class="section" style="margin-top:14px">
       ${list.length?`<div class="card flush stagger">${list.map(noteRowFull).join('')}</div>`
-        :`<div class="empty"><div class="ic">${ICON.note(28)}</div><b>${q?'No matches':'No notes yet'}</b><span>${q?'Try another search.':'Jot set notes, rider reminders, track IDs.'}</span></div>`}
+        :`<div class="empty"><div class="ic">${ICON.note(28)}</div><b>${q?'No matches':'No notes yet'}</b><span>${q?'Try another search term.':'Set notes, rider reminders, track IDs — tap + to create one.'}</span>${q?'':`<button class="btn secondary" style="margin-top:14px;max-width:220px" onclick="sheetNote()">${ICON.plus(18)} New note</button>`}</div>`}
     </div>
     <div class="spacer"></div>
   </div>`;

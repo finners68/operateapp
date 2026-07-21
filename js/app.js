@@ -11,6 +11,20 @@ function boot(){
   setInterval(()=>{ if(store.tab==='home' && !overlay && !sheetEl) tickCountdowns(); }, 30000);
 }
 
+const INTRO_KEY = 'operate_intro:';
+function introDismissed(id){ try{ return localStorage.getItem(INTRO_KEY + id) === '1'; }catch(e){ return false; } }
+function dismissIntro(id){ try{ localStorage.setItem(INTRO_KEY + id, '1'); }catch(e){} haptic(); renderView(); }
+function pageIntro(id, title, body){
+  if(introDismissed(id)) return '';
+  return `<div class="page-intro">
+    <b>${esc(title)}</b>
+    <span>${body}</span>
+    <button type="button" class="page-intro-dismiss" onclick="dismissIntro('${id}')">Got it</button>
+  </div>`;
+}
+function tabBlurb(text){ return `<div class="tab-blurb">${text}</div>`; }
+function sectionDesc(text){ return `<div class="section-desc">${text}</div>`; }
+
 function tickCountdowns(){
   document.querySelectorAll('[data-countdown-ms]').forEach(el=>{
     const ms = +el.dataset.countdownMs;
@@ -119,11 +133,11 @@ function initSidebar(){
 }
 /* ---------- Navigation ---------- */
 const TABS = [
-  {id:'home', label:'Home', icon:'home'},
-  {id:'calendar', label:'Calendar', icon:'calendar'},
-  {id:'trips', label:'Trips', icon:'trips'},
-  {id:'ideas', label:'Ideas', icon:'idea'},
-  {id:'notes', label:'Notes', icon:'note'},
+  {id:'home', label:'Home', icon:'home', hint:'Dashboard — your next show and shortcuts'},
+  {id:'calendar', label:'Calendar', icon:'calendar', hint:'Full schedule — add and browse shows'},
+  {id:'trips', label:'Tours', icon:'trips', hint:'Shows grouped into tour runs automatically'},
+  {id:'ideas', label:'Ideas', icon:'idea', hint:'Content ideas to use on shows'},
+  {id:'notes', label:'Notes', icon:'note', hint:'Set notes, riders, reminders'},
 ];
 let overlay = null; // {type, id} for detail views on top of a tab
 let navStack = []; // history of overlays for proper Back behaviour
@@ -146,7 +160,7 @@ function renderNav(){
       <button type="button" class="nav-collapse header-btn" onclick="toggleSidebar(true)" title="Hide sidebar">${ICON.chevL(16)}</button>
     </div>
   ` + TABS.map(t=>`
-    <button class="nav-item ${store.tab===t.id&&!overlay?'active':''}" onclick="go('${t.id}')">
+    <button class="nav-item ${store.tab===t.id&&!overlay?'active':''}" onclick="go('${t.id}')" title="${esc(t.hint)}">
       <span class="ic">${ICON[t.icon](25)}</span><span>${t.label}</span>
     </button>`).join('');
 }
@@ -546,6 +560,7 @@ function viewSettings(){
     <div style="width:36px"></div>
   </div></div>
   <div class="screen-pad stagger">
+    ${pageIntro('settings', 'Set up Operate', 'Add your name, home airport (ends a tour when you fly back), and optional cloud sync under Account. These settings shape how Home and Tours work.')}
     <div class="set-title">Account type</div>
     <div class="acct-grid">
       ${Object.entries(ACCOUNT_TYPES).map(([k,v])=>`

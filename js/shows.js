@@ -28,7 +28,7 @@ function viewHome(){
         </div>
       </div>`;
   } else {
-    hero = `<div class="empty"><div class="ic">${ICON.calendar(28)}</div><b>No upcoming shows</b><span>Add your next event to see it here.</span></div>`;
+    hero = `<div class="empty"><div class="ic">${ICON.calendar(28)}</div><b>No upcoming shows</b><span>Your next show appears here with countdowns and travel info.</span><button class="btn" style="margin-top:16px;max-width:260px" onclick="sheetEvent()">${ICON.plus(18)} Add your first show</button></div>`;
   }
 
   // Today's checklist = next event's checklist
@@ -49,7 +49,7 @@ function viewHome(){
     <div class="home-hero-text"><div class="hero-hello">${greeting}${nameBit}</div><div class="hero-home">Home</div></div>
   </div>` : `
   <div class="lg-header">
-    <div><div class="lg-title">Home</div><div class="lg-sub">${greeting}${nameBit}</div></div>
+    <div><div class="lg-title">Home</div><div class="lg-sub">${greeting}${nameBit} · your tour dashboard</div></div>
     <div style="display:flex;gap:9px">
       <button class="header-btn" onclick="openSearch()">${ICON.search(20)}</button>
       <button class="header-btn" onclick="openView('settings')">${ICON.settings(20)}</button>
@@ -58,6 +58,7 @@ function viewHome(){
   return `
   ${header}
   <div class="screen-pad stagger"${photo?' style="margin-top:14px"':''}>
+    ${pageIntro('welcome', 'Welcome to Operate', 'This is your dashboard. Add shows in Calendar (+), tap a show for flights, hotels and checklists. Nearby shows auto-group into Tours.')}
     ${run?activeTripBanner(run):''}
     ${hero}
 
@@ -65,15 +66,16 @@ function viewHome(){
     <div class="desktop-home-main">
     <div class="section">
       <div class="section-head"><div class="section-title">Quick add</div></div>
+      ${sectionDesc('Shortcuts to create something new without leaving Home.')}
       <div class="qa-grid">
-        <button class="qa" onclick="sheetEvent()"><div class="ic" style="background:var(--accent-soft);color:var(--accent-2)">${ICON.calendar(20)}</div><span>Event</span></button>
+        <button class="qa" onclick="sheetEvent()"><div class="ic" style="background:var(--accent-soft);color:var(--accent-2)">${ICON.calendar(20)}</div><span>Show</span></button>
         <button class="qa" onclick="go('trips')"><div class="ic" style="background:var(--pink);color:#fff">${ICON.trips(20)}</div><span>Tours</span></button>
         <button class="qa" onclick="sheetIdea()"><div class="ic" style="background:var(--orange-soft);color:var(--orange)">${ICON.idea(20)}</div><span>Idea</span></button>
         <button class="qa" onclick="sheetNote()"><div class="ic" style="background:var(--blue-soft);color:var(--blue)">${ICON.note(20)}</div><span>Note</span></button>
       </div>
       <div class="qa-grid" style="margin-top:10px">
-        <button class="qa" onclick="openView('finance')"><div class="ic" style="background:var(--green-soft);color:var(--green)">${ICON.coins(20)}</div><span>Money</span></button>
-        <button class="qa" onclick="openView('invoices')"><div class="ic" style="background:var(--blue-soft);color:var(--blue)">${ICON.receipt(20)}</div><span>Invoices</span></button>
+        <button class="qa" onclick="openView('finance')"><div class="ic" style="background:var(--green-soft);color:var(--green)">${ICON.coins(20)}</div><span>Finance</span></button>
+        <button class="qa" onclick="openView('invoices')"><div class="ic" style="background:var(--blue-soft);color:var(--blue)">${ICON.receipt(20)}</div><span>Invoice</span></button>
         <button class="qa" onclick="openView('contacts')"><div class="ic" style="background:var(--accent-soft);color:var(--accent-2)">${ICON.users(20)}</div><span>Contacts</span></button>
         <button class="qa" onclick="openView('itinerary')"><div class="ic" style="background:var(--blue-soft);color:var(--blue)">${ICON.file(20)}</div><span>Itinerary</span></button>
       </div>
@@ -103,7 +105,7 @@ function viewHome(){
     <div class="section">
       <div class="section-head"><div class="section-title">Ideas to capture</div><div class="section-link" onclick="go('ideas')">All</div></div>
       ${ideasWaiting.length?`<div class="idea-grid">${ideasWaiting.map(ideaCard).join('')}</div>`
-        :`<div class="card" style="text-align:center;color:var(--text-3);padding:22px">No ideas waiting — nice and clear.</div>`}
+        :`<div class="card empty-inline"><b>No ideas yet</b><span>Tap Idea above or go to the Ideas tab to capture content plans.</span></div>`}
     </div>
 
     ${trips.length?`

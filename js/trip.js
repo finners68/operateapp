@@ -226,13 +226,14 @@ function viewTrips(){
   const past = all.filter(r=> parseDT(r.end) < today).reverse();
   return `
   <div class="lg-header">
-    <div><div class="lg-title">Tours</div><div class="lg-sub">Auto-grouped from your shows${activeRun()?' · 1 live':''}</div></div>
+    <div><div class="lg-title">Tours</div><div class="lg-sub">Grouped from your shows${activeRun()?' · 1 live now':''}</div></div>
     <button class="header-btn" onclick="go('calendar')">${ICON.calendar(20)}</button>
   </div>
   <div class="screen-pad">
-    <div class="hint" style="text-align:left;padding:0 4px 12px">Runs of nearby shows are grouped into a tour automatically — no naming. A single show is its own tour.</div>
+    ${pageIntro('tours', 'Tours group themselves', 'When you add shows in Calendar, nearby dates auto-form a tour run — no manual setup. Tap a tour for day-of timeline and packing.')}
+    ${tabBlurb('Shows on back-to-back dates become one tour. Flying home ends the run.')}
     ${upcoming.length?`<div class="stagger">${upcoming.map(runCard).join('')}</div>`
-      :`<div class="empty"><div class="ic">${ICON.trips(28)}</div><b>No upcoming tours</b><span>Add shows in the calendar — they'll group here.</span></div>`}
+      :`<div class="empty"><div class="ic">${ICON.trips(28)}</div><b>No upcoming tours</b><span>Add shows in Calendar first — they appear here grouped by date.</span><button class="btn secondary" style="margin-top:14px;max-width:240px" onclick="go('calendar')">${ICON.calendar(18)} Go to Calendar</button></div>`}
     ${past.length?`<div class="section"><div class="section-head"><div class="section-title" style="font-size:16px;color:var(--text-2)">Past</div></div>
       <div class="card flush">${past.slice(0,12).map(runRow).join('')}</div></div>`:''}
     <div class="spacer"></div>

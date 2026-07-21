@@ -64,15 +64,21 @@ function viewCalendar(){
       <span style="color:var(--text-3)">${ICON.chevDown(18)}</span>
     </div>`;
 
+  const showCount = sel.events().length;
+  const calSub = showCount
+    ? `${showCount} show${showCount!==1?'s':''} · tap a day to filter the list`
+    : 'Tap + to add a show · swipe the calendar to change month';
+
   return `
   <div class="lg-header">
-    <div><div class="lg-title">Calendar</div><div class="lg-sub">${sel.events().length} shows · master schedule</div></div>
+    <div><div class="lg-title">Calendar</div><div class="lg-sub">${calSub}</div></div>
     <div style="display:flex;gap:9px;align-items:center">
       <button class="header-btn" style="width:auto;padding:0 12px;gap:4px;border-radius:20px" onclick="toggleCalGrid()">${ICON.calendar(17)} ${(calGridOpen?ICON.chevUp:ICON.chevDown)(15)}</button>
       <button class="header-btn" onclick="sheetEvent()">${ICON.plus(22)}</button>
     </div>
   </div>
   <div class="screen-pad">
+    ${pageIntro('calendar', 'Your master schedule', 'Coloured blocks are shows. Tap a day to see that day\'s list. Use + (top right) to add a show — flights, hotels and checklists live inside each show.')}
     <div class="desktop-cal-split ${calGridOpen?'':'cal-grid-collapsed'}">
       <div class="desktop-cal-grid-col">
         ${calGridCard}
@@ -122,7 +128,7 @@ function monthAgenda(y,m,todayStr){
     if(showPassed(e)) return; // moved to Past shows
     const d=parseDT(e.date); if(d&&d.getFullYear()===y&&d.getMonth()===m){ if(calSel && e.date!==calSel) return; (days[e.date]=days[e.date]||[]).push(e); } });
   const dates=Object.keys(days).sort();
-  if(!dates.length) return `<div class="empty"><div class="ic">${ICON.calendar(26)}</div><b>Nothing ${calSel?'this day':'this month'}</b><span>Tap + to add a show.</span></div>`;
+  if(!dates.length) return `<div class="empty"><div class="ic">${ICON.calendar(26)}</div><b>Nothing ${calSel?'this day':'this month'}</b><span>Tap + (top right) to add a show with venue, date and set time.</span><button class="btn" style="margin-top:14px;max-width:220px" onclick="sheetEvent()">${ICON.plus(18)} Add show</button></div>`;
   return `<div class="stagger">`+dates.map(ds=>{
     const d=parseDT(ds); const items=days[ds].slice().sort(itemSort);
     return `<div class="agenda-day">
