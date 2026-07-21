@@ -7,6 +7,7 @@ function boot(){
   if(appLockActive()) requireUnlock('app', ()=>render());
   initGestures();
   initKeyboard();
+  initSidebar();
   // live tick for countdowns
   setInterval(()=>{ if((store.tab==='home'||store.tab==='calendar') && !overlay && !sheetEl) renderView(); }, 30000);
 }
@@ -77,6 +78,29 @@ function initKeyboard(){
     else if(overlay) back();
   });
 }
+
+const SIDEBAR_KEY = 'operate_sidebar_hidden';
+function isSidebarHidden(){
+  try{ return localStorage.getItem(SIDEBAR_KEY) === '1'; }catch(e){ return false; }
+}
+function applySidebar(){
+  const app = document.getElementById('app');
+  if(app) app.classList.toggle('sidebar-hidden', isSidebarHidden());
+  const rev = document.getElementById('sidebar-reveal');
+  if(rev) rev.classList.toggle('on', isSidebarHidden());
+}
+function toggleSidebar(force){
+  const next = typeof force === 'boolean' ? force : !isSidebarHidden();
+  try{ localStorage.setItem(SIDEBAR_KEY, next ? '1' : '0'); }catch(e){}
+  applySidebar();
+  haptic();
+  if(overlay && overlay.type === 'settings') renderView();
+}
+function initSidebar(){
+  const btn = document.getElementById('sidebar-reveal');
+  if(btn && !btn.dataset.init){ btn.innerHTML = ICON.chevR(18); btn.dataset.init = '1'; }
+  applySidebar();
+}
 /* ---------- Navigation ---------- */
 const TABS = [
   {id:'home', label:'Home', icon:'home'},
@@ -100,7 +124,11 @@ function back(){
 
 function renderNav(){
   $('#nav').innerHTML = `
-    <div class="nav-brand"><span class="nav-brand-mark">O</span><span class="nav-brand-name">Operate</span></div>
+    <div class="nav-brand">
+      <span class="nav-brand-mark">O</span>
+      <span class="nav-brand-name">Operate</span>
+      <button type="button" class="nav-collapse header-btn" onclick="toggleSidebar(true)" title="Hide sidebar">${ICON.chevL(16)}</button>
+    </div>
   ` + TABS.map(t=>`
     <button class="nav-item ${store.tab===t.id&&!overlay?'active':''}" onclick="go('${t.id}')">
       <span class="ic">${ICON[t.icon](25)}</span><span>${t.label}</span>
@@ -538,6 +566,15 @@ function viewSettings(){
       `:''}
     </div>
 
+    <div class="set-title">Display</div>
+    <div class="set-group">
+      <div class="set-row">
+        <div class="ic" style="background:var(--card-2);color:var(--text-2)">${ICON.chevL(17)}</div>
+        <div class="body"><b>Hide sidebar</b><span>Switch to bottom tabs on desktop</span></div>
+        <button class="toggle ${isSidebarHidden()?'on':''}" onclick="toggleSidebar()"><i></i></button>
+      </div>
+    </div>
+
     <div class="set-title">Money</div>
     <div class="set-group">
       <div class="set-row tap" onclick="openView('finance')"><div class="ic" style="background:var(--green-soft);color:var(--green)">${ICON.coins(17)}</div><div class="body"><b>Finance dashboard</b><span>${secOn()&&sec.scope!=='off'?'Protected':'Open'}</span></div><div class="trail">${ICON.chevR(15)}</div></div>
@@ -555,7 +592,7 @@ function viewSettings(){
     <div class="set-title">Account</div>
     <div class="set-group">
       <div class="set-row tap" onclick="sheetAccount()"><div class="ic" style="background:${syncActive()?'var(--green-soft)':'var(--card-2)'};color:${syncActive()?'var(--green)':'var(--text-2)'}">${ICON.globe(17)}</div>
-        <div class="body"><b>${authUser ? esc(authUser.email) : (isSyncEnabled() ? 'Sign in to sync' : (isAuthRequired() ? 'Sign in & sync' : 'Local only'))}</b><span id="sync-row-sub">${syncStatusLabel()}</span></div>
+        <div class="body"><b>${isDevHardwireMode() ? 'Dev mode' : (authUser ? esc(authUser.email) : (isSyncEnabled() ? 'Sign in to sync' : (isAuthRequired() ? 'Sign in & sync' : 'Local only')))}</b><span id="sync-row-sub">${syncStatusLabel()}</span></div>
         <div class="trail">Manage ${ICON.chevR(15)}</div></div>
     </div>
 

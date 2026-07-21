@@ -61,6 +61,12 @@ function hostImg(att, showLegacyId, fileRole, parentLegacyId){
 }
 
 async function ensureOrgForUser(){
+  if(isDevHardwireMode()){
+    const fixed = getFixedOrgId();
+    setStoredOrgId(fixed);
+    return fixed;
+  }
+
   const sb = getSupabase();
   const user = await getAuthUser();
   if(!sb || !user) throw new Error('no_auth');
@@ -497,12 +503,21 @@ async function bootstrapRemoteData(){
   const orgId = await ensureOrgForUser();
   currentOrgId = orgId;
   const local = db.read();
-  if(!isMigrated(orgId) && local && local.events && local.events.length){
+  const sb = getSupabase();
+  let cloudEmpty = false;
+  if(isDevHardwireMode() && sb){
+    const { count, error } = await sb.from('shows').select('*', { count: 'exact', head: true }).eq('org_id', orgId);
+    if(!error) cloudEmpty = !count;
+  }
+  const pushLocal = local && local.events && local.events.length &&
+    (!isMigrated(orgId) || (isDevHardwireMode() && cloudEmpty));
+  if(pushLocal){
     store = local;
     if(store.tab == null) store.tab = 'home';
     migrate();
     await pushToSupabase(orgId);
     markMigrated(orgId);
+    if(isDevHardwireMode()) toast('Uploaded local tour to cloud', 'check');
   } else {
     await loadFromSupabase(orgId);
     markMigrated(orgId);

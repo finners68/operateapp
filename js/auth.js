@@ -78,6 +78,26 @@ async function sendMagicLink(){
   }
 }
 
+async function devHardwireBoot(){
+  hideAuthSheet();
+  try{
+    await bootstrapRemoteData();
+    startRealtime(currentOrgId);
+    syncSetStatus('synced');
+    syncMarkLastSync();
+    if(!store){
+      const saved = db.read();
+      if(saved && saved.events){ store = saved; if(store.tab == null) store.tab = 'home'; migrate(); }
+      else seed();
+    }
+    bootApp();
+  }catch(e){
+    console.error('dev bootstrap', e);
+    toast('Could not connect to dev cloud', 'x');
+    bootApp();
+  }
+}
+
 async function onSignedIn(user){
   if(await rejectWrongUser(user)){
     bootApp();
@@ -134,6 +154,11 @@ async function authBoot(){
   const sb = getSupabase();
   if(!sb){ bootApp(); return; }
 
+  if(isDevHardwireMode()){
+    await devHardwireBoot();
+    return;
+  }
+
   const { data: { session } } = await sb.auth.getSession();
   if(session?.user){
     await onSignedIn(session.user);
@@ -173,6 +198,19 @@ async function authBoot(){
 function sheetAccount(){
   if(!isSupabaseConfigured()){
     openSheet('Account', `<div class="hint" style="text-align:left;padding:2px 2px 16px;line-height:1.5">Cloud sync is not configured. Copy <code>js/config.example.js</code> to <code>js/config.js</code> and add your Supabase credentials.</div><div class="spacer"></div>`);
+    return;
+  }
+  if(isDevHardwireMode()){
+    openSheet('Account & sync', `
+      <div class="card" style="padding:15px;margin-bottom:6px;text-align:center">
+        <div style="font-size:11.5px;color:var(--text-3);font-weight:700;text-transform:uppercase;letter-spacing:.08em">Dev mode</div>
+        <div style="font-size:16px;font-weight:700;margin-top:4px">No sign-in</div>
+        <div style="font-size:13px;color:var(--text-2);margin-top:4px" id="sync-status">${syncStatusLabel()}</div>
+      </div>
+      <div class="hint" style="text-align:left;padding:8px 2px 14px;line-height:1.5">All tour data syncs to the shared dev org. Anyone with the app URL can read and write.</div>
+      <button class="btn secondary" onclick="syncPullNow()">${ICON.reminder(16)} Refresh now</button>
+      <div class="spacer"></div>
+    `);
     return;
   }
   if(!isAuthRequired() && !authUser){

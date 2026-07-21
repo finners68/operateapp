@@ -38,6 +38,13 @@ function isSingleAccountMode(){
   return !!(getFixedOrgId() && getAllowedUserId());
 }
 
+function isDevHardwireMode(){
+  return isSupabaseConfigured()
+    && OPERATE_CONFIG.OPERATE_DEV_MODE === true
+    && !!getFixedOrgId()
+    && isSyncEnabled();
+}
+
 function isAllowedUser(user){
   if(!user) return false;
   const allowedId = getAllowedUserId();

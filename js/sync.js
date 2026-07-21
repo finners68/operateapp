@@ -7,12 +7,16 @@ let syncLastSync = 0;
 
 function syncActive(){
   if(!isSupabaseConfigured() || !currentOrgId) return false;
+  if(isDevHardwireMode()) return true;
   if(getAllowedUserId() && (!authUser || !isAllowedUser(authUser))) return false;
   return true;
 }
 
 function syncStatusLabel(){
   if(!isSupabaseConfigured()) return 'Local only';
+  if(isDevHardwireMode() && !currentOrgId) return 'Dev · connecting…';
+  if(isDevHardwireMode() && syncStatus === 'synced') return 'Dev · synced' + (syncLastSync ? ' · ' + timeAgo(syncLastSync) : '');
+  if(isDevHardwireMode() && currentOrgId) return 'Dev · connected';
   if(!currentOrgId) return (isAuthRequired() || isSyncEnabled()) ? 'Sign in to sync' : 'Local only';
   if(syncStatus === 'synced') return 'Synced' + (syncLastSync ? ' · ' + timeAgo(syncLastSync) : '');
   if(syncStatus === 'syncing') return 'Syncing…';

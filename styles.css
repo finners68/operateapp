@@ -610,6 +610,7 @@ img{-webkit-touch-callout:none;}
 
 /* ---------- Desktop layout (900px+) ---------- */
 .nav-brand{display:none;}
+.sidebar-reveal{display:none;}
 
 @media (min-width:900px){
   :root{
@@ -654,6 +655,68 @@ img{-webkit-touch-callout:none;}
     margin-bottom:6px;
     border-bottom:1px solid var(--stroke);
   }
+  .nav-brand-name{flex:1;}
+  .nav-collapse{
+    width:32px;height:32px;flex-shrink:0;
+    color:var(--text-3);
+  }
+  .nav-collapse:hover{color:var(--text-2);}
+
+  .sidebar-reveal{
+    display:none;
+    position:absolute;
+    top:calc(var(--safe-top) + 16px);
+    left:16px;
+    z-index:45;
+    width:40px;height:40px;
+    border-radius:12px;
+    background:rgba(26,26,32,.94);
+    border:1px solid var(--stroke-strong);
+    align-items:center;
+    justify-content:center;
+    color:var(--text-2);
+    backdrop-filter:blur(16px);
+    box-shadow:0 8px 24px rgba(0,0,0,.35);
+  }
+  .sidebar-reveal.on{display:flex;}
+  .sidebar-reveal:hover{color:var(--text);filter:brightness(1.08);}
+
+  #app.sidebar-hidden{
+    --nav-h:calc(86px + var(--safe-bottom));
+    flex-direction:column;
+  }
+  #app.sidebar-hidden #nav{
+    order:2;
+    position:absolute;
+    left:0;right:0;bottom:0;top:auto;
+    width:100%;
+    height:var(--nav-h);
+    flex:0 0 var(--nav-h);
+    flex-direction:row;
+    align-items:stretch;
+    justify-content:center;
+    padding:8px 0 calc(var(--safe-bottom) + 22px);
+    border-right:none;
+    border-top:1px solid var(--stroke);
+    overflow:visible;
+  }
+  #app.sidebar-hidden .nav-brand,
+  #app.sidebar-hidden .nav-collapse{display:none!important;}
+  #app.sidebar-hidden .nav-item{
+    flex:1;
+    flex-direction:column;
+    justify-content:center;
+    gap:3px;
+    padding-top:8px;
+    width:auto;
+  }
+  #app.sidebar-hidden .nav-item span{font-size:10.5px;}
+  #app.sidebar-hidden .nav-item .ic{width:auto;}
+  #app.sidebar-hidden #screen{
+    flex:1;
+    padding-bottom:calc(var(--nav-h) + 16px);
+  }
+
   .nav-brand-mark{
     width:36px;height:36px;border-radius:11px;background:#0A0A0C;border:1px solid var(--stroke-strong);
     display:flex;align-items:center;justify-content:center;font-size:17px;font-weight:850;color:#fff;
@@ -685,6 +748,10 @@ img{-webkit-touch-callout:none;}
   #view{max-width:var(--content-max);margin:0 auto;width:100%;}
 
   .fab{display:none!important;}
+  #app.sidebar-hidden .fab{
+    display:flex!important;
+    bottom:calc(var(--nav-h) + 14px);
+  }
 
   #toast{bottom:28px;max-width:400px;}
 

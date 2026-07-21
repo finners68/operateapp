@@ -6,6 +6,7 @@ window.OPERATE_CONFIG = {
   REQUIRE_AUTH: false,
   SYNC_ENABLED: false,
   // OPERATE_ORG_ID: 'your-dev-org-uuid',
+  // OPERATE_DEV_MODE: true, // no sign-in; anon RLS on one org (run dev_hardwire_setup.sql)
   // OPERATE_ALLOWED_USER_ID: 'your-supabase-user-uuid',
   // OPERATE_ALLOWED_EMAIL: 'you@example.com',
 };

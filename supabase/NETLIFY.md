@@ -20,16 +20,35 @@ Site → **Environment variables** → Add:
 | `SUPABASE_URL` | `https://xxxxx.supabase.co` |
 | `SUPABASE_ANON_KEY` | your anon public key (`eyJ...`) |
 | `REQUIRE_AUTH` | `false` — app opens immediately (no auth overlay) |
-| `SYNC_ENABLED` | `true` — optional background sync when signed in |
-| `OPERATE_ORG_ID` | UUID of your single dev org (from seed SQL) |
-| `OPERATE_ALLOWED_USER_ID` | UUID of the one Supabase user allowed to sync |
-| `OPERATE_ALLOWED_EMAIL` | Email of that user (magic link restricted to this address) |
+| `SYNC_ENABLED` | `true` — background sync when signed in or in dev mode |
 
 Apply to **Production** (and Deploy previews if you use them).
 
 Do **not** add `service_role` — browser app only needs the anon key.
 
-### Single-org dev testing
+### Option A — Dev hardwire (no sign-in)
+
+Use this for quick dev testing. No magic link required.
+
+1. Run [`seed/dev_hardwire_setup.sql`](seed/dev_hardwire_setup.sql) in Supabase SQL Editor
+2. Copy `OPERATE_ORG_ID` from the NOTICE output
+3. Set Netlify:
+
+| Key | Value |
+|-----|-------|
+| `OPERATE_ORG_ID` | UUID from seed NOTICE |
+| `OPERATE_DEV_MODE` | `true` |
+| `SYNC_ENABLED` | `true` |
+| `REQUIRE_AUTH` | `false` |
+
+4. Redeploy. Open app in the browser that has local tour data — it uploads once if the cloud org is empty.
+5. Settings → Account shows **Dev mode · synced**
+
+Do **not** set `OPERATE_ALLOWED_USER_ID` / `OPERATE_ALLOWED_EMAIL` in this mode.
+
+See [`seed/README.md`](seed/README.md) for details.
+
+### Option B — Single-org with magic link
 
 1. Run [`seed/dev_single_org.sql`](seed/dev_single_org.sql) in Supabase SQL Editor
 2. Link your test user as `owner` on that org
@@ -38,8 +57,6 @@ Do **not** add `service_role` — browser app only needs the anon key.
 5. Local tour data uploads to Postgres; edits sync in background
 
 Only the configured user can sync. Other accounts are signed out immediately and cannot push changes.
-
-See [`seed/README.md`](seed/README.md) for details.
 
 ## 3. Deploy
 
@@ -55,14 +72,14 @@ That writes `js/config.js` from env vars before publish.
 
 1. Open https://operate-app.netlify.app/
 2. App opens immediately (no auth sheet when `REQUIRE_AUTH=false`)
-3. DevTools → Network → `js/config.js` shows `SYNC_ENABLED: true`, `OPERATE_ORG_ID`, and allowed-user fields
-4. Settings → Account → sign in → edit a show → Account shows **Synced**
-5. Supabase Table Editor → `shows` rows appear
+3. DevTools → Network → `js/config.js` shows `SYNC_ENABLED: true` and `OPERATE_ORG_ID`
+4. **Dev mode:** Settings → Account shows **Dev · synced**; Supabase `shows` table fills on first load
+5. **Auth mode:** Settings → Account → sign in → edit a show → Account shows **Synced**
 
 ## 5. Hard refresh after deploy
 
-Clear site data or hard refresh once so service worker `operate-v4` loads.
+Clear site data or hard refresh once so the latest service worker loads.
 
 ## Re-enable magic-link gate later
 
-Set `REQUIRE_AUTH=true` and redeploy.
+Set `REQUIRE_AUTH=true` and redeploy. Remove `OPERATE_DEV_MODE` and anon RLS policies if switching back to auth mode.
