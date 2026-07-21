@@ -175,11 +175,11 @@ function logisticsToRow(e, orgId, showUuidMap){
     show_legacy_id: e.showId || null,
     kind: e.kind,
     item_date: e.date,
-    title: e.title || null,
+    title: e.title || logisticTypeLabel(e),
     start_time: e.start || null,
     end_time: e.end || null,
     icon: e.icon || null,
-    info: e.info || null,
+    info: packLogisticInfo(e),
     all_day: !!e.allDay,
     done: !!e.done,
     passes: e.passes || []
@@ -461,11 +461,13 @@ async function loadFromSupabase(orgId){
         data: p.data, _storagePath: p._storagePath
       }));
       for(const p of passes) await resolveAttachment(p);
-      events.push({
+      const it = {
         id: l.legacy_id, kind: l.kind, date: l.item_date, showId: l.show_legacy_id,
         title: l.title, start: l.start_time, end: l.end_time, icon: l.icon,
         info: l.info, allDay: l.all_day, done: l.done, passes
-      });
+      };
+      normalizeLogisticItem(it);
+      events.push(it);
     }
 
     events.sort((a, b) => (a.date || '').localeCompare(b.date || ''));

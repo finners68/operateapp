@@ -94,9 +94,9 @@ function viewHome(){
           <div class="count"><div class="count-k">${ICON.clock(12)} Starts in</div><div class="count-v"${setMs?` data-countdown-ms="${setMs}"`:''}><span class="cd-txt">${cS&&!cS.done?cS.txt:'—'}</span><small class="cd-unit">${cS&&!cS.done?cS.unit:''}</small></div></div>
           ${flight?`<div class="count"><div class="count-k">${ICON.plane(12)} Flight</div><div class="count-v"${flightMs?` data-countdown-ms="${flightMs}" data-countdown-off="Off"`:''}><span class="cd-txt">${cF.done?'Off':cF.txt}</span><small class="cd-unit">${cF.done?'':cF.unit}</small></div></div>`:''}
         </div>
-        <div class="hero-info">
-          ${e.hotel?`<div class="pill" onclick="event.stopPropagation();openMaps('${esc((e.hotel.name||'')+' '+(e.hotel.address||''))}')"><div class="ic">${ICON.bed(16)}</div><div class="tx"><b>${esc(e.hotel.name||'Hotel')}</b><span>Tap for maps</span></div></div>`:''}
-          <div class="pill" onclick="event.stopPropagation();openMaps('${esc(cleanVenue(e.venue)+' '+(e.venueAddr||e.city||''))}')"><div class="ic">${ICON.pin(16)}</div><div class="tx"><b>Venue</b><span>Tap for maps</span></div></div>
+        <div class="hero-links">
+          ${e.hotel?`<button type="button" class="hero-link" onclick="event.stopPropagation();openMaps('${esc((e.hotel.name||'')+' '+(e.hotel.address||''))}')">${ICON.bed(14)} ${esc(e.hotel.name||'Hotel')}</button>`:''}
+          <button type="button" class="hero-link" onclick="event.stopPropagation();openMaps('${esc(cleanVenue(e.venue)+' '+(e.venueAddr||e.city||''))}')">${ICON.pin(14)} Venue</button>
         </div>
       </div>`;
   } else {
@@ -127,92 +127,103 @@ function viewHome(){
       <button class="header-btn" onclick="openView('settings')">${ICON.settings(20)}</button>
     </div>
   </div>`;
+  const st = computeStats();
+  const statsBlock = st.shows ? `
+    <div class="home-panel tap" onclick="openView('stats')">
+      <div class="home-panel-head home-panel-head-flex">
+        <span>Schedule snapshot</span>
+        <span class="home-panel-link">All stats</span>
+      </div>
+      <div class="home-stat-grid">
+        ${homeStat(ICON.music(14),'var(--accent-2)', st.upcoming, 'Shows')}
+        ${homeStat(ICON.plane(14),'var(--blue)', st.flightHrs+'h', 'In the air')}
+        ${homeStat(ICON.trips(14),'var(--green)', st.daysAway, 'Days away')}
+        ${homeStat(ICON.globe(14),'var(--pink)', st.cities, 'Cities')}
+      </div>
+    </div>` : '';
+
+  const asideBits = [
+    todayChecklist.length ? homePanel('Today\'s checklist', `<button type="button" class="home-panel-link" onclick="openView('event','${e.id}')">Open show</button>`,
+      `<div class="card flush home-inset">${todayChecklist.slice(0,5).map(i=>checkRow(i, `toggleEventCheck('${e.id}','${i.id}')`)).join('')}</div>`) : '',
+    ideasWaiting.length ? homePanel('Ideas', `<button type="button" class="home-panel-link" onclick="go('ideas')">All</button>`,
+      `<div class="card flush home-inset">${ideasWaiting.slice(0,3).map(homeIdeaRow).join('')}</div>`) : '',
+    trips.length ? homePanel('Upcoming tours', `<button type="button" class="home-panel-link" onclick="go('trips')">All</button>`,
+      `<div class="card flush home-inset">${trips.map(runRow).join('')}</div>`) : '',
+    recentNotes.length ? homePanel('Recent notes', `<button type="button" class="home-panel-link" onclick="go('notes')">All</button>`,
+      `<div class="card flush home-inset">${recentNotes.map(noteRow).join('')}</div>`) : '',
+  ].filter(Boolean).join('');
+
   return `
   ${header}
-  <div class="screen-pad stagger"${photo?' style="margin-top:14px"':''}>
-    ${pageIntro('welcome', 'Welcome to Operate', 'This is your dashboard. Add and edit shows in the Shows tab (+), tap a show for flights, hotels and checklists. Nearby shows auto-group into Tours.')}
+  <div class="screen-pad home-screen stagger"${photo?' style="margin-top:12px"':''}>
     ${run?activeTripBanner(run):''}
-    ${hero}
+    <section class="home-focus">${hero}</section>
 
-    <div class="desktop-home-grid">
-    <div class="desktop-home-main">
-    <div class="section">
-      <div class="section-head"><div class="section-title">Quick add</div></div>
-      ${sectionDesc('Shortcuts to create something new without leaving Home.')}
-      <div class="qa-grid">
-        <button class="qa" onclick="go('shows')"><div class="ic" style="background:var(--accent-soft);color:var(--accent-2)">${ICON.music(20)}</div><span>Shows</span></button>
-        <button class="qa" onclick="go('trips')"><div class="ic" style="background:var(--pink);color:#fff">${ICON.trips(20)}</div><span>Tours</span></button>
-        <button class="qa" onclick="sheetIdea()"><div class="ic" style="background:var(--orange-soft);color:var(--orange)">${ICON.idea(20)}</div><span>Idea</span></button>
-        <button class="qa" onclick="sheetNote()"><div class="ic" style="background:var(--blue-soft);color:var(--blue)">${ICON.note(20)}</div><span>Note</span></button>
-      </div>
-      <div class="qa-grid" style="margin-top:10px">
-        <button class="qa" onclick="openView('finance')"><div class="ic" style="background:var(--green-soft);color:var(--green)">${ICON.coins(20)}</div><span>Finance</span></button>
-        <button class="qa" onclick="openView('invoices')"><div class="ic" style="background:var(--blue-soft);color:var(--blue)">${ICON.receipt(20)}</div><span>Invoice</span></button>
-        <button class="qa" onclick="openView('contacts')"><div class="ic" style="background:var(--accent-soft);color:var(--accent-2)">${ICON.users(20)}</div><span>Contacts</span></button>
-        <button class="qa" onclick="openView('itinerary')"><div class="ic" style="background:var(--blue-soft);color:var(--blue)">${ICON.file(20)}</div><span>Itinerary</span></button>
-      </div>
-    </div>
-
-    ${(()=>{ const st=computeStats(); if(!st.shows) return ''; return `
-    <div class="section">
-      <div class="section-head"><div class="section-title">Your schedule</div><div class="section-link" onclick="openView('stats')">All stats</div></div>
-      <div class="card tap" onclick="openView('stats')" style="padding:0;overflow:hidden">
-        <div style="display:grid;grid-template-columns:1fr 1fr">
-          ${homeStat(ICON.music(15),'var(--accent-2)', st.upcoming, 'shows ahead', 0)}
-          ${homeStat(ICON.plane(15),'var(--blue)', st.flightHrs+'h', 'in the air', 1)}
-          ${homeStat(ICON.trips(15),'var(--green)', st.daysAway, 'days away', 2)}
-          ${homeStat(ICON.globe(15),'var(--pink)', st.cities, 'cities', 3)}
+    <div class="home-layout desktop-home-grid">
+      <div class="home-main desktop-home-main">
+        <div class="home-panel">
+          <div class="home-panel-head">Shortcuts</div>
+          <div class="home-panel-body">
+            <div class="home-sc-group">
+              <div class="home-sc-label">Tour</div>
+              <div class="home-sc-row">
+                ${homeShortcut(`go('shows')`, ICON.music(18), 'var(--accent-2)', 'Shows')}
+                ${homeShortcut(`go('trips')`, ICON.trips(18), 'var(--pink)', 'Tours')}
+                ${homeShortcut(`openView('itinerary')`, ICON.file(18), 'var(--blue)', 'Itinerary')}
+              </div>
+            </div>
+            <div class="home-sc-group">
+              <div class="home-sc-label">Desk</div>
+              <div class="home-sc-row">
+                ${homeShortcut(`sheetIdea()`, ICON.idea(18), 'var(--orange)', 'New idea')}
+                ${homeShortcut(`sheetNote()`, ICON.note(18), 'var(--blue)', 'New note')}
+                ${homeShortcut(`openView('finance')`, ICON.coins(18), 'var(--green)', 'Finance')}
+                ${homeShortcut(`openView('invoices')`, ICON.receipt(18), 'var(--blue)', 'Invoice')}
+                ${homeShortcut(`openView('contacts')`, ICON.users(18), 'var(--accent-2)', 'Contacts')}
+              </div>
+            </div>
+          </div>
         </div>
+        ${statsBlock}
       </div>
-    </div>`; })()}
-    </div>
-
-    <div class="desktop-home-side">
-    ${todayChecklist.length?`
-    <div class="section">
-      <div class="section-head"><div class="section-title">Today's checklist</div><div class="section-link" onclick="openView('event','${e.id}')">Open show</div></div>
-      <div class="card flush">${todayChecklist.map(i=>checkRow(i, `toggleEventCheck('${e.id}','${i.id}')`)).join('')}</div>
-    </div>`:''}
-
-    <div class="section">
-      <div class="section-head"><div class="section-title">Ideas to capture</div><div class="section-link" onclick="go('ideas')">All</div></div>
-      ${ideasWaiting.length?`<div class="idea-grid">${ideasWaiting.map(ideaCard).join('')}</div>`
-        :`<div class="card empty-inline"><b>No ideas yet</b><span>Tap Idea above or go to the Ideas tab to capture content plans.</span></div>`}
-    </div>
-
-    ${trips.length?`
-    <div class="section">
-      <div class="section-head"><div class="section-title">Tours</div><div class="section-link" onclick="go('trips')">All</div></div>
-      <div class="card flush">${trips.map(runRow).join('')}</div>
-    </div>`:''}
-
-    ${recentNotes.length?`
-    <div class="section">
-      <div class="section-head"><div class="section-title">Recent notes</div><div class="section-link" onclick="go('notes')">All</div></div>
-      <div class="card flush">${recentNotes.map(noteRow).join('')}</div>
-    </div>`:''}
-    </div>
+      ${asideBits ? `<aside class="home-aside desktop-home-side">${asideBits}</aside>` : ''}
     </div>
 
     <div class="spacer"></div>
   </div>`;
 }
-function homeStat(icon, color, value, label, idx){
-  const leftBorder = (idx%2===1);   // right column
-  const bottomBorder = (idx<2);     // top row
-  return `<div style="padding:15px 16px;${bottomBorder?'border-bottom:1px solid var(--stroke);':''}${leftBorder?'border-left:1px solid var(--stroke);':''}">
-    <div style="color:${color};display:flex;align-items:center;gap:6px;font-size:11.5px;font-weight:700;text-transform:uppercase;letter-spacing:.03em">${icon} ${esc(label)}</div>
-    <div style="font-size:24px;font-weight:850;letter-spacing:-0.02em;margin-top:3px">${value}</div>
+function homePanel(title, linkHTML, bodyHTML){
+  return `<div class="home-panel">
+    <div class="home-panel-head home-panel-head-flex"><span>${esc(title)}</span>${linkHTML||''}</div>
+    ${bodyHTML}
+  </div>`;
+}
+function homeShortcut(onclick, iconHTML, color, label){
+  return `<button type="button" class="home-sc" onclick="${onclick}"><span class="ic" style="background:${color}22;color:${color}">${iconHTML}</span><span>${esc(label)}</span></button>`;
+}
+function homeIdeaRow(i){
+  const t = IDEA_TYPES[i.type]||IDEA_TYPES.other;
+  return `<div class="home-mini-row" onclick="openView('idea','${i.id}')">
+    <span class="home-mini-dot" style="background:${t.color}"></span>
+    <span class="home-mini-t">${esc(i.title)}</span>
+    <span class="home-mini-meta">${esc(t.label)}</span>
+    ${ICON.chevR(14)}
+  </div>`;
+}
+function homeStat(icon, color, value, label){
+  return `<div class="home-stat">
+    <div class="home-stat-k" style="color:${color}">${icon} ${esc(label)}</div>
+    <div class="home-stat-v">${value}</div>
   </div>`;
 }
 
 function activeTripBanner(run){
   const p=runProgress(run);
-  return `<div style="margin-bottom:14px"><div class="card tap" onclick="openView('trip','${run.key}')" style="background:var(--green-soft);border-color:rgba(50,215,75,0.3);display:flex;align-items:center;gap:12px;padding:13px 15px">
-    <span class="pulse" style="flex-shrink:0"></span>
-    <div style="flex:1;min-width:0"><b style="font-size:15px;color:var(--green)">Active trip · ${esc(run.title)}</b><div style="font-size:12.5px;color:var(--text-2);margin-top:1px">${run.shows.length} show${run.shows.length>1?'s':''} · ${p.pct}% done · tap for trip mode</div></div>
-    <span style="color:var(--green)">${ICON.chevR(18)}</span>
-  </div></div>`;
+  return `<div class="home-trip-banner card tap" onclick="openView('trip','${run.key}')">
+    <span class="pulse"></span>
+    <div class="home-trip-text"><b>Live trip · ${esc(run.title)}</b><span>${run.shows.length} show${run.shows.length>1?'s':''} · ${p.pct}% done</span></div>
+    <span class="home-trip-chev">${ICON.chevR(18)}</span>
+  </div>`;
 }
 /* Shared small components */
 function checkRow(i, onclick){

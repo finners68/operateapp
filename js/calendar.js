@@ -167,16 +167,20 @@ function showBlock(e){
   </div>`;
 }
 function travBlock(e){
+  normalizeLogisticItem(e);
+  const d = logisticDisplayLines(e);
   return `<div class="ag-log" onclick="openItem('${e.id}')">
     <div class="ag-ic">${(ICON[e.icon]||ICON.plane)(18)}</div>
-    <div class="ag-log-b"><b>${esc(e.title)}</b>${e.start?`<span>${esc(e.start)}${e.end?' – '+esc(e.end):''}</span>`:''}</div>
+    <div class="ag-log-b">${detailParts(esc(d.title), d.primary?esc(d.primary):'', d.meta?esc(d.meta):'')}</div>
     <div class="ag-loc2">LOC</div>
   </div>`;
 }
 function stayBlock(e){
+  normalizeLogisticItem(e);
+  const d = logisticDisplayLines(e);
   return `<div class="ag-log" onclick="openItem('${e.id}')">
     <div class="ag-ic">${ICON.bed(18)}</div>
-    <div class="ag-log-b"><b>${esc(e.title)}</b><span>${esc(e.info||'TBA')}</span></div>
+    <div class="ag-log-b">${detailParts(esc(d.title), d.primary?esc(d.primary):'', d.meta?esc(d.meta):'')}</div>
     <div class="ag-loc2">LOC</div>
   </div>`;
 }
@@ -194,7 +198,7 @@ function logColor(l){
 /* Labeled quick-access widgets (logo + text) */
 function jbtn(icon,label,onclick,cls){ return `<button class="jbtn ${cls||''}" onclick="event.stopPropagation();${onclick}">${icon}<span>${esc(label)}</span></button>`; }
 function jbtnFile(icon,label,itemId,cls){ return `<label class="jbtn ${cls||''}">${icon}<span>${esc(label)}</span><input type="file" accept="image/*,application/pdf" style="display:none" onchange="uploadItemPass('${itemId}',this)"></label>`; }
-function isDriverItem(l){ return l && l.kind==='travel' && /driver|uber|taxi|transfer|walk/i.test(l.title||''); }
+function isDriverItem(l){ return l && l.kind==='travel' && ((l.icon||'plane')==='car' || /driver|uber|taxi/i.test(l.title||'')); }
 function itemButtons(l){
   const isFlight = l.kind==='travel' && (l.icon||'plane')==='plane';
   const isDriver = isDriverItem(l);
@@ -221,14 +225,13 @@ function setButtons(s){ const sh=sel.event(s.showId); const mq=tlMapsQuery(s); c
 function stepButtons(s){ return s.kind==='set'?setButtons(s):itemButtons(s.ref); }
 function journeyRow(l){
   const icon = l.kind==='stay'?'bed':(l.icon||'plane');
-  const time = l.kind==='stay' ? (l.info||'Stay') : (l.start?l.start+(l.end?' – '+l.end:''):'');
   const col = logColor(l);
   const btns = itemButtons(l);
   const isFlight = l.kind==='travel' && (l.icon||'plane')==='plane';
   return `<div class="jitem">
     <div class="jitem-top" onclick="openItem('${l.id}')">
       <div class="jic" style="background:${col}22;color:${col}">${(ICON[icon]||ICON.plane)(24)}</div>
-      <div class="body"><b>${esc(l.title)}</b><span>${esc(time)}</span></div>
+      <div class="body tx">${logisticRowHtml(l)}</div>
       ${ICON.chevR(15)}
     </div>
     ${btns?`<div class="jitem-actions">${btns}</div>`:''}
@@ -252,14 +255,14 @@ function showQuickLinks(e){
   const items = store.events.filter(x=>x.showId===e.id);
   const flights = items.filter(x=>x.kind==='travel' && (x.icon||'plane')==='plane');
   const hotelItem = items.find(x=>x.kind==='stay');
-  const drivers = items.filter(x=>x.kind==='travel' && /driver|uber|taxi|transfer/i.test(x.title||''));
+  const drivers = items.filter(x=>x.kind==='travel' && isDriverItem(x));
   const tile=(icon,color,label,onclick)=>`<button class="act" onclick="${onclick}"><div class="ic" style="background:${color}22;color:${color}">${icon}</div><span>${label}</span></button>`;
   const tileFile=(icon,color,label,itemId)=>`<label class="act"><div class="ic" style="background:${color}22;color:${color}">${icon}</div><span>${label}</span><input type="file" accept="image/*,application/pdf" style="display:none" onchange="uploadItemPass('${itemId}',this)"></label>`;
   const tiles=[];
   tiles.push(tile(ICON.map(20),'var(--blue)','Venue',`openMaps('${esc(cleanVenue(e.venue)+' '+(e.venueAddr||e.city||''))}')`));
   if(flights.length){ const wp=flights.find(f=>f.passes&&f.passes.length);
     tiles.push(wp?tile(ICON.ticket(20),'var(--accent-2)','Boarding',`viewItemPass('${wp.id}')`):tileFile(ICON.ticket(20),'var(--accent-2)','Boarding',flights[0].id)); }
-  if(hotelItem||e.hotel){ const q=e.hotel?((e.hotel.name||'')+' '+(e.hotel.address||e.city||'')):((hotelItem.title||'').replace(/^.*hotel\s*-\s*/i,'').replace(/^\[[^\]]*\]\s*-?\s*/,'').trim()+' '+(e.city||'')); tiles.push(tile(ICON.bed(20),'var(--orange)','Hotel',`openMaps('${esc(q)}')`)); }
+  if(hotelItem||e.hotel){ const q=e.hotel?((e.hotel.name||'')+' '+(e.hotel.address||e.city||'')):((hotelItem.place||hotelItem.title||'').replace(/^hotel\s*[-–:]?\s*/i,'').trim()+' '+(e.city||'')); tiles.push(tile(ICON.bed(20),'var(--orange)','Hotel',`openMaps('${esc(q)}')`)); }
   const drvPhone=e.driver&&e.driver.phone;
   if(drvPhone) tiles.push(tile(ICON.car(20),'var(--green)','Driver',`contactDriver('${e.id}')`));
   else if(drivers.length) tiles.push(tile(ICON.car(20),'var(--green)','Driver',`sheetDriver('${e.id}')`));
@@ -267,43 +270,89 @@ function showQuickLinks(e){
   const shown=tiles.slice(0,4);
   return `<div class="act-grid" style="grid-template-columns:repeat(${shown.length},1fr)">${shown.join('')}</div>`;
 }
+function toggleLogisticAddFields(){
+  const kind = getSeg('al-kind') || 'travel';
+  const tr = document.getElementById('al-travel-fields');
+  const st = document.getElementById('al-stay-fields');
+  if(tr) tr.style.display = kind==='travel' ? '' : 'none';
+  if(st) st.style.display = kind==='stay' ? '' : 'none';
+}
 function addLogisticFor(showId){
   const e=sel.event(showId);
   openSheet('Add to journey', `
     <div class="field"><label>Type</label><div class="seg" id="al-kind">
-      ${[['travel','Flight/Transfer'],['stay','Hotel']].map(([k,l],i)=>`<button data-v="${k}" class="${i===0?'on':''}" onclick="segPick(this)">${l}</button>`).join('')}
+      ${[['travel','Flight / transfer'],['stay','Hotel']].map(([k,l],i)=>`<button type="button" data-v="${k}" class="${i===0?'on':''}" onclick="segPick(this);toggleLogisticAddFields()">${l}</button>`).join('')}
     </div></div>
-    <div class="field"><label>Title</label><input id="al-title" class="input" placeholder="FLIGHT - AMS > IBZ  /  HOTEL - name"></div>
+    <div id="al-travel-fields">
+      <div class="field"><label>Travel mode</label><div class="seg" id="al-icon">
+        ${[['plane','Flight'],['car','Driver'],['ferry','Ferry'],['walk','Walk']].map(([k,l],i)=>`<button type="button" data-v="${k}" class="${i===0?'on':''}" onclick="segPick(this)">${l}</button>`).join('')}
+      </div></div>
+      <div class="field"><label>Flight number (optional)</label><input id="al-code" class="input" placeholder="KL1008"></div>
+      <div class="row-2">
+        <div class="field"><label>From</label><input id="al-from" class="input" placeholder="AMS"></div>
+        <div class="field"><label>To</label><input id="al-to" class="input" placeholder="ZTH"></div>
+      </div>
+      <div class="row-2">
+        <div class="field"><label>Departure</label><input id="al-start" type="time" class="input"></div>
+        <div class="field"><label>Arrival</label><input id="al-end" type="time" class="input"></div>
+      </div>
+    </div>
+    <div id="al-stay-fields" style="display:none">
+      <div class="field"><label>Hotel name</label><input id="al-place" class="input" placeholder="e.g. Hilton"></div>
+      <div class="field"><label>Address</label><input id="al-addr" class="input" placeholder="Street, city"></div>
+      <div class="field"><label>Check-in time</label><input id="al-checkin" type="time" class="input"></div>
+    </div>
     <div class="field"><label>Date</label><input id="al-date" type="date" class="input" value="${e?e.date:''}"></div>
-    <div class="row-2"><div class="field"><label>Start</label><input id="al-start" type="time" class="input"></div><div class="field"><label>End</label><input id="al-end" type="time" class="input"></div></div>
     <button class="btn" onclick="saveLogisticFor('${showId}')">Add</button><div class="spacer"></div>
   `);
+  setTimeout(toggleLogisticAddFields, 30);
 }
 function saveLogisticFor(showId){
-  const kind=getSeg('al-kind')||'travel'; const title=val('al-title');
-  if(!title){ toast('Add a title','x'); return; }
+  const kind=getSeg('al-kind')||'travel';
   const date=rawVal('al-date')|| sel.event(showId).date;
-  const it={id:uid('evt'), kind, date, title, showId};
-  if(kind==='travel'){ it.start=rawVal('al-start'); it.end=rawVal('al-end'); it.icon = /ferry|boat/i.test(title)?'ferry':/driver|uber|taxi|car|transfer/i.test(title)?'car':/walk/i.test(title)?'walk':'plane'; }
-  else { it.info = rawVal('al-start')?('Check-in: '+rawVal('al-start')):'TBA'; it.icon='bed'; }
+  const it={id:uid('evt'), kind, date, showId};
+  if(kind==='travel'){
+    const icon = getSeg('al-icon') || 'plane';
+    it.icon = icon;
+    it.from = (val('al-from')||'').toUpperCase().trim();
+    it.to = (val('al-to')||'').toUpperCase().trim();
+    it.flightNo = (val('al-code')||'').toUpperCase().trim();
+    it.start = rawVal('al-start');
+    it.end = rawVal('al-end');
+    if(!it.from && !it.to && !it.start){ toast('Add a route or time','x'); return; }
+    it.title = logisticTypeLabel(it);
+  } else {
+    it.place = val('al-place');
+    it.addr = val('al-addr');
+    it.info = rawVal('al-checkin') ? ('Check-in: '+rawVal('al-checkin')) : '';
+    it.icon = 'bed';
+    it.title = 'Hotel';
+    if(!it.place && !it.addr){ toast('Add a hotel name or address','x'); return; }
+  }
   store.events.push(it); persist(); closeSheet(); renderView(); toast('Added to journey','check');
 }
 /* Lightweight editor for travel / stay / marker items */
 function openItem(id){
   const e=store.events.find(x=>x.id===id); if(!e) return;
+  normalizeLogisticItem(e);
   const label = e.kind==='travel'?'Travel':e.kind==='stay'?'Stay':'Note';
   const iconOpts = ['plane','car','ferry','walk','bed'];
   openSheet(label, `
-    <div class="field"><label>Title</label><input id="it-title" class="input" value="${esc(e.title)}"></div>
     <div class="field"><label>Date</label><input id="it-date" type="date" class="input" value="${e.date}"></div>
     ${e.kind==='travel'?`
-      <div class="row-2"><div class="field"><label>Start</label><input id="it-start" type="time" class="input" value="${e.start||''}"></div><div class="field"><label>End</label><input id="it-end" type="time" class="input" value="${e.end||''}"></div></div>
-      <div class="field"><label>Type</label><div class="seg" id="it-icon">${iconOpts.slice(0,4).map(ic=>`<button data-v="${ic}" class="${(e.icon||'plane')===ic?'on':''}" onclick="segPick(this)">${ic}</button>`).join('')}</div></div>
+      <div class="field"><label>Travel mode</label><div class="seg" id="it-icon">${iconOpts.slice(0,4).map(ic=>`<button type="button" data-v="${ic}" class="${(e.icon||'plane')===ic?'on':''}" onclick="segPick(this)">${ic==='plane'?'Flight':ic==='car'?'Driver':ic==='ferry'?'Ferry':'Walk'}</button>`).join('')}</div></div>
+      <div class="field"><label>Flight number (optional)</label><input id="it-code" class="input" value="${esc(e.flightNo||'')}" placeholder="KL1008"></div>
+      <div class="row-2">
+        <div class="field"><label>From</label><input id="it-from" class="input" value="${esc(e.from||'')}" placeholder="AMS"></div>
+        <div class="field"><label>To</label><input id="it-to" class="input" value="${esc(e.to||'')}" placeholder="ZTH"></div>
+      </div>
+      <div class="row-2"><div class="field"><label>Departure</label><input id="it-start" type="time" class="input" value="${e.start||''}"></div><div class="field"><label>Arrival</label><input id="it-end" type="time" class="input" value="${e.end||''}"></div></div>
       ${isDriverItem(e)?`<div class="field"><label>Driver phone</label><input id="it-phone" type="tel" class="input" value="${esc(e.phone||'')}" placeholder="+34 600 000 000"></div>
       <div class="field"><label>WhatsApp (if different)</label><input id="it-wa" type="tel" class="input" value="${esc(e.whatsapp||'')}"></div>`:''}`:''}
-    ${e.kind==='stay'?`<div class="field"><label>Info</label><input id="it-info" class="input" value="${esc(e.info||'')}" placeholder="Check-in: 14:00"></div>
-      <div class="field"><label>Booking reference</label><input id="it-ref" class="input" value="${esc(e.bookingRef||'')}" placeholder="Confirmation number"></div>
-      <div class="field"><label>Address</label><input id="it-addr" class="input" value="${esc(e.addr||'')}" placeholder="Hotel address"></div>`:''}
+    ${e.kind==='stay'?`<div class="field"><label>Hotel name</label><input id="it-place" class="input" value="${esc(e.place||'')}" placeholder="Hilton"></div>
+      <div class="field"><label>Address</label><input id="it-addr" class="input" value="${esc(e.addr||'')}" placeholder="Hotel address"></div>
+      <div class="field"><label>Check-in</label><input id="it-info" class="input" value="${esc((e.info||'').replace(/^Check-in:\s*/i,''))}" placeholder="14:00"></div>
+      <div class="field"><label>Booking reference</label><input id="it-ref" class="input" value="${esc(e.bookingRef||'')}" placeholder="Confirmation number"></div>`:''}
     <button class="btn" onclick="saveItem('${id}')">Save</button>
     <div class="spacer"></div>
     <button class="btn danger" onclick="delItem('${id}')">${ICON.trash(15)} Delete</button>
@@ -312,10 +361,25 @@ function openItem(id){
 }
 function saveItem(id){
   const e=store.events.find(x=>x.id===id); if(!e) return;
-  e.title=val('it-title')||e.title; e.date=rawVal('it-date')||e.date;
-  if(e.kind==='travel'){ e.start=rawVal('it-start'); e.end=rawVal('it-end'); e.icon=getSeg('it-icon')||e.icon;
-    if(isDriverItem(e)){ e.phone=val('it-phone'); e.whatsapp=val('it-wa'); } }
-  if(e.kind==='stay'){ e.info=val('it-info'); e.bookingRef=val('it-ref'); e.addr=val('it-addr'); }
+  e.date=rawVal('it-date')||e.date;
+  if(e.kind==='travel'){
+    e.icon=getSeg('it-icon')||e.icon||'plane';
+    e.from=(val('it-from')||'').toUpperCase().trim();
+    e.to=(val('it-to')||'').toUpperCase().trim();
+    e.flightNo=(val('it-code')||'').toUpperCase().trim();
+    e.start=rawVal('it-start');
+    e.end=rawVal('it-end');
+    e.title=logisticTypeLabel(e);
+    if(isDriverItem(e)){ e.phone=val('it-phone'); e.whatsapp=val('it-wa'); }
+  }
+  if(e.kind==='stay'){
+    e.place=val('it-place');
+    e.addr=val('it-addr');
+    const ci=rawVal('it-info')||val('it-info');
+    e.info=ci ? (ci.includes('Check-in')?ci:'Check-in: '+ci) : '';
+    e.bookingRef=val('it-ref');
+    e.title='Hotel';
+  }
   persist(); closeSheet(); renderView(); toast('Saved','check');
 }
 function delItem(id){ store.events=store.events.filter(x=>x.id!==id); persist(); closeSheet(); renderView(); toast('Deleted','trash'); }

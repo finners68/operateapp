@@ -143,6 +143,111 @@ function showSubsection(title, addBtnHTML, bodyHTML){
 function showSourceLabel(text){
   return `<div class="show-source-label">${esc(text)}</div>`;
 }
+
+/* ---------- Logistics items (journey legs on a show) ---------- */
+function logisticTypeLabel(l){
+  if(!l) return '';
+  if(l.kind==='stay') return 'Hotel';
+  const ic = l.icon || 'plane';
+  if(ic==='plane') return 'Flight';
+  if(ic==='car') return 'Driver';
+  if(ic==='ferry') return 'Ferry';
+  if(ic==='walk') return 'Walk';
+  return 'Transfer';
+}
+function inferIconFromLogisticTitle(title){
+  const t = (title||'').toLowerCase();
+  if(/ferry|boat/.test(t)) return 'ferry';
+  if(/driver|uber|taxi|transfer/.test(t)) return 'car';
+  if(/walk/.test(t)) return 'walk';
+  return 'plane';
+}
+function parseLogisticRouteFromLegacy(title){
+  if(!title) return null;
+  let rest = String(title).replace(/^(flight|transfer|ferry|driver|hotel|stay|walk)\s*[-–:]\s*/i,'').trim();
+  const m = rest.match(/^(.+?)\s*(?:→|->|>|–|-)\s*(.+)$/i);
+  if(!m) return null;
+  return { from: m[1].trim(), to: m[2].trim() };
+}
+function unpackLogisticInfoFields(e){
+  const raw = e.info;
+  if(!raw || typeof raw !== 'string' || raw[0] !== '{') return;
+  try{
+    const o = JSON.parse(raw);
+    if(o.v !== 2) return;
+    if(e.kind==='travel'){
+      if(o.from) e.from = o.from;
+      if(o.to) e.to = o.to;
+      if(o.flightNo) e.flightNo = o.flightNo;
+      if(o.phone) e.phone = o.phone;
+      if(o.whatsapp) e.whatsapp = o.whatsapp;
+      e.info = o.note || '';
+    } else if(e.kind==='stay'){
+      if(o.place) e.place = o.place;
+      if(o.checkIn != null) e.info = o.checkIn;
+      if(o.addr) e.addr = o.addr;
+      if(o.bookingRef) e.bookingRef = o.bookingRef;
+    }
+  }catch(err){}
+}
+function packLogisticInfo(e){
+  if(e.kind==='travel' && (e.from || e.to || e.flightNo || e.phone || e.whatsapp)){
+    return JSON.stringify({ v:2, from:e.from||'', to:e.to||'', flightNo:e.flightNo||'', note:e.info||'', phone:e.phone||'', whatsapp:e.whatsapp||'' });
+  }
+  if(e.kind==='stay' && (e.place || e.addr || e.bookingRef)){
+    return JSON.stringify({ v:2, place:e.place||'', checkIn:e.info||'', addr:e.addr||'', bookingRef:e.bookingRef||'' });
+  }
+  return e.info || null;
+}
+function normalizeLogisticItem(e){
+  if(!e || (e.kind!=='travel' && e.kind!=='stay')) return;
+  unpackLogisticInfoFields(e);
+  if(e.kind==='travel'){
+    if(!e.icon) e.icon = inferIconFromLogisticTitle(e.title);
+    if(!e.from && !e.to && e.title){
+      const leg = parseLogisticRouteFromLegacy(e.title);
+      if(leg){ e.from = leg.from.toUpperCase(); e.to = leg.to.toUpperCase(); }
+    }
+    e.title = logisticTypeLabel(e);
+  }
+  if(e.kind==='stay'){
+    if(/^hotel/i.test(e.title||'') && !e.place){
+      e.place = String(e.title).replace(/^hotel\s*[-–:]?\s*/i,'').trim();
+    }
+    e.title = 'Hotel';
+  }
+}
+function logisticRoute(l){
+  if(l.from || l.to) return `${(l.from||'?').toUpperCase()} → ${(l.to||'?').toUpperCase()}`;
+  const leg = parseLogisticRouteFromLegacy(l.title);
+  if(leg) return `${leg.from} → ${leg.to}`;
+  return '';
+}
+function logisticTimes(l){
+  if(l.kind==='stay') return l.info || '';
+  if(l.start && l.end) return `${l.start} – ${l.end}`;
+  if(l.start) return `Dep ${l.start}`;
+  if(l.end) return `Arr ${l.end}`;
+  return '';
+}
+function logisticMetaLine(l){
+  const bits = [];
+  if(l.kind==='travel' && l.flightNo) bits.push(l.flightNo);
+  const t = logisticTimes(l);
+  if(t) bits.push(t);
+  return bits.join(' · ');
+}
+function logisticDisplayLines(l){
+  normalizeLogisticItem(l);
+  if(l.kind==='stay'){
+    return { title: logisticTypeLabel(l), primary: l.place || '', meta: [l.info, l.addr].filter(Boolean).join(' · ') };
+  }
+  return { title: logisticTypeLabel(l), primary: logisticRoute(l), meta: logisticMetaLine(l) };
+}
+function logisticRowHtml(l){
+  const d = logisticDisplayLines(l);
+  return detailParts(esc(d.title), d.primary ? esc(d.primary) : '', d.meta ? esc(d.meta) : '');
+}
 function haptic(){ if(navigator.vibrate) try{navigator.vibrate(8);}catch(e){} }
 let toastT;
 function toast(msg, icon='check'){
@@ -279,7 +384,12 @@ function cleanVenue(v){ v=(v||'').trim(); const c=v.replace(/\s*[\(\[][^\)\]]*[\
 /* The artist's money currency follows their home airport: UK airports -> GBP, everywhere else -> EUR. */
 const UK_AIRPORTS=['LHR','LGW','STN','LTN','LCY','MAN','BHX','EDI','GLA','BRS','NCL','LPL','LBA','BFS','SEN','EMA','ABZ','CWL','SOU','EXT','GLA','INV','DSA'];
 function homeCurrency(){ return UK_AIRPORTS.includes(homeAirport())?'GBP':'EUR'; }
-function isHomeFlight(e){ if(e.kind!=='travel') return false; const h=homeAirport(); return new RegExp('>\\s*'+h+'(\\b|\\))','i').test(e.title||''); }
+function isHomeFlight(e){
+  if(e.kind!=='travel') return false;
+  const h = homeAirport();
+  if(e.to && String(e.to).toUpperCase() === h) return true;
+  return new RegExp('>\\s*'+h+'(\\b|\\))','i').test(e.title||'') || new RegExp('→\\s*'+h+'(\\b|$)','i').test(e.info||'');
+}
 function dtKey(dateStr,timeStr){ return (dateStr||'')+' '+(timeStr||'00:00'); }
 /* Two consecutive shows belong to the same tour only if the days between them are
    all active (travel days, not free days) AND he doesn't return to his home airport
@@ -315,7 +425,12 @@ function activeRun(){ return store.activeShowId ? runOf(store.activeShowId) : nu
 function runTimeline(run){
   const ids = new Set(run.shows.map(s=>s.id));
   const items = store.events.filter(e=> (e.kind==='travel'||e.kind==='stay') && ids.has(e.showId));
-  const rows = items.map(e=>({id:e.id, kind:e.kind, date:e.date, time:e.start||(e.info&&(e.info.match(/(\d{1,2}:\d{2})/)||[])[1])||'', title:e.title, sub:e.kind==='travel'?(e.start?e.start+(e.end?' - '+e.end:''):''):e.info, icon:e.icon||(e.kind==='stay'?'bed':'plane'), done:!!e.done, ref:e}));
+  const rows = items.map(e=>{
+    normalizeLogisticItem(e);
+    const d = logisticDisplayLines(e);
+    const sub = e.kind==='travel' ? logisticMetaLine(e) : (e.info||'');
+    return {id:e.id, kind:e.kind, date:e.date, time:e.start||(e.info&&(e.info.match(/(\d{1,2}:\d{2})/)||[])[1])||'', title:d.title, sub: e.kind==='travel' ? [d.primary, sub].filter(Boolean).join(' · ') : sub, icon:e.icon||(e.kind==='stay'?'bed':'plane'), done:!!e.done, ref:e};
+  });
   run.shows.forEach(s=>{ rows.push({id:'set_'+s.id, kind:'set', date:s.date, time:s.setTime||'', title:s.venue, sub:s.setTime?('Set '+s.setTime+(s.endTime?' - '+s.endTime:'')):'Set TBA', icon:'music', done:!!s.setDone, showId:s.id}); });
   rows.sort((a,b)=>{ if(a.date!==b.date) return a.date.localeCompare(b.date); return itemTimeKey({start:a.time})-itemTimeKey({start:b.time}); });
   return rows;
@@ -681,6 +796,7 @@ function migrate(){
   if(!s.security) s.security={enabled:false,pin:'',scope:'finance',biometric:false};
   if(!store.packing) store.packing = (s.packingTemplate||[]).map(x=>({id:uid('pk'),label:x,done:false}));
   store.events.forEach(e=>{ if((e.kind||'show')==='show' && !e.finance) e.finance={fee:0,currency:s.baseCurrency,dealType:'Guarantee',expenses:[],perDiem:0,commission:0,paid:false}; });
+  store.events.forEach(e=>{ if(e.kind==='travel'||e.kind==='stay') normalizeLogisticItem(e); });
   if(store.events.some(e=>(e.kind==='travel'||e.kind==='stay') && e.showId===undefined)) assignLogistics();
   persist();
 }

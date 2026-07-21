@@ -95,8 +95,14 @@ function resolvePlace(token, sh, city){
 }
 /* A driver/transfer leg is a journey (origin > destination) — return both ends for directions. */
 function driverRoute(l){
+  if(l) normalizeLogisticItem(l);
   const sh=(l&&l.showId)?sel.event(l.showId):null; const city=sh?(sh.city||''):'';
-  const route=(l.title||'').replace(/^\[?[^-\]]*\]?\s*-\s*/,'');   // drop the "DRIVER -" / "[UBER] -" label
+  if(l && (l.from || l.to)){
+    const origin=resolvePlace(l.from, sh, city);
+    const dest=resolvePlace(l.to, sh, city);
+    if(origin&&dest) return {origin, dest};
+  }
+  const route=(l&&l.title||'').replace(/^\[?[^-\]]*\]?\s*-\s*/,'');
   const parts=route.split('>');
   if(parts.length<2) return null;
   const origin=resolvePlace(parts[0], sh, city);
@@ -112,14 +118,24 @@ function openDirections(origin, dest){
 }
 function tlMapsQuery(s){
   const sh=stepShow(s); const city=sh?(sh.city||''):'';
+  const it = s.ref || s;
   if(s.kind==='set'){ return sh?(cleanVenue(sh.venue)+' '+(sh.venueAddr||sh.city||'')):''; }
-  if(s.kind==='stay'){ const name=(s.title||'').replace(/^.*hotel\s*-\s*/i,'').replace(/^\[[^\]]*\]\s*-?\s*/,'').trim(); return name+(city?' '+city:''); }
+  if(s.kind==='stay'){
+    if(it && it.kind==='stay') normalizeLogisticItem(it);
+    const name = (it&&it.place) || (it&&it.addr) || (s.title||'').replace(/^.*hotel\s*-\s*/i,'').replace(/^\[[^\]]*\]\s*-?\s*/,'').trim();
+    return name+(city?' '+city:'');
+  }
   if(s.kind==='travel'){
-    const parts=(s.title||'').split('>'); let dest=parts.length>1?parts[parts.length-1].trim():'';
+    if(it && it.kind==='travel') normalizeLogisticItem(it);
+    let dest = (it&&it.to) ? String(it.to).trim() : '';
+    if(!dest){
+      const parts=(s.title||'').split('>');
+      dest=parts.length>1?parts[parts.length-1].trim():'';
+    }
     if(/^venue$/i.test(dest)) return sh?(cleanVenue(sh.venue)+' '+(sh.venueAddr||sh.city||'')):dest;
     if(/^hotel$/i.test(dest)) return 'hotel '+(city||'');
     if(/^airport$/i.test(dest)) return (city?city+' ':'')+'airport';
-    if((s.icon||'plane')==='plane' && /^[A-Z]{3}$/.test(dest)) return dest+' airport';
+    if((s.icon||'plane')==='plane' && /^[A-Z]{3}$/i.test(dest)) return dest.toUpperCase()+' airport';
     return dest+(city&&!dest.toLowerCase().includes(city.toLowerCase())?' '+city:'');
   }
   return '';
@@ -164,7 +180,7 @@ function tlActions(s){
   if(isFlight){ const it=s.ref; const has=it&&it.passes&&it.passes.length;
     if(has) btns.push(`<button class="tl-btn" onclick="event.stopPropagation();viewItemPass('${it.id}')">${ICON.ticket(15)}</button>`);
     else btns.push(`<label class="tl-btn">${ICON.ticket(15)}<input type="file" accept="image/*,application/pdf" style="display:none" onchange="uploadItemPass('${it.id}',this)"></label>`); }
-  const isDriver=s.kind==='travel'&&/driver|uber|taxi|transfer/i.test(s.title||'');
+  const isDriver=s.kind==='travel'&&((s.icon||'plane')==='car'||(s.ref&&isDriverItem(s.ref)));
   if(isDriver&&sh&&sh.driver&&sh.driver.phone){ btns.push(`<button class="tl-btn" onclick="event.stopPropagation();callNumber('${sh.driver.phone}')">${ICON.phone(15)}</button>`); }
   return btns.join('');
 }

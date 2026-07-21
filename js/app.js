@@ -134,8 +134,8 @@ function initSidebar(){
 /* ---------- Navigation ---------- */
 const TABS = [
   {id:'home', label:'Home', icon:'home', hint:'Dashboard — your next show and shortcuts'},
-  {id:'shows', label:'Shows', icon:'music', hint:'Add, edit and browse all your shows'},
   {id:'calendar', label:'Calendar', icon:'calendar', hint:'Month view — day-by-day schedule'},
+  {id:'shows', label:'Shows', icon:'music', hint:'Add, edit and browse all your shows'},
   {id:'trips', label:'Tours', icon:'trips', hint:'Shows grouped into tour runs automatically'},
   {id:'ideas', label:'Ideas', icon:'idea', hint:'Content ideas to use on shows'},
   {id:'notes', label:'Notes', icon:'note', hint:'Set notes, riders, reminders'},
