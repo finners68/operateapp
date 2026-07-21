@@ -134,7 +134,8 @@ function initSidebar(){
 /* ---------- Navigation ---------- */
 const TABS = [
   {id:'home', label:'Home', icon:'home', hint:'Dashboard — your next show and shortcuts'},
-  {id:'calendar', label:'Calendar', icon:'calendar', hint:'Full schedule — add and browse shows'},
+  {id:'shows', label:'Shows', icon:'music', hint:'Add, edit and browse all your shows'},
+  {id:'calendar', label:'Calendar', icon:'calendar', hint:'Month view — day-by-day schedule'},
   {id:'trips', label:'Tours', icon:'trips', hint:'Shows grouped into tour runs automatically'},
   {id:'ideas', label:'Ideas', icon:'idea', hint:'Content ideas to use on shows'},
   {id:'notes', label:'Notes', icon:'note', hint:'Set notes, riders, reminders'},
@@ -191,6 +192,7 @@ function renderView(opts={}){
   }
   const tab = store.tab;
   if(tab==='home') v.innerHTML = viewHome();
+  else if(tab==='shows') v.innerHTML = viewShows();
   else if(tab==='calendar') v.innerHTML = viewCalendar();
   else if(tab==='trips') v.innerHTML = viewTrips();
   else if(tab==='ideas') v.innerHTML = viewIdeas();
@@ -206,7 +208,7 @@ function setFab(){
   if(!fab.dataset.init){ fab.innerHTML = ICON.plus(26); fab.dataset.init='1'; }
   let action = null;
   if(!overlay){
-    if(store.tab==='calendar') action = 'sheetEvent()';
+    if(store.tab==='shows' || store.tab==='calendar') action = 'sheetEvent()';
     else if(store.tab==='ideas') action = 'sheetIdea()';
     else if(store.tab==='notes') action = 'sheetNote()';
   }

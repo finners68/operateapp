@@ -1,4 +1,76 @@
 /* ============================================================
+   SHOWS — list, add, edit
+   ============================================================ */
+let showFilter = 'upcoming';
+let showSearch = '';
+function viewShows(){
+  const all = sel.events();
+  const q = showSearch.toLowerCase().trim();
+  let list = all.slice();
+  if(showFilter === 'upcoming') list = all.filter(e => !showPassed(e) && e.status !== 'cancelled');
+  else if(showFilter === 'past') list = all.filter(showPassed);
+  else if(showFilter === 'confirmed' || showFilter === 'hold' || showFilter === 'cancelled') list = all.filter(e => e.status === showFilter);
+  if(showFilter === 'past') list.sort((a,b) => (b.date||'').localeCompare(a.date||''));
+  if(q) list = list.filter(e => `${e.venue||''} ${e.city||''} ${e.country||''} ${e.date||''}`.toLowerCase().includes(q));
+  const upcomingN = all.filter(e => !showPassed(e) && e.status !== 'cancelled').length;
+  const chips = [
+    {k:'upcoming', l:`Upcoming · ${upcomingN}`},
+    {k:'all', l:'All · '+all.length},
+    {k:'past', l:'Past'},
+    {k:'confirmed', l:'Confirmed'},
+    {k:'hold', l:'Hold'},
+    {k:'cancelled', l:'Cancelled'},
+  ];
+  let body;
+  if(!list.length){
+    body = `<div class="empty"><div class="ic">${ICON.music(28)}</div><b>${q?'No matches':'No shows here'}</b><span>${q?'Try another search term.':showFilter==='past'?'Past shows appear 24h after they finish.':'Tap + to add a venue, date and set time — then open the show for flights and hotels.'}</span>${q?'':`<button class="btn" style="margin-top:14px;max-width:240px" onclick="sheetEvent()">${ICON.plus(18)} Add show</button>`}</div>`;
+  } else {
+    const groups = groupShowsByMonth(list);
+    body = groups.map(g=>`<div class="shows-month">${esc(g.label)} · ${g.items.length}</div><div class="card flush" style="margin-bottom:12px">${g.items.map(showListRow).join('')}</div>`).join('');
+  }
+  return `
+  <div class="lg-header">
+    <div><div class="lg-title">Shows</div><div class="lg-sub">${upcomingN} upcoming · tap a show to open, pencil to edit</div></div>
+    <button class="header-btn" onclick="sheetEvent()">${ICON.plus(22)}</button>
+  </div>
+  <div class="screen-pad">
+    ${pageIntro('shows', 'Your show list', 'Add and edit shows here. Tap a row to open flights, hotels and checklists. Use the pencil to quick-edit venue, date and times.')}
+    ${tabBlurb('Search by venue or city. Filter with the chips below.')}
+    <div class="searchbar"><span class="ic">${ICON.search(18)}</span><input placeholder="Search venue or city" value="${esc(showSearch)}" oninput="showSearch=this.value;debouncedShowSearch()"></div>
+    <div class="chips" style="margin-top:10px">${chips.map(c=>`<button class="chip ${showFilter===c.k?'on':''}" onclick="setShowFilter('${c.k}')">${esc(c.l)}</button>`).join('')}</div>
+    <div class="section" style="margin-top:8px">${body}</div>
+    <div class="spacer"></div>
+  </div>`;
+}
+function setShowFilter(k){ showFilter=k; haptic(); renderView(); }
+let showSearchT;
+function debouncedShowSearch(){ clearTimeout(showSearchT); showSearchT=setTimeout(()=>{ const el=$('#view .searchbar input'); const pos=el?el.selectionStart:0; renderView(); const n=$('#view .searchbar input'); if(n){n.focus(); try{n.setSelectionRange(pos,pos);}catch(e){}} },160); }
+function groupShowsByMonth(list){
+  const out = [];
+  let cur = null;
+  list.forEach(e=>{
+    const d = parseDT(e.date);
+    const key = d ? MONTHS[d.getMonth()]+' '+d.getFullYear() : 'No date';
+    if(key !== cur){ cur = key; out.push({label:key, items:[]}); }
+    out[out.length-1].items.push(e);
+  });
+  return out;
+}
+function showListRow(e){
+  const col = CATS[e.color]||CATS.purple;
+  const statusTag = e.status && e.status !== 'confirmed' ? `<span class="tag ${e.status}" style="margin-left:6px;vertical-align:middle;font-size:10px;padding:2px 7px">${e.status}</span>` : '';
+  const meta = [e.city, e.country].filter(Boolean).map(x=>esc(x)).join(', ');
+  const timeBit = e.setTime ? esc(e.setTime)+(e.endTime?' – '+esc(e.endTime):'') : '—';
+  const detail = [meta, timeBit].filter(Boolean).join(' · ');
+  return `<div class="row show-row" onclick="openView('event','${e.id}')">
+    <div class="ic" style="background:${col}22;color:${col}">${ICON.music(18)}</div>
+    <div class="body"><b>${esc(e.venue||'Untitled show')}${statusTag}</b><span>${detail}</span></div>
+    <button type="button" class="header-btn show-row-edit" onclick="event.stopPropagation();sheetEvent('${e.id}')" title="Edit show">${ICON.edit(16)}</button>
+    <div class="trail"><span style="font-size:12px;font-weight:600">${esc(relDay(e.date))}</span>${ICON.chevR(15)}</div>
+  </div>`;
+}
+
+/* ============================================================
    HOME
    ============================================================ */
 function viewHome(){
@@ -58,7 +130,7 @@ function viewHome(){
   return `
   ${header}
   <div class="screen-pad stagger"${photo?' style="margin-top:14px"':''}>
-    ${pageIntro('welcome', 'Welcome to Operate', 'This is your dashboard. Add shows in Calendar (+), tap a show for flights, hotels and checklists. Nearby shows auto-group into Tours.')}
+    ${pageIntro('welcome', 'Welcome to Operate', 'This is your dashboard. Add and edit shows in the Shows tab (+), tap a show for flights, hotels and checklists. Nearby shows auto-group into Tours.')}
     ${run?activeTripBanner(run):''}
     ${hero}
 
@@ -68,7 +140,7 @@ function viewHome(){
       <div class="section-head"><div class="section-title">Quick add</div></div>
       ${sectionDesc('Shortcuts to create something new without leaving Home.')}
       <div class="qa-grid">
-        <button class="qa" onclick="sheetEvent()"><div class="ic" style="background:var(--accent-soft);color:var(--accent-2)">${ICON.calendar(20)}</div><span>Show</span></button>
+        <button class="qa" onclick="go('shows')"><div class="ic" style="background:var(--accent-soft);color:var(--accent-2)">${ICON.music(20)}</div><span>Shows</span></button>
         <button class="qa" onclick="go('trips')"><div class="ic" style="background:var(--pink);color:#fff">${ICON.trips(20)}</div><span>Tours</span></button>
         <button class="qa" onclick="sheetIdea()"><div class="ic" style="background:var(--orange-soft);color:var(--orange)">${ICON.idea(20)}</div><span>Idea</span></button>
         <button class="qa" onclick="sheetNote()"><div class="ic" style="background:var(--blue-soft);color:var(--blue)">${ICON.note(20)}</div><span>Note</span></button>
@@ -194,7 +266,7 @@ function viewEvent(id){
   const flight = e.flights&&e.flights[0];
   return `
   <div class="detail-top"><div class="detail-bar">
-    <button class="back-btn" onclick="back()">${ICON.chevL(20)} ${trip?esc(trip.name):(store.tab==='home'?'Home':'Calendar')}</button>
+    <button class="back-btn" onclick="back()">${ICON.chevL(20)} ${trip?esc(trip.name):overlayBackLabel()}</button>
     <div style="display:flex;gap:8px">
       <button class="header-btn" style="width:36px;height:36px" onclick="shareDaySheet('${e.id}')">${ICON.share(17)}</button>
       <button class="header-btn" style="width:36px;height:36px" onclick="eventMenu('${e.id}')">${ICON.edit(18)}</button>

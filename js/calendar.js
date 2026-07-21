@@ -78,7 +78,7 @@ function viewCalendar(){
     </div>
   </div>
   <div class="screen-pad">
-    ${pageIntro('calendar', 'Your master schedule', 'Coloured blocks are shows. Tap a day to see that day\'s list. Use + (top right) to add a show — flights, hotels and checklists live inside each show.')}
+    ${pageIntro('calendar', 'Your master schedule', 'Coloured blocks are shows. Tap a day to see that day\'s list. Add or edit shows in the Shows tab — flights, hotels and checklists live inside each show.')}
     <div class="desktop-cal-split ${calGridOpen?'':'cal-grid-collapsed'}">
       <div class="desktop-cal-grid-col">
         ${calGridCard}
@@ -102,7 +102,7 @@ function viewPastShows(){
   const past=store.events.filter(showPassed).sort((a,b)=> (b.date||'').localeCompare(a.date||''));
   return `
   <div class="detail-top"><div class="detail-bar">
-    <button class="back-btn" onclick="back()">${ICON.chevL(20)} Calendar</button>
+    <button class="back-btn" onclick="back()">${ICON.chevL(20)} ${overlayBackLabel()}</button>
     <div style="font-size:15px;font-weight:700">Past shows</div>
     <div style="width:36px"></div>
   </div></div>
