@@ -21,6 +21,15 @@ function storeSnapshot(){
   return (store._seq || 0) + '|' + (store.events?.length || 0) + '|' + (store.tab || '') + '|' + (store.activeShowId || '');
 }
 
+function dedupeEventsById(events){
+  const seen = new Set();
+  return events.filter(e => {
+    if(seen.has(e.id)) return false;
+    seen.add(e.id);
+    return true;
+  });
+}
+
 function mimeToKind(m){ return (m||'').startsWith('image/') ? 'image' : 'pdf'; }
 
 async function signedUrlForPath(path){
@@ -406,7 +415,7 @@ async function loadFromSupabase(orgId){
       if(leg) (tlByShow[leg] = tlByShow[leg] || []).push(t);
     });
 
-    const events = [];
+    let events = [];
 
     for(const s of (shows || [])){
       const leg = s.legacy_id;
@@ -460,6 +469,7 @@ async function loadFromSupabase(orgId){
     }
 
     events.sort((a, b) => (a.date || '').localeCompare(b.date || ''));
+    events = dedupeEventsById(events);
 
     const st = settingsRow || {};
     store = {
@@ -512,13 +522,13 @@ async function bootstrapRemoteData(){
   currentOrgId = orgId;
   const local = db.read();
   const sb = getSupabase();
-  let cloudEmpty = false;
-  if(isDevHardwireMode() && sb){
+  let cloudEmpty = true;
+  if(sb){
     const { count, error } = await sb.from('shows').select('*', { count: 'exact', head: true }).eq('org_id', orgId);
     if(!error) cloudEmpty = !count;
   }
-  const pushLocal = local && local.events && local.events.length &&
-    (!isMigrated(orgId) || (isDevHardwireMode() && cloudEmpty));
+  const pushLocal = local?.events?.length && cloudEmpty &&
+    (!isMigrated(orgId) || isDevHardwireMode());
   if(pushLocal){
     store = local;
     if(store.tab == null) store.tab = 'home';
