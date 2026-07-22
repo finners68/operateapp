@@ -2,7 +2,7 @@
    IDEAS
    ============================================================ */
 let ideaFilter = 'all';
-function viewIdeasContent(){
+function viewIdeas(){
   const all = sel.ideas();
   let list = all;
   if(ideaFilter==='active') list = all.filter(i=>!i.done);
@@ -10,10 +10,13 @@ function viewIdeasContent(){
   else if(ideaFilter!=='all') list = all.filter(i=>i.type===ideaFilter);
   const typesPresent = [...new Set(all.map(i=>i.type))];
   const chips = [{k:'all',l:'All '+all.length},{k:'active',l:'To use'},{k:'done',l:'Done'}, ...typesPresent.map(t=>({k:t,l:IDEA_TYPES[t].label}))];
+  const toUse = all.filter(i=>!i.done).length;
+
+  // Body: when showing "to use"/all unfiltered, group by priority; else flat grid
   let body;
   const grouped = (ideaFilter==='all'||ideaFilter==='active');
   if(!list.length){
-    body = `<div class="empty"><div class="ic">${ICON.idea(28)}</div><b>No ideas yet</b><span>Type below to capture a reel hook, caption or content plan — link it to a show later.</span><button class="btn secondary" style="margin-top:14px;max-width:240px" onclick="sheetIdea()">${ICON.plus(18)} New idea</button></div>`;
+    body = `<div class="empty"><div class="ic">${ICON.idea(28)}</div><b>No ideas yet</b><span>Type above to capture a reel hook, caption or content plan — link it to a show later.</span><button class="btn secondary" style="margin-top:14px;max-width:240px" onclick="sheetIdea()">${ICON.plus(18)} New idea</button></div>`;
   } else if(grouped){
     const active = list.filter(i=>!i.done);
     const done = ideaFilter==='all'? list.filter(i=>i.done):[];
@@ -25,7 +28,13 @@ function viewIdeasContent(){
   } else {
     body = `<div class="idea-grid stagger">${list.map(ideaCard).join('')}</div>`;
   }
+
   return `
+  <div class="lg-header">
+    <div><div class="lg-title">Ideas</div><div class="lg-sub">Content to shoot · ${toUse} waiting</div></div>
+    <button class="header-btn" onclick="sheetIdea()">${ICON.plus(22)}</button>
+  </div>
+  <div class="screen-pad">
     ${pageIntro('ideas', 'Capture content ideas', 'Save hooks, reels and captions here. Open an idea to link it to a show so it appears on that show\'s page.')}
     ${tabBlurb('Type in the box below for a quick capture, or tap + for full details.')}
     <div class="idea-capture">
@@ -33,16 +42,9 @@ function viewIdeasContent(){
       <button onclick="quickIdea()">${ICON.plus(20)}</button>
     </div>
     <div class="chips" style="margin-top:10px">${chips.map(c=>`<button class="chip ${ideaFilter===c.k?'on':''}" onclick="setIdeaFilter('${c.k}')">${esc(c.l)}</button>`).join('')}</div>
-    <div class="section" style="margin-top:8px">${body}</div>`;
-}
-function viewIdeas(){
-  const toUse = sel.ideas().filter(i=>!i.done).length;
-  return `
-  <div class="lg-header">
-    <div><div class="lg-title">Ideas</div><div class="lg-sub">${toUse} waiting</div></div>
-    <button class="header-btn" onclick="sheetIdea()">${ICON.plus(22)}</button>
-  </div>
-  <div class="screen-pad">${viewIdeasContent()}<div class="spacer"></div></div>`;
+    <div class="section" style="margin-top:8px">${body}</div>
+    <div class="spacer"></div>
+  </div>`;
 }
 function setIdeaFilter(k){ ideaFilter=k; haptic(); renderView(); }
 function quickIdea(){
@@ -61,7 +63,7 @@ function viewIdea(id){
   const t = IDEA_TYPES[i.type]||IDEA_TYPES.other;
   return `
   <div class="detail-top"><div class="detail-bar">
-    <button class="back-btn" onclick="back()">${ICON.chevL(20)} Desk</button>
+    <button class="back-btn" onclick="back()">${ICON.chevL(20)} Ideas</button>
     <button class="header-btn" style="width:36px;height:36px" onclick="confirmDeleteIdea('${i.id}')">${ICON.trash(17)}</button>
   </div></div>
   <div class="screen-pad stagger">

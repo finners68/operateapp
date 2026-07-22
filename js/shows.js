@@ -3,7 +3,7 @@
    ============================================================ */
 let showFilter = 'upcoming';
 let showSearch = '';
-function viewShowsContent(){
+function viewShows(){
   const all = sel.events();
   const q = showSearch.toLowerCase().trim();
   let list = all.slice();
@@ -12,8 +12,9 @@ function viewShowsContent(){
   else if(showFilter === 'confirmed' || showFilter === 'hold' || showFilter === 'cancelled') list = all.filter(e => e.status === showFilter);
   if(showFilter === 'past') list.sort((a,b) => (b.date||'').localeCompare(a.date||''));
   if(q) list = list.filter(e => `${e.venue||''} ${e.city||''} ${e.country||''} ${e.date||''}`.toLowerCase().includes(q));
+  const upcomingN = all.filter(e => !showPassed(e) && e.status !== 'cancelled').length;
   const chips = [
-    {k:'upcoming', l:`Upcoming · ${all.filter(e => !showPassed(e) && e.status !== 'cancelled').length}`},
+    {k:'upcoming', l:`Upcoming · ${upcomingN}`},
     {k:'all', l:'All · '+all.length},
     {k:'past', l:'Past'},
     {k:'confirmed', l:'Confirmed'},
@@ -28,43 +29,18 @@ function viewShowsContent(){
     body = groups.map(g=>`<div class="shows-month">${esc(g.label)} · ${g.items.length}</div><div class="card flush" style="margin-bottom:12px">${g.items.map(showListRow).join('')}</div>`).join('');
   }
   return `
-    ${pageIntro('shows', 'Your show list', 'Add and edit shows here. Tap a row to open flights, hotels and checklists. Use the pencil to edit.')}
+  <div class="lg-header">
+    <div><div class="lg-title">Shows</div><div class="lg-sub">${upcomingN} upcoming · tap a show to open, pencil to edit</div></div>
+    <button class="header-btn" onclick="sheetEvent()">${ICON.plus(22)}</button>
+  </div>
+  <div class="screen-pad">
+    ${pageIntro('shows', 'Your show list', 'Add and edit shows here. Tap a row to open flights, hotels and checklists. Use the pencil to quick-edit venue, date and times.')}
     ${tabBlurb('Search by venue or city. Filter with the chips below.')}
     <div class="searchbar"><span class="ic">${ICON.search(18)}</span><input placeholder="Search venue or city" value="${esc(showSearch)}" oninput="showSearch=this.value;debouncedShowSearch()"></div>
     <div class="chips" style="margin-top:10px">${chips.map(c=>`<button class="chip ${showFilter===c.k?'on':''}" onclick="setShowFilter('${c.k}')">${esc(c.l)}</button>`).join('')}</div>
-    <div class="section" style="margin-top:8px">${body}</div>`;
-}
-function viewShowsHub(){
-  const toggle = hubToggleHtml([['shows','Shows'],['tour','Tour']], showsHubMode, 'setShowsHubMode');
-  const all = sel.events();
-  const upcomingN = all.filter(e => !showPassed(e) && e.status !== 'cancelled').length;
-  const run = currentTourRun();
-  const live = activeRun();
-  let sub, headBtn;
-  if(showsHubMode==='shows'){
-    sub = `${upcomingN} upcoming · tap a show to open, pencil to edit`;
-    headBtn = `<button class="header-btn" onclick="sheetEvent()">${ICON.plus(22)}</button>`;
-  } else {
-    if(!run) sub = 'No tour on the road — add shows to build a run';
-    else if(live && live.key===run.key) sub = `Live · ${run.shows.length} show${run.shows.length>1?'s':''} · Trip Mode on`;
-    else sub = `${esc(run.title)} · ${run.shows.length} show${run.shows.length>1?'s':''} · ${fmtDate(run.start)}${run.end!==run.start?' – '+fmtDate(run.end):''}`;
-    headBtn = run && !(live && live.key===run.key)
-      ? `<button class="header-btn" style="width:auto;padding:0 12px;gap:4px;border-radius:20px" onclick="startTripFromShowsTab('${run.shows[0].id}')">${ICON.play(17)} Go live</button>`
-      : `<button class="header-btn" onclick="go('calendar')">${ICON.calendar(20)}</button>`;
-  }
-  return `
-  <div class="lg-header">
-    <div><div class="lg-title">Shows</div><div class="lg-sub">${sub}</div></div>
-    ${headBtn}
-  </div>
-  <div class="screen-pad">
-    ${toggle}
-    ${showsHubMode==='shows' ? viewShowsContent() : viewLiveTour()}
+    <div class="section" style="margin-top:8px">${body}</div>
     <div class="spacer"></div>
   </div>`;
-}
-function viewShows(){
-  return viewShowsHub();
 }
 function setShowFilter(k){ showFilter=k; haptic(); renderView(); }
 let showSearchT;
@@ -174,11 +150,11 @@ function viewHome(){
     statsBlock,
     todayChecklist.length ? homePanel('Today\'s checklist', `<button type="button" class="home-panel-link" onclick="openView('event','${e.id}')">Open show</button>`,
       `<div class="card flush home-inset">${todayChecklist.slice(0,4).map(i=>checkRow(i, `toggleEventCheck('${e.id}','${i.id}')`)).join('')}</div>`) : '',
-    ideasWaiting.length ? homePanel('Ideas', `<button type="button" class="home-panel-link" onclick="goDeskHub('ideas')">All</button>`,
+    ideasWaiting.length ? homePanel('Ideas', `<button type="button" class="home-panel-link" onclick="go('ideas')">All</button>`,
       `<div class="card flush home-inset">${ideasWaiting.map(homeIdeaRow).join('')}</div>`) : '',
-    trips.length ? homePanel('Live tour', `<button type="button" class="home-panel-link" onclick="goShowsHub('tour')">Open</button>`,
+    trips.length ? homePanel('Upcoming tours', `<button type="button" class="home-panel-link" onclick="go('trips')">All</button>`,
       `<div class="card flush home-inset">${trips.map(runRow).join('')}</div>`) : '',
-    recentNotes.length ? homePanel('Recent notes', `<button type="button" class="home-panel-link" onclick="goDeskHub('notes')">All</button>`,
+    recentNotes.length ? homePanel('Recent notes', `<button type="button" class="home-panel-link" onclick="go('notes')">All</button>`,
       `<div class="card flush home-inset">${recentNotes.map(noteRow).join('')}</div>`) : '',
   ].filter(Boolean).join('');
 
@@ -195,16 +171,16 @@ function viewHome(){
           <div class="home-sc-group">
             <div class="home-sc-label">Tour</div>
             <div class="home-sc-row home-sc-grid">
-              ${homeShortcut(`goShowsHub('shows')`, ICON.music(18), 'var(--accent-2)', 'Shows')}
-              ${homeShortcut(`goShowsHub('tour')`, ICON.trips(18), 'var(--pink)', 'Tour')}
+              ${homeShortcut(`go('shows')`, ICON.music(18), 'var(--accent-2)', 'Shows')}
+              ${homeShortcut(`go('trips')`, ICON.trips(18), 'var(--pink)', 'Tours')}
               ${homeShortcut(`openView('itinerary')`, ICON.file(18), 'var(--blue)', 'Itinerary')}
             </div>
           </div>
           <div class="home-sc-group">
             <div class="home-sc-label">Desk</div>
             <div class="home-sc-row home-sc-grid">
-              ${homeShortcut(`goDeskHub('ideas')`, ICON.idea(18), 'var(--orange)', 'Ideas')}
-              ${homeShortcut(`goDeskHub('notes')`, ICON.note(18), 'var(--blue)', 'Notes')}
+              ${homeShortcut(`sheetIdea()`, ICON.idea(18), 'var(--orange)', 'New idea')}
+              ${homeShortcut(`sheetNote()`, ICON.note(18), 'var(--blue)', 'New note')}
               ${homeShortcut(`openView('finance')`, ICON.coins(18), 'var(--green)', 'Finance')}
               ${homeShortcut(`openView('invoices')`, ICON.receipt(18), 'var(--blue)', 'Invoice')}
               ${homeShortcut(`openView('contacts')`, ICON.users(18), 'var(--accent-2)', 'Contacts')}

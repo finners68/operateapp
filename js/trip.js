@@ -248,94 +248,28 @@ function tlItem(tripId, s, isNow){
     </div>
   </div>`;
 }
-function tripDetailBody(r){
-  const c = CATS[r.color]||CATS.green;
-  const active = activeRun() && activeRun().key===r.key;
-  const tl = runTimeline(r);
-  const pk = store.packing||[];
-  const nextIdx = tl.findIndex(s=>!s.done);
-  const nextStep = nextIdx>=0 ? tl[nextIdx] : null;
-  const thenStep = nextIdx>=0 ? tl[nextIdx+1] : null;
-  const legShow = nextStep ? (stepShow(nextStep) || r.shows.find(s=>!s.setDone)) : null;
-  const p = runProgress(r);
-  return `
-    ${active?`<div class="tripmode-banner"><span class="pulse"></span> LIVE · ${fmtDate(r.start)}${r.end!==r.start?' – '+fmtDate(r.end):''}</div>`:''}
-    <div class="dhero" style="background:linear-gradient(155deg,${c}33,var(--card) 65%);margin-top:4px">
-      <div class="cat-bar" style="background:${c}"></div>
-      ${active?`<div style="margin-bottom:8px"><span class="tag confirmed"><span class="pulse" style="display:inline-block;margin-right:5px"></span>Trip Mode</span></div>`:''}
-      <h1 style="font-size:22px;font-weight:800">${esc(r.title)}</h1>
-      <div class="sub">${ICON.calendar(14)} ${fmtDateLong(r.start)}${r.end!==r.start?' – '+fmtDate(r.end):''}</div>
-      ${p.total?`<div class="hint" style="text-align:left;margin-top:10px;padding:0">${p.done}/${p.total} steps done · ${p.pct}%</div>`:''}
-    </div>
-
-    ${active?'':`<div class="section" style="margin-top:14px"><button class="btn" onclick="startTripFromShowsTab('${r.shows[0].id}')">${ICON.play(18)} Start Trip Mode</button></div>`}
-
-    <div class="section" style="margin-top:14px">
-      <div class="section-head"><div class="section-title">Up next</div></div>
-      ${nextStep ? `
-      <div class="hero nextshow">
-        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px">
-          <div class="hero-label">${(ICON[nextStep.icon]||ICON.clock)(14)} ${esc(relDay(nextStep.date))}${nextStep.time?' · '+esc(nextStep.time):''}</div>
-          <button class="mini-tick" onclick="completeRunStep('${r.key}','${nextStep.id}')" title="Done — next">${ICON.check(15)}</button>
-        </div>
-        <div class="hero-venue" style="font-size:22px;margin-top:6px">${esc(nextStep.title)}</div>
-        ${nextStep.sub?`<div class="hero-city">${esc(nextStep.sub)}</div>`:''}
-        <div class="hero-info" style="margin-top:15px;flex-wrap:wrap">${stepPills(nextStep)}</div>
-        ${(nextStep.ref && nextStep.kind==='travel' && (nextStep.ref.icon||'plane')==='plane')?flightInfoWidget(nextStep.ref):''}
-      </div>
-      ${thenStep?`<div class="then-next">
-        <div class="then-lab">Then</div>
-        <div class="then-ic">${(ICON[thenStep.icon]||ICON.clock)(15)}</div>
-        <div class="then-body"><b>${esc(thenStep.title)}</b><span>${thenStep.time?esc(thenStep.time)+' · ':''}${esc(relDay(thenStep.date))}${thenStep.sub?' · '+esc(thenStep.sub):''}</span></div>
-      </div>`:''}` : `<div class="card" style="text-align:center;color:var(--text-2);padding:22px">${ICON.check(24)}<div style="margin-top:6px;font-weight:650">Tour complete 🎧</div></div>`}
-    </div>
-
-    <div class="section">
-      <div class="section-head"><div class="section-title">Day timeline</div><div class="section-link">${r.shows.length} day${r.shows.length!==1?'s':''}</div></div>
-      ${dayTimeline(r.key, r)}
-    </div>
-
-    <div class="section">
-      <div class="section-head"><div class="section-title">Shows on this tour</div><div class="section-link">${r.shows.length}</div></div>
-      <div class="card flush">${r.shows.map((e,i)=>tripLegRow(e,i,legShow)).join('')}</div>
-    </div>
-
-    <div class="section">
-      ${foldSection('trip-pack-'+r.key, ICON.checkList(17), 'Packing & checklist', pk.filter(i=>i.done).length+'/'+pk.length+' packed',
-        `<div style="padding:0 16px 4px"><div class="progress" style="margin:12px 0 4px"><i style="width:${pk.length?Math.round(pk.filter(i=>i.done).length/pk.length*100):0}%"></i></div></div>
-         <div class="fold-scroll">${pk.map(i=>`<div class="check ${i.done?'done':''}"><div class="box" onclick="togglePack('${i.id}')">${ICON.check(15)}</div><div class="lbl" onclick="togglePack('${i.id}')">${esc(i.label)}</div><button class="del" onclick="delPack('${i.id}')">${ICON.x(16)}</button></div>`).join('')||'<div class="hint">No items</div>'}</div>
-         <div class="fold-pad"><button class="btn secondary" style="padding:11px" onclick="addPackPrompt()">${ICON.plus(15)} Add item</button></div>`, false)}
-    </div>
-
-    ${active?`<div class="section"><button class="btn secondary" onclick="endTripMode()">${ICON.flag(17)} End Trip Mode</button></div>`:''}`;
-}
-function currentTourRun(){
-  const live = activeRun();
-  if(live) return live;
+/* ============================================================
+   TRIPS  (list)
+   ============================================================ */
+function viewTrips(){
   const today = new Date(); today.setHours(0,0,0,0);
   const all = runs();
-  const inProgress = all.find(r => {
-    const s = parseDT(r.start), e = parseDT(r.end);
-    if(!s || !e) return false;
-    const s0 = new Date(s); s0.setHours(0,0,0,0);
-    const e0 = new Date(e); e0.setHours(0,0,0,0);
-    return today >= s0 && today <= e0;
-  });
-  if(inProgress) return inProgress;
-  return all.find(r => { const e = parseDT(r.end); if(!e) return false; e.setHours(0,0,0,0); return e >= today; }) || null;
-}
-function viewLiveTour(){
-  const r = currentTourRun();
-  if(!r){
-    return `${pageIntro('tours', 'Your live tour', 'When you\'re on the road, this tracks the current run — up next, timeline, shows and packing.')}
-    <div class="empty"><div class="ic">${ICON.trips(28)}</div><b>No tour on the road</b><span>Add upcoming shows — consecutive dates auto-group into a tour.</span><button class="btn secondary" style="margin-top:14px;max-width:260px" onclick="setShowsHubMode('shows')">${ICON.music(18)} Browse shows</button></div>`;
-  }
-  return `${pageIntro('tours', 'Live tour', 'Your current run — mark steps done as you go. Turn on Trip Mode to pin this tour on Home too.')}
-  <div class="stagger hub-tour-detail">${tripDetailBody(r)}</div>`;
-}
-function viewTrips(){
-  showsHubMode = 'tour';
-  return viewShowsHub();
+  const upcoming = all.filter(r=> parseDT(r.end) >= today);
+  const past = all.filter(r=> parseDT(r.end) < today).reverse();
+  return `
+  <div class="lg-header">
+    <div><div class="lg-title">Tours</div><div class="lg-sub">Grouped from your shows${activeRun()?' · 1 live now':''}</div></div>
+    <button class="header-btn" onclick="go('calendar')">${ICON.calendar(20)}</button>
+  </div>
+  <div class="screen-pad">
+    ${pageIntro('tours', 'Tours group themselves', 'When you add shows in Calendar, nearby dates auto-form a tour run — no manual setup. Tap a tour for day-of timeline and packing.')}
+    ${tabBlurb('Shows on back-to-back dates become one tour. Flying home ends the run.')}
+    ${upcoming.length?`<div class="stagger">${upcoming.map(runCard).join('')}</div>`
+      :`<div class="empty"><div class="ic">${ICON.trips(28)}</div><b>No upcoming tours</b><span>Add shows in Calendar first — they appear here grouped by date.</span><button class="btn secondary" style="margin-top:14px;max-width:240px" onclick="go('calendar')">${ICON.calendar(18)} Go to Calendar</button></div>`}
+    ${past.length?`<div class="section"><div class="section-head"><div class="section-title" style="font-size:16px;color:var(--text-2)">Past</div></div>
+      <div class="card flush">${past.slice(0,12).map(runRow).join('')}</div></div>`:''}
+    <div class="spacer"></div>
+  </div>`;
 }
 function runCard(r){
   const c = CATS[r.color]||CATS.green;
@@ -367,13 +301,75 @@ function runRow(r){
 function viewTrip(id){
   const r = runOf(id);
   if(!r) return backStub();
+  const c = CATS[r.color]||CATS.green;
+  const active = activeRun() && activeRun().key===r.key;
+  const tl = runTimeline(r);
+  const pk = store.packing||[];
+  const today = new Date(); today.setHours(0,0,0,0);
+  const nextIdx = tl.findIndex(s=>!s.done);
+  const nextStep = nextIdx>=0 ? tl[nextIdx] : null;
+  const thenStep = nextIdx>=0 ? tl[nextIdx+1] : null;
+  const legShow = nextStep ? (stepShow(nextStep) || r.shows.find(s=>!s.setDone)) : null;
   return `
   <div class="detail-top"><div class="detail-bar">
-    <button class="back-btn" onclick="back()">${ICON.chevL(20)} Shows</button>
-    <div style="font-size:15px;font-weight:700">${activeRun() && activeRun().key===r.key ? 'Trip Mode' : 'Tour'}</div>
+    <button class="back-btn" onclick="back()">${ICON.chevL(20)} Tours</button>
+    <div style="font-size:15px;font-weight:700">${active?'Trip Mode':'Tour'}</div>
     <div style="width:36px"></div>
   </div></div>
-  <div class="screen-pad stagger">${tripDetailBody(r)}<div class="spacer"></div><div class="spacer"></div></div>`;
+  <div class="screen-pad stagger">
+    <div class="dhero" style="background:linear-gradient(155deg,${c}33,var(--card) 65%)">
+      <div class="cat-bar" style="background:${c}"></div>
+      ${active?`<div style="margin-bottom:8px"><span class="tag confirmed"><span class="pulse" style="display:inline-block;margin-right:5px"></span>Live</span></div>`:''}
+      <h1>${esc(r.title)}</h1>
+      <div class="sub">${ICON.calendar(14)} ${fmtDateLong(r.start)}${r.end!==r.start?' – '+fmtDate(r.end):''}</div>
+    </div>
+
+    ${active?'':`<div class="section" style="margin-top:14px"><button class="btn" onclick="startTripFromShow('${r.shows[0].id}')">${ICON.play(18)} Start Trip Mode</button></div>`}
+
+    <!-- 1) UP NEXT — the next thing to do; adaptive widgets; small tick advances -->
+    <div class="section" style="margin-top:14px">
+      <div class="section-head"><div class="section-title">Up next</div></div>
+      ${nextStep ? `
+      <div class="hero nextshow">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px">
+          <div class="hero-label">${(ICON[nextStep.icon]||ICON.clock)(14)} ${esc(relDay(nextStep.date))}${nextStep.time?' · '+esc(nextStep.time):''}</div>
+          <button class="mini-tick" onclick="completeRunStep('${r.key}','${nextStep.id}')" title="Done — next">${ICON.check(15)}</button>
+        </div>
+        <div class="hero-venue" style="font-size:22px;margin-top:6px">${esc(nextStep.title)}</div>
+        ${nextStep.sub?`<div class="hero-city">${esc(nextStep.sub)}</div>`:''}
+        <div class="hero-info" style="margin-top:15px;flex-wrap:wrap">${stepPills(nextStep)}</div>
+        ${(nextStep.ref && nextStep.kind==='travel' && (nextStep.ref.icon||'plane')==='plane')?flightInfoWidget(nextStep.ref):''}
+      </div>
+      ${thenStep?`<div class="then-next">
+        <div class="then-lab">Then</div>
+        <div class="then-ic">${(ICON[thenStep.icon]||ICON.clock)(15)}</div>
+        <div class="then-body"><b>${esc(thenStep.title)}</b><span>${thenStep.time?esc(thenStep.time)+' · ':''}${esc(relDay(thenStep.date))}${thenStep.sub?' · '+esc(thenStep.sub):''}</span></div>
+      </div>`:''}` : `<div class="card" style="text-align:center;color:var(--text-2);padding:22px">${ICON.check(24)}<div style="margin-top:6px;font-weight:650">Tour complete 🎧</div></div>`}
+    </div>
+
+    <!-- 2) DAY TIMELINE — each day is its own dropdown, collapsed by default -->
+    <div class="section">
+      <div class="section-head"><div class="section-title">Day timeline</div><div class="section-link">${r.shows.length} day${r.shows.length!==1?'s':''}</div></div>
+      ${dayTimeline(r.key, r)}
+    </div>
+
+    <!-- 3) SHOWS ON THIS TOUR -->
+    <div class="section">
+      <div class="section-head"><div class="section-title">Shows on this tour</div><div class="section-link">${r.shows.length}</div></div>
+      <div class="card flush">${r.shows.map((e,i)=>tripLegRow(e,i,legShow)).join('')}</div>
+    </div>
+
+    <!-- Packing -->
+    <div class="section">
+      ${foldSection('trip-pack', ICON.checkList(17), 'Packing & checklist', pk.filter(i=>i.done).length+'/'+pk.length+' packed',
+        `<div style="padding:0 16px 4px"><div class="progress" style="margin:12px 0 4px"><i style="width:${pk.length?Math.round(pk.filter(i=>i.done).length/pk.length*100):0}%"></i></div></div>
+         <div class="fold-scroll">${pk.map(i=>`<div class="check ${i.done?'done':''}"><div class="box" onclick="togglePack('${i.id}')">${ICON.check(15)}</div><div class="lbl" onclick="togglePack('${i.id}')">${esc(i.label)}</div><button class="del" onclick="delPack('${i.id}')">${ICON.x(16)}</button></div>`).join('')||'<div class="hint">No items</div>'}</div>
+         <div class="fold-pad"><button class="btn secondary" style="padding:11px" onclick="addPackPrompt()">${ICON.plus(15)} Add item</button></div>`, false)}
+    </div>
+
+    ${active?`<div class="section" style="margin-top:20px"><button class="btn secondary" onclick="endTripMode()">${ICON.flag(17)} End Trip Mode</button></div>`:''}
+    <div class="spacer"></div><div class="spacer"></div>
+  </div>`;
 }
 function toggleLegDone(runKey, showId){ const sh=sel.event(showId); if(sh){ sh.setDone=!sh.setDone; haptic(); persist(); renderView(); toast(sh.setDone?'Leg complete ✓':'Leg reopened', sh.setDone?'check':'arrowUp'); } }
 
@@ -415,18 +411,7 @@ function saveTrip(tid){
 /* ============================================================
    Trip Mode  (runs — no named trips)
    ============================================================ */
-function startTripFromShow(showId, opts){
-  store.activeShowId=showId; persist(); overlay=null;
-  if(opts && opts.stayOnShowsTour){
-    store.tab='shows'; showsHubMode='tour';
-    render({ resetScroll: true });
-  } else {
-    store.tab='home';
-    render({ resetScroll: true });
-  }
-  toast('Trip Mode on','play');
-}
-function startTripFromShowsTab(showId){ startTripFromShow(showId, { stayOnShowsTour: true }); }
+function startTripFromShow(showId){ store.activeShowId=showId; persist(); overlay=null; store.tab='home'; render({ resetScroll: true }); toast('Trip Mode on','play'); }
 function endTripMode(){ confirmSheet('End Trip Mode?','This turns off the live tour view. Nothing is deleted.','End Trip Mode',()=>{ store.activeShowId=null; persist(); overlay=null; store.tab='home'; render(); toast('Trip Mode off','flag'); }); }
 function completeRunStep(runKey, stepId){
   if(stepId.startsWith('set_')){ const sh=sel.event(stepId.slice(4)); if(sh){ sh.setDone=!sh.setDone; } }

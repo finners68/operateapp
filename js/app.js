@@ -3,7 +3,6 @@ function boot(){
   const saved = db.read();
   if(saved && saved.events){ store = saved; if(store.tab==null) store.tab='home'; migrate(); }
   else { seed(); }
-  normalizeAppTab();
   render();
   if(appLockActive()) requireUnlock('app', ()=>render());
   initGestures();
@@ -23,27 +22,7 @@ function pageIntro(id, title, body){
     <button type="button" class="page-intro-dismiss" onclick="dismissIntro('${id}')">Got it</button>
   </div>`;
 }
-function viewDeskHub(){
-  const toggle = hubToggleHtml([['notes','Notes'],['ideas','Ideas']], deskHubMode, 'setDeskHubMode');
-  const allNotes = sel.notes().length;
-  const allIdeas = sel.ideas().filter(i=>!i.done).length;
-  const sub = deskHubMode==='notes'
-    ? `${allNotes} note${allNotes!==1?'s':''} · free-form text`
-    : `${allIdeas} idea${allIdeas!==1?'s':''} waiting · content to shoot`;
-  const headBtn = deskHubMode==='notes'
-    ? `<button class="header-btn" onclick="sheetNote()">${ICON.plus(22)}</button>`
-    : `<button class="header-btn" onclick="sheetIdea()">${ICON.plus(22)}</button>`;
-  return `
-  <div class="lg-header">
-    <div><div class="lg-title">Desk</div><div class="lg-sub">${sub}</div></div>
-    ${headBtn}
-  </div>
-  <div class="screen-pad">
-    ${toggle}
-    ${deskHubMode==='notes' ? viewNotesContent() : viewIdeasContent()}
-    <div class="spacer"></div>
-  </div>`;
-}
+function tabBlurb(text){ return `<div class="tab-blurb">${text}</div>`; }
 function sectionDesc(text){ return `<div class="section-desc">${text}</div>`; }
 
 function tickCountdowns(){
@@ -156,29 +135,11 @@ function initSidebar(){
 const TABS = [
   {id:'home', label:'Home', icon:'home', hint:'Dashboard — your next show and shortcuts'},
   {id:'calendar', label:'Calendar', icon:'calendar', hint:'Month view — day-by-day schedule'},
-  {id:'shows', label:'Shows', icon:'music', hint:'Browse shows and your live tour run'},
-  {id:'desk', label:'Desk', icon:'note', hint:'Notes and content ideas'},
+  {id:'shows', label:'Shows', icon:'music', hint:'Add, edit and browse all your shows'},
+  {id:'trips', label:'Tours', icon:'trips', hint:'Shows grouped into tour runs automatically'},
+  {id:'ideas', label:'Ideas', icon:'idea', hint:'Content ideas to use on shows'},
+  {id:'notes', label:'Notes', icon:'note', hint:'Set notes, riders, reminders'},
 ];
-let showsHubMode = 'shows'; // 'shows' | 'tour'
-let deskHubMode = 'notes';   // 'notes' | 'ideas'
-function normalizeAppTab(){
-  if(store.tab==='trips'){ store.tab='shows'; showsHubMode='tour'; }
-  else if(store.tab==='ideas'){ store.tab='desk'; deskHubMode='ideas'; }
-  else if(store.tab==='notes'){ store.tab='desk'; deskHubMode='notes'; }
-}
-function hubToggleHtml(pairs, activeKey, fnName){
-  return `<div class="hub-toggle-wrap"><div class="seg hub-seg">${pairs.map(([k,l])=>`<button type="button" class="${activeKey===k?'on':''}" onclick="${fnName}('${k}')">${esc(l)}</button>`).join('')}</div></div>`;
-}
-function setShowsHubMode(m){ showsHubMode=m; haptic(); renderView({ resetScroll: true }); }
-function setDeskHubMode(m){ deskHubMode=m; haptic(); renderView({ resetScroll: true }); }
-function goShowsHub(mode){
-  if(mode) showsHubMode=mode;
-  navStack=[]; overlay=null; store.tab='shows'; haptic(); persist(); render({ resetScroll: true });
-}
-function goDeskHub(mode){
-  if(mode) deskHubMode=mode;
-  navStack=[]; overlay=null; store.tab='desk'; haptic(); persist(); render({ resetScroll: true });
-}
 let overlay = null; // {type, id} for detail views on top of a tab
 let navStack = []; // history of overlays for proper Back behaviour
 function go(tab){ navStack=[]; overlay=null; store.tab=tab; haptic(); persist(); render({ resetScroll: true }); }
@@ -229,13 +190,13 @@ function renderView(opts={}){
     if(screen) screen.scrollTop = scrollY;
     return;
   }
-  normalizeAppTab();
   const tab = store.tab;
   if(tab==='home') v.innerHTML = viewHome();
-  else if(tab==='shows') v.innerHTML = viewShowsHub();
+  else if(tab==='shows') v.innerHTML = viewShows();
   else if(tab==='calendar') v.innerHTML = viewCalendar();
-  else if(tab==='desk') v.innerHTML = viewDeskHub();
-  else if(tab==='trips'||tab==='ideas'||tab==='notes'){ normalizeAppTab(); v.innerHTML = store.tab==='shows'?viewShowsHub():viewDeskHub(); }
+  else if(tab==='trips') v.innerHTML = viewTrips();
+  else if(tab==='ideas') v.innerHTML = viewIdeas();
+  else if(tab==='notes') v.innerHTML = viewNotes();
   renderNav(); setFab();
   if(screen) screen.scrollTop = scrollY;
 }
@@ -247,9 +208,9 @@ function setFab(){
   if(!fab.dataset.init){ fab.innerHTML = ICON.plus(26); fab.dataset.init='1'; }
   let action = null;
   if(!overlay){
-    if((store.tab==='shows' && showsHubMode==='shows') || store.tab==='calendar') action = 'sheetEvent()';
-    else if(store.tab==='desk' && deskHubMode==='ideas') action = 'sheetIdea()';
-    else if(store.tab==='desk' && deskHubMode==='notes') action = 'sheetNote()';
+    if(store.tab==='shows' || store.tab==='calendar') action = 'sheetEvent()';
+    else if(store.tab==='ideas') action = 'sheetIdea()';
+    else if(store.tab==='notes') action = 'sheetNote()';
   }
   if(action){ fab.style.display='flex'; fab.setAttribute('onclick', action); }
   else { fab.style.display='none'; fab.removeAttribute('onclick'); }

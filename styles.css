@@ -87,9 +87,7 @@ body{touch-action:manipulation;}
 .home-screen .home-focus{margin-top:4px;}
 .home-screen .home-focus .hero{margin-top:0;}
 .home-screen .home-focus .empty{margin-top:0;}
-.hub-toggle-wrap{margin-bottom:14px;}
-.hub-seg{max-width:420px;}
-.hub-tour-detail .section:first-of-type{margin-top:0;}
+.home-layout{display:flex;flex-direction:column;gap:14px;margin-top:18px;}
 .home-feed{display:grid;grid-template-columns:1fr;gap:14px;}
 .home-sc-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;}
 .home-sc-grid .home-sc{width:100%;justify-content:flex-start;box-sizing:border-box;}
