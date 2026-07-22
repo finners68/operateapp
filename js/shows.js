@@ -283,13 +283,15 @@ function travelGroupSummary(e){
   const manualFlights = (e.flights&&e.flights.length)||0;
   const flightN = flightLegs + manualFlights;
   const hotel = !!(e.hotel || showLegs(e.id).some(x=>x.kind==='stay'));
-  const driver = !!(e.driver || showLegs(e.id).some(x=>x.kind==='travel' && isDriverItem(x)));
+  const drvList = showDrivers(e);
+  const driver = !!(drvList.some(d=>!d.noGround) || showLegs(e.id).some(x=>x.kind==='travel' && isDriverItem(x)));
+  const noGround = drvList.some(d=>d.noGround);
   const transferN = showLegs(e.id).filter(x=>x.kind==='travel' && (x.icon||'plane')!=='plane' && !isDriverItem(x)).length;
   const parts = [];
   if(flightN) parts.push(flightN+' flight'+(flightN>1?'s':''));
   if(hotel) parts.push('hotel');
   if(driver) parts.push('driver');
-  else if(e.noGround) parts.push('Uber/taxi');
+  if(noGround) parts.push('Uber/taxi');
   if(transferN) parts.push(transferN+' transfer'+(transferN>1?'s':''));
   return parts.length ? parts.join(' · ') : 'Nothing added yet';
 }
@@ -369,14 +371,29 @@ function driverJourneyRank(j){
 }
 function orderedDrivers(e){
   return showDrivers(e).map((d,idx)=>({d,idx}))
-    .sort((a,b)=> driverJourneyRank(a.d.journey)-driverJourneyRank(b.d.journey) || a.idx-b.idx);
+    .sort((a,b)=> driverJourneyRank(a.d.journey)-driverJourneyRank(b.d.journey)
+      || String(a.d.time||'').localeCompare(String(b.d.time||''))
+      || a.idx-b.idx);
 }
 function driverCard(eid, d, idx){
-  return `<div class="card flush" style="margin-bottom:10px">
-    <div class="driver-head">
-      <span class="driver-journey">${ICON.car(13)} ${d.journey?esc(d.journey):'Driver'}</span>
+  const head = `<div class="driver-head">
+      <span class="driver-journey">${ICON.car(13)} ${d.journey?esc(d.journey):(d.noGround?'Transport':'Driver')}${d.time?' · '+esc(d.time):''}</span>
       <button type="button" class="add" onclick="sheetDriver('${eid}',${idx})">Edit</button>
-    </div>
+    </div>`;
+  if(d.noGround){
+    const ev = sel.event(eid);
+    const near = esc(('taxi near '+((ev&&(ev.city||ev.venue))||'').trim()).trim());
+    return `<div class="card flush" style="margin-bottom:10px">
+      ${head}
+      <div class="info-line"><div class="ic">${ICON.car(17)}</div>${fieldTx('No grounds', 'Please book an Uber / taxi')}</div>
+      <div style="display:flex;gap:9px;padding:12px 16px">
+        <button class="btn secondary" style="padding:11px" onclick="openExternal('https://m.uber.com/','uber://')">${ICON.car(16)} Open Uber</button>
+        <button class="btn secondary" style="padding:11px" onclick="openMaps('${near}')">${ICON.map(16)} Taxis nearby</button>
+      </div>
+    </div>`;
+  }
+  return `<div class="card flush" style="margin-bottom:10px">
+    ${head}
     <div class="info-line info-line-stacked"><div class="ic">${ICON.user(17)}</div>${detailTx(esc(d.name||'Driver'), esc(d.pickup||''))}</div>
     ${d.notes?`<div class="info-line"><div class="ic">${ICON.note(17)}</div>${fieldTx('Notes', esc(d.notes))}</div>`:''}
     <div style="display:flex;gap:9px;padding:12px 16px">
@@ -394,33 +411,11 @@ function driverSubsection(e){
   if(drivers.length){
     if(legs.length) body += showSourceLabel('Added to show');
     body += orderedDrivers(e).map(o=>driverCard(e.id,o.d,o.idx)).join('');
-  } else if(e.noGround){
-    if(legs.length) body += showSourceLabel('Added to show');
-    body += noGroundCard(e);
   }
-  if(!body) body = `<div class="card flush" style="padding:16px">
-    <div style="text-align:center;color:var(--text-3);margin-bottom:12px">${ICON.car(22)}<div style="margin-top:6px;font-weight:600;color:var(--text-2)">No ground transport yet</div></div>
-    <div style="display:flex;gap:9px">
-      <button class="btn secondary" style="flex:1;padding:11px" onclick="sheetDriver('${e.id}')">${ICON.plus(15)} Add driver</button>
-      <button class="btn secondary" style="flex:1;padding:11px" onclick="setNoGround('${e.id}')">${ICON.car(15)} No grounds</button>
-    </div>
-  </div>`;
-  return showSubsection(drivers.length>1?'Drivers':'Driver', `<button type="button" class="add" onclick="sheetDriver('${e.id}')">Add</button>`, body);
+  if(!body) body = `<div class="card tap" onclick="sheetDriver('${e.id}')" style="text-align:center;color:var(--text-3);padding:20px">${ICON.car(22)}<div style="margin-top:6px;font-weight:600">Add driver or Uber/taxi</div></div>`;
+  const title = (drivers.length>1 || drivers.some(d=>d.noGround)) ? 'Transport' : 'Driver';
+  return showSubsection(title, `<button type="button" class="add" onclick="sheetDriver('${e.id}')">Add</button>`, body);
 }
-function noGroundCard(e){
-  const near = esc(('taxi near '+((e.city||e.venue||'').trim())).trim());
-  return `<div class="card flush">
-    <div class="driver-head"><span class="driver-journey">${ICON.car(13)} No ground transport</span>
-      <button type="button" class="add" onclick="clearNoGround('${e.id}')">Change</button></div>
-    <div class="info-line"><div class="ic">${ICON.car(17)}</div>${fieldTx('Getting around', 'Book an Uber or taxi')}</div>
-    <div style="display:flex;gap:9px;padding:12px 16px">
-      <button class="btn secondary" style="padding:11px" onclick="openExternal('https://m.uber.com/','uber://')">${ICON.car(16)} Open Uber</button>
-      <button class="btn secondary" style="padding:11px" onclick="openMaps('${near}')">${ICON.map(16)} Taxis nearby</button>
-    </div>
-  </div>`;
-}
-function setNoGround(eid){ const e=sel.event(eid); if(e) e.noGround=true; persist(); renderView(); toast('Marked: no ground transport','car'); }
-function clearNoGround(eid){ const e=sel.event(eid); if(e) e.noGround=false; persist(); renderView(); }
 function transfersSubsection(e){
   const legs = showLegs(e.id).filter(x=>x.kind==='travel' && (x.icon||'plane')!=='plane' && !isDriverItem(x)).sort(legSort);
   if(!legs.length) return '';
@@ -877,34 +872,53 @@ function sheetDriver(eid, idx){
   const e=sel.event(eid); const list=showDrivers(e);
   const editing = idx!=null && list[idx];
   const d = editing ? list[idx] : {};
+  const none = !!d.noGround;
   const chips = DRIVER_JOURNEYS.map(j=>`<button type="button" class="chip" onclick="document.getElementById('dr-journey').value='${j}';haptic()">${j}</button>`).join('');
-  openSheet(editing?'Edit driver':'Add driver', `
+  openSheet(editing?'Edit transport':'Add transport', `
     <div class="field"><label>Journey (optional)</label>
-      <input id="dr-journey" class="input" value="${esc(d.journey||'')}" placeholder="e.g. Airport → Hotel">
+      <input id="dr-journey" class="input" value="${esc(d.journey||'')}" placeholder="e.g. Hotel → Airport">
       <div class="chips" style="margin-top:8px">${chips}</div>
     </div>
-    <div class="field"><label>Name</label><input id="dr-name" class="input" value="${esc(d.name||'')}" placeholder="Jan"></div>
-    <div class="field"><label>Phone</label><input id="dr-phone" type="tel" class="input" value="${esc(d.phone||'')}" placeholder="+31 6 12345678"></div>
-    <div class="field"><label>WhatsApp (if different)</label><input id="dr-wa" type="tel" class="input" value="${esc(d.whatsapp||'')}" placeholder="+31 6 12345678"></div>
-    <div class="field"><label>Pickup location</label><input id="dr-pick" class="input" value="${esc(d.pickup||'')}" placeholder="Schiphol Arrivals"></div>
-    <div class="field"><label>Notes</label><input id="dr-notes" class="input" value="${esc(d.notes||'')}" placeholder="Vehicle, plate, etc."></div>
-    <button class="btn" id="dr-save" onclick="saveDriver('${eid}',${editing?idx:'null'})">${editing?'Save driver':'Add driver'}</button>
-    ${!editing?`<button class="btn secondary" style="margin-top:10px" onclick="closeSheet();setNoGround('${eid}')">${ICON.car(16)} No ground transport · use Uber/Taxi</button>`:''}
-    ${(editing&&passEditable())?`<button class="btn danger" style="margin-top:10px" onclick="removeDriver('${eid}',${idx})">${ICON.trash(16)} Remove driver</button>`:''}
+    <div class="field"><label>Time (optional)</label><input id="dr-time" type="time" class="input" value="${esc(d.time||'')}"></div>
+    <div class="field"><label>Arrangement</label>
+      <div class="seg" id="dr-mode">
+        <button type="button" data-v="driver" class="${none?'':'on'}" onclick="segPick(this);drModeToggle()">Driver contact</button>
+        <button type="button" data-v="none" class="${none?'on':''}" onclick="segPick(this);drModeToggle()">No grounds · Uber/Taxi</button>
+      </div>
+    </div>
+    <div id="dr-none-hint" class="hint" style="${none?'':'display:none;'}padding:2px 2px 12px">No ground transport provided for this journey — book an Uber or taxi.</div>
+    <div id="dr-contact" style="${none?'display:none':''}">
+      <div class="field"><label>Name</label><input id="dr-name" class="input" value="${esc(d.name||'')}" placeholder="Jan"></div>
+      <div class="field"><label>Phone</label><input id="dr-phone" type="tel" class="input" value="${esc(d.phone||'')}" placeholder="+31 6 12345678"></div>
+      <div class="field"><label>WhatsApp (if different)</label><input id="dr-wa" type="tel" class="input" value="${esc(d.whatsapp||'')}" placeholder="+31 6 12345678"></div>
+      <div class="field"><label>Pickup location</label><input id="dr-pick" class="input" value="${esc(d.pickup||'')}" placeholder="Schiphol Arrivals"></div>
+      <div class="field"><label>Notes</label><input id="dr-notes" class="input" value="${esc(d.notes||'')}" placeholder="Vehicle, plate, etc."></div>
+    </div>
+    <button class="btn" id="dr-save" onclick="saveDriver('${eid}',${editing?idx:'null'})">${editing?'Save':'Add'}</button>
+    ${(editing&&passEditable())?`<button class="btn danger" style="margin-top:10px" onclick="removeDriver('${eid}',${idx})">${ICON.trash(16)} Remove</button>`:''}
     <div class="spacer"></div>
   `);
 }
+function drModeToggle(){
+  const none = getSeg('dr-mode')==='none';
+  const c=document.getElementById('dr-contact'); if(c) c.style.display = none?'none':'';
+  const h=document.getElementById('dr-none-hint'); if(h) h.style.display = none?'':'none';
+}
 function saveDriver(eid, idx){
-  const e=sel.event(eid); const name=val('dr-name');
-  if(!name){ toast('Add a name','x'); return; }
+  const e=sel.event(eid);
+  const none = getSeg('dr-mode')==='none';
+  const name = val('dr-name');
+  if(!none && !name){ toast('Add a name','x'); return; }
   const list=showDrivers(e);
   withButton($('#dr-save'), ()=>{
-    const drv={ id:(idx!=null&&list[idx]&&list[idx].id)||uid('drv'), journey:val('dr-journey'), name, phone:val('dr-phone'), whatsapp:val('dr-wa'), pickup:val('dr-pick'), notes:val('dr-notes') };
+    const base = { id:(idx!=null&&list[idx]&&list[idx].id)||uid('drv'), journey:val('dr-journey'), time:val('dr-time') };
+    const drv = none
+      ? Object.assign(base, { noGround:true })
+      : Object.assign(base, { name, phone:val('dr-phone'), whatsapp:val('dr-wa'), pickup:val('dr-pick'), notes:val('dr-notes') });
     if(idx!=null && list[idx]) list[idx]=drv; else list.push(drv);
-    e.driver = list[0] || null;
-    e.noGround = false;
+    e.driver = list.find(x=>!x.noGround) || null;
     persist(); closeSheet(); renderView();
-  }, idx!=null?'Driver saved':'Driver added');
+  }, idx!=null?'Saved':'Added');
 }
 function sheetVenueAddr(eid){
   const e=sel.event(eid); if(!e) return;
@@ -1179,7 +1193,11 @@ function buildDaySheet(e){
   if(e.venueAddr) L.push(`  ${e.venueAddr}`);
   if(e.hotel){ L.push(''); L.push('🏨 HOTEL'); L.push(`  ${e.hotel.name||''}`); if(e.hotel.address||e.hotel.postcode)L.push(`  ${[e.hotel.address, e.hotel.postcode].filter(Boolean).join(', ')}`); if(e.hotel.conf)L.push(`  Conf: ${e.hotel.conf}`); if(e.hotel.checkin)L.push(`  ${fmtDate(e.hotel.checkin)} → ${e.hotel.checkout?fmtDate(e.hotel.checkout):''}`); }
   const contacts=[];
-  orderedDrivers(e).forEach(({d})=>{ if(d.name||d.phone) contacts.push(`  Driver${d.journey?' ('+d.journey+')':''} — ${d.name||''} ${d.phone||''}`); });
+  orderedDrivers(e).forEach(({d})=>{
+    const tag = `${d.journey?' ('+d.journey+')':''}${d.time?' '+d.time:''}`;
+    if(d.noGround) contacts.push(`  Transport${tag} — No grounds, use Uber/taxi`);
+    else if(d.name||d.phone) contacts.push(`  Driver${tag} — ${d.name||''} ${d.phone||''}`);
+  });
   if(e.promoter) contacts.push(`  Promoter — ${e.promoter.name||''} ${e.promoter.phone||''}`);
   if(contacts.length){ L.push(''); L.push('📞 CONTACTS'); contacts.forEach(x=>L.push(x)); }
   if(e.content){ L.push(''); L.push('🎬 CONTENT'); L.push(`  ${e.content}`); }

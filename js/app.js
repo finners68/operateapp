@@ -528,7 +528,7 @@ function delItemPass(itemId, passId){
   persist(); renderView(); toast('Boarding pass removed','trash');
 }
 function removeHotel(eid){ const e=sel.event(eid); if(e){ e.hotel=null; } persist(); closeSheet(); renderView(); toast('Hotel removed','trash'); }
-function removeDriver(eid, idx){ const e=sel.event(eid); if(e){ const list=showDrivers(e); if(idx!=null) list.splice(idx,1); e.driver=list[0]||null; } persist(); closeSheet(); renderView(); toast('Driver removed','trash'); }
+function removeDriver(eid, idx){ const e=sel.event(eid); if(e){ const list=showDrivers(e); if(idx!=null) list.splice(idx,1); e.driver=list.find(d=>!d.noGround)||null; } persist(); closeSheet(); renderView(); toast('Removed','trash'); }
 function removePromoter(eid){ const e=sel.event(eid); if(e){ e.promoter=null; } persist(); closeSheet(); renderView(); toast('Contact removed','trash'); }
 /* ============================================================
    Menus + delete
