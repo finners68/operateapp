@@ -165,7 +165,7 @@ function stepPills(s){
   } else if(s.kind==='set'){
     if(sh){
       if(mq) pills.push(mapPill('Venue', sh.venueAddr?esc(sh.venueAddr.slice(0,22)):'Open in Maps'));
-      if(sh.promoter&&sh.promoter.phone) pills.push(`<div class="pill" onclick="event.stopPropagation();callNumber('${sh.promoter.phone}')"><div class="ic">${ICON.user(16)}</div><div class="tx"><b>Promoter</b><span>Call</span></div></div>`);
+      if(sh.promoter&&(sh.promoter.phone||sh.promoter.whatsapp)) pills.push(`<div class="pill" onclick="event.stopPropagation();contactPromoter('${sh.id}')"><div class="ic">${ICON.user(16)}</div><div class="tx"><b>Promoter</b><span>WhatsApp</span></div></div>`);
       else pills.push(`<div class="pill" onclick="event.stopPropagation();openView('event','${sh.id}')"><div class="ic">${ICON.music(16)}</div><div class="tx"><b>Show</b><span>All details</span></div></div>`);
     }
   }

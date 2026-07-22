@@ -226,7 +226,7 @@ function itemButtons(l){
 }
 function setButtons(s){ const sh=sel.event(s.showId); const mq=tlMapsQuery(s); const b=[];
   if(mq) b.push(jbtn(ICON.map(15),'Venue',`openMaps('${esc(mq)}')`));
-  if(sh&&sh.promoter&&sh.promoter.phone) b.push(jbtn(ICON.phone(15),'Promoter',`callNumber('${sh.promoter.phone}')`,'call'));
+  if(sh&&sh.promoter&&(sh.promoter.phone||sh.promoter.whatsapp)) b.push(jbtn(ICON.chat(15),'Promoter',`contactPromoter('${sh.id}')`,'call'));
   if(sh) b.push(jbtn(ICON.music(15),'Show details',`openView('event','${sh.id}')`));
   return b.join('');
 }
@@ -275,7 +275,7 @@ function showQuickLinks(e){
   const drvPhone=e.driver&&e.driver.phone;
   if(drvPhone) tiles.push(tile(ICON.car(20),'var(--green)','Driver',`contactDriver('${e.id}')`));
   else if(drivers.length) tiles.push(tile(ICON.car(20),'var(--green)','Driver',`sheetDriver('${e.id}')`));
-  if(e.promoter&&e.promoter.phone) tiles.push(tile(ICON.user(20),'var(--accent-2)','Contact',`callNumber('${e.promoter.phone}')`));
+  if(e.promoter&&(e.promoter.phone||e.promoter.whatsapp)) tiles.push(tile(ICON.user(20),'var(--accent-2)','Contact',`contactPromoter('${e.id}')`));
   const shown=tiles.slice(0,4);
   return `<div class="act-grid" style="grid-template-columns:repeat(${shown.length},1fr)">${shown.join('')}</div>`;
 }
