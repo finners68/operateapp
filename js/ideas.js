@@ -3,8 +3,11 @@
    ============================================================ */
 let ideaFilter = 'all';
 let selectedIdeaId = null;
+var ideasStale = false; // true once the tab has rendered — suppresses the entrance animation on re-render so nothing jumps
 function viewIdeas(){
   deselectIdea();
+  const SA = ideasStale ? '' : ' stagger';
+  ideasStale = true;
   const all = sel.ideas();
   let list = all;
   if(ideaFilter==='active') list = all.filter(i=>!i.done);
@@ -27,10 +30,10 @@ function viewIdeas(){
     const byType = t => active.filter(i=>typeKey(i)===t)
       .sort((a,b)=>(PRIO_RANK[a.prio]??1)-(PRIO_RANK[b.prio]??1));
     body = Object.entries(IDEA_TYPES).map(([t,def])=>{ const g=byType(t); if(!g.length) return '';
-      return `<div class="prio-head"><span class="pd" style="background:${def.color}"></span>${def.label} · ${g.length}</div><div class="idea-grid stagger">${g.map(ideaCard).join('')}</div>`;
+      return `<div class="prio-head"><span class="pd" style="background:${def.color}"></span>${def.label} · ${g.length}</div><div class="idea-grid${SA}">${g.map(ideaCard).join('')}</div>`;
     }).join('') + (done.length?`<div class="prio-head"><span class="pd" style="background:var(--text-3)"></span>Done · ${done.length}</div><div class="idea-grid">${done.map(ideaCard).join('')}</div>`:'');
   } else {
-    body = `<div class="idea-grid stagger">${list.map(ideaCard).join('')}</div>`;
+    body = `<div class="idea-grid${SA}">${list.map(ideaCard).join('')}</div>`;
   }
 
   return `

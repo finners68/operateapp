@@ -744,8 +744,9 @@ img{-webkit-touch-callout:none;}
 .idea-capture input{flex:1;font-size:15.5px;font-weight:500;background:none;padding:6px 0;}
 .idea-capture button{width:40px;height:40px;border-radius:11px;background:var(--accent);color:#fff;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:transform .12s;}
 .idea-capture button:active{transform:scale(.9);}
-.idea-done-btn{position:absolute;top:11px;right:11px;width:26px;height:26px;border-radius:50%;border:2px solid var(--stroke-strong);background:rgba(0,0,0,.25);display:flex;align-items:center;justify-content:center;color:transparent;transition:all .18s;z-index:2;}
-.idea.is-done .idea-done-btn{background:var(--green);border-color:var(--green);color:#fff;}
+.idea-sel-btn{position:absolute;top:11px;right:11px;width:26px;height:26px;border-radius:50%;border:2px solid var(--stroke-strong);background:rgba(0,0,0,.25);display:flex;align-items:center;justify-content:center;color:transparent;transition:all .18s;z-index:2;}
+.idea.is-done .idea-sel-btn{border-color:var(--green);color:var(--green);}
+.idea.sel .idea-sel-btn{background:var(--accent);border-color:var(--accent);color:#fff;}
 .idea.is-done .ttl{text-decoration:line-through;opacity:.6;}
 .idea .link-tag{display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:650;color:var(--text-2);background:rgba(255,255,255,.06);padding:3px 7px;border-radius:7px;margin-top:8px;align-self:flex-start;}
 .idea.sel{box-shadow:0 0 0 2.5px var(--accent);border-color:var(--accent)!important;}

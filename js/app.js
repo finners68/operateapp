@@ -142,7 +142,7 @@ const TABS = [
 ];
 let overlay = null; // {type, id} for detail views on top of a tab
 let navStack = []; // history of overlays for proper Back behaviour
-function go(tab){ navStack=[]; overlay=null; store.tab=tab; haptic(); persist(); render({ resetScroll: true }); }
+function go(tab){ navStack=[]; overlay=null; store.tab=tab; if(tab==='ideas') ideasStale=false; haptic(); persist(); render({ resetScroll: true }); }
 function openView(type, id){
   if(type==='finance' && financeLockActive()){ requireUnlock('finance', ()=>openView('finance', id)); return; }
   if(overlay) navStack.push(overlay);   // remember where we came from
