@@ -799,6 +799,25 @@ function contactDriver(eid){
     <div class="spacer"></div>
   `);
 }
+/* Transport chooser for a show — lists every driver contact and no-grounds
+   entry with WhatsApp/Call/Uber, so a show's transport surfaces in Trip Mode. */
+function showTransport(eid){
+  const e=sel.event(eid); if(!e) return;
+  const list=showDrivers(e);
+  if(!list.length){ sheetDriver(eid); return; }
+  const rows = orderedDrivers(e).map(({d})=>{
+    const title = (d.journey?esc(d.journey):(d.noGround?'Transport':(esc(d.name)||'Driver'))) + (d.time?' · '+esc(d.time):'');
+    if(d.noGround){
+      return `<div class="info-line"><div class="ic">${ICON.car(17)}</div>${fieldTx(title,'No grounds — Uber / taxi')}
+        <button class="header-btn" style="width:34px;height:34px;align-self:center" onclick="openExternal('https://m.uber.com/','uber://')">${ICON.car(16)}</button></div>`;
+    }
+    const wa=d.whatsapp||d.phone||'';
+    return `<div class="info-line"><div class="ic">${ICON.user(17)}</div>${fieldTx(title, esc(d.name||'Driver')+(d.phone?' · '+esc(d.phone):''))}
+      ${wa?`<button class="header-btn" style="width:34px;height:34px;align-self:center" onclick="whatsapp('${esc(wa)}')">${ICON.chat(16)}</button>`:''}
+      ${d.phone?`<button class="header-btn" style="width:34px;height:34px;align-self:center" onclick="callNumber('${esc(d.phone)}')">${ICON.phone(16)}</button>`:''}</div>`;
+  }).join('');
+  openSheet('Transport', `<div class="card flush">${rows}</div><div class="spacer"></div>`);
+}
 /* Contact the promoter — WhatsApp first (avoids a laptop trying to FaceTime),
    with Call as a fallback. Same pattern applies on every show. */
 function contactPromoter(eid){

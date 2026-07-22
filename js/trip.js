@@ -154,8 +154,12 @@ function stepPills(s){
       else pills.push(`<label class="pill"><div class="ic">${ICON.ticket(16)}</div><div class="tx"><b>Boarding pass</b><span>Upload</span></div><input type="file" accept="image/*,application/pdf" style="display:none" onchange="uploadItemPass('${it.id}',this)"></label>`);
     } else {
       const it=s.ref;
-      if(it&&it.phone){ pills.push(`<div class="pill" onclick="event.stopPropagation();callNumber('${it.phone}')"><div class="ic">${ICON.phone(16)}</div><div class="tx"><b>Call driver</b><span>Now</span></div></div>`);
-        pills.push(`<div class="pill" onclick="event.stopPropagation();whatsapp('${it.whatsapp||it.phone}')"><div class="ic">${ICON.chat(16)}</div><div class="tx"><b>Message</b><span>WhatsApp</span></div></div>`); }
+      // Fall back to the show's saved driver contact when the leg itself has none
+      const phone=(it&&it.phone)||(sh&&sh.driver&&sh.driver.phone)||'';
+      const wa=(it&&it.whatsapp)||(sh&&sh.driver&&sh.driver.whatsapp)||phone;
+      if(phone){ pills.push(`<div class="pill" onclick="event.stopPropagation();whatsapp('${esc(wa)}')"><div class="ic">${ICON.chat(16)}</div><div class="tx"><b>Message</b><span>WhatsApp</span></div></div>`);
+        pills.push(`<div class="pill" onclick="event.stopPropagation();callNumber('${esc(phone)}')"><div class="ic">${ICON.phone(16)}</div><div class="tx"><b>Call driver</b><span>Now</span></div></div>`); }
+      else if(sh&&showDrivers(sh).length){ pills.push(`<div class="pill" onclick="event.stopPropagation();showTransport('${sh.id}')"><div class="ic">${ICON.car(16)}</div><div class="tx"><b>Transport</b><span>View</span></div></div>`); }
       else { pills.push(`<div class="pill" onclick="event.stopPropagation();openItem('${it.id}')"><div class="ic">${ICON.car(16)}</div><div class="tx"><b>Driver</b><span>Add contact</span></div></div>`); }
       if(mq) pills.push(mapPill('Destination','Open in Maps'));
     }
@@ -165,8 +169,10 @@ function stepPills(s){
   } else if(s.kind==='set'){
     if(sh){
       if(mq) pills.push(mapPill('Venue', sh.venueAddr?esc(sh.venueAddr.slice(0,22)):'Open in Maps'));
-      if(sh.promoter&&(sh.promoter.phone||sh.promoter.whatsapp)) pills.push(`<div class="pill" onclick="event.stopPropagation();contactPromoter('${sh.id}')"><div class="ic">${ICON.user(16)}</div><div class="tx"><b>Promoter</b><span>WhatsApp</span></div></div>`);
-      else pills.push(`<div class="pill" onclick="event.stopPropagation();openView('event','${sh.id}')"><div class="ic">${ICON.music(16)}</div><div class="tx"><b>Show</b><span>All details</span></div></div>`);
+      if(sh.promoter&&(sh.promoter.phone||sh.promoter.whatsapp)) pills.push(`<div class="pill" onclick="event.stopPropagation();contactPromoter('${sh.id}')"><div class="ic">${ICON.user(16)}</div><div class="tx"><b>Liaison</b><span>WhatsApp</span></div></div>`);
+      const dl=showDrivers(sh); const dn=dl.filter(d=>!d.noGround).length; const ng=dl.some(d=>d.noGround);
+      if(dl.length) pills.push(`<div class="pill" onclick="event.stopPropagation();showTransport('${sh.id}')"><div class="ic">${ICON.car(16)}</div><div class="tx"><b>Transport</b><span>${dn?dn+' driver'+(dn>1?'s':'')+(ng?' · Uber':''):'Uber/taxi'}</span></div></div>`);
+      pills.push(`<div class="pill" onclick="event.stopPropagation();openView('event','${sh.id}')"><div class="ic">${ICON.music(16)}</div><div class="tx"><b>Show</b><span>All details</span></div></div>`);
     }
   }
   return pills.join('');
@@ -181,7 +187,8 @@ function tlActions(s){
     if(has) btns.push(`<button class="tl-btn" onclick="event.stopPropagation();viewItemPass('${it.id}')">${ICON.ticket(15)}</button>`);
     else btns.push(`<label class="tl-btn">${ICON.ticket(15)}<input type="file" accept="image/*,application/pdf" style="display:none" onchange="uploadItemPass('${it.id}',this)"></label>`); }
   const isDriver=s.kind==='travel'&&((s.icon||'plane')==='car'||(s.ref&&isDriverItem(s.ref)));
-  if(isDriver&&sh&&sh.driver&&sh.driver.phone){ btns.push(`<button class="tl-btn" onclick="event.stopPropagation();callNumber('${sh.driver.phone}')">${ICON.phone(15)}</button>`); }
+  if(isDriver&&sh&&sh.driver&&(sh.driver.phone||sh.driver.whatsapp)){ const w=sh.driver.whatsapp||sh.driver.phone; btns.push(`<button class="tl-btn" onclick="event.stopPropagation();whatsapp('${esc(w)}')">${ICON.chat(15)}</button>`); }
+  if(s.kind==='set'&&sh&&showDrivers(sh).length){ btns.push(`<button class="tl-btn" onclick="event.stopPropagation();showTransport('${sh.id}')">${ICON.car(15)}</button>`); }
   return btns.join('');
 }
 function viewItemPass(itemId, passId){
