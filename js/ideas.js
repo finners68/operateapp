@@ -12,18 +12,20 @@ function viewIdeas(){
   const chips = [{k:'all',l:'All '+all.length},{k:'active',l:'To use'},{k:'done',l:'Done'}, ...typesPresent.map(t=>({k:t,l:IDEA_TYPES[t].label}))];
   const toUse = all.filter(i=>!i.done).length;
 
-  // Body: when showing "to use"/all unfiltered, group by priority; else flat grid
+  // Body: when showing "to use"/all unfiltered, group by idea type; else flat grid
   let body;
   const grouped = (ideaFilter==='all'||ideaFilter==='active');
+  const typeKey = i => IDEA_TYPES[i.type] ? i.type : 'other';
+  const PRIO_RANK = {high:0, med:1, low:2};
   if(!list.length){
     body = `<div class="empty"><div class="ic">${ICON.idea(28)}</div><b>No ideas yet</b><span>Type above to capture a reel hook, caption or content plan — link it to a show later.</span><button class="btn secondary" style="margin-top:14px;max-width:240px" onclick="sheetIdea()">${ICON.plus(18)} New idea</button></div>`;
   } else if(grouped){
     const active = list.filter(i=>!i.done);
     const done = ideaFilter==='all'? list.filter(i=>i.done):[];
-    const byP = p => active.filter(i=>i.prio===p);
-    const groups = [['high','High priority'],['med','Medium'],['low','Low']];
-    body = groups.map(([p,label])=>{ const g=byP(p); if(!g.length) return '';
-      return `<div class="prio-head"><span class="pd" style="background:${PRIO[p]}"></span>${label} · ${g.length}</div><div class="idea-grid stagger">${g.map(ideaCard).join('')}</div>`;
+    const byType = t => active.filter(i=>typeKey(i)===t)
+      .sort((a,b)=>(PRIO_RANK[a.prio]??1)-(PRIO_RANK[b.prio]??1));
+    body = Object.entries(IDEA_TYPES).map(([t,def])=>{ const g=byType(t); if(!g.length) return '';
+      return `<div class="prio-head"><span class="pd" style="background:${def.color}"></span>${def.label} · ${g.length}</div><div class="idea-grid stagger">${g.map(ideaCard).join('')}</div>`;
     }).join('') + (done.length?`<div class="prio-head"><span class="pd" style="background:var(--text-3)"></span>Done · ${done.length}</div><div class="idea-grid">${done.map(ideaCard).join('')}</div>`:'');
   } else {
     body = `<div class="idea-grid stagger">${list.map(ideaCard).join('')}</div>`;
