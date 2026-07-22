@@ -432,7 +432,7 @@ function venueSubsection(e){
     ${e.promoter?`<div class="info-line"><div class="ic">${ICON.user(17)}</div>${fieldTx('Promoter / Artist liaison', esc(e.promoter.name))}
       ${(e.promoter.phone||e.promoter.whatsapp)?`<button class="btn secondary" style="width:auto;flex:0 0 auto;padding:9px 15px;font-size:13.5px;align-self:center;box-shadow:none" onclick="contactPromoter('${e.id}')">${ICON.chat(15)} Contact</button>`:`<button class="header-btn" style="width:34px;height:34px;align-self:center" onclick="sheetPromoter('${e.id}')">${ICON.edit(15)}</button>`}</div>`:`<div class="info-line" onclick="sheetPromoter('${e.id}')"><div class="ic">${ICON.plus(17)}</div><div class="tx"><div class="v" style="color:var(--accent-2)">Add promoter / artist liaison</div></div></div>`}
   </div>`;
-  return showSubsection('Venue & promoter', '', body);
+  return showSubsection('Venue & liaison', '', body);
 }
 function advanceSubsection(e){
   const a = e.advance||{};
