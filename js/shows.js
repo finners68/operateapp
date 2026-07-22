@@ -237,7 +237,7 @@ function checkRow(i, onclick){
 function ideaCard(i){
   const t = IDEA_TYPES[i.type]||IDEA_TYPES.other;
   const link = ideaLinkLabel(i);
-  return `<div class="idea ${i.done?'is-done':''}" style="background:linear-gradient(160deg, ${t.color}22, var(--card));border-color:${t.color}33" onclick="openView('idea','${i.id}')">
+  return `<div class="idea ${i.done?'is-done':''}" data-idea="${i.id}" style="background:linear-gradient(160deg, ${t.color}22, var(--card));border-color:${t.color}33" onclick="toggleIdeaSelect(event,'${i.id}')">
     <button class="idea-done-btn" onclick="event.stopPropagation();toggleIdeaDone('${i.id}')">${ICON.check(15)}</button>
     <div class="type" style="color:${t.color}">${ICON[t.icon](13)} ${t.label}</div>
     <div class="ttl">${esc(i.title)}</div>

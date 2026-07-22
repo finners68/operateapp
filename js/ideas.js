@@ -2,7 +2,9 @@
    IDEAS
    ============================================================ */
 let ideaFilter = 'all';
+let selectedIdeaId = null;
 function viewIdeas(){
+  deselectIdea();
   const all = sel.ideas();
   let list = all;
   if(ideaFilter==='active') list = all.filter(i=>!i.done);
@@ -49,6 +51,46 @@ function viewIdeas(){
   </div>`;
 }
 function setIdeaFilter(k){ ideaFilter=k; haptic(); renderView(); }
+/* Tap a card to select it in place — no navigation. A floating bar with
+   Edit / Done / Delete appears; tap the same card (or ✕) to deselect. */
+function toggleIdeaSelect(ev, id){
+  if(ev) ev.stopPropagation();
+  if(selectedIdeaId===id){ deselectIdea(); return; }
+  selectedIdeaId = id;
+  document.querySelectorAll('.idea.sel').forEach(c=>c.classList.remove('sel'));
+  const card = document.querySelector(`.idea[data-idea="${id}"]`);
+  if(card) card.classList.add('sel');
+  showIdeaActionBar(id);
+  haptic();
+}
+function deselectIdea(){
+  selectedIdeaId = null;
+  document.querySelectorAll('.idea.sel').forEach(c=>c.classList.remove('sel'));
+  const bar = document.getElementById('idea-actionbar');
+  if(bar) bar.remove();
+}
+function showIdeaActionBar(id){
+  const i = store.ideas.find(x=>x.id===id);
+  if(!i) return;
+  let bar = document.getElementById('idea-actionbar');
+  if(!bar){
+    bar = document.createElement('div');
+    bar.id = 'idea-actionbar';
+    (document.getElementById('app')||document.body).appendChild(bar);
+  }
+  bar.innerHTML = `
+    <button onclick="deselectIdea();sheetIdea('${id}')">${ICON.edit(18)}<span>Edit</span></button>
+    <button onclick="toggleIdeaDone('${id}')">${ICON.check(19)}<span>${i.done?'To use':'Done'}</span></button>
+    <button class="danger" onclick="confirmDeleteIdeaInline('${id}')">${ICON.trash(18)}<span>Delete</span></button>
+    <button class="close" onclick="deselectIdea()">${ICON.x(17)}</button>`;
+  requestAnimationFrame(()=>bar.classList.add('on'));
+}
+function confirmDeleteIdeaInline(iid){
+  confirmSheet('Delete idea?','This can\'t be undone.','Delete',()=>{
+    store.ideas = store.ideas.filter(x=>x.id!==iid);
+    persist(); deselectIdea(); renderView(); toast('Idea deleted','trash');
+  }, true);
+}
 function quickIdea(){
   const el=document.getElementById('idea-quick'); const v=el?el.value.trim():'';
   if(!v){ if(el)el.focus(); return; }
