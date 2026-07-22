@@ -8,7 +8,11 @@ function boot(){
   initGestures();
   initKeyboard();
   initSidebar();
-  setInterval(()=>{ if(store.tab==='home' && !overlay && !sheetEl) tickCountdowns(); }, 30000);
+  // Refresh the home countdown only while it's actually on screen — never when
+  // on another tab, in an overlay/sheet, or when the app is backgrounded.
+  const canTick = () => store.tab==='home' && !overlay && !sheetEl && !document.hidden;
+  setInterval(()=>{ if(canTick()) tickCountdowns(); }, 30000);
+  document.addEventListener('visibilitychange', ()=>{ if(canTick()) tickCountdowns(); });
 }
 
 const INTRO_KEY = 'operate_intro:';
