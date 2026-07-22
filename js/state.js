@@ -96,6 +96,16 @@ const CATS = {
   orange:'#ff9f0a', teal:'#40cbe0', red:'#ff453a', yellow:'#ffd60a'
 };
 const PRIO = {high:'#ff453a', med:'#ff9f0a', low:'#32d74b'};
+/* Quick-pick journey headers for driver contacts. The header is free text —
+   these are just shortcuts, and it can be left blank as journeys vary. */
+const DRIVER_JOURNEYS = ['Airport → Hotel','Hotel → Venue','Venue → Hotel','Hotel → Airport'];
+/* A show can have several driver contacts (one per journey). Returns the
+   drivers array, lazily migrating a legacy single `e.driver` into the list. */
+function showDrivers(e){
+  if(!e) return [];
+  if(!Array.isArray(e.drivers)) e.drivers = e.driver ? [Object.assign({id:uid('drv'), journey:''}, e.driver)] : [];
+  return e.drivers;
+}
 
 /* ---------- Persistence layer (swap-able) ---------- */
 const DB_KEY = 'artisthq.v2';
@@ -952,6 +962,7 @@ function migrate(){
   if(!s.security) s.security={enabled:false,pin:'',scope:'finance',biometric:false};
   if(!store.packing) store.packing = (s.packingTemplate||[]).map(x=>({id:uid('pk'),label:x,done:false}));
   store.events.forEach(e=>{ if((e.kind||'show')==='show' && !e.finance) e.finance={fee:0,currency:s.baseCurrency,dealType:'Guarantee',expenses:[],perDiem:0,commission:0,paid:false}; });
+  store.events.forEach(e=>{ if((e.kind||'show')==='show'){ showDrivers(e); e.driver = e.drivers[0] || null; } });
   snapshotPreLogisticsBackup();
   recoverLogisticsMetadata();
   store.events.forEach(e=>{ if(e.kind==='travel'||e.kind==='stay') normalizeLogisticItem(e); });

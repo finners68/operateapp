@@ -348,24 +348,32 @@ function hotelSubsection(e){
   if(!body) body = `<div class="card tap" onclick="sheetHotel('${e.id}')" style="text-align:center;color:var(--text-3);padding:20px">${ICON.bed(22)}<div style="margin-top:6px;font-weight:600">Add hotel details</div></div>`;
   return showSubsection('Hotel', `<button type="button" class="add" onclick="sheetHotel('${e.id}')">${e.hotel?'Edit':'Add'}</button>`, body);
 }
+function driverCard(eid, d, idx){
+  return `<div class="card flush" style="margin-bottom:10px">
+    <div class="driver-head">
+      <span class="driver-journey">${ICON.car(13)} ${d.journey?esc(d.journey):'Driver'}</span>
+      <button type="button" class="add" onclick="sheetDriver('${eid}',${idx})">Edit</button>
+    </div>
+    <div class="info-line info-line-stacked"><div class="ic">${ICON.user(17)}</div>${detailTx(esc(d.name||'Driver'), esc(d.pickup||''))}</div>
+    ${d.notes?`<div class="info-line"><div class="ic">${ICON.note(17)}</div>${fieldTx('Notes', esc(d.notes))}</div>`:''}
+    <div style="display:flex;gap:9px;padding:12px 16px">
+      <button class="btn secondary" style="padding:11px" onclick="callNumber('${d.phone||''}')">${ICON.phone(16)} Call</button>
+      <button class="btn secondary" style="padding:11px" onclick="whatsapp('${d.whatsapp||d.phone||''}')">${ICON.chat(16)} WhatsApp</button>
+      <button class="btn secondary" style="padding:11px;flex:0 0 auto" onclick="copyText('${esc(d.phone||'')}')">${ICON.copy(16)}</button>
+    </div>
+  </div>`;
+}
 function driverSubsection(e){
   const legs = showLegs(e.id).filter(x=>x.kind==='travel' && isDriverItem(x)).sort(legSort);
+  const drivers = showDrivers(e);
   let body = '';
   if(legs.length) body += showSourceLabel('From journey')+`<div class="card flush">${legs.map(journeyRow).join('')}</div>`;
-  if(e.driver){
+  if(drivers.length){
     if(legs.length) body += showSourceLabel('Added to show');
-    body += `<div class="card flush">
-      <div class="info-line info-line-stacked"><div class="ic">${ICON.car(17)}</div>${detailTx(esc(e.driver.name||'Driver'), esc(e.driver.pickup||''))}</div>
-      ${e.driver.notes?`<div class="info-line"><div class="ic">${ICON.note(17)}</div>${fieldTx('Notes', esc(e.driver.notes))}</div>`:''}
-      <div style="display:flex;gap:9px;padding:12px 16px">
-        <button class="btn secondary" style="padding:11px" onclick="callNumber('${e.driver.phone}')">${ICON.phone(16)} Call</button>
-        <button class="btn secondary" style="padding:11px" onclick="whatsapp('${e.driver.whatsapp||e.driver.phone}')">${ICON.chat(16)} WhatsApp</button>
-        <button class="btn secondary" style="padding:11px;flex:0 0 auto" onclick="copyText('${esc(e.driver.phone||'')}')">${ICON.copy(16)}</button>
-      </div>
-    </div>`;
+    body += drivers.map((d,idx)=>driverCard(e.id,d,idx)).join('');
   }
   if(!body) body = `<div class="card tap" onclick="sheetDriver('${e.id}')" style="text-align:center;color:var(--text-3);padding:20px">${ICON.car(22)}<div style="margin-top:6px;font-weight:600">Add driver</div></div>`;
-  return showSubsection('Driver', `<button type="button" class="add" onclick="sheetDriver('${e.id}')">${e.driver?'Edit':'Add'}</button>`, body);
+  return showSubsection(drivers.length>1?'Drivers':'Driver', `<button type="button" class="add" onclick="sheetDriver('${e.id}')">Add</button>`, body);
 }
 function transfersSubsection(e){
   const legs = showLegs(e.id).filter(x=>x.kind==='travel' && (x.icon||'plane')!=='plane' && !isDriverItem(x)).sort(legSort);
@@ -818,23 +826,36 @@ function clearFlightInfo(id){
   const e=store.events.find(x=>x.id===id); if(e){ e.flightNo=''; e.terminal=''; e.gate=''; e.fstatus=''; e.delay=''; e.fiUpdated=null; }
   persist(); closeSheet(); renderView(); toast('Flight info cleared','trash');
 }
-function sheetDriver(eid){
-  const e=sel.event(eid); const d=e.driver||{};
-  openSheet('Driver', `
+function sheetDriver(eid, idx){
+  const e=sel.event(eid); const list=showDrivers(e);
+  const editing = idx!=null && list[idx];
+  const d = editing ? list[idx] : {};
+  const chips = DRIVER_JOURNEYS.map(j=>`<button type="button" class="chip" onclick="document.getElementById('dr-journey').value='${j}';haptic()">${j}</button>`).join('');
+  openSheet(editing?'Edit driver':'Add driver', `
+    <div class="field"><label>Journey (optional)</label>
+      <input id="dr-journey" class="input" value="${esc(d.journey||'')}" placeholder="e.g. Airport → Hotel">
+      <div class="chips" style="margin-top:8px">${chips}</div>
+    </div>
     <div class="field"><label>Name</label><input id="dr-name" class="input" value="${esc(d.name||'')}" placeholder="Jan"></div>
     <div class="field"><label>Phone</label><input id="dr-phone" type="tel" class="input" value="${esc(d.phone||'')}" placeholder="+31 6 12345678"></div>
     <div class="field"><label>WhatsApp (if different)</label><input id="dr-wa" type="tel" class="input" value="${esc(d.whatsapp||'')}" placeholder="+31 6 12345678"></div>
     <div class="field"><label>Pickup location</label><input id="dr-pick" class="input" value="${esc(d.pickup||'')}" placeholder="Schiphol Arrivals"></div>
     <div class="field"><label>Notes</label><input id="dr-notes" class="input" value="${esc(d.notes||'')}" placeholder="Vehicle, plate, etc."></div>
-    <button class="btn" id="dr-save" onclick="saveDriver('${eid}')">Save driver</button>
-    ${(e.driver&&passEditable())?`<button class="btn danger" style="margin-top:10px" onclick="removeDriver('${eid}')">${ICON.trash(16)} Remove driver</button>`:''}
+    <button class="btn" id="dr-save" onclick="saveDriver('${eid}',${editing?idx:'null'})">${editing?'Save driver':'Add driver'}</button>
+    ${(editing&&passEditable())?`<button class="btn danger" style="margin-top:10px" onclick="removeDriver('${eid}',${idx})">${ICON.trash(16)} Remove driver</button>`:''}
     <div class="spacer"></div>
   `);
 }
-function saveDriver(eid){
+function saveDriver(eid, idx){
   const e=sel.event(eid); const name=val('dr-name');
   if(!name){ toast('Add a name','x'); return; }
-  withButton($('#dr-save'), ()=>{ e.driver={name,phone:val('dr-phone'),whatsapp:val('dr-wa'),pickup:val('dr-pick'),notes:val('dr-notes')}; persist(); closeSheet(); renderView(); }, 'Driver saved');
+  const list=showDrivers(e);
+  withButton($('#dr-save'), ()=>{
+    const drv={ id:(idx!=null&&list[idx]&&list[idx].id)||uid('drv'), journey:val('dr-journey'), name, phone:val('dr-phone'), whatsapp:val('dr-wa'), pickup:val('dr-pick'), notes:val('dr-notes') };
+    if(idx!=null && list[idx]) list[idx]=drv; else list.push(drv);
+    e.driver = list[0] || null;
+    persist(); closeSheet(); renderView();
+  }, idx!=null?'Driver saved':'Driver added');
 }
 function sheetVenueAddr(eid){
   const e=sel.event(eid); if(!e) return;
@@ -1109,7 +1130,7 @@ function buildDaySheet(e){
   if(e.venueAddr) L.push(`  ${e.venueAddr}`);
   if(e.hotel){ L.push(''); L.push('🏨 HOTEL'); L.push(`  ${e.hotel.name||''}`); if(e.hotel.address)L.push(`  ${e.hotel.address}`); if(e.hotel.conf)L.push(`  Conf: ${e.hotel.conf}`); if(e.hotel.checkin)L.push(`  ${fmtDate(e.hotel.checkin)} → ${e.hotel.checkout?fmtDate(e.hotel.checkout):''}`); }
   const contacts=[];
-  if(e.driver) contacts.push(`  Driver — ${e.driver.name||''} ${e.driver.phone||''}`);
+  showDrivers(e).forEach(d=>{ if(d.name||d.phone) contacts.push(`  Driver${d.journey?' ('+d.journey+')':''} — ${d.name||''} ${d.phone||''}`); });
   if(e.promoter) contacts.push(`  Promoter — ${e.promoter.name||''} ${e.promoter.phone||''}`);
   if(contacts.length){ L.push(''); L.push('📞 CONTACTS'); contacts.forEach(x=>L.push(x)); }
   if(e.content){ L.push(''); L.push('🎬 CONTENT'); L.push(`  ${e.content}`); }

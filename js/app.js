@@ -472,8 +472,9 @@ function applyScanToShow(e, f){
     e.hotel={ name:f.hotelName||'', address:f.hotelAddress||'', checkin:f.hotelCheckin||'', checkout:'', conf:'', notes:'' };
     filled.push('hotel');
   }
-  if(!e.driver && (f.driverName || f.driverPhone)){
-    e.driver={ name:f.driverName||'', phone:f.driverPhone||'', whatsapp:'', pickup:'', notes:'' };
+  if(!showDrivers(e).length && (f.driverName || f.driverPhone)){
+    e.drivers.push({ id:uid('drv'), journey:'', name:f.driverName||'', phone:f.driverPhone||'', whatsapp:'', pickup:'', notes:'' });
+    e.driver = e.drivers[0];
     filled.push('driver');
   }
   return filled;
@@ -527,7 +528,7 @@ function delItemPass(itemId, passId){
   persist(); renderView(); toast('Boarding pass removed','trash');
 }
 function removeHotel(eid){ const e=sel.event(eid); if(e){ e.hotel=null; } persist(); closeSheet(); renderView(); toast('Hotel removed','trash'); }
-function removeDriver(eid){ const e=sel.event(eid); if(e){ e.driver=null; } persist(); closeSheet(); renderView(); toast('Driver removed','trash'); }
+function removeDriver(eid, idx){ const e=sel.event(eid); if(e){ const list=showDrivers(e); if(idx!=null) list.splice(idx,1); e.driver=list[0]||null; } persist(); closeSheet(); renderView(); toast('Driver removed','trash'); }
 function removePromoter(eid){ const e=sel.event(eid); if(e){ e.promoter=null; } persist(); closeSheet(); renderView(); toast('Contact removed','trash'); }
 /* ============================================================
    Menus + delete
