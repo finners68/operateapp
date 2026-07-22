@@ -181,6 +181,13 @@ function sheetIdea(iid){
         ${[['high','High'],['med','Medium'],['low','Low']].map(([k,l])=>`<button data-v="${k}" class="${(i?i.prio:'med')===k?'on':''}" onclick="segPick(this)">${l}</button>`).join('')}
       </div>
     </div>
+    <div class="field"><label>Details</label><textarea id="id-note" class="textarea" style="min-height:64px" placeholder="Script, references, notes…">${esc(i?(i.note||''):'')}</textarea></div>
+    <div class="field"><label>Link to a show</label>
+      <select id="id-event" class="input">
+        <option value="">Not linked</option>
+        ${sel.events().map(e=>`<option value="${e.id}"${i&&i.eventId===e.id?' selected':''}>${esc(e.venue)} · ${esc(fmtDate(e.date))}</option>`).join('')}
+      </select>
+    </div>
     <button class="btn" id="id-save" onclick="saveIdea('${iid||''}')">${iid?'Save':'Add idea'}</button>
     <div class="spacer"></div>
   `);
@@ -190,10 +197,18 @@ function getChip(id){ const el=document.querySelector('#'+id+' .chip.on'); retur
 function saveIdea(iid){
   const title = val('id-title');
   if(!title){ toast('Describe the idea','x'); return; }
-  const data = {title, type:getChip('id-type'), prio:getSeg('id-prio')||'med'};
+  const evSel = document.getElementById('id-event');
+  const eventId = evSel ? (evSel.value || null) : null;
+  const data = {title, type:getChip('id-type'), prio:getSeg('id-prio')||'med', note:rawVal('id-note')};
   withButton($('#id-save'), ()=>{
-    if(iid){ Object.assign(store.ideas.find(x=>x.id===iid), data); }
-    else { store.ideas.push(Object.assign({id:uid('idea'), done:false, created:nowMs(), note:''}, data)); }
+    if(iid){
+      const idea = store.ideas.find(x=>x.id===iid);
+      Object.assign(idea, data);
+      // Linking to a show clears any trip link; "Not linked" only clears a show link
+      if(eventId){ idea.eventId=eventId; idea.tripId=null; } else { idea.eventId=null; }
+    } else {
+      store.ideas.push(Object.assign({id:uid('idea'), done:false, created:nowMs(), eventId, tripId:null}, data));
+    }
     persist(); closeSheet(); renderView();
   }, iid?'Idea updated':'Idea saved');
 }
