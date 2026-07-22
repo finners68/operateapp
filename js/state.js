@@ -322,6 +322,18 @@ function parseDT(dateStr, timeStr){
   if(timeStr){ [hh,mm] = timeStr.split(':').map(Number); }
   return new Date(y, m-1, d, hh||0, mm||0);
 }
+/* True set-start time in ms. A set in the small hours (before 06:00) is
+   played the morning *after* the show's listed day — a show dated Thursday
+   with a 01:00 set actually starts Friday 01:00 — so roll it to the next
+   day. Returns null when no set time is entered. */
+function setStartMs(dateStr, timeStr){
+  if(!timeStr) return null;
+  const d = parseDT(dateStr, timeStr);
+  if(!d) return null;
+  const hh = Number(timeStr.split(':')[0]);
+  if(hh < 6) d.setDate(d.getDate() + 1);
+  return d.getTime();
+}
 const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
 const MON = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 const DOW = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];

@@ -85,7 +85,7 @@ function viewHome(){
   if(e){
     const flight = (e.flights&&e.flights[0]);
     const flightMs = flight ? parseDT(...flight.dep.split(' '))?.getTime() : null;
-    const setMs = e.setTime ? parseDT(e.date, e.setTime)?.getTime() : null;
+    const setMs = setStartMs(e.date, e.setTime);
     const cF = flightMs? countdown(flightMs):null;
     const cS = setMs? countdown(setMs):null;
     hero = `
