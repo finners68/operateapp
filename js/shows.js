@@ -429,8 +429,8 @@ function venueSubsection(e){
   const body = `<div class="card flush">
     <div class="info-line" onclick="sheetVenueAddr('${e.id}')"><div class="ic">${ICON.pin(17)}</div>${fieldTx('Address', `<span class="addr-trunc">${esc(e.venueAddr || (e.city?cleanVenue(e.venue)+' · '+e.city+(e.country?', '+e.country:''):cleanVenue(e.venue)) || 'Tap to add')}</span>`)}
       <button class="header-btn" style="width:34px;height:34px;align-self:center" onclick="event.stopPropagation();openMaps('${esc(cleanVenue(e.venue)+' '+(e.venueAddr||e.city||''))}')">${ICON.map(17)}</button></div>
-    ${e.promoter?`<div class="info-line"><div class="ic">${ICON.user(17)}</div>${fieldTx('Promoter', esc(e.promoter.name))}
-      ${(e.promoter.phone||e.promoter.whatsapp)?`<button class="btn secondary" style="width:auto;flex:0 0 auto;padding:9px 15px;font-size:13.5px;align-self:center;box-shadow:none" onclick="contactPromoter('${e.id}')">${ICON.chat(15)} Contact</button>`:`<button class="header-btn" style="width:34px;height:34px;align-self:center" onclick="sheetPromoter('${e.id}')">${ICON.edit(15)}</button>`}</div>`:`<div class="info-line" onclick="sheetPromoter('${e.id}')"><div class="ic">${ICON.plus(17)}</div><div class="tx"><div class="v" style="color:var(--accent-2)">Add promoter contact</div></div></div>`}
+    ${e.promoter?`<div class="info-line"><div class="ic">${ICON.user(17)}</div>${fieldTx('Promoter / Artist liaison', esc(e.promoter.name))}
+      ${(e.promoter.phone||e.promoter.whatsapp)?`<button class="btn secondary" style="width:auto;flex:0 0 auto;padding:9px 15px;font-size:13.5px;align-self:center;box-shadow:none" onclick="contactPromoter('${e.id}')">${ICON.chat(15)} Contact</button>`:`<button class="header-btn" style="width:34px;height:34px;align-self:center" onclick="sheetPromoter('${e.id}')">${ICON.edit(15)}</button>`}</div>`:`<div class="info-line" onclick="sheetPromoter('${e.id}')"><div class="ic">${ICON.plus(17)}</div><div class="tx"><div class="v" style="color:var(--accent-2)">Add promoter / artist liaison</div></div></div>`}
   </div>`;
   return showSubsection('Venue & promoter', '', body);
 }
@@ -948,7 +948,7 @@ function saveVenueAddr(eid){
 }
 function sheetPromoter(eid){
   const e=sel.event(eid); const p=e.promoter||{};
-  openSheet('Promoter', `
+  openSheet('Promoter / Artist liaison', `
     <div class="field"><label>Name</label><input id="pr-name" class="input" value="${esc(p.name||'')}" placeholder="Lena"></div>
     <div class="field"><label>Phone</label><input id="pr-phone" type="tel" class="input" value="${esc(p.phone||'')}" placeholder="+31 6 99887766"></div>
     <div class="field"><label>WhatsApp (if different)</label><input id="pr-wa" type="tel" class="input" value="${esc(p.whatsapp||'')}" placeholder="+31 6 99887766"></div>
