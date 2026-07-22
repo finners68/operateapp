@@ -99,7 +99,7 @@ function viewHome(){
           ${flight?`<div class="count"><div class="count-k">${ICON.plane(12)} Flight</div><div class="count-v"${flightMs?` data-countdown-ms="${flightMs}" data-countdown-off="Off"`:''}><span class="cd-txt">${cF.done?'Off':cF.txt}</span><small class="cd-unit">${cF.done?'':cF.unit}</small></div></div>`:''}
         </div>
         <div class="hero-links">
-          ${e.hotel?`<button type="button" class="hero-link" onclick="event.stopPropagation();openMaps('${esc((e.hotel.name||'')+' '+(e.hotel.address||''))}')">${ICON.bed(14)} ${esc(e.hotel.name||'Hotel')}</button>`:''}
+          ${e.hotel?`<button type="button" class="hero-link" onclick="event.stopPropagation();openMaps('${esc(hotelMapQuery(e))}')">${ICON.bed(14)} ${esc(e.hotel.name||'Hotel')}</button>`:''}
           <button type="button" class="hero-link" onclick="event.stopPropagation();openMaps('${esc(cleanVenue(e.venue)+' '+(e.venueAddr||e.city||''))}')">${ICON.pin(14)} Venue</button>
         </div>
       </div>`;
@@ -331,6 +331,17 @@ function flightsSubsection(e){
   }
   return showSubsection('Flights', `<button type="button" class="add" onclick="sheetFlight('${e.id}')">Add</button>`, body);
 }
+/* Best Maps query for a show's hotel. Uses postcode when given for an exact
+   hit; otherwise the hotel name still resolves, and city/country are always
+   appended so it lands in the right place. */
+function hotelMapQuery(e){
+  const h = e && e.hotel; if(!h) return '';
+  const seen = new Set();
+  return [h.name, h.address, h.postcode, e.city, e.country]
+    .map(x=>(x||'').trim())
+    .filter(x=>{ if(!x) return false; const k=x.toLowerCase(); if(seen.has(k)) return false; seen.add(k); return true; })
+    .join(', ');
+}
 function hotelSubsection(e){
   const legs = showLegs(e.id).filter(x=>x.kind==='stay').sort(legSort);
   let body = '';
@@ -338,8 +349,8 @@ function hotelSubsection(e){
   if(e.hotel){
     if(legs.length) body += showSourceLabel('Added to show');
     body += `<div class="card flush">
-      <div class="info-line info-line-stacked"><div class="ic">${ICON.bed(17)}</div>${detailTx(esc(e.hotel.name||'Hotel'), esc(e.hotel.address||''))}
-        <button class="header-btn" style="width:34px;height:34px;align-self:center" onclick="openMaps('${esc((e.hotel.name||'')+' '+(e.hotel.address||''))}')">${ICON.map(16)}</button></div>
+      <div class="info-line info-line-stacked"><div class="ic">${ICON.bed(17)}</div>${detailTx(esc(e.hotel.name||'Hotel'), esc([e.hotel.address, e.hotel.postcode].filter(Boolean).join(', ')))}
+        <button class="header-btn" style="width:34px;height:34px;align-self:center" onclick="openMaps('${esc(hotelMapQuery(e))}')">${ICON.map(16)}</button></div>
       <div class="info-line"><div class="ic">${ICON.clock(17)}</div>${fieldTx('Check in / out', `${e.hotel.checkin?fmtDate(e.hotel.checkin):'—'} → ${e.hotel.checkout?fmtDate(e.hotel.checkout):'—'}`)}</div>
       ${e.hotel.conf?`<div class="info-line" onclick="copyText('${esc(e.hotel.conf)}')"><div class="ic">${ICON.ticket(17)}</div>${fieldTx('Confirmation', esc(e.hotel.conf))}<button class="header-btn" style="width:34px;height:34px;align-self:center">${ICON.copy(16)}</button></div>`:''}
       ${e.hotel.notes?`<div class="info-line"><div class="ic">${ICON.note(17)}</div>${fieldTx('Room notes', esc(e.hotel.notes))}</div>`:''}
@@ -718,6 +729,7 @@ function sheetHotel(eid){
   openSheet('Hotel', `
     <div class="field"><label>Hotel name</label><input id="ho-name" class="input" value="${esc(h.name||'')}" placeholder="Kimpton De Witt"></div>
     <div class="field"><label>Address</label><input id="ho-addr" class="input" value="${esc(h.address||'')}" placeholder="Street, city"></div>
+    <div class="field"><label>Postcode / ZIP</label><input id="ho-post" class="input" value="${esc(h.postcode||'')}" placeholder="Optional — makes Maps exact">${e.city||e.country?`<div class="hint" style="padding:6px 2px 0">No postcode? Maps still uses the hotel name${e.city?' in '+esc(e.city):''}${e.country?', '+esc(e.country):''}.</div>`:''}</div>
     <div class="row-2">
       <div class="field"><label>Check in</label><input id="ho-in" type="date" class="input" value="${h.checkin||e.date||''}"></div>
       <div class="field"><label>Check out</label><input id="ho-out" type="date" class="input" value="${h.checkout||''}"></div>
@@ -731,7 +743,7 @@ function sheetHotel(eid){
 }
 function saveHotel(eid){
   const e=sel.event(eid);
-  withButton($('#ho-save'), ()=>{ e.hotel={name:val('ho-name'),address:val('ho-addr'),checkin:rawVal('ho-in'),checkout:rawVal('ho-out'),conf:val('ho-conf'),notes:val('ho-notes')}; persist(); closeSheet(); renderView(); }, 'Hotel saved');
+  withButton($('#ho-save'), ()=>{ e.hotel={name:val('ho-name'),address:val('ho-addr'),postcode:val('ho-post'),checkin:rawVal('ho-in'),checkout:rawVal('ho-out'),conf:val('ho-conf'),notes:val('ho-notes')}; persist(); closeSheet(); renderView(); }, 'Hotel saved');
 }
 function sheetFlight(eid){
   openSheet('Add flight', `
@@ -1139,7 +1151,7 @@ function buildDaySheet(e){
   L.push('📍 VENUE');
   L.push(`  ${e.venue||''}`);
   if(e.venueAddr) L.push(`  ${e.venueAddr}`);
-  if(e.hotel){ L.push(''); L.push('🏨 HOTEL'); L.push(`  ${e.hotel.name||''}`); if(e.hotel.address)L.push(`  ${e.hotel.address}`); if(e.hotel.conf)L.push(`  Conf: ${e.hotel.conf}`); if(e.hotel.checkin)L.push(`  ${fmtDate(e.hotel.checkin)} → ${e.hotel.checkout?fmtDate(e.hotel.checkout):''}`); }
+  if(e.hotel){ L.push(''); L.push('🏨 HOTEL'); L.push(`  ${e.hotel.name||''}`); if(e.hotel.address||e.hotel.postcode)L.push(`  ${[e.hotel.address, e.hotel.postcode].filter(Boolean).join(', ')}`); if(e.hotel.conf)L.push(`  Conf: ${e.hotel.conf}`); if(e.hotel.checkin)L.push(`  ${fmtDate(e.hotel.checkin)} → ${e.hotel.checkout?fmtDate(e.hotel.checkout):''}`); }
   const contacts=[];
   orderedDrivers(e).forEach(({d})=>{ if(d.name||d.phone) contacts.push(`  Driver${d.journey?' ('+d.journey+')':''} — ${d.name||''} ${d.phone||''}`); });
   if(e.promoter) contacts.push(`  Promoter — ${e.promoter.name||''} ${e.promoter.phone||''}`);
