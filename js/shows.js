@@ -348,6 +348,17 @@ function hotelSubsection(e){
   if(!body) body = `<div class="card tap" onclick="sheetHotel('${e.id}')" style="text-align:center;color:var(--text-3);padding:20px">${ICON.bed(22)}<div style="margin-top:6px;font-weight:600">Add hotel details</div></div>`;
   return showSubsection('Hotel', `<button type="button" class="add" onclick="sheetHotel('${e.id}')">${e.hotel?'Edit':'Add'}</button>`, body);
 }
+/* Chronological rank for a driver by its journey: arrival → set → departure.
+   Blank / custom journeys sort after the known ones, keeping their add order. */
+function driverJourneyRank(j){
+  if(!j) return 99;
+  const i = DRIVER_JOURNEYS.findIndex(x=>x.toLowerCase()===String(j).toLowerCase().trim());
+  return i<0 ? 99 : i;
+}
+function orderedDrivers(e){
+  return showDrivers(e).map((d,idx)=>({d,idx}))
+    .sort((a,b)=> driverJourneyRank(a.d.journey)-driverJourneyRank(b.d.journey) || a.idx-b.idx);
+}
 function driverCard(eid, d, idx){
   return `<div class="card flush" style="margin-bottom:10px">
     <div class="driver-head">
@@ -370,7 +381,7 @@ function driverSubsection(e){
   if(legs.length) body += showSourceLabel('From journey')+`<div class="card flush">${legs.map(journeyRow).join('')}</div>`;
   if(drivers.length){
     if(legs.length) body += showSourceLabel('Added to show');
-    body += drivers.map((d,idx)=>driverCard(e.id,d,idx)).join('');
+    body += orderedDrivers(e).map(o=>driverCard(e.id,o.d,o.idx)).join('');
   }
   if(!body) body = `<div class="card tap" onclick="sheetDriver('${e.id}')" style="text-align:center;color:var(--text-3);padding:20px">${ICON.car(22)}<div style="margin-top:6px;font-weight:600">Add driver</div></div>`;
   return showSubsection(drivers.length>1?'Drivers':'Driver', `<button type="button" class="add" onclick="sheetDriver('${e.id}')">Add</button>`, body);
@@ -1130,7 +1141,7 @@ function buildDaySheet(e){
   if(e.venueAddr) L.push(`  ${e.venueAddr}`);
   if(e.hotel){ L.push(''); L.push('🏨 HOTEL'); L.push(`  ${e.hotel.name||''}`); if(e.hotel.address)L.push(`  ${e.hotel.address}`); if(e.hotel.conf)L.push(`  Conf: ${e.hotel.conf}`); if(e.hotel.checkin)L.push(`  ${fmtDate(e.hotel.checkin)} → ${e.hotel.checkout?fmtDate(e.hotel.checkout):''}`); }
   const contacts=[];
-  showDrivers(e).forEach(d=>{ if(d.name||d.phone) contacts.push(`  Driver${d.journey?' ('+d.journey+')':''} — ${d.name||''} ${d.phone||''}`); });
+  orderedDrivers(e).forEach(({d})=>{ if(d.name||d.phone) contacts.push(`  Driver${d.journey?' ('+d.journey+')':''} — ${d.name||''} ${d.phone||''}`); });
   if(e.promoter) contacts.push(`  Promoter — ${e.promoter.name||''} ${e.promoter.phone||''}`);
   if(contacts.length){ L.push(''); L.push('📞 CONTACTS'); contacts.forEach(x=>L.push(x)); }
   if(e.content){ L.push(''); L.push('🎬 CONTENT'); L.push(`  ${e.content}`); }
