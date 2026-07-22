@@ -382,9 +382,9 @@ function countdown(targetMs){
   const days = Math.floor(mins/1440);
   const hrs = Math.floor((mins%1440)/60);
   const m = mins%60;
-  if(days>0) return {done:false, txt:days+'d '+hrs+'h', unit:m+'m'};
-  if(hrs>0) return {done:false, txt:hrs+'h', unit:m+'m'};
-  return {done:false, txt:''+m, unit:'min'};
+  if(days>0) return {done:false, txt:days+'d '+hrs+'h '+m+'m', unit:''};
+  if(hrs>0) return {done:false, txt:hrs+'h '+m+'m', unit:''};
+  return {done:false, txt:m+'m', unit:''};
 }
 function timeAgo(ms){
   const diff = nowMs()-ms;
