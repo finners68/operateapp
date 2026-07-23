@@ -88,6 +88,10 @@ function viewHome(){
     const setMs = setStartMs(e.date, e.setTime);
     const cF = flightMs? countdown(flightMs):null;
     const cS = setMs? countdown(setMs):null;
+    const flightPass = (e.flights||[]).map(f=>(f.passes&&f.passes.length)?{f, p:f.passes[0]}:null).filter(Boolean)[0];
+    const hasContacts = !!(e.promoter&&(e.promoter.phone||e.promoter.whatsapp)) || showDrivers(e).some(d=>!d.noGround&&(d.phone||d.whatsapp)) || (e.contacts||[]).some(c=>c.phone||c.whatsapp);
+    const hasTransport = showDrivers(e).length>0;
+    const liaisonReach = e.promoter&&(e.promoter.phone||e.promoter.whatsapp);
     hero = `
       <div class="hero tap nextshow" onclick="openView('event','${e.id}')">
         <div class="hero-label">${ICON.music(14)} Next show · ${esc(relDay(e.date))}</div>
@@ -99,8 +103,13 @@ function viewHome(){
           ${flight?`<div class="count"><div class="count-k">${ICON.plane(12)} Flight</div><div class="count-v"${flightMs?` data-countdown-ms="${flightMs}" data-countdown-off="Off"`:''}><span class="cd-txt">${cF.done?'Off':cF.txt}</span><small class="cd-unit">${cF.done?'':cF.unit}</small></div></div>`:''}
         </div>
         <div class="hero-links">
+          ${flightPass?`<button type="button" class="hero-link" onclick="event.stopPropagation();openPassByRef('${e.id}','${flightPass.p.id}','${flightPass.f.id}')">${ICON.ticket(14)} Boarding pass</button>`:''}
+          ${hasContacts?`<button type="button" class="hero-link" onclick="event.stopPropagation();openTourContacts('${e.id}')">${ICON.users(14)} Key contacts</button>`:''}
+          ${hasTransport?`<button type="button" class="hero-link" onclick="event.stopPropagation();showTransport('${e.id}')">${ICON.car(14)} Transport</button>`:''}
+          ${liaisonReach?`<button type="button" class="hero-link" onclick="event.stopPropagation();contactPromoter('${e.id}')">${ICON.chat(14)} Liaison</button>`:''}
           ${e.hotel?`<button type="button" class="hero-link" onclick="event.stopPropagation();openMaps('${esc(hotelMapQuery(e))}')">${ICON.bed(14)} ${esc(e.hotel.name||'Hotel')}</button>`:''}
           <button type="button" class="hero-link" onclick="event.stopPropagation();openMaps('${esc(cleanVenue(e.venue)+' '+(e.venueAddr||e.city||''))}')">${ICON.pin(14)} Venue</button>
+          <button type="button" class="hero-link" onclick="event.stopPropagation();shareDaySheet('${e.id}')">${ICON.share(14)} Day sheet</button>
         </div>
       </div>`;
   } else {
