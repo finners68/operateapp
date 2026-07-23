@@ -36,13 +36,8 @@ function ideaChips(){
 }
 function ideasControls(){
   return `
-    ${pageIntro('ideas', 'Capture content ideas', 'Save hooks, reels and captions here. Open an idea to link it to a show so it appears on that show\'s page.')}
-    ${tabBlurb('Type in the box below for a quick capture, or tap + for full details.')}
-    <div class="idea-capture">
-      <input id="idea-quick" placeholder="Capture an idea…" onkeydown="if(event.key==='Enter')quickIdea()">
-      <button onclick="quickIdea()">${ICON.plus(20)}</button>
-    </div>
-    <div class="chips" style="margin-top:10px">${ideaChips()}</div>`;
+    ${pageIntro('ideas', 'Capture content ideas', 'Reels, hooks and captions live here. Tap ＋ to add one, then open it to link it to a show.')}
+    <div class="chips" style="margin-top:2px">${ideaChips()}</div>`;
 }
 function ideasListBody(){
   deselectIdea();
