@@ -302,16 +302,37 @@ function wrProject(legs, nodes, W, H){
   };
   return proj;
 }
+/* Neon wireframe globe backdrop — rim + latitude/longitude ellipses, softly
+   glowing and semi-transparent, with a slow meridian drift when animated. */
+function wrDrawGlobe(g, cx, cy, r, alpha, animate){
+  if(r<=0 || alpha<=0) return;
+  g.save();
+  // faint glow disc so it reads as a sphere
+  const disc=g.createRadialGradient(cx,cy-r*0.25,r*0.1,cx,cy,r*1.08);
+  disc.addColorStop(0,'rgba(90,140,255,0.12)'); disc.addColorStop(1,'rgba(90,140,255,0)');
+  g.globalAlpha=0.6*alpha; g.fillStyle=disc; g.beginPath(); g.arc(cx,cy,r,0,Math.PI*2); g.fill();
+  // wireframe
+  g.globalAlpha=0.30*alpha; g.strokeStyle='rgba(125,170,255,0.95)'; g.lineWidth=1.1;
+  g.shadowColor='rgba(110,155,255,0.65)'; g.shadowBlur=8;
+  g.beginPath(); g.arc(cx,cy,r,0,Math.PI*2); g.stroke();                 // rim
+  [-60,-30,0,30,60].forEach(deg=>{                                       // parallels
+    const phi=deg*Math.PI/180, yy=cy-r*Math.sin(phi), rx=r*Math.cos(phi), ry=Math.max(2,rx*0.16);
+    g.beginPath(); g.ellipse(cx,yy,rx,ry,0,0,Math.PI*2); g.stroke();
+  });
+  const phase = animate ? (performance.now()/7000) : 0.4;               // meridians (drift = slow spin)
+  for(let i=0;i<6;i++){ const a=(i/6)*Math.PI+phase; const rx=Math.abs(r*Math.cos(a));
+    g.beginPath(); g.ellipse(cx,cy,Math.max(0.6,rx),r,0,0,Math.PI*2); g.stroke(); }
+  g.shadowBlur=0; g.restore();
+}
 function wrDrawMap(canvas, progress){
   const dpr=Math.min(2, window.devicePixelRatio||1);
   const W=canvas.clientWidth||canvas.offsetWidth||360, H=canvas.clientHeight||canvas.offsetHeight||640;
   canvas.width=W*dpr; canvas.height=H*dpr;
   const g=canvas.getContext('2d'); g.setTransform(dpr,0,0,dpr,0,0); g.clearRect(0,0,W,H);
   const { legs, nodes } = wrState._map || {legs:[],nodes:new Map()};
-  // faint graticule
-  g.strokeStyle='rgba(255,255,255,0.05)'; g.lineWidth=1;
-  for(let gx=0; gx<=W; gx+=Math.max(48,W/7)){ g.beginPath(); g.moveTo(gx,0); g.lineTo(gx,H); g.stroke(); }
-  for(let gy=0; gy<=H*0.72; gy+=Math.max(48,H/9)){ g.beginPath(); g.moveTo(0,gy); g.lineTo(W,gy); g.stroke(); }
+  // neon wireframe globe backdrop
+  const gr = Math.min(W*0.46, H*0.30);
+  wrDrawGlobe(g, W/2, H*0.34, gr, Math.min(1, progress*1.6), true);
   if(!legs.length) return;
   const proj = wrState._proj || (wrState._proj = wrProject(legs, nodes, W, H));
   const home = (store.settings&&store.settings.homeAirport||'').toUpperCase();
@@ -398,6 +419,7 @@ function drawWrappedCanvas(y, name){
       const home=(store.settings&&store.settings.homeAirport||'').toUpperCase();
       let li=0,lk=0; legs.forEach((l,i)=>{ if(l.km>lk){lk=l.km;li=i;} });
       g.save(); g.translate(bx,by);
+      wrDrawGlobe(g, bw/2, bh*0.44, Math.min(bw*0.42, bh*0.46), 1, false);
       legs.forEach((l,idx)=>{ const [x1,y1]=proj(l.a),[x2,y2]=proj(l.b);
         const mxp=(x1+x2)/2,myp=(y1+y2)/2,dist=Math.hypot(x2-x1,y2-y1),cyy=myp-Math.min(130,dist*0.4)-12;
         g.beginPath(); g.moveTo(x1,y1); g.quadraticCurveTo(mxp,cyy,x2,y2);
