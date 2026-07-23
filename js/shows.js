@@ -92,6 +92,7 @@ function viewHome(){
     const hasContacts = !!(e.promoter&&(e.promoter.phone||e.promoter.whatsapp)) || showDrivers(e).some(d=>!d.noGround&&(d.phone||d.whatsapp)) || (e.contacts||[]).some(c=>c.phone||c.whatsapp);
     const hasTransport = showDrivers(e).length>0;
     const liaisonReach = e.promoter&&(e.promoter.phone||e.promoter.whatsapp);
+    const hasRem = (store.reminders||[]).some(r=>r.showId===e.id && !r.fired);
     hero = `
       <div class="hero tap nextshow" onclick="openView('event','${e.id}')">
         <div class="hero-label">${ICON.music(14)} Next show · ${esc(relDay(e.date))}</div>
@@ -103,6 +104,7 @@ function viewHome(){
           ${flight?`<div class="count"><div class="count-k">${ICON.plane(12)} Flight</div><div class="count-v"${flightMs?` data-countdown-ms="${flightMs}" data-countdown-off="Off"`:''}><span class="cd-txt">${cF.done?'Off':cF.txt}</span><small class="cd-unit">${cF.done?'':cF.unit}</small></div></div>`:''}
         </div>
         <div class="hero-links">
+          <button type="button" class="hero-link" style="background:rgba(255,159,10,0.2);border-color:rgba(255,159,10,0.42);color:var(--text)" onclick="event.stopPropagation();sheetReminder('${e.id}')">${ICON.reminder(14)} ${hasRem?'Reminder on':'Set reminder'}</button>
           ${flightPass?`<button type="button" class="hero-link" onclick="event.stopPropagation();openPassByRef('${e.id}','${flightPass.p.id}','${flightPass.f.id}')">${ICON.ticket(14)} Boarding pass</button>`:''}
           ${hasContacts?`<button type="button" class="hero-link" onclick="event.stopPropagation();openTourContacts('${e.id}')">${ICON.users(14)} Key contacts</button>`:''}
           ${hasTransport?`<button type="button" class="hero-link" onclick="event.stopPropagation();showTransport('${e.id}')">${ICON.car(14)} Transport</button>`:''}
@@ -840,6 +842,44 @@ function contactPromoter(eid){
     <div class="spacer"></div>
   `);
 }
+/* Set a reminder notification for a show's set. */
+function sheetReminder(eid){
+  const e=sel.event(eid); if(!e) return;
+  const base=setStartMs(e.date, e.setTime); const now=Date.now();
+  const existing=(typeof reminderFor==='function')?reminderFor(eid):null;
+  const opt=(mins,label)=>{ if(base==null) return ''; const at=base-mins*60000; if(at<=now) return ''; return `<button type="button" class="btn secondary" style="margin-bottom:8px" onclick="setShowReminder('${eid}',${at},'${label}')">${ICON.reminder(15)} ${label}</button>`; };
+  const morning=parseDT(e.date,'09:00'); const morningAt=morning?morning.getTime():null;
+  const warn = (typeof notifSupported!=='function'||!notifSupported()) ? `Notifications aren't supported here — reminders show only while Operate is open.`
+    : (Notification.permission==='denied' ? `Notifications are blocked. Enable them for Operate in your phone/browser settings to be pinged when the app is closed.`
+    : (!triggersSupported() ? `On this device reminders fire while Operate is open or backgrounded; delivery when fully closed isn't guaranteed (common on iPhone).` : ''));
+  openSheet('Set a reminder', `
+    ${existing?`<div class="hint" style="padding:0 2px 12px">A reminder is already set for this show. Pick a new time to replace it, or remove it below.</div>`:''}
+    ${base!=null?`
+      ${opt(0,'At set time')}
+      ${opt(30,'30 min before set')}
+      ${opt(60,'1 hour before set')}
+      ${opt(120,'2 hours before set')}
+      ${opt(180,'3 hours before set')}
+    `:`<div class="hint" style="padding:0 2px 10px">Add a set time to the show for set-relative reminders.</div>`}
+    ${morningAt&&morningAt>now?`<button type="button" class="btn secondary" style="margin-bottom:8px" onclick="setShowReminder('${eid}',${morningAt},'Morning of show')">${ICON.reminder(15)} On the morning · 9am</button>`:''}
+    <div class="field" style="margin-top:6px"><label>Custom time</label><input id="rem-when" type="datetime-local" class="input"></div>
+    <button type="button" class="btn" onclick="setShowReminderCustom('${eid}')">Set custom reminder</button>
+    ${existing?`<button type="button" class="btn danger" style="margin-top:10px" onclick="clearShowReminder('${eid}')">${ICON.trash(16)} Remove reminder</button>`:''}
+    ${warn?`<div class="hint" style="padding:12px 2px 0;line-height:1.4">${warn}</div>`:''}
+    <div class="spacer"></div>
+  `);
+}
+function setShowReminder(eid, atMs, label){
+  scheduleReminder(eid, atMs, label).then(ok=>{ closeSheet(); renderView(); toast(ok?'Reminder set':'Saved — enable notifications to be pinged', ok?'reminder':'x'); });
+}
+function setShowReminderCustom(eid){
+  const el=document.getElementById('rem-when'); const v=el?el.value:'';
+  if(!v){ toast('Pick a date & time','x'); return; }
+  const at=new Date(v).getTime();
+  if(!at || at<=Date.now()){ toast('Pick a future time','x'); return; }
+  setShowReminder(eid, at, 'Reminder');
+}
+function clearShowReminder(eid){ cancelReminder(eid); closeSheet(); renderView(); toast('Reminder removed','trash'); }
 /* ---- Flight status widget: gate / terminal / status / delay.
    Manually entered now (works offline); wired to auto-update from live flight data in Phase 2. ---- */
 function flightInfoWidget(e){
@@ -1251,18 +1291,25 @@ function buildDaySheet(e){
   return L.join('\n');
 }
 function shareDaySheet(eid){
-  const e=sel.event(eid); const text=buildDaySheet(e);
-  const title=`Day Sheet — ${e.venue}`;
-  if(navigator.share){ navigator.share({title, text}).then(()=>toast('Shared','share')).catch(()=>previewDaySheet(text)); }
-  else previewDaySheet(text);
+  const e=sel.event(eid); if(!e) return;
+  previewDaySheet(buildDaySheet(e), e);
 }
-function previewDaySheet(text){
+function previewDaySheet(text, e){
   window.__daysheet = text;
+  window.__daysheetTitle = e ? ('Day Sheet — '+(e.venue||'Show')) : 'Day sheet';
   openSheet('Day sheet', `
     <div class="card" style="white-space:pre-wrap;font-size:13.5px;line-height:1.55;font-family:ui-monospace,Menlo,monospace;color:var(--text-2);max-height:52dvh;overflow:auto">${esc(text)}</div>
     <div class="spacer"></div>
-    <button class="btn" onclick="copyText(window.__daysheet); closeSheet();">${ICON.copy(16)} Copy day sheet</button>
+    <div style="display:flex;gap:9px">
+      <button class="btn" style="flex:1" onclick="copyText(window.__daysheet); closeSheet();">${ICON.copy(16)} Copy</button>
+      ${navigator.share?`<button class="btn secondary" style="flex:1" onclick="daySheetShare()">${ICON.share(16)} Share</button>`:''}
+    </div>
     <div class="spacer"></div>
   `, {});
+}
+function daySheetShare(){
+  const text=window.__daysheet||''; const title=window.__daysheetTitle||'Day sheet';
+  if(navigator.share){ navigator.share({title, text}).then(()=>{ closeSheet(); toast('Shared','share'); }).catch(()=>{}); }
+  else { copyText(text); toast('Copied','copy'); }
 }
 

@@ -13,8 +13,9 @@ function boot(){
   // on another tab, in an overlay/sheet, or when the app is backgrounded.
   const canTick = () => store.tab==='home' && !overlay && !sheetEl && !document.hidden;
   setInterval(()=>{ if(canTick()) tickCountdowns(); }, 30000);
-  document.addEventListener('visibilitychange', ()=>{ if(document.hidden) saveNavState(); else if(canTick()) tickCountdowns(); });
+  document.addEventListener('visibilitychange', ()=>{ if(document.hidden) saveNavState(); else { if(canTick()) tickCountdowns(); if(typeof checkDueReminders==='function') checkDueReminders(); } });
   window.addEventListener('pagehide', saveNavState);
+  if(typeof checkDueReminders==='function'){ checkDueReminders(); setInterval(checkDueReminders, 60000); }
 }
 
 const INTRO_KEY = 'operate_intro:';

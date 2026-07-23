@@ -1,5 +1,5 @@
 /* Operate service worker — app-shell offline cache */
-const VERSION = 'operate-v27';
+const VERSION = 'operate-v28';
 const SHELL = [
   './',
   './index.html',
@@ -35,6 +35,20 @@ self.addEventListener('activate', (e) => {
     caches.keys().then((keys) =>
       Promise.all(keys.filter((k) => k !== VERSION).map((k) => caches.delete(k)))
     ).then(() => self.clients.claim())
+  );
+});
+
+// Tapping a reminder notification focuses (or opens) the app and jumps to the show.
+self.addEventListener('notificationclick', (e) => {
+  e.notification.close();
+  const showId = e.notification.data && e.notification.data.showId;
+  e.waitUntil(
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((cl) => {
+      for (const c of cl) {
+        if ('focus' in c) { c.focus(); if (showId && c.postMessage) c.postMessage({ type: 'reminder-open', showId }); return; }
+      }
+      if (self.clients.openWindow) return self.clients.openWindow('./');
+    })
   );
 });
 

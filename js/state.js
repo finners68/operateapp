@@ -984,6 +984,7 @@ function migrate(){
   if(s.invoiceSeq==null) s.invoiceSeq=1;
   if(s.invoiceTerms==null) s.invoiceTerms=14;
   if(!store.contacts) store.contacts=[];
+  if(!store.reminders) store.reminders=[];
   if(!store.invoices) store.invoices=[];
   if(!store.itineraries) store.itineraries=[];
   if(!s.accountType) s.accountType='dj';

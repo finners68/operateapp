@@ -1,4 +1,83 @@
 /* ---------- PWA: register offline service worker ---------- */
 if('serviceWorker' in navigator && location.protocol.startsWith('http')){
   window.addEventListener('load', ()=>{ navigator.serviceWorker.register('sw.js').catch(()=>{}); });
+  // Tapping a reminder notification opens the relevant show
+  navigator.serviceWorker.addEventListener('message', (ev)=>{
+    const d=ev.data||{};
+    if(d.type==='reminder-open' && d.showId && typeof openView==='function'){ openView('event', d.showId); }
+  });
+}
+
+/* ============================================================
+   REMINDERS — schedule a notification for a show. Uses the
+   Notification Triggers API for true background delivery when the
+   browser supports it (Android / desktop Chrome); otherwise fires
+   in-app while Operate is open. Reminders are device-local.
+   ============================================================ */
+function notifSupported(){ return typeof Notification !== 'undefined'; }
+async function ensureNotifPermission(){
+  if(!notifSupported()) return false;
+  if(Notification.permission==='granted') return true;
+  if(Notification.permission==='denied') return false;
+  try{ return (await Notification.requestPermission())==='granted'; }catch(e){ return false; }
+}
+function reminderList(){ if(!Array.isArray(store.reminders)) store.reminders=[]; return store.reminders; }
+function reminderFor(showId){ return reminderList().find(r=>r.showId===showId && !r.fired) || null; }
+function reminderTitle(r){ const e=sel.event(r.showId); return e?('🎧 '+(e.venue||'Show')):'Show reminder'; }
+function reminderBody(r){ const e=sel.event(r.showId); const bits=[r.label||'Reminder']; if(e&&e.setTime) bits.push('set '+e.setTime); if(e&&e.city) bits.push(e.city); return bits.join(' · '); }
+function triggersSupported(){ return notifSupported() && 'showTrigger' in Notification.prototype; }
+
+async function scheduleReminder(showId, atMs, label){
+  const list=reminderList();
+  let r=list.find(x=>x.showId===showId);
+  if(r){ cancelTrigger(r); } else { r={id:uid('rem'), showId}; list.push(r); }
+  r.at=atMs; r.label=label; r.fired=false; r.triggered=false;
+  const ok=await ensureNotifPermission();
+  if(ok) await armTrigger(r);
+  persist();
+  return ok;
+}
+async function armTrigger(r){
+  if(!triggersSupported() || !('serviceWorker' in navigator)) return;
+  try{
+    const reg=await navigator.serviceWorker.ready;
+    reg.showNotification(reminderTitle(r), {
+      body: reminderBody(r), tag:'rem-'+r.id, data:{showId:r.showId},
+      icon:'icons/icon-192.png', badge:'icons/icon-192.png',
+      showTrigger: new TimestampTrigger(r.at)
+    });
+    r.triggered=true;
+  }catch(e){}
+}
+function cancelTrigger(r){
+  if(!('serviceWorker' in navigator)) return;
+  navigator.serviceWorker.ready.then(reg=>reg.getNotifications({tag:'rem-'+r.id, includeTriggered:true}).then(ns=>ns.forEach(n=>n.close()))).catch(()=>{});
+}
+function cancelReminder(showId){
+  const list=reminderList(); const r=list.find(x=>x.showId===showId);
+  if(!r) return;
+  cancelTrigger(r);
+  store.reminders=list.filter(x=>x!==r);
+  persist();
+}
+function fireReminderNow(r){
+  if(!notifSupported() || Notification.permission!=='granted') return;
+  try{
+    if('serviceWorker' in navigator){
+      navigator.serviceWorker.ready
+        .then(reg=>reg.showNotification(reminderTitle(r), {body:reminderBody(r), tag:'rem-'+r.id, data:{showId:r.showId}, icon:'icons/icon-192.png'}))
+        .catch(()=>{ new Notification(reminderTitle(r), {body:reminderBody(r)}); });
+    } else { new Notification(reminderTitle(r), {body:reminderBody(r)}); }
+  }catch(e){}
+}
+/* Fallback + cleanup: fire any due reminders the browser couldn't schedule
+   in the background, and drop stale ones. Called on boot and on a timer. */
+function checkDueReminders(){
+  const list=reminderList(); const now=Date.now(); let changed=false;
+  list.forEach(r=>{
+    if(!r.fired && !r.triggered && r.at<=now && (now-r.at) < 6*3600000){ fireReminderNow(r); r.fired=true; changed=true; }
+  });
+  const kept=list.filter(r=>!(r.at < now - 12*3600000));   // forget reminders >12h past
+  if(kept.length!==list.length){ store.reminders=kept; changed=true; }
+  if(changed) persist();
 }
