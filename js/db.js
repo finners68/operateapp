@@ -16,9 +16,26 @@ function migrationKey(orgId){ return MIGRATION_PREFIX + orgId; }
 function isMigrated(orgId){ return !!localStorage.getItem(migrationKey(orgId)); }
 function markMigrated(orgId){ try{ localStorage.setItem(migrationKey(orgId), '1'); }catch(e){} }
 
+/* A content signature of the store, not just row counts — so a remote change
+   that edits a field (a leg's date/time, a driver, a hotel, a done-toggle)
+   without adding/removing rows still registers as "changed" and re-renders.
+   Counting rows alone missed those edits, so pulled changes never appeared. */
 function storeSnapshot(){
   if(!store) return '';
-  return (store._seq || 0) + '|' + (store.events?.length || 0) + '|' + (store.ideas?.length || 0) + '|' + (store.notes?.length || 0);
+  let h = 5381;
+  const add = s => { s = String(s==null?'':s); for(let i=0;i<s.length;i++) h = ((h*33) ^ s.charCodeAt(i)) >>> 0; };
+  (store.events||[]).forEach(e=>{
+    add(e.id); add(e.date); add(e.start); add(e.end); add(e.setTime); add(e.endTime);
+    add(e.title); add(e.venue); add(e.venueAddr); add(e.city); add(e.info); add(e.from); add(e.to);
+    add(e.setDone?1:0); add(e.done?1:0);
+    (e.drivers||[]).forEach(d=>{ add(d.journey); add(d.time); add(d.phone); add(d.name); add(d.noGround?1:0); });
+    (e.flights||[]).forEach(f=>{ add(f.from); add(f.to); add(f.dep); add(f.code); });
+    if(e.hotel){ add(e.hotel.name); add(e.hotel.postcode); add(e.hotel.address); }
+  });
+  (store.ideas||[]).forEach(x=>{ add(x.id); add(x.title); add(x.done?1:0); });
+  (store.notes||[]).forEach(x=>{ add(x.id); add(x.updated); });
+  (store.trips||[]).forEach(t=>{ add(t.id); add(t.name); add(t.start); add(t.end); });
+  return (store._seq||0) + '|' + (store.events?.length||0) + '|' + (store.ideas?.length||0) + '|' + (store.notes?.length||0) + '|' + h;
 }
 
 function dedupeEventsById(events){
