@@ -129,6 +129,20 @@ body{touch-action:manipulation;}
 .home-stat-k{display:flex;align-items:center;gap:5px;font-size:10.5px;font-weight:750;text-transform:uppercase;letter-spacing:.04em;}
 .home-stat-v{font-size:22px;font-weight:850;letter-spacing:-0.02em;margin-top:4px;font-variant-numeric:tabular-nums;}
 .home-trip-banner{display:flex;align-items:center;gap:12px;padding:12px 14px;margin-bottom:4px;background:var(--green-soft);border-color:rgba(50,215,75,0.28);}
+/* Live Tour Mode card on Home (sits under the next show) */
+.tourmode-wrap{margin-top:14px;}
+.tourmode-card{position:relative;border-radius:var(--radius-lg);padding:18px;overflow:hidden;border:1px solid rgba(50,215,75,0.30);box-shadow:var(--shadow-2), var(--hairline);
+  background:linear-gradient(155deg,rgba(50,215,75,0.16),rgba(50,215,75,0.05) 62%,rgba(50,215,75,0.03));transition:transform .18s var(--ease);}
+.tourmode-card.tap:active{transform:scale(0.985);}
+.tourmode-card::after{content:'';position:absolute;inset:0;background:radial-gradient(600px 200px at 90% -20%,rgba(50,215,75,0.20),transparent 60%);pointer-events:none;}
+.tourmode-top{display:flex;align-items:center;justify-content:space-between;position:relative;z-index:1;}
+.tourmode-badge{display:inline-flex;align-items:center;gap:7px;font-size:12px;font-weight:750;letter-spacing:0.05em;text-transform:uppercase;color:var(--green);}
+.tourmode-live{display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:800;letter-spacing:0.09em;color:var(--green);}
+.tourmode-title{position:relative;z-index:1;font-size:22px;font-weight:800;letter-spacing:-0.02em;margin-top:11px;line-height:1.1;}
+.tourmode-meta{position:relative;z-index:1;font-size:13px;color:var(--text-2);font-weight:550;margin-top:4px;}
+.tourmode-bar{position:relative;z-index:1;height:6px;border-radius:99px;background:rgba(255,255,255,0.09);margin-top:14px;overflow:hidden;}
+.tourmode-bar i{display:block;height:100%;background:var(--green);border-radius:99px;transition:width .5s var(--ease);}
+.tourmode-cta{position:relative;z-index:1;display:flex;align-items:center;justify-content:center;gap:5px;margin-top:14px;font-size:14px;font-weight:700;color:var(--green);}
 .home-trip-text{flex:1;min-width:0;}
 .home-trip-text b{display:block;font-size:15px;color:var(--green);line-height:1.2;}
 .home-trip-text span{display:block;font-size:12.5px;color:var(--text-2);margin-top:2px;}

@@ -183,8 +183,8 @@ function viewHome(){
   return `
   ${header}
   <div class="screen-pad home-screen stagger"${photo?' style="margin-top:12px"':''}>
-    ${run?activeTripBanner(run):''}
     <section class="home-focus">${hero}</section>
+    ${run?`<div class="tourmode-wrap">${activeTripBanner(run)}</div>`:''}
 
     <div class="home-layout">
       <div class="home-panel">
@@ -243,10 +243,15 @@ function homeStat(icon, color, value, label){
 
 function activeTripBanner(run){
   const p=runProgress(run);
-  return `<div class="home-trip-banner card tap" onclick="openView('trip','${run.key}')">
-    <span class="pulse"></span>
-    <div class="home-trip-text"><b>Live trip · ${esc(run.title)}</b><span>${run.shows.length} show${run.shows.length>1?'s':''} · ${p.pct}% done</span></div>
-    <span class="home-trip-chev">${ICON.chevR(18)}</span>
+  return `<div class="tourmode-card tap" onclick="go('trips')">
+    <div class="tourmode-top">
+      <span class="tourmode-badge">${ICON.planeTop(15)} Tour Mode</span>
+      <span class="tourmode-live"><span class="pulse"></span> LIVE</span>
+    </div>
+    <div class="tourmode-title">${esc(run.title)}</div>
+    <div class="tourmode-meta">${run.shows.length} show${run.shows.length>1?'s':''} · ${p.done}/${p.total} done</div>
+    <div class="tourmode-bar"><i style="width:${p.pct}%"></i></div>
+    <div class="tourmode-cta">Open Tour Mode ${ICON.chevR(15)}</div>
   </div>`;
 }
 /* Shared small components */
