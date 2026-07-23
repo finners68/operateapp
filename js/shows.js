@@ -361,16 +361,20 @@ function flightsSubsection(e){
   }
   return showSubsection('Flights', `<button type="button" class="add" onclick="sheetFlight('${e.id}')">Add</button>`, body);
 }
-/* Best Maps query for a show's hotel. A postcode is the single most reliable
-   Maps target, so when one is given we search by the postcode alone. Otherwise
-   fall back to hotel name + address with city/country appended so it still
-   lands in the right place. */
+/* Best Maps query for a show's hotel. The hotel NAME is what identifies the
+   exact place, so it always leads; the postcode (a tight geographic anchor)
+   and city/country follow as context. A postcode ALONE is deliberately not
+   used — it covers a whole area and Maps resolves it to the most prominent
+   business there, not the specific hotel. When there's no name we fall back to
+   address/postcode so the string is still searchable. */
 function hotelMapQuery(e){
   const h = e && e.hotel; if(!h) return '';
-  const post = (h.postcode||'').trim();
-  if(post) return post;
+  const name = (h.name||'').trim();
+  const parts = name
+    ? [name, h.postcode, e.city, e.country]
+    : [h.address, h.postcode, e.city, e.country];
   const seen = new Set();
-  return [h.name, h.address, e.city, e.country]
+  return parts
     .map(x=>(x||'').trim())
     .filter(x=>{ if(!x) return false; const k=x.toLowerCase(); if(seen.has(k)) return false; seen.add(k); return true; })
     .join(', ');
