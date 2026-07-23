@@ -361,13 +361,16 @@ function flightsSubsection(e){
   }
   return showSubsection('Flights', `<button type="button" class="add" onclick="sheetFlight('${e.id}')">Add</button>`, body);
 }
-/* Best Maps query for a show's hotel. Uses postcode when given for an exact
-   hit; otherwise the hotel name still resolves, and city/country are always
-   appended so it lands in the right place. */
+/* Best Maps query for a show's hotel. A postcode is the single most reliable
+   Maps target, so when one is given we search by the postcode alone. Otherwise
+   fall back to hotel name + address with city/country appended so it still
+   lands in the right place. */
 function hotelMapQuery(e){
   const h = e && e.hotel; if(!h) return '';
+  const post = (h.postcode||'').trim();
+  if(post) return post;
   const seen = new Set();
-  return [h.name, h.address, h.postcode, e.city, e.country]
+  return [h.name, h.address, e.city, e.country]
     .map(x=>(x||'').trim())
     .filter(x=>{ if(!x) return false; const k=x.toLowerCase(); if(seen.has(k)) return false; seen.add(k); return true; })
     .join(', ');
@@ -402,20 +405,37 @@ function orderedDrivers(e){
       || String(a.d.time||'').localeCompare(String(b.d.time||''))
       || a.idx-b.idx);
 }
+/* Resolve a journey's DESTINATION (the part after the arrow, e.g. the "Hotel"
+   in "Venue → Hotel") to a genuine Maps location pulled from the show info —
+   postcode-first for hotels, real IATA code for airports. */
+function driverDestMapQuery(e, d){
+  const j = (d && d.journey) || '';
+  const parts = j.split(/→|->|>|–|-/);
+  const dest = (parts.length>1 ? parts[parts.length-1] : (parts[0]||'')).trim().toLowerCase();
+  if(/venue/.test(dest)) return venueMapQuery(e);
+  if(/hotel/.test(dest)) return hotelMapQuery(e);
+  if(/airport/.test(dest)){
+    const code = (typeof transferAirportCode==='function') ? transferAirportCode(e, false, e.date) : null;
+    return code ? code+' airport' : ((e.city?e.city+' ':'')+'airport');
+  }
+  if(dest) return dest + (e.city && !dest.includes(e.city.toLowerCase()) ? ' '+e.city : '');
+  return '';
+}
 function driverCard(eid, d, idx){
+  const ev = sel.event(eid);
+  const dest = ev ? driverDestMapQuery(ev, d) : '';
   const head = `<div class="driver-head">
       <span class="driver-journey">${ICON.car(13)} ${d.journey?esc(d.journey):(d.noGround?'Transport':'Driver')}${d.time?' · '+esc(d.time):''}</span>
       <button type="button" class="add" onclick="sheetDriver('${eid}',${idx})">Edit</button>
     </div>`;
+  const destBtn = dest ? `<button class="btn secondary" style="padding:11px" onclick="openMaps('${jsAttr(dest)}')">${ICON.map(16)} Destination</button>` : '';
   if(d.noGround){
-    const ev = sel.event(eid);
-    const near = ('taxi near '+((ev&&(ev.city||ev.venue))||'').trim()).trim();
     return `<div class="card flush" style="margin-bottom:10px">
       ${head}
       <div class="info-line"><div class="ic">${ICON.car(17)}</div>${fieldTx('No grounds', 'Please book an Uber / taxi')}</div>
       <div style="display:flex;gap:9px;padding:12px 16px">
         <button class="btn secondary" style="padding:11px" onclick="openExternal('https://m.uber.com/','uber://')">${ICON.car(16)} Open Uber</button>
-        <button class="btn secondary" style="padding:11px" onclick="openMaps('${jsAttr(near)}')">${ICON.map(16)} Taxis nearby</button>
+        ${destBtn || `<button class="btn secondary" style="padding:11px" onclick="openMaps('${jsAttr(('taxi near '+((ev&&(ev.city||ev.venue))||'').trim()).trim())}')">${ICON.map(16)} Taxis nearby</button>`}
       </div>
     </div>`;
   }
@@ -423,9 +443,10 @@ function driverCard(eid, d, idx){
     ${head}
     <div class="info-line info-line-stacked"><div class="ic">${ICON.user(17)}</div>${detailTx(esc(d.name||'Driver'), esc(d.pickup||''))}</div>
     ${d.notes?`<div class="info-line"><div class="ic">${ICON.note(17)}</div>${fieldTx('Notes', esc(d.notes))}</div>`:''}
-    <div style="display:flex;gap:9px;padding:12px 16px">
+    <div style="display:flex;gap:9px;padding:12px 16px;flex-wrap:wrap">
       <button class="btn secondary" style="padding:11px" onclick="callNumber('${jsAttr(d.phone||'')}')">${ICON.phone(16)} Call</button>
       <button class="btn secondary" style="padding:11px" onclick="whatsapp('${jsAttr(d.whatsapp||d.phone||'')}')">${ICON.chat(16)} WhatsApp</button>
+      ${destBtn}
       <button class="btn secondary" style="padding:11px;flex:0 0 auto" onclick="copyText('${jsAttr(d.phone||'')}')">${ICON.copy(16)}</button>
     </div>
   </div>`;

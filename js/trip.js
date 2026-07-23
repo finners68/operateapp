@@ -84,29 +84,74 @@ function tripLegRow(e, i, nextEvent){
 }
 function stepShow(s){ if(s.kind==='set') return sel.event(s.showId); if(s.ref&&s.ref.showId) return sel.event(s.ref.showId); return null; }
 /* City-aware maps query — always append the show's city/area so searches resolve */
-/* Turn a route token (Hotel / Airport / Venue / a place name) into a searchable place with city context. */
-function resolvePlace(token, sh, city){
+/* Resolve the real airport (IATA code) for a ground transfer that references
+   "Airport". Flights are written "BHX - IBZ" (depart BHX, arrive IBZ), so an
+   arrival transfer (Airport → Hotel) wants the arrival code and a departure
+   transfer (Hotel → Airport) wants the departure code — matched to the flight
+   on the same day where possible. */
+function transferAirportCode(sh, wantArrival, legDate){
+  if(!sh) return null;
+  const valid = c => /^[A-Z]{3}$/.test(c);
+  const flights = [];
+  const push = (from, to, date) => {
+    const f=(from||'').toString().trim().toUpperCase(), t=(to||'').toString().trim().toUpperCase();
+    flights.push({ from: valid(f)?f:'', to: valid(t)?t:'', date: date||'' });
+  };
+  (sh.flights||[]).forEach(f => push(f.from, f.to, sh.date));
+  if(typeof showLegs === 'function'){
+    showLegs(sh.id).forEach(l => {
+      if(l.kind==='travel' && (l.icon||'plane')==='plane'){ normalizeLogisticItem(l); push(l.from, l.to, l.date); }
+    });
+  }
+  if(!flights.length) return null;
+  const arrs = flights.map(f=>f.to).filter(Boolean);
+  const deps = flights.map(f=>f.from).filter(Boolean);
+  if(wantArrival){
+    const sameDay = flights.find(f => f.date===legDate && f.to);
+    return (sameDay && sameDay.to) || arrs[arrs.length-1] || arrs[0] || deps[0] || null;
+  }
+  const sameDay = flights.find(f => f.date===legDate && f.from);
+  if(sameDay && sameDay.from) return sameDay.from;
+  const turnaround = deps.find(c => arrs.includes(c));   // depart from a place we also land at = the local airport
+  return turnaround || arrs[arrs.length-1] || deps[deps.length-1] || null;
+}
+/* Turn a route token (Hotel / Airport / Venue / a place name) into a genuine,
+   searchable Maps location pulled from the linked show — postcode-first for
+   hotels, the real IATA code for airports, address for venues. `role` is
+   'origin' or 'destination' so an Airport token maps to the arrival vs
+   departure airport of that journey. */
+function resolvePlace(token, sh, city, role, legDate){
   const t=(token||'').replace(/\[[^\]]*\]/g,'').trim();
   if(!t) return '';
-  if(/^venue$/i.test(t)) return sh?(cleanVenue(sh.venue)+' '+(sh.venueAddr||city||'')):('venue '+city);
-  if(/^hotel$/i.test(t)) return (sh&&sh.hotel&&sh.hotel.name?sh.hotel.name+' ':'hotel ')+city;
-  if(/^airport$/i.test(t)) return (city?city+' ':'')+'airport';
+  if(/^venue$/i.test(t)) return venueMapQuery(sh) || ('venue '+city);
+  if(/^hotel$/i.test(t)){ const q=sh?hotelMapQuery(sh):''; return q || ('hotel '+city); }
+  if(/^airport$/i.test(t)){
+    const code = transferAirportCode(sh, role!=='destination', legDate);
+    return code ? code+' airport' : (city?city+' ':'')+'airport';
+  }
+  if(/^[A-Za-z]{3}$/.test(t)) return t.toUpperCase()+' airport';   // a bare IATA code
   return t + (city && !t.toLowerCase().includes(city.toLowerCase()) ? ' '+city : '');
+}
+/* Clean venue search: name + address/city only — no wider header text. */
+function venueMapQuery(sh){
+  if(!sh || !sh.venue) return '';
+  return (cleanVenue(sh.venue) + ' ' + (sh.venueAddr || sh.city || '')).trim();
 }
 /* A driver/transfer leg is a journey (origin > destination) — return both ends for directions. */
 function driverRoute(l){
   if(l) normalizeLogisticItem(l);
   const sh=(l&&l.showId)?sel.event(l.showId):null; const city=sh?(sh.city||''):'';
+  const legDate=l&&l.date;
   if(l && (l.from || l.to)){
-    const origin=resolvePlace(l.from, sh, city);
-    const dest=resolvePlace(l.to, sh, city);
+    const origin=resolvePlace(l.from, sh, city, 'origin', legDate);
+    const dest=resolvePlace(l.to, sh, city, 'destination', legDate);
     if(origin&&dest) return {origin, dest};
   }
   const route=(l&&l.title||'').replace(/^\[?[^-\]]*\]?\s*-\s*/,'');
   const parts=route.split('>');
   if(parts.length<2) return null;
-  const origin=resolvePlace(parts[0], sh, city);
-  const dest=resolvePlace(parts[parts.length-1], sh, city);
+  const origin=resolvePlace(parts[0], sh, city, 'origin', legDate);
+  const dest=resolvePlace(parts[parts.length-1], sh, city, 'destination', legDate);
   if(!origin||!dest) return null;
   return {origin, dest};
 }
@@ -119,29 +164,33 @@ function openDirections(origin, dest){
 function tlMapsQuery(s){
   const sh=stepShow(s); const city=sh?(sh.city||''):'';
   const it = s.ref || s;
-  if(s.kind==='set'){ return sh?(cleanVenue(sh.venue)+' '+(sh.venueAddr||sh.city||'')):''; }
+  if(s.kind==='set'){ return venueMapQuery(sh); }
   if(s.kind==='stay'){
     if(it && it.kind==='stay') normalizeLogisticItem(it);
+    // Prefer the show's saved hotel (postcode-first); fall back to the leg's own place.
+    const hq = sh ? hotelMapQuery(sh) : '';
+    if(hq) return hq;
     const name = (it&&it.place) || (it&&it.addr) || (s.title||'').replace(/^.*hotel\s*-\s*/i,'').replace(/^\[[^\]]*\]\s*-?\s*/,'').trim();
-    return name+(city?' '+city:'');
+    return name ? name+(city?' '+city:'') : (city?'hotel '+city:'');
   }
   if(s.kind==='travel'){
     if(it && it.kind==='travel') normalizeLogisticItem(it);
-    // Flights: navigate to the DEPARTURE airport — the first code in e.g. "MAN>IBZ"
+    // Flights: navigate to the DEPARTURE airport — the first code in e.g. "BHX - IBZ"
     if((s.icon||'plane')==='plane'){
       let orig = (it&&it.from) ? String(it.from).trim() : '';
-      if(!orig){ const seg=String(s.title||'').split(/>|→/)[0]||''; const codes=seg.match(/[A-Za-z]{3}/g); orig = codes?codes[codes.length-1]:''; }
+      if(!orig){ const leg=parseLogisticRouteFromLegacy(s.title); if(leg){ const c=(leg.from.match(/[A-Za-z]{3}/)||[])[0]; if(c) orig=c; } }
       if(/^[A-Za-z]{3}$/.test(orig)) return orig.toUpperCase()+' airport';
     }
     let dest = (it&&it.to) ? String(it.to).trim() : '';
     if(!dest){
-      const parts=(s.title||'').split('>');
-      dest=parts.length>1?parts[parts.length-1].trim():'';
+      const leg=parseLogisticRouteFromLegacy(s.title);
+      if(leg) dest=leg.to.trim();
     }
-    if(/^venue$/i.test(dest)) return sh?(cleanVenue(sh.venue)+' '+(sh.venueAddr||sh.city||'')):dest;
-    if(/^hotel$/i.test(dest)) return 'hotel '+(city||'');
-    if(/^airport$/i.test(dest)) return (city?city+' ':'')+'airport';
-    if((s.icon||'plane')==='plane' && /^[A-Z]{3}$/i.test(dest)) return dest.toUpperCase()+' airport';
+    // Resolve the destination to a genuine location from the show info.
+    if(/^venue$/i.test(dest)) return venueMapQuery(sh) || dest;
+    if(/^hotel$/i.test(dest)){ const hq=sh?hotelMapQuery(sh):''; return hq || ('hotel '+(city||'')); }
+    if(/^airport$/i.test(dest)){ const code=transferAirportCode(sh,false,it.date||s.date); return code?code+' airport':(city?city+' ':'')+'airport'; }
+    if(/^[A-Z]{3}$/i.test(dest)) return dest.toUpperCase()+' airport';
     return dest+(city&&!dest.toLowerCase().includes(city.toLowerCase())?' '+city:'');
   }
   return '';
