@@ -94,8 +94,29 @@ function eachBlobAtt(state, fn){
   (state && state.itineraries || []).forEach(it=>(it.imgs||[]).forEach(fn));
 }
 /* Copy any base64 bytes into IndexedDB and mark the attachment so we know to
-   rehydrate it. Bytes are stripped from the localStorage copy by db.write. */
-function stashBlobs(state){ eachBlobAtt(state, att=>{ if(att && att.id && typeof att.data==='string' && att.data.startsWith('data:')){ att._idb=true; idbSet(att.id, att.data); } }); }
+   rehydrate it. The `_idb` flag (which authorises db.write's replacer to strip
+   the base64 from the localStorage copy) is only set AFTER IndexedDB confirms
+   the write committed. Until then the base64 stays in localStorage, so a pass
+   captured moments before the app is closed can never fall into a gap where it
+   is stripped from localStorage but not yet durable in IndexedDB. */
+function stashBlobs(state){
+  const jobs = [];
+  eachBlobAtt(state, att=>{
+    if(att && att.id && typeof att.data==='string' && att.data.startsWith('data:') && !att._idbSaved){
+      att._idbSaved = 'pending';   // dedupe: don't re-stash on a concurrent write
+      jobs.push(
+        idbSet(att.id, att.data)
+          .then(()=>{ att._idb = true; att._idbSaved = true; })
+          .catch(()=>{ att._idbSaved = false; })   // keep base64 in localStorage as the durable copy
+      );
+    }
+  });
+  if(jobs.length){
+    // Once the bytes are safely in IndexedDB, re-persist so the now-redundant
+    // base64 is dropped from the (quota-limited) localStorage copy.
+    Promise.all(jobs).then(()=>{ try{ db.write(state); }catch(e){} });
+  }
+}
 /* Pull bytes back out of IndexedDB into the in-memory store after a reload. */
 function rehydrateBlobs(state){
   const jobs=[]; eachBlobAtt(state, att=>{ if(att && att._idb && (!att.data || !att.data.startsWith('data:'))){ jobs.push(idbGet(att.id).then(d=>{ if(d) att.data=d; })); } });
