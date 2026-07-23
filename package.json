@@ -1,0 +1,11 @@
+{
+  "name": "operate",
+  "private": true,
+  "description": "Operate — touring operations PWA (no build step; scripts are plain browser JS).",
+  "type": "module",
+  "scripts": {
+    "check": "node scripts/check-syntax.mjs",
+    "test": "node --test",
+    "ci": "npm run check && npm test"
+  }
+}

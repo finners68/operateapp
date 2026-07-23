@@ -78,12 +78,16 @@ function stopRealtime(){
   }
 }
 
+function editingInline(){
+  const el = document.activeElement;
+  return !!(el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable));
+}
 function scheduleRemoteReload(){
-  if(dbRemoteLoading || dbSyncInProgress || sheetEl) return;
+  if(dbRemoteLoading || dbSyncInProgress || sheetEl || editingInline()) return;
   if(Date.now() - lastPushAt < PUSH_ECHO_MS) return;
   clearTimeout(reloadTimer);
   reloadTimer = setTimeout(async () => {
-    if(!currentOrgId || sheetEl || dbSyncInProgress) return;
+    if(!currentOrgId || sheetEl || dbSyncInProgress || editingInline()) { scheduleRemoteReload(); return; }
     if(Date.now() - lastPushAt < PUSH_ECHO_MS) return;
     const before = storeSnapshot();
     dbRemoteLoading = true;

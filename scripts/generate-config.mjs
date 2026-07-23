@@ -1,10 +1,30 @@
 #!/usr/bin/env node
-import { writeFileSync } from 'fs';
+import { writeFileSync, readFileSync, readdirSync } from 'fs';
+import { createHash } from 'crypto';
 import { dirname, join } from 'path';
 import { fileURLToPath } from 'url';
 
 const __dir = dirname(fileURLToPath(import.meta.url));
-const outPath = join(__dir, '..', 'js', 'config.js');
+const root = join(__dir, '..');
+const outPath = join(root, 'js', 'config.js');
+
+// Auto-version the service worker from a content hash of the shell so cache
+// busting no longer depends on a manual VERSION bump. (#25)
+try {
+  const hash = createHash('sha1');
+  hash.update(readFileSync(join(root, 'index.html')));
+  hash.update(readFileSync(join(root, 'styles.css')));
+  for (const f of readdirSync(join(root, 'js')).sort()) {
+    if (f.endsWith('.js') && f !== 'config.js') hash.update(readFileSync(join(root, 'js', f)));
+  }
+  const digest = hash.digest('hex').slice(0, 10);
+  const swPath = join(root, 'sw.js');
+  const sw = readFileSync(swPath, 'utf8').replace(/const VERSION = '[^']*';/, `const VERSION = 'operate-${digest}';`);
+  writeFileSync(swPath, sw, 'utf8');
+  console.log('Set SW version operate-' + digest);
+} catch (e) {
+  console.warn('SW auto-version skipped:', e.message);
+}
 const url = (process.env.SUPABASE_URL || '').trim();
 const key = (process.env.SUPABASE_ANON_KEY || '').trim();
 const isNetlify = process.env.NETLIFY === 'true';
