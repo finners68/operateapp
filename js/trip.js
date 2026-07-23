@@ -132,10 +132,20 @@ function resolvePlace(token, sh, city, role, legDate){
   if(/^[A-Za-z]{3}$/.test(t)) return t.toUpperCase()+' airport';   // a bare IATA code
   return t + (city && !t.toLowerCase().includes(city.toLowerCase()) ? ' '+city : '');
 }
-/* Clean venue search: name + address/city only — no wider header text. */
+/* Clean venue search — the venue NAME leads (it identifies the exact place),
+   with city/country as context. The free-text venue address is deliberately
+   NOT used: like a foreign hotel postcode, a slightly-off address drags Maps to
+   the wrong spot, whereas "DC10, Ibiza" lands on the venue. Falls back to the
+   address only when there's no venue name. */
 function venueMapQuery(sh){
-  if(!sh || !sh.venue) return '';
-  return (cleanVenue(sh.venue) + ' ' + (sh.venueAddr || sh.city || '')).trim();
+  if(!sh) return '';
+  const name = cleanVenue(sh.venue);
+  const parts = name ? [name, sh.city, sh.country] : [sh.venueAddr, sh.city, sh.country];
+  const seen = new Set();
+  return parts
+    .map(x=>(x||'').trim())
+    .filter(x=>{ if(!x) return false; const k=x.toLowerCase(); if(seen.has(k)) return false; seen.add(k); return true; })
+    .join(', ');
 }
 /* A driver/transfer leg is a journey (origin > destination) — return both ends for directions. */
 function driverRoute(l){

@@ -121,7 +121,7 @@ function viewHome(){
           ${hasTransport?`<button type="button" class="hero-link" onclick="event.stopPropagation();showTransport('${e.id}')">${ICON.car(14)} Transport</button>`:''}
           ${liaisonReach?`<button type="button" class="hero-link" onclick="event.stopPropagation();contactPromoter('${e.id}')">${ICON.chat(14)} Liaison</button>`:''}
           ${e.hotel?`<button type="button" class="hero-link" onclick="event.stopPropagation();openMaps('${jsAttr(hotelMapQuery(e))}')">${ICON.bed(14)} ${esc(e.hotel.name||'Hotel')}</button>`:''}
-          <button type="button" class="hero-link" onclick="event.stopPropagation();openMaps('${jsAttr(cleanVenue(e.venue)+' '+(e.venueAddr||e.city||''))}')">${ICON.pin(14)} Venue</button>
+          <button type="button" class="hero-link" onclick="event.stopPropagation();openMaps('${jsAttr(venueMapQuery(e))}')">${ICON.pin(14)} Venue</button>
           <button type="button" class="hero-link" onclick="event.stopPropagation();shareDaySheet('${e.id}')">${ICON.share(14)} Day sheet</button>
         </div>
       </div>`;
@@ -505,7 +505,7 @@ function travelGroupBody(e){
 function venueSubsection(e){
   const body = `<div class="card flush">
     <div class="info-line" onclick="sheetVenueAddr('${e.id}')"><div class="ic">${ICON.pin(17)}</div>${fieldTx('Address', `<span class="addr-trunc">${esc(e.venueAddr || (e.city?cleanVenue(e.venue)+' · '+e.city+(e.country?', '+e.country:''):cleanVenue(e.venue)) || 'Tap to add')}</span>`)}
-      <button class="header-btn" style="width:34px;height:34px;align-self:center" onclick="event.stopPropagation();openMaps('${jsAttr(cleanVenue(e.venue)+' '+(e.venueAddr||e.city||''))}')">${ICON.map(17)}</button></div>
+      <button class="header-btn" style="width:34px;height:34px;align-self:center" onclick="event.stopPropagation();openMaps('${jsAttr(venueMapQuery(e))}')">${ICON.map(17)}</button></div>
     ${e.promoter?`<div class="info-line"><div class="ic">${ICON.user(17)}</div>${fieldTx('Artist Liaison', esc(e.promoter.name))}
       ${(e.promoter.phone||e.promoter.whatsapp)?`<button class="btn secondary" style="width:auto;flex:0 0 auto;padding:9px 15px;font-size:13.5px;align-self:center;box-shadow:none" onclick="contactPromoter('${e.id}')">${ICON.chat(15)} Contact</button>`:`<button class="header-btn" style="width:34px;height:34px;align-self:center" onclick="sheetPromoter('${e.id}')">${ICON.edit(15)}</button>`}</div>`:`<div class="info-line" onclick="sheetPromoter('${e.id}')"><div class="ic">${ICON.plus(17)}</div><div class="tx"><div class="v" style="color:var(--accent-2)">Add artist liaison</div></div></div>`}
   </div>`;
