@@ -746,10 +746,81 @@ function computeStats(){
   return { shows:shows.length, upcoming, past:shows.length-upcoming, flights:flights.length,
     flightHrs:Math.round(flightMins/60), flightDays:(flightMins/1440).toFixed(1),
     tours:rr.length, daysAway, cities:cities.length, hotels:store.events.filter(e=>e.kind==='stay').length,
-    grossBase:s.grossBase, netBase:s.netBase, busiest, busiestN:bmax };
+    grossBase:s.grossBase, netBase:s.netBase, busiest, busiestN:bmax,
+    year: computeYearStats() };
+}
+/* Headline "this year" figures for the stats hero grid: distance flown,
+   countries played, hours on stage, ground transfers. Scoped to the current
+   calendar year, falling back to all-time if this year has no shows yet. */
+function computeYearStats(){
+  const allShows = sel.events();
+  const yr = new Date().getFullYear();
+  const inYr = d => (d||'').slice(0,4) === String(yr);
+  const scoped = allShows.some(s=>inYr(s.date));
+  const keep = d => scoped ? inYr(d) : true;
+  const shows = allShows.filter(s=>keep(s.date));
+
+  // Kilometres flown — great-circle sum of every flight leg with known airports.
+  let km=0, unknown=0, longest={km:0,from:'',to:''};
+  const addLeg=(from,to)=>{
+    const a=airportLL(from), b=airportLL(to);
+    if(a&&b){ const d=haversineKm(a,b); km+=d; if(d>longest.km) longest={km:d,from:(from||'').toUpperCase(),to:(to||'').toUpperCase()}; }
+    else if(from||to) unknown++;
+  };
+  store.events.forEach(e=>{
+    if(e.kind==='travel' && (e.icon||'plane')==='plane' && (e.from||e.to) && keep(e.date)) addLeg(e.from,e.to);
+    if((e.kind||'show')==='show' && Array.isArray(e.flights) && keep(e.date)) e.flights.forEach(f=>{ if(f.from||f.to) addLeg(f.from,f.to); });
+  });
+
+  // Countries played (with flags where recognised).
+  const countrySet=new Set(); shows.forEach(s=>{ if(s.country) countrySet.add(s.country.trim()); });
+  const flags=[]; const seenFlag=new Set();
+  [...countrySet].forEach(c=>{ const f=flagEmoji(countryISO(c)); if(f && !seenFlag.has(f)){ seenFlag.add(f); flags.push(f); } });
+
+  // Hours behind the decks — sum of set durations (handles after-midnight ends).
+  let stageMins=0;
+  shows.forEach(s=>{ if(s.setTime&&s.endTime){ const [h1,m1]=s.setTime.split(':').map(Number),[h2,m2]=s.endTime.split(':').map(Number);
+    if([h1,m1,h2,m2].every(n=>!isNaN(n))){ let d=(h2*60+m2)-(h1*60+m1); if(d<0) d+=1440; if(d>0&&d<12*60) stageMins+=d; } } });
+
+  // Car rides — standalone driver/taxi legs + per-journey drivers saved on shows.
+  let carRides=0;
+  store.events.forEach(e=>{ if(e.kind==='travel' && (e.icon||'plane')==='car' && keep(e.date)) carRides++; });
+  shows.forEach(s=>{ carRides += (typeof showDrivers==='function' ? (showDrivers(s)||[]).length : (s.drivers||[]).length); });
+
+  return {
+    scopeLabel: scoped ? 'This year' : 'All time',
+    km: Math.round(km), unknownLegs: unknown,
+    longest,
+    countries: countrySet.size, flags,
+    stageHrs: Math.round(stageMins/60),
+    carRides
+  };
 }
 function statTile(label, value, sub, color){
   return `<div class="card" style="padding:15px 16px"><div style="font-size:12px;color:${color||'var(--text-3)'};font-weight:700;text-transform:uppercase;letter-spacing:.04em">${label}</div><div style="font-size:26px;font-weight:850;letter-spacing:-0.02em;margin-top:4px">${value}</div>${sub?`<div style="font-size:12px;color:var(--text-3);font-weight:600;margin-top:1px">${sub}</div>`:''}</div>`;
+}
+/* The signature "this year" grid — km flown, countries, hours on stage, car rides. */
+function yearStatsBlock(y){
+  if(!y) return '';
+  const EARTH = 40075; // equatorial circumference, km
+  const kmVal = y.km>0 ? y.km.toLocaleString()+' km' : '—';
+  const kmSub = y.km>=EARTH ? `≈ ${(y.km/EARTH).toFixed(1)}× around the world`
+    : y.km>0 ? `≈ ${Math.max(1,Math.round(y.km/EARTH*100))}% around the world`
+    : 'add flights to see';
+  const flagRow = y.flags.length
+    ? `<span style="font-size:15px;letter-spacing:2px">${y.flags.slice(0,12).join('')}</span>`
+    : 'played';
+  const stageVal = y.stageHrs>0 ? y.stageHrs+'h' : '—';
+  return `
+  <div class="section">
+    <div class="section-head" style="margin-bottom:10px"><div class="section-title">${esc(y.scopeLabel)}</div></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+      ${statTile('Kilometres flown', kmVal, kmSub, 'var(--blue)')}
+      ${statTile('Countries played', y.countries, flagRow, 'var(--pink)')}
+      ${statTile('Hours on stage', stageVal, 'behind the decks', 'var(--accent-2)')}
+      ${statTile('Car rides', y.carRides, 'transfers & drivers', 'var(--orange)')}
+    </div>
+  </div>`;
 }
 function viewStats(){
   const st=computeStats();
@@ -765,6 +836,7 @@ function viewStats(){
       <div class="hero-venue" style="font-size:34px">${st.shows} shows</div>
       <div class="hero-city">${st.upcoming} upcoming · ${st.cities} cities · ${st.tours} tours</div>
     </div>
+    ${yearStatsBlock(st.year)}
     <div class="section">
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
         ${statTile('Flight time', st.flightHrs+'h', 'approx · ~'+st.flightDays+' days in the air', 'var(--blue)')}
@@ -775,7 +847,7 @@ function viewStats(){
         ${statTile('Busiest month', st.busiestN, esc(st.busiest), 'var(--orange)')}
       </div>
     </div>
-    <div class="hint">Flight time is estimated from scheduled times and ignores time zones, so treat it as a ballpark. Earnings use your editable fees & rates.</div>
+    <div class="hint">Distance sums flights between airports Operate recognises${st.year.unknownLegs?' ('+st.year.unknownLegs+' leg'+(st.year.unknownLegs>1?'s':'')+' skipped — unknown airport code)':''}. Flight time & hours on stage are estimated from scheduled times and ignore time zones, so treat them as a ballpark. Earnings use your editable fees & rates.</div>
     <div class="spacer"></div>
   </div>`;
 }
