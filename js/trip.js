@@ -145,6 +145,16 @@ function stepPills(s){
   const sh=stepShow(s); const pills=[];
   const mq=tlMapsQuery(s);
   const mapPill=(label,sub)=>`<div class="pill" onclick="event.stopPropagation();openMaps('${esc(mq)}')"><div class="ic">${ICON.map(16)}</div><div class="tx"><b>${label}</b><span>${sub}</span></div></div>`;
+  if(s.embedded){
+    const d=s.ref||{};
+    if(s.kind==='travel' && d.icon==='car'){
+      if(d.noGround) pills.push(`<div class="pill" onclick="event.stopPropagation();openExternal('https://m.uber.com/','uber://')"><div class="ic">${ICON.car(16)}</div><div class="tx"><b>Uber/taxi</b><span>No grounds</span></div></div>`);
+      else { const wa=d.whatsapp||d.phone||''; if(wa) pills.push(`<div class="pill" onclick="event.stopPropagation();whatsapp('${esc(wa)}')"><div class="ic">${ICON.chat(16)}</div><div class="tx"><b>Message</b><span>WhatsApp</span></div></div>`); if(d.phone) pills.push(`<div class="pill" onclick="event.stopPropagation();callNumber('${esc(d.phone)}')"><div class="ic">${ICON.phone(16)}</div><div class="tx"><b>Call</b><span>Now</span></div></div>`); }
+      if(mq) pills.push(mapPill('Destination','Open in Maps'));
+    } else if(mq){ pills.push(mapPill(s.kind==='stay'?'Hotel':'Maps','Open in Maps')); }
+    if(sh) pills.push(`<div class="pill" onclick="event.stopPropagation();openView('event','${sh.id}')"><div class="ic">${ICON.music(16)}</div><div class="tx"><b>Show</b><span>All details</span></div></div>`);
+    return pills.join('');
+  }
   if(s.kind==='travel'){
     const isFlight=(s.icon||'plane')==='plane';
     if(isFlight){
@@ -186,7 +196,10 @@ function tlActions(s){
   if(isFlight){ const it=s.ref; const has=it&&it.passes&&it.passes.length;
     if(has) btns.push(`<button class="tl-btn" onclick="event.stopPropagation();viewItemPass('${it.id}')">${ICON.ticket(15)}</button>`);
     else btns.push(`<label class="tl-btn">${ICON.ticket(15)}<input type="file" accept="image/*,application/pdf" style="display:none" onchange="uploadItemPass('${it.id}',this)"></label>`); }
-  const isDriver=s.kind==='travel'&&((s.icon||'plane')==='car'||(s.ref&&isDriverItem(s.ref)));
+  if(s.embedded && s.kind==='travel' && s.ref && s.ref.icon==='car'){ const d=s.ref;
+    if(d.noGround) btns.push(`<button class="tl-btn" onclick="event.stopPropagation();openExternal('https://m.uber.com/','uber://')">${ICON.car(15)}</button>`);
+    else { const w=d.whatsapp||d.phone; if(w) btns.push(`<button class="tl-btn" onclick="event.stopPropagation();whatsapp('${esc(w)}')">${ICON.chat(15)}</button>`); } }
+  const isDriver=!s.embedded&&s.kind==='travel'&&((s.icon||'plane')==='car'||(s.ref&&isDriverItem(s.ref)));
   if(isDriver&&sh&&sh.driver&&(sh.driver.phone||sh.driver.whatsapp)){ const w=sh.driver.whatsapp||sh.driver.phone; btns.push(`<button class="tl-btn" onclick="event.stopPropagation();whatsapp('${esc(w)}')">${ICON.chat(15)}</button>`); }
   if(s.kind==='set'&&sh&&showDrivers(sh).length){ btns.push(`<button class="tl-btn" onclick="event.stopPropagation();showTransport('${sh.id}')">${ICON.car(15)}</button>`); }
   return btns.join('');
@@ -345,7 +358,7 @@ function viewTrip(id){
         <div class="hero-venue" style="font-size:22px;margin-top:6px">${esc(nextStep.title)}</div>
         ${nextStep.sub?`<div class="hero-city">${esc(nextStep.sub)}</div>`:''}
         <div class="hero-info" style="margin-top:15px;flex-wrap:wrap">${stepPills(nextStep)}</div>
-        ${(nextStep.ref && nextStep.kind==='travel' && (nextStep.ref.icon||'plane')==='plane')?flightInfoWidget(nextStep.ref):''}
+        ${(nextStep.ref && !nextStep.embedded && nextStep.kind==='travel' && (nextStep.ref.icon||'plane')==='plane')?flightInfoWidget(nextStep.ref):''}
       </div>
       ${thenStep?`<div class="then-next">
         <div class="then-lab">Then</div>
@@ -422,6 +435,9 @@ function startTripFromShow(showId){ store.activeShowId=showId; persist(); overla
 function endTripMode(){ confirmSheet('End Trip Mode?','This turns off the live tour view. Nothing is deleted.','End Trip Mode',()=>{ store.activeShowId=null; persist(); overlay=null; store.tab='home'; render(); toast('Trip Mode off','flag'); }); }
 function completeRunStep(runKey, stepId){
   if(stepId.startsWith('set_')){ const sh=sel.event(stepId.slice(4)); if(sh){ sh.setDone=!sh.setDone; } }
+  else if(stepId.startsWith('shhotel_')){ const sh=sel.event(stepId.slice(8)); if(sh&&sh.hotel){ sh.hotel.done=!sh.hotel.done; } }
+  else if(stepId.startsWith('shflt_')){ const id=stepId.slice(6); store.events.forEach(e=>(e.flights||[]).forEach(f=>{ if(f.id===id) f.done=!f.done; })); }
+  else if(stepId.startsWith('shdrv_')){ const id=stepId.slice(6); store.events.forEach(e=>(e.drivers||[]).forEach(d=>{ if(d.id===id) d.done=!d.done; })); }
   else { const it=store.events.find(x=>x.id===stepId); if(it){ it.done=!it.done; if(it.done) toast('Done ✓','check'); } }
   haptic(); persist(); renderView();
 }

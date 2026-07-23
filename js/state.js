@@ -531,6 +531,35 @@ function runTimeline(run){
     const sub = e.kind==='travel' ? logisticMetaLine(e) : (e.info||'');
     return {id:e.id, kind:e.kind, date:e.date, time:e.start||(e.info&&(e.info.match(/(\d{1,2}:\d{2})/)||[])[1])||'', title:d.title, sub: e.kind==='travel' ? [d.primary, sub].filter(Boolean).join(' · ') : sub, icon:e.icon||(e.kind==='stay'?'bed':'plane'), done:!!e.done, ref:e};
   });
+  // Info entered inside a show's own sections is embedded on the show, not a
+  // separate leg — surface it too, unless a leg of that kind already exists.
+  const hasPlane = new Set(items.filter(x=>x.kind==='travel' && (x.icon||'plane')==='plane').map(x=>x.showId));
+  const hasStay  = new Set(items.filter(x=>x.kind==='stay').map(x=>x.showId));
+  const hasCar   = new Set(items.filter(x=>x.kind==='travel' && (x.icon||'plane')==='car').map(x=>x.showId));
+  run.shows.forEach(s=>{
+    if(!hasPlane.has(s.id) && Array.isArray(s.flights)){
+      s.flights.forEach(f=>{
+        const parts=String(f.dep||'').trim().split(' ');
+        rows.push({id:'shflt_'+f.id, kind:'travel', icon:'plane', date:parts[0]||s.date, time:parts[1]||'',
+          title:(f.from&&f.to)?f.from+' → '+f.to:(f.code||'Flight'),
+          sub:[f.code, f.seat?'Seat '+f.seat:''].filter(Boolean).join(' · '),
+          done:!!f.done, embedded:true, ref:Object.assign({kind:'travel', icon:'plane', showId:s.id, to:f.to, from:f.from, embedded:true}, f)});
+      });
+    }
+    if(!hasStay.has(s.id) && s.hotel && (s.hotel.name||s.hotel.address)){
+      rows.push({id:'shhotel_'+s.id, kind:'stay', icon:'bed', date:s.hotel.checkin||s.date, time:'',
+        title:s.hotel.name||'Hotel', sub:[s.hotel.address, s.hotel.postcode].filter(Boolean).join(', '),
+        done:!!s.hotel.done, embedded:true, ref:{kind:'stay', icon:'bed', showId:s.id, place:s.hotel.name, addr:s.hotel.address, embedded:true}});
+    }
+    if(!hasCar.has(s.id)){
+      showDrivers(s).forEach(d=>{ if(!d.time) return;
+        rows.push({id:'shdrv_'+d.id, kind:'travel', icon:'car', date:s.date, time:d.time,
+          title:d.journey||(d.noGround?'Transport':(d.name||'Driver')),
+          sub:d.noGround?'No grounds — Uber/taxi':[d.name, d.phone].filter(Boolean).join(' · '),
+          done:!!d.done, embedded:true, ref:Object.assign({kind:'travel', icon:'car', showId:s.id, embedded:true}, d)});
+      });
+    }
+  });
   run.shows.forEach(s=>{ rows.push({id:'set_'+s.id, kind:'set', date:s.date, time:s.setTime||'', title:s.venue, sub:s.setTime?('Set '+s.setTime+(s.endTime?' - '+s.endTime:'')):'Set TBA', icon:'music', done:!!s.setDone, showId:s.id}); });
   rows.sort((a,b)=>{ if(a.date!==b.date) return a.date.localeCompare(b.date); return itemTimeKey({start:a.time})-itemTimeKey({start:b.time}); });
   return rows;

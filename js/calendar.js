@@ -208,14 +208,16 @@ function jbtn(icon,label,onclick,cls){ return `<button class="jbtn ${cls||''}" o
 function jbtnFile(icon,label,itemId,cls){ return `<label class="jbtn ${cls||''}">${icon}<span>${esc(label)}</span><input type="file" accept="image/*,application/pdf" style="display:none" onchange="uploadItemPass('${itemId}',this)"></label>`; }
 function isDriverItem(l){ return l && l.kind==='travel' && ((l.icon||'plane')==='car' || /driver|uber|taxi/i.test(l.title||'')); }
 function itemButtons(l){
+  const emb = !!l.embedded; // synthesized from a show's embedded flight/hotel/driver — manage on the show page
   const isFlight = l.kind==='travel' && (l.icon||'plane')==='plane';
   const isDriver = isDriverItem(l);
   const b=[];
-  if(isFlight){ const has=l.passes&&l.passes.length;
+  if(isFlight && !emb){ const has=l.passes&&l.passes.length;
     if(has){ b.push(jbtn(ICON.ticket(15),'Boarding pass',`viewItemPass('${l.id}')`,'pass'));
       if(passEditable()) b.push(jbtn(ICON.trash(15),'Remove',`delItemPass('${l.id}')`,'danger')); }
     else b.push(jbtnFile(ICON.ticket(15),'Add boarding pass',l.id,'pass')); }
-  if(isDriver){ if(l.phone){ b.push(jbtn(ICON.phone(15),'Call',`callNumber('${l.phone}')`,'call')); b.push(jbtn(ICON.chat(15),'Message',`whatsapp('${l.whatsapp||l.phone}')`,'call')); } else { b.push(jbtn(ICON.user(15),'Add contact',`openItem('${l.id}')`)); } }
+  if(isDriver){ if(l.noGround){ b.push(jbtn(ICON.car(15),'Uber/taxi',`openExternal('https://m.uber.com/','uber://')`,'call')); } else if(l.phone||l.whatsapp){ const w=l.whatsapp||l.phone; if(l.phone) b.push(jbtn(ICON.phone(15),'Call',`callNumber('${l.phone}')`,'call')); b.push(jbtn(ICON.chat(15),'Message',`whatsapp('${w}')`,'call')); } else if(!emb){ b.push(jbtn(ICON.user(15),'Add contact',`openItem('${l.id}')`)); } }
+  if(emb){ const sh2=l.showId?sel.event(l.showId):null; if(sh2) b.push(jbtn(ICON.music(15),'Show',`openView('event','${sh2.id}')`)); }
   if(l.kind==='stay' && l.bookingRef){ b.push(jbtn(ICON.copy(15),'Ref '+esc(l.bookingRef),`copyText('${esc(l.bookingRef)}')`,'pass')); }
   // Driver/transfer legs open turn-by-turn directions (origin -> destination); other legs search the destination place.
   if(isDriver){ const rt=driverRoute(l);
