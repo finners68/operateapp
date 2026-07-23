@@ -371,18 +371,33 @@ function isUKShow(e){
   const p = (e && e.hotel && e.hotel.postcode || '').trim();
   return /^[A-Za-z]{1,2}\d/.test(p);
 }
-/* Best Maps query for a show's hotel. For UK shows we use the postcode (it
-   resolves to the exact spot). Everywhere else we search by the hotel NAME
-   entered in the show — a foreign postcode alone is too coarse and Maps lands
-   on the biggest nearby business instead of the actual hotel. */
+/* The hotel name as entered on the show — from the Hotel section, or (if that
+   name is blank) from a stay leg's place. This is the single source of truth
+   for hotel Maps searches. */
+function hotelBestName(e){
+  const h = e && e.hotel;
+  const name = (h && h.name || '').trim();
+  if(name) return name;
+  if(e && typeof showLegs === 'function'){
+    const stay = showLegs(e.id).find(x => x.kind==='stay' && (x.place||'').trim());
+    if(stay) return (stay.place||'').trim();
+  }
+  return '';
+}
+/* Best Maps query for a show's hotel. For UK shows the postcode resolves to the
+   exact spot, so use it. Everywhere else we search by the hotel NAME entered on
+   the show — a foreign postcode alone is too coarse and Maps snaps to the
+   biggest nearby business (e.g. Grand Palladium) instead of the real hotel, so
+   a lone postcode is never emitted for non-UK shows. */
 function hotelMapQuery(e){
-  const h = e && e.hotel; if(!h) return '';
-  const name = (h.name||'').trim();
-  const post = (h.postcode||'').trim();
+  const h = e && e.hotel;
+  const name = hotelBestName(e);
+  if(!h && !name) return '';
+  const post = (h && h.postcode || '').trim();
+  const addr = (h && h.address || '').trim();
   if(post && isUKShow(e)) return post;
-  const parts = name
-    ? [name, e.city, e.country]
-    : [h.address, post, e.city, e.country];
+  const parts = name ? [name, e&&e.city, e&&e.country]
+    : (addr ? [addr, e&&e.city, e&&e.country] : [e&&e.city, e&&e.country]);
   const seen = new Set();
   return parts
     .map(x=>(x||'').trim())
