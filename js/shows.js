@@ -176,7 +176,7 @@ function viewHome(){
       `<div class="card flush home-inset">${ideasWaiting.map(homeIdeaRow).join('')}</div>`) : '',
     trips.length ? homePanel('Upcoming tours', `<button type="button" class="home-panel-link" onclick="goToursList()">All</button>`,
       `<div class="card flush home-inset">${trips.map(runRow).join('')}</div>`) : '',
-    recentNotes.length ? homePanel('Recent notes', `<button type="button" class="home-panel-link" onclick="go('notes')">All</button>`,
+    recentNotes.length ? homePanel('Recent notes', `<button type="button" class="home-panel-link" onclick="goNotes()">All</button>`,
       `<div class="card flush home-inset">${recentNotes.map(noteRow).join('')}</div>`) : '',
   ].filter(Boolean).join('');
 

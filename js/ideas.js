@@ -4,7 +4,47 @@
 let ideaFilter = 'all';
 let selectedIdeaId = null;
 var ideasStale = false; // true once the tab has rendered — suppresses the entrance animation on re-render so nothing jumps
-function viewIdeas(){
+let contentMode = 'ideas'; // 'ideas' | 'notes' — the two views under the merged Ideas / Notes section
+function setContentMode(m){ if(contentMode===m) return; contentMode=m; ideasStale=false; haptic(); if(typeof saveNavState==='function') saveNavState(); renderView(); }
+function goNotes(){ contentMode='notes'; go('ideas'); }
+/* Merged Ideas / Notes tab — 50/50 toggle switches the view. */
+function viewContentTab(){
+  deselectIdea();
+  const isNotes = contentMode==='notes';
+  const seg = `<div class="seg" style="margin-top:10px">
+      <button class="${isNotes?'':'on'}" onclick="setContentMode('ideas')">${ICON.idea(15)} Ideas</button>
+      <button class="${isNotes?'on':''}" onclick="setContentMode('notes')">${ICON.note(15)} Notes</button>
+    </div>`;
+  return `
+  <div class="lg-header">
+    <div><div class="lg-title">Ideas / Notes</div><div class="lg-sub">${isNotes?notesSub():ideasSub()}</div></div>
+    <button class="header-btn" onclick="${isNotes?'sheetNote()':'sheetIdea()'}">${ICON.plus(22)}</button>
+  </div>
+  <div class="screen-pad">
+    ${isNotes?notesControls():ideasControls()}
+    ${seg}
+    <div class="section" style="margin-top:8px">${isNotes?notesListBody():ideasListBody()}</div>
+    <div class="spacer"></div>
+  </div>`;
+}
+function ideasSub(){ const toUse=sel.ideas().filter(i=>!i.done).length; return 'Content to shoot · '+toUse+' waiting'; }
+function ideaChips(){
+  const all=sel.ideas();
+  const typesPresent=[...new Set(all.map(i=>i.type))];
+  const chips=[{k:'all',l:'All '+all.length},{k:'active',l:'To use'},{k:'done',l:'Done'}, ...typesPresent.map(t=>({k:t,l:IDEA_TYPES[t].label}))];
+  return chips.map(c=>`<button class="chip ${ideaFilter===c.k?'on':''}" onclick="setIdeaFilter('${c.k}')">${esc(c.l)}</button>`).join('');
+}
+function ideasControls(){
+  return `
+    ${pageIntro('ideas', 'Capture content ideas', 'Save hooks, reels and captions here. Open an idea to link it to a show so it appears on that show\'s page.')}
+    ${tabBlurb('Type in the box below for a quick capture, or tap + for full details.')}
+    <div class="idea-capture">
+      <input id="idea-quick" placeholder="Capture an idea…" onkeydown="if(event.key==='Enter')quickIdea()">
+      <button onclick="quickIdea()">${ICON.plus(20)}</button>
+    </div>
+    <div class="chips" style="margin-top:10px">${ideaChips()}</div>`;
+}
+function ideasListBody(){
   deselectIdea();
   const SA = ideasStale ? '' : ' stagger';
   ideasStale = true;
@@ -13,45 +53,21 @@ function viewIdeas(){
   if(ideaFilter==='active') list = all.filter(i=>!i.done);
   else if(ideaFilter==='done') list = all.filter(i=>i.done);
   else if(ideaFilter!=='all') list = all.filter(i=>i.type===ideaFilter);
-  const typesPresent = [...new Set(all.map(i=>i.type))];
-  const chips = [{k:'all',l:'All '+all.length},{k:'active',l:'To use'},{k:'done',l:'Done'}, ...typesPresent.map(t=>({k:t,l:IDEA_TYPES[t].label}))];
-  const toUse = all.filter(i=>!i.done).length;
-
-  // Body: when showing "to use"/all unfiltered, group by idea type; else flat grid
-  let body;
   const grouped = (ideaFilter==='all'||ideaFilter==='active');
   const typeKey = i => IDEA_TYPES[i.type] ? i.type : 'other';
   const PRIO_RANK = {high:0, med:1, low:2};
   if(!list.length){
-    body = `<div class="empty"><div class="ic">${ICON.idea(28)}</div><b>No ideas yet</b><span>Type above to capture a reel hook, caption or content plan — link it to a show later.</span><button class="btn secondary" style="margin-top:14px;max-width:240px" onclick="sheetIdea()">${ICON.plus(18)} New idea</button></div>`;
+    return `<div class="empty"><div class="ic">${ICON.idea(28)}</div><b>No ideas yet</b><span>Type above to capture a reel hook, caption or content plan — link it to a show later.</span><button class="btn secondary" style="margin-top:14px;max-width:240px" onclick="sheetIdea()">${ICON.plus(18)} New idea</button></div>`;
   } else if(grouped){
     const active = list.filter(i=>!i.done);
     const done = ideaFilter==='all'? list.filter(i=>i.done):[];
-    const byType = t => active.filter(i=>typeKey(i)===t)
-      .sort((a,b)=>(PRIO_RANK[a.prio]??1)-(PRIO_RANK[b.prio]??1));
-    body = Object.entries(IDEA_TYPES).map(([t,def])=>{ const g=byType(t); if(!g.length) return '';
+    const byType = t => active.filter(i=>typeKey(i)===t).sort((a,b)=>(PRIO_RANK[a.prio]??1)-(PRIO_RANK[b.prio]??1));
+    return Object.entries(IDEA_TYPES).map(([t,def])=>{ const g=byType(t); if(!g.length) return '';
       return `<div class="prio-head"><span class="pd" style="background:${def.color}"></span>${def.label} · ${g.length}</div><div class="idea-grid${SA}">${g.map(ideaCard).join('')}</div>`;
     }).join('') + (done.length?`<div class="prio-head"><span class="pd" style="background:var(--text-3)"></span>Done · ${done.length}</div><div class="idea-grid">${done.map(ideaCard).join('')}</div>`:'');
   } else {
-    body = `<div class="idea-grid${SA}">${list.map(ideaCard).join('')}</div>`;
+    return `<div class="idea-grid${SA}">${list.map(ideaCard).join('')}</div>`;
   }
-
-  return `
-  <div class="lg-header">
-    <div><div class="lg-title">Ideas</div><div class="lg-sub">Content to shoot · ${toUse} waiting</div></div>
-    <button class="header-btn" onclick="sheetIdea()">${ICON.plus(22)}</button>
-  </div>
-  <div class="screen-pad">
-    ${pageIntro('ideas', 'Capture content ideas', 'Save hooks, reels and captions here. Open an idea to link it to a show so it appears on that show\'s page.')}
-    ${tabBlurb('Type in the box below for a quick capture, or tap + for full details.')}
-    <div class="idea-capture">
-      <input id="idea-quick" placeholder="Capture an idea…" onkeydown="if(event.key==='Enter')quickIdea()">
-      <button onclick="quickIdea()">${ICON.plus(20)}</button>
-    </div>
-    <div class="chips" style="margin-top:10px">${chips.map(c=>`<button class="chip ${ideaFilter===c.k?'on':''}" onclick="setIdeaFilter('${c.k}')">${esc(c.l)}</button>`).join('')}</div>
-    <div class="section" style="margin-top:8px">${body}</div>
-    <div class="spacer"></div>
-  </div>`;
 }
 function setIdeaFilter(k){ ideaFilter=k; haptic(); renderView(); }
 /* Tap a card to select it in place — no navigation. A floating bar with

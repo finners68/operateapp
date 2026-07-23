@@ -4,6 +4,7 @@ function boot(){
   if(saved && saved.events){ store = saved; if(store.tab==null) store.tab='home'; migrate(); }
   else { seed(); }
   restoreNavState();
+  if(store.tab==='notes'){ store.tab='ideas'; if(typeof contentMode!=='undefined') contentMode='notes'; }
   render();
   if(typeof rehydrateBlobs==='function'){ rehydrateBlobs(store).then(()=>renderView()).catch(()=>{}); }
   if(appLockActive()) requireUnlock('app', ()=>render());
@@ -145,8 +146,7 @@ const TABS = [
   {id:'calendar', label:'Calendar', icon:'calendar', hint:'Month view — day-by-day schedule'},
   {id:'shows', label:'Shows', icon:'music', hint:'Shows & tours — browse and manage everything'},
   {id:'trips', label:'Tours', icon:'trips', hint:'Tour Mode — your live tour dashboard'},
-  {id:'ideas', label:'Ideas', icon:'idea', hint:'Content ideas to use on shows'},
-  {id:'notes', label:'Notes', icon:'note', hint:'Set notes, riders, reminders'},
+  {id:'ideas', label:'Ideas', icon:'idea', hint:'Ideas & notes — content and free-form text'},
 ];
 let overlay = null; // {type, id} for detail views on top of a tab
 let navStack = []; // history of overlays for proper Back behaviour
@@ -155,13 +155,15 @@ const NAV_KEY = 'operate_nav';
    closing and reopening the app lands on the same screen, not back at a tab root. */
 function saveNavState(){
   try{ const screen=document.getElementById('screen');
-    localStorage.setItem(NAV_KEY, JSON.stringify({tab:store.tab, overlay, navStack, scrollY:screen?screen.scrollTop:0, showsMode:(typeof showsMode!=='undefined'?showsMode:'shows')})); }catch(e){}
+    localStorage.setItem(NAV_KEY, JSON.stringify({tab:store.tab, overlay, navStack, scrollY:screen?screen.scrollTop:0, showsMode:(typeof showsMode!=='undefined'?showsMode:'shows'), contentMode:(typeof contentMode!=='undefined'?contentMode:'ideas')})); }catch(e){}
 }
 function loadNavState(){ try{ return JSON.parse(localStorage.getItem(NAV_KEY)||'null'); }catch(e){ return null; } }
 function restoreNavState(){
   const ns=loadNavState(); if(!ns) return;
   if(ns.tab) store.tab=ns.tab;
+  if(store.tab==='notes'){ store.tab='ideas'; if(typeof contentMode!=='undefined') contentMode='notes'; }
   if(ns.showsMode && typeof showsMode!=='undefined') showsMode=ns.showsMode;
+  if(ns.contentMode && typeof contentMode!=='undefined') contentMode=ns.contentMode;
   overlay = ns.overlay || null;
   navStack = Array.isArray(ns.navStack) ? ns.navStack : [];
   // Never auto-open a lock-protected screen on reopen
@@ -188,7 +190,7 @@ function activeNavTab(){
     if(overlay.type==='trip') return 'trips';
     if(overlay.type==='event') return 'shows';
     if(overlay.type==='idea') return 'ideas';
-    if(overlay.type==='note') return 'notes';
+    if(overlay.type==='note') return 'ideas';
   }
   return store.tab;
 }
@@ -235,8 +237,7 @@ function renderView(opts={}){
   else if(tab==='shows') v.innerHTML = viewShows();
   else if(tab==='calendar') v.innerHTML = viewCalendar();
   else if(tab==='trips') v.innerHTML = viewToursTab();
-  else if(tab==='ideas') v.innerHTML = viewIdeas();
-  else if(tab==='notes') v.innerHTML = viewNotes();
+  else if(tab==='ideas' || tab==='notes'){ if(tab==='notes'){ store.tab='ideas'; contentMode='notes'; } v.innerHTML = viewContentTab(); }
   renderNav(); setFab();
   if(screen) screen.scrollTop = scrollY;
 }
@@ -249,8 +250,7 @@ function setFab(){
   let action = null;
   if(!overlay){
     if(store.tab==='shows' || store.tab==='calendar') action = 'sheetEvent()';
-    else if(store.tab==='ideas') action = 'sheetIdea()';
-    else if(store.tab==='notes') action = 'sheetNote()';
+    else if(store.tab==='ideas') action = (typeof contentMode!=='undefined' && contentMode==='notes') ? 'sheetNote()' : 'sheetIdea()';
   }
   if(action){ fab.style.display='flex'; fab.setAttribute('onclick', action); }
   else { fab.style.display='none'; fab.removeAttribute('onclick'); }
