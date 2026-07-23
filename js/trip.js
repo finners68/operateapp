@@ -326,25 +326,18 @@ function runRow(r){
 /* ============================================================
    TRIP DETAIL
    ============================================================ */
-function viewTrip(id){
-  const r = runOf(id);
-  if(!r) return backStub();
+/* The live tour dashboard body — shared by the Tour Mode tab and the tour
+   detail overlay so both are always identical. */
+function tripBody(r){
   const c = CATS[r.color]||CATS.green;
   const active = activeRun() && activeRun().key===r.key;
   const tl = runTimeline(r);
   const pk = store.packing||[];
-  const today = new Date(); today.setHours(0,0,0,0);
   const nextIdx = tl.findIndex(s=>!s.done);
   const nextStep = nextIdx>=0 ? tl[nextIdx] : null;
   const thenStep = nextIdx>=0 ? tl[nextIdx+1] : null;
   const legShow = nextStep ? (stepShow(nextStep) || r.shows.find(s=>!s.setDone)) : null;
   return `
-  <div class="detail-top"><div class="detail-bar">
-    <button class="back-btn" onclick="back()">${ICON.chevL(20)} Tours</button>
-    <div style="font-size:15px;font-weight:700">${active?'Trip Mode':'Tour'}</div>
-    <div style="width:36px"></div>
-  </div></div>
-  <div class="screen-pad stagger">
     <div class="dhero" style="background:linear-gradient(155deg,${c}33,var(--card) 65%)">
       <div class="cat-bar" style="background:${c}"></div>
       ${active?`<div style="margin-bottom:8px"><span class="tag confirmed"><span class="pulse" style="display:inline-block;margin-right:5px"></span>Live</span></div>`:''}
@@ -399,7 +392,48 @@ function viewTrip(id){
 
     ${active?`<div class="section" style="margin-top:20px"><button class="btn secondary" onclick="endTripMode()">${ICON.flag(17)} End Trip Mode</button></div>`:''}
     <div class="spacer"></div><div class="spacer"></div>
-  </div>`;
+  `;
+}
+function viewTrip(id){
+  const r = runOf(id);
+  if(!r) return backStub();
+  const active = activeRun() && activeRun().key===r.key;
+  return `
+  <div class="detail-top"><div class="detail-bar">
+    <button class="back-btn" onclick="back()">${ICON.chevL(20)} Tours</button>
+    <div style="font-size:15px;font-weight:700">${active?'Trip Mode':'Tour'}</div>
+    <div style="width:36px"></div>
+  </div></div>
+  <div class="screen-pad stagger">${tripBody(r)}</div>`;
+}
+/* Dedicated Tour Mode tab — the DJ's live screen, shown directly (no list or
+   click-through). Picks the active tour, else the next upcoming, else latest. */
+function viewToursTab(){
+  const all = runs();
+  if(!all.length) return `
+  <div class="lg-header"><div><div class="lg-title">Tour Mode</div><div class="lg-sub">Your live tour dashboard</div></div></div>
+  <div class="screen-pad"><div class="empty"><div class="ic">${ICON.trips(28)}</div><b>No tours yet</b><span>Add shows on nearby dates — they group into a tour automatically and appear here as your live dashboard.</span><button class="btn secondary" style="margin-top:14px;max-width:240px" onclick="go('shows')">${ICON.music(18)} Go to Shows</button></div></div>`;
+  const today = new Date(); today.setHours(0,0,0,0);
+  const r = activeRun() || all.find(x=>parseDT(x.end)>=today) || all[all.length-1];
+  const active = activeRun() && activeRun().key===r.key;
+  const upcoming = all.filter(x=>parseDT(x.end)>=today);
+  return `
+  <div class="lg-header">
+    <div><div class="lg-title">Tour Mode</div><div class="lg-sub">${active?'Live now':(parseDT(r.end)>=today?'Next tour':'Latest tour')}${upcoming.length>1?' · '+upcoming.length+' upcoming':''}</div></div>
+    <button class="header-btn" onclick="goToursList()" title="All tours">${ICON.trips(20)}</button>
+  </div>
+  <div class="screen-pad stagger">${tripBody(r)}</div>`;
+}
+/* The tours list body — reused inside the Shows/Tours toggle. */
+function toursListBody(){
+  const today=new Date(); today.setHours(0,0,0,0);
+  const all=runs();
+  const upcoming=all.filter(r=>parseDT(r.end)>=today);
+  const past=all.filter(r=>parseDT(r.end)<today).reverse();
+  return `${upcoming.length?`<div class="stagger">${upcoming.map(runCard).join('')}</div>`
+    :`<div class="empty"><div class="ic">${ICON.trips(28)}</div><b>No upcoming tours</b><span>Add shows in Calendar first — they appear here grouped by date.</span><button class="btn secondary" style="margin-top:14px;max-width:240px" onclick="go('calendar')">${ICON.calendar(18)} Go to Calendar</button></div>`}
+    ${past.length?`<div class="section"><div class="section-head"><div class="section-title" style="font-size:16px;color:var(--text-2)">Past</div></div>
+      <div class="card flush">${past.slice(0,12).map(runRow).join('')}</div></div>`:''}`;
 }
 function toggleLegDone(runKey, showId){ const sh=sel.event(showId); if(sh){ sh.setDone=!sh.setDone; haptic(); persist(); renderView(); toast(sh.setDone?'Leg complete ✓':'Leg reopened', sh.setDone?'check':'arrowUp'); } }
 
@@ -441,8 +475,8 @@ function saveTrip(tid){
 /* ============================================================
    Trip Mode  (runs — no named trips)
    ============================================================ */
-function startTripFromShow(showId){ store.activeShowId=showId; persist(); overlay=null; store.tab='home'; render({ resetScroll: true }); toast('Trip Mode on','play'); }
-function endTripMode(){ confirmSheet('End Trip Mode?','This turns off the live tour view. Nothing is deleted.','End Trip Mode',()=>{ store.activeShowId=null; persist(); overlay=null; store.tab='home'; render(); toast('Trip Mode off','flag'); }); }
+function startTripFromShow(showId){ store.activeShowId=showId; persist(); overlay=null; navStack=[]; store.tab='trips'; if(typeof saveNavState==='function') saveNavState(); render({ resetScroll: true }); toast('Trip Mode on','play'); }
+function endTripMode(){ confirmSheet('End Trip Mode?','This turns off the live tour view. Nothing is deleted.','End Trip Mode',()=>{ store.activeShowId=null; persist(); overlay=null; store.tab='trips'; if(typeof saveNavState==='function') saveNavState(); render({ resetScroll: true }); toast('Trip Mode off','flag'); }); }
 /* Every callable contact saved across a tour's shows — Artist Liaison,
    drivers (even route-TBD ones) and key contacts — each with its title so
    it's obvious who you're phoning. */

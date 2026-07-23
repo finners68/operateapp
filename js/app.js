@@ -142,8 +142,8 @@ function initSidebar(){
 const TABS = [
   {id:'home', label:'Home', icon:'home', hint:'Dashboard — your next show and shortcuts'},
   {id:'calendar', label:'Calendar', icon:'calendar', hint:'Month view — day-by-day schedule'},
-  {id:'shows', label:'Shows', icon:'music', hint:'Add, edit and browse all your shows'},
-  {id:'trips', label:'Tours', icon:'trips', hint:'Shows grouped into tour runs automatically'},
+  {id:'shows', label:'Shows', icon:'music', hint:'Shows & tours — browse and manage everything'},
+  {id:'trips', label:'Tours', icon:'trips', hint:'Tour Mode — your live tour dashboard'},
   {id:'ideas', label:'Ideas', icon:'idea', hint:'Content ideas to use on shows'},
   {id:'notes', label:'Notes', icon:'note', hint:'Set notes, riders, reminders'},
 ];
@@ -154,12 +154,13 @@ const NAV_KEY = 'operate_nav';
    closing and reopening the app lands on the same screen, not back at a tab root. */
 function saveNavState(){
   try{ const screen=document.getElementById('screen');
-    localStorage.setItem(NAV_KEY, JSON.stringify({tab:store.tab, overlay, navStack, scrollY:screen?screen.scrollTop:0})); }catch(e){}
+    localStorage.setItem(NAV_KEY, JSON.stringify({tab:store.tab, overlay, navStack, scrollY:screen?screen.scrollTop:0, showsMode:(typeof showsMode!=='undefined'?showsMode:'shows')})); }catch(e){}
 }
 function loadNavState(){ try{ return JSON.parse(localStorage.getItem(NAV_KEY)||'null'); }catch(e){ return null; } }
 function restoreNavState(){
   const ns=loadNavState(); if(!ns) return;
   if(ns.tab) store.tab=ns.tab;
+  if(ns.showsMode && typeof showsMode!=='undefined') showsMode=ns.showsMode;
   overlay = ns.overlay || null;
   navStack = Array.isArray(ns.navStack) ? ns.navStack : [];
   // Never auto-open a lock-protected screen on reopen
@@ -232,7 +233,7 @@ function renderView(opts={}){
   if(tab==='home') v.innerHTML = viewHome();
   else if(tab==='shows') v.innerHTML = viewShows();
   else if(tab==='calendar') v.innerHTML = viewCalendar();
-  else if(tab==='trips') v.innerHTML = viewTrips();
+  else if(tab==='trips') v.innerHTML = viewToursTab();
   else if(tab==='ideas') v.innerHTML = viewIdeas();
   else if(tab==='notes') v.innerHTML = viewNotes();
   renderNav(); setFab();
