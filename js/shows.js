@@ -361,18 +361,28 @@ function flightsSubsection(e){
   }
   return showSubsection('Flights', `<button type="button" class="add" onclick="sheetFlight('${e.id}')">Add</button>`, body);
 }
-/* Best Maps query for a show's hotel. The hotel NAME is what identifies the
-   exact place, so it always leads; the postcode (a tight geographic anchor)
-   and city/country follow as context. A postcode ALONE is deliberately not
-   used — it covers a whole area and Maps resolves it to the most prominent
-   business there, not the specific hotel. When there's no name we fall back to
-   address/postcode so the string is still searchable. */
+/* A UK show — UK postcodes are granular (a postcode ≈ a building) so they land
+   exactly; postcodes elsewhere cover a wide area and Maps resolves them to the
+   most prominent business there, not the hotel. Detected by country, or by a
+   UK-style postcode (letters first, e.g. "M1 1AE"). */
+function isUKShow(e){
+  const c = (e && e.country || '').trim().toLowerCase();
+  if(/\b(uk|gb|england|scotland|wales|northern ireland|great britain|united kingdom|britain)\b/.test(c)) return true;
+  const p = (e && e.hotel && e.hotel.postcode || '').trim();
+  return /^[A-Za-z]{1,2}\d/.test(p);
+}
+/* Best Maps query for a show's hotel. For UK shows we use the postcode (it
+   resolves to the exact spot). Everywhere else we search by the hotel NAME
+   entered in the show — a foreign postcode alone is too coarse and Maps lands
+   on the biggest nearby business instead of the actual hotel. */
 function hotelMapQuery(e){
   const h = e && e.hotel; if(!h) return '';
   const name = (h.name||'').trim();
+  const post = (h.postcode||'').trim();
+  if(post && isUKShow(e)) return post;
   const parts = name
-    ? [name, h.postcode, e.city, e.country]
-    : [h.address, h.postcode, e.city, e.country];
+    ? [name, e.city, e.country]
+    : [h.address, post, e.city, e.country];
   const seen = new Set();
   return parts
     .map(x=>(x||'').trim())

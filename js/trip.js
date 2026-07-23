@@ -175,11 +175,24 @@ function tlMapsQuery(s){
   }
   if(s.kind==='travel'){
     if(it && it.kind==='travel') normalizeLogisticItem(it);
-    // Flights: navigate to the DEPARTURE airport — the first code in e.g. "BHX - IBZ"
+    // Flights ALWAYS resolve to the DEPARTURE airport alone — the first code in
+    // e.g. "MAN > IBZ" is MAN. Never leak the whole route ("MAN > IBZ Ibiza")
+    // into the search: pull the code from the from-field, then the route in the
+    // title/code, then any 3-letter token, and fall back to the city airport.
     if((s.icon||'plane')==='plane'){
-      let orig = (it&&it.from) ? String(it.from).trim() : '';
-      if(!orig){ const leg=parseLogisticRouteFromLegacy(s.title); if(leg){ const c=(leg.from.match(/[A-Za-z]{3}/)||[])[0]; if(c) orig=c; } }
-      if(/^[A-Za-z]{3}$/.test(orig)) return orig.toUpperCase()+' airport';
+      let dep = '';
+      const fromCode = String((it&&it.from)||'').match(/[A-Za-z]{3}/);
+      if(fromCode) dep = fromCode[0];
+      if(!/^[A-Za-z]{3}$/.test(dep)){
+        const leg = parseLogisticRouteFromLegacy(String((it&&it.title)||s.title||(it&&it.code)||''));
+        if(leg){ const c=leg.from.match(/[A-Za-z]{3}/); if(c) dep=c[0]; }
+      }
+      if(!/^[A-Za-z]{3}$/.test(dep)){
+        const blob=[it&&it.from, it&&it.code, it&&it.title, s.title].map(x=>String(x||'')).join(' ');
+        const codes=blob.match(/\b[A-Za-z]{3}\b/g); if(codes&&codes.length) dep=codes[0];
+      }
+      if(/^[A-Za-z]{3}$/.test(dep)) return dep.toUpperCase()+' airport';
+      return (city?city+' ':'')+'airport';
     }
     let dest = (it&&it.to) ? String(it.to).trim() : '';
     if(!dest){
