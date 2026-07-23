@@ -38,11 +38,21 @@ function isSingleAccountMode(){
   return !!(getFixedOrgId() && getAllowedUserId());
 }
 
+/* Dev-hardwire (no sign-in, shared org, "anyone with the URL can read/write")
+   must NEVER be active on a public production host. Restrict it to local dev
+   and Netlify deploy previews. */
+function isDevHost(){
+  const h = (location.hostname || '').toLowerCase();
+  return h === 'localhost' || h === '127.0.0.1' || h === '::1'
+    || h.endsWith('.local') || h.includes('--') /* netlify deploy previews */
+    || location.protocol === 'file:';
+}
 function isDevHardwireMode(){
   return isSupabaseConfigured()
     && OPERATE_CONFIG.OPERATE_DEV_MODE === true
     && !!getFixedOrgId()
-    && isSyncEnabled();
+    && isSyncEnabled()
+    && isDevHost();
 }
 
 function isAllowedUser(user){

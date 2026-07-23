@@ -120,8 +120,8 @@ function viewHome(){
           ${hasContacts?`<button type="button" class="hero-link" onclick="event.stopPropagation();openTourContacts('${e.id}')">${ICON.users(14)} Key contacts</button>`:''}
           ${hasTransport?`<button type="button" class="hero-link" onclick="event.stopPropagation();showTransport('${e.id}')">${ICON.car(14)} Transport</button>`:''}
           ${liaisonReach?`<button type="button" class="hero-link" onclick="event.stopPropagation();contactPromoter('${e.id}')">${ICON.chat(14)} Liaison</button>`:''}
-          ${e.hotel?`<button type="button" class="hero-link" onclick="event.stopPropagation();openMaps('${esc(hotelMapQuery(e))}')">${ICON.bed(14)} ${esc(e.hotel.name||'Hotel')}</button>`:''}
-          <button type="button" class="hero-link" onclick="event.stopPropagation();openMaps('${esc(cleanVenue(e.venue)+' '+(e.venueAddr||e.city||''))}')">${ICON.pin(14)} Venue</button>
+          ${e.hotel?`<button type="button" class="hero-link" onclick="event.stopPropagation();openMaps('${jsAttr(hotelMapQuery(e))}')">${ICON.bed(14)} ${esc(e.hotel.name||'Hotel')}</button>`:''}
+          <button type="button" class="hero-link" onclick="event.stopPropagation();openMaps('${jsAttr(cleanVenue(e.venue)+' '+(e.venueAddr||e.city||''))}')">${ICON.pin(14)} Venue</button>
           <button type="button" class="hero-link" onclick="event.stopPropagation();shareDaySheet('${e.id}')">${ICON.share(14)} Day sheet</button>
         </div>
       </div>`;
@@ -380,9 +380,9 @@ function hotelSubsection(e){
     if(legs.length) body += showSourceLabel('Added to show');
     body += `<div class="card flush">
       <div class="info-line info-line-stacked"><div class="ic">${ICON.bed(17)}</div>${detailTx(esc(e.hotel.name||'Hotel'), esc([e.hotel.address, e.hotel.postcode].filter(Boolean).join(', ')))}
-        <button class="header-btn" style="width:34px;height:34px;align-self:center" onclick="openMaps('${esc(hotelMapQuery(e))}')">${ICON.map(16)}</button></div>
+        <button class="header-btn" style="width:34px;height:34px;align-self:center" onclick="openMaps('${jsAttr(hotelMapQuery(e))}')">${ICON.map(16)}</button></div>
       <div class="info-line"><div class="ic">${ICON.clock(17)}</div>${fieldTx('Check in / out', `${e.hotel.checkin?fmtDate(e.hotel.checkin):'—'} → ${e.hotel.checkout?fmtDate(e.hotel.checkout):'—'}`)}</div>
-      ${e.hotel.conf?`<div class="info-line" onclick="copyText('${esc(e.hotel.conf)}')"><div class="ic">${ICON.ticket(17)}</div>${fieldTx('Confirmation', esc(e.hotel.conf))}<button class="header-btn" style="width:34px;height:34px;align-self:center">${ICON.copy(16)}</button></div>`:''}
+      ${e.hotel.conf?`<div class="info-line" onclick="copyText('${jsAttr(e.hotel.conf)}')"><div class="ic">${ICON.ticket(17)}</div>${fieldTx('Confirmation', esc(e.hotel.conf))}<button class="header-btn" style="width:34px;height:34px;align-self:center">${ICON.copy(16)}</button></div>`:''}
       ${e.hotel.notes?`<div class="info-line"><div class="ic">${ICON.note(17)}</div>${fieldTx('Room notes', esc(e.hotel.notes))}</div>`:''}
     </div>`;
   }
@@ -409,13 +409,13 @@ function driverCard(eid, d, idx){
     </div>`;
   if(d.noGround){
     const ev = sel.event(eid);
-    const near = esc(('taxi near '+((ev&&(ev.city||ev.venue))||'').trim()).trim());
+    const near = ('taxi near '+((ev&&(ev.city||ev.venue))||'').trim()).trim();
     return `<div class="card flush" style="margin-bottom:10px">
       ${head}
       <div class="info-line"><div class="ic">${ICON.car(17)}</div>${fieldTx('No grounds', 'Please book an Uber / taxi')}</div>
       <div style="display:flex;gap:9px;padding:12px 16px">
         <button class="btn secondary" style="padding:11px" onclick="openExternal('https://m.uber.com/','uber://')">${ICON.car(16)} Open Uber</button>
-        <button class="btn secondary" style="padding:11px" onclick="openMaps('${near}')">${ICON.map(16)} Taxis nearby</button>
+        <button class="btn secondary" style="padding:11px" onclick="openMaps('${jsAttr(near)}')">${ICON.map(16)} Taxis nearby</button>
       </div>
     </div>`;
   }
@@ -424,9 +424,9 @@ function driverCard(eid, d, idx){
     <div class="info-line info-line-stacked"><div class="ic">${ICON.user(17)}</div>${detailTx(esc(d.name||'Driver'), esc(d.pickup||''))}</div>
     ${d.notes?`<div class="info-line"><div class="ic">${ICON.note(17)}</div>${fieldTx('Notes', esc(d.notes))}</div>`:''}
     <div style="display:flex;gap:9px;padding:12px 16px">
-      <button class="btn secondary" style="padding:11px" onclick="callNumber('${d.phone||''}')">${ICON.phone(16)} Call</button>
-      <button class="btn secondary" style="padding:11px" onclick="whatsapp('${d.whatsapp||d.phone||''}')">${ICON.chat(16)} WhatsApp</button>
-      <button class="btn secondary" style="padding:11px;flex:0 0 auto" onclick="copyText('${esc(d.phone||'')}')">${ICON.copy(16)}</button>
+      <button class="btn secondary" style="padding:11px" onclick="callNumber('${jsAttr(d.phone||'')}')">${ICON.phone(16)} Call</button>
+      <button class="btn secondary" style="padding:11px" onclick="whatsapp('${jsAttr(d.whatsapp||d.phone||'')}')">${ICON.chat(16)} WhatsApp</button>
+      <button class="btn secondary" style="padding:11px;flex:0 0 auto" onclick="copyText('${jsAttr(d.phone||'')}')">${ICON.copy(16)}</button>
     </div>
   </div>`;
 }
@@ -455,7 +455,7 @@ function travelGroupBody(e){
 function venueSubsection(e){
   const body = `<div class="card flush">
     <div class="info-line" onclick="sheetVenueAddr('${e.id}')"><div class="ic">${ICON.pin(17)}</div>${fieldTx('Address', `<span class="addr-trunc">${esc(e.venueAddr || (e.city?cleanVenue(e.venue)+' · '+e.city+(e.country?', '+e.country:''):cleanVenue(e.venue)) || 'Tap to add')}</span>`)}
-      <button class="header-btn" style="width:34px;height:34px;align-self:center" onclick="event.stopPropagation();openMaps('${esc(cleanVenue(e.venue)+' '+(e.venueAddr||e.city||''))}')">${ICON.map(17)}</button></div>
+      <button class="header-btn" style="width:34px;height:34px;align-self:center" onclick="event.stopPropagation();openMaps('${jsAttr(cleanVenue(e.venue)+' '+(e.venueAddr||e.city||''))}')">${ICON.map(17)}</button></div>
     ${e.promoter?`<div class="info-line"><div class="ic">${ICON.user(17)}</div>${fieldTx('Artist Liaison', esc(e.promoter.name))}
       ${(e.promoter.phone||e.promoter.whatsapp)?`<button class="btn secondary" style="width:auto;flex:0 0 auto;padding:9px 15px;font-size:13.5px;align-self:center;box-shadow:none" onclick="contactPromoter('${e.id}')">${ICON.chat(15)} Contact</button>`:`<button class="header-btn" style="width:34px;height:34px;align-self:center" onclick="sheetPromoter('${e.id}')">${ICON.edit(15)}</button>`}</div>`:`<div class="info-line" onclick="sheetPromoter('${e.id}')"><div class="ic">${ICON.plus(17)}</div><div class="tx"><div class="v" style="color:var(--accent-2)">Add artist liaison</div></div></div>`}
   </div>`;
@@ -465,7 +465,7 @@ function advanceSubsection(e){
   const a = e.advance||{};
   const sched = (a.schedule||[]).filter(s=>(s.time||s.label));
   const schedHTML = sched.length?`<div class="ro-list">${sched.map(s=>`<div class="ro-row"><div class="ro-lab">${esc(s.label||'')}</div><div class="ro-time">${esc(s.time||'')}</div></div>`).join('')}</div>`:'';
-  const navExtra = a.navAddr?`<button class="header-btn" style="width:34px;height:34px;align-self:center" onclick="openMaps('${esc(a.navAddr)}')">${ICON.map(16)}</button>`:'';
+  const navExtra = a.navAddr?`<button class="header-btn" style="width:34px;height:34px;align-self:center" onclick="openMaps('${jsAttr(a.navAddr)}')">${ICON.map(16)}</button>`:'';
   const hasAny = countAdvanceFields(a) > 0;
   const editBtn = `<button type="button" class="add" onclick="sheetAdvance('${e.id}')">${hasAny?'Edit':'Add'}</button>`;
   if(!hasAny){
@@ -488,8 +488,8 @@ function contactsSubsection(e){
   const body = `<div class="card flush">${cs.map(ct=>`<div class="info-line info-line-stacked">
     <div class="ic">${ICON.user(17)}</div>
     <div class="tx" style="flex:1;min-width:0" onclick="sheetEventContact('${e.id}','${ct.id}')">${detailParts(esc(ct.name||'Contact'), ct.role?esc(ct.role):'', ct.phone?esc(ct.phone):'')}</div>
-    ${ct.phone?`<button class="header-btn" style="width:34px;height:34px;align-self:center" onclick="callNumber('${esc(ct.phone)}')">${ICON.phone(15)}</button>`:''}
-    ${(ct.whatsapp||ct.phone)?`<button class="header-btn" style="width:34px;height:34px;align-self:center" onclick="whatsapp('${esc(ct.whatsapp||ct.phone)}')">${ICON.chat(15)}</button>`:''}
+    ${ct.phone?`<button class="header-btn" style="width:34px;height:34px;align-self:center" onclick="callNumber('${jsAttr(ct.phone)}')">${ICON.phone(15)}</button>`:''}
+    ${(ct.whatsapp||ct.phone)?`<button class="header-btn" style="width:34px;height:34px;align-self:center" onclick="whatsapp('${jsAttr(ct.whatsapp||ct.phone)}')">${ICON.chat(15)}</button>`:''}
   </div>`).join('')}</div>`;
   return showSubsection('Key contacts', addBtn, body);
 }
@@ -821,8 +821,8 @@ function contactDriver(eid){
   if(!phone && !wa){ sheetDriver(eid); return; }
   openSheet('Contact driver', `
     ${d.name?`<div class="hint" style="text-align:left;padding:0 2px 12px">${esc(d.name)}${d.pickup?' · '+esc(d.pickup):''}</div>`:''}
-    ${phone?`<button class="btn" onclick="callNumber('${esc(phone)}')">${ICON.phone(17)} Call</button>`:''}
-    ${wa?`<button class="btn secondary" style="margin-top:10px" onclick="whatsapp('${esc(wa)}')">${ICON.chat(17)} Message on WhatsApp</button>`:''}
+    ${phone?`<button class="btn" onclick="callNumber('${jsAttr(phone)}')">${ICON.phone(17)} Call</button>`:''}
+    ${wa?`<button class="btn secondary" style="margin-top:10px" onclick="whatsapp('${jsAttr(wa)}')">${ICON.chat(17)} Message on WhatsApp</button>`:''}
     <div class="spacer"></div>
   `);
 }
@@ -840,8 +840,8 @@ function showTransport(eid){
     }
     const wa=d.whatsapp||d.phone||'';
     return `<div class="info-line"><div class="ic">${ICON.user(17)}</div>${fieldTx(title, esc(d.name||'Driver')+(d.phone?' · '+esc(d.phone):''))}
-      ${wa?`<button class="header-btn" style="width:34px;height:34px;align-self:center" onclick="whatsapp('${esc(wa)}')">${ICON.chat(16)}</button>`:''}
-      ${d.phone?`<button class="header-btn" style="width:34px;height:34px;align-self:center" onclick="callNumber('${esc(d.phone)}')">${ICON.phone(16)}</button>`:''}</div>`;
+      ${wa?`<button class="header-btn" style="width:34px;height:34px;align-self:center" onclick="whatsapp('${jsAttr(wa)}')">${ICON.chat(16)}</button>`:''}
+      ${d.phone?`<button class="header-btn" style="width:34px;height:34px;align-self:center" onclick="callNumber('${jsAttr(d.phone)}')">${ICON.phone(16)}</button>`:''}</div>`;
   }).join('');
   openSheet('Transport', `<div class="card flush">${rows}</div><div class="spacer"></div>`);
 }
@@ -853,8 +853,8 @@ function contactPromoter(eid){
   if(!phone && !wa){ sheetPromoter(eid); return; }
   openSheet('Contact artist liaison', `
     ${p.name?`<div class="hint" style="text-align:left;padding:0 2px 12px">${esc(p.name)}</div>`:''}
-    ${wa?`<button class="btn" onclick="whatsapp('${esc(wa)}')">${ICON.chat(17)} Message on WhatsApp</button>`:''}
-    ${phone?`<button class="btn secondary" style="margin-top:10px" onclick="callNumber('${esc(phone)}')">${ICON.phone(17)} Call</button>`:''}
+    ${wa?`<button class="btn" onclick="whatsapp('${jsAttr(wa)}')">${ICON.chat(17)} Message on WhatsApp</button>`:''}
+    ${phone?`<button class="btn secondary" style="margin-top:10px" onclick="callNumber('${jsAttr(phone)}')">${ICON.phone(17)} Call</button>`:''}
     <div class="spacer"></div>
   `);
 }

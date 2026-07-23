@@ -38,7 +38,7 @@ function viewTripMode(run){
 
     <div class="section">
       <div class="act-grid">
-        <button class="act" onclick="openMaps('${esc(nextShow?(nextShow.venue+' '+(nextShow.venueAddr||nextShow.city)):run.title)}')"><div class="ic" style="background:var(--blue-soft);color:var(--blue)">${ICON.map(20)}</div><span>Venue</span></button>
+        <button class="act" onclick="openMaps('${jsAttr(nextShow?(nextShow.venue+' '+(nextShow.venueAddr||nextShow.city)):run.title)}')"><div class="ic" style="background:var(--blue-soft);color:var(--blue)">${ICON.map(20)}</div><span>Venue</span></button>
         <button class="act" onclick="openView('event','${nextShow?nextShow.id:''}')"><div class="ic" style="background:var(--accent-soft);color:var(--accent-2)">${ICON.music(20)}</div><span>Show</span></button>
         <button class="act" onclick="go('calendar')"><div class="ic" style="background:var(--card-2);color:var(--text-2)">${ICON.calendar(20)}</div><span>Calendar</span></button>
         <button class="act" onclick="openView('contacts')"><div class="ic" style="background:var(--orange-soft);color:var(--orange)">${ICON.user(20)}</div><span>Contacts</span></button>
@@ -150,12 +150,12 @@ function tlMapsQuery(s){
 function stepPills(s){
   const sh=stepShow(s); const pills=[];
   const mq=tlMapsQuery(s);
-  const mapPill=(label,sub)=>`<div class="pill" onclick="event.stopPropagation();openMaps('${esc(mq)}')"><div class="ic">${ICON.map(16)}</div><div class="tx"><b>${label}</b><span>${sub}</span></div></div>`;
+  const mapPill=(label,sub)=>`<div class="pill" onclick="event.stopPropagation();openMaps('${jsAttr(mq)}')"><div class="ic">${ICON.map(16)}</div><div class="tx"><b>${label}</b><span>${sub}</span></div></div>`;
   if(s.embedded){
     const d=s.ref||{};
     if(s.kind==='travel' && d.icon==='car'){
       if(d.noGround) pills.push(`<div class="pill" onclick="event.stopPropagation();openExternal('https://m.uber.com/','uber://')"><div class="ic">${ICON.car(16)}</div><div class="tx"><b>Uber/taxi</b><span>No grounds</span></div></div>`);
-      else { const wa=d.whatsapp||d.phone||''; if(wa) pills.push(`<div class="pill" onclick="event.stopPropagation();whatsapp('${esc(wa)}')"><div class="ic">${ICON.chat(16)}</div><div class="tx"><b>Message</b><span>WhatsApp</span></div></div>`); if(d.phone) pills.push(`<div class="pill" onclick="event.stopPropagation();callNumber('${esc(d.phone)}')"><div class="ic">${ICON.phone(16)}</div><div class="tx"><b>Call</b><span>Now</span></div></div>`); }
+      else { const wa=d.whatsapp||d.phone||''; if(wa) pills.push(`<div class="pill" onclick="event.stopPropagation();whatsapp('${jsAttr(wa)}')"><div class="ic">${ICON.chat(16)}</div><div class="tx"><b>Message</b><span>WhatsApp</span></div></div>`); if(d.phone) pills.push(`<div class="pill" onclick="event.stopPropagation();callNumber('${jsAttr(d.phone)}')"><div class="ic">${ICON.phone(16)}</div><div class="tx"><b>Call</b><span>Now</span></div></div>`); }
       if(sh) pills.push(`<div class="pill" onclick="event.stopPropagation();openTourContacts('${sh.id}')"><div class="ic">${ICON.users(16)}</div><div class="tx"><b>Key contacts</b><span>Call someone</span></div></div>`);
       if(mq) pills.push(mapPill('Destination','Open in Maps'));
     } else if(mq){ pills.push(mapPill(s.kind==='stay'?'Hotel':'Maps','Open in Maps')); }
@@ -174,8 +174,8 @@ function stepPills(s){
       // Fall back to the show's saved driver contact when the leg itself has none
       const phone=(it&&it.phone)||(sh&&sh.driver&&sh.driver.phone)||'';
       const wa=(it&&it.whatsapp)||(sh&&sh.driver&&sh.driver.whatsapp)||phone;
-      if(phone){ pills.push(`<div class="pill" onclick="event.stopPropagation();whatsapp('${esc(wa)}')"><div class="ic">${ICON.chat(16)}</div><div class="tx"><b>Message</b><span>WhatsApp</span></div></div>`);
-        pills.push(`<div class="pill" onclick="event.stopPropagation();callNumber('${esc(phone)}')"><div class="ic">${ICON.phone(16)}</div><div class="tx"><b>Call driver</b><span>Now</span></div></div>`); }
+      if(phone){ pills.push(`<div class="pill" onclick="event.stopPropagation();whatsapp('${jsAttr(wa)}')"><div class="ic">${ICON.chat(16)}</div><div class="tx"><b>Message</b><span>WhatsApp</span></div></div>`);
+        pills.push(`<div class="pill" onclick="event.stopPropagation();callNumber('${jsAttr(phone)}')"><div class="ic">${ICON.phone(16)}</div><div class="tx"><b>Call driver</b><span>Now</span></div></div>`); }
       else if(sh&&showDrivers(sh).length){ pills.push(`<div class="pill" onclick="event.stopPropagation();showTransport('${sh.id}')"><div class="ic">${ICON.car(16)}</div><div class="tx"><b>Transport</b><span>View</span></div></div>`); }
       else { pills.push(`<div class="pill" onclick="event.stopPropagation();openItem('${it.id}')"><div class="ic">${ICON.car(16)}</div><div class="tx"><b>Driver</b><span>Add contact</span></div></div>`); }
       if(sh) pills.push(`<div class="pill" onclick="event.stopPropagation();openTourContacts('${sh.id}')"><div class="ic">${ICON.users(16)}</div><div class="tx"><b>Key contacts</b><span>Call someone</span></div></div>`);
@@ -198,7 +198,7 @@ function stepPills(s){
 /* Compact per-step actions (icon buttons) for the day timeline rows */
 function tlActions(s){
   const btns=[]; const mq=tlMapsQuery(s);
-  if(mq) btns.push(`<button class="tl-btn" onclick="event.stopPropagation();openMaps('${esc(mq)}')">${ICON.map(15)}</button>`);
+  if(mq) btns.push(`<button class="tl-btn" onclick="event.stopPropagation();openMaps('${jsAttr(mq)}')">${ICON.map(15)}</button>`);
   const sh=stepShow(s);
   const isFlight=s.kind==='travel'&&(s.icon||'plane')==='plane';
   if(isFlight){ const it=s.ref; const has=it&&it.passes&&it.passes.length;
@@ -206,9 +206,9 @@ function tlActions(s){
     else btns.push(`<label class="tl-btn">${ICON.ticket(15)}<input type="file" accept="image/*,application/pdf" style="display:none" onchange="uploadItemPass('${it.id}',this)"></label>`); }
   if(s.embedded && s.kind==='travel' && s.ref && s.ref.icon==='car'){ const d=s.ref;
     if(d.noGround) btns.push(`<button class="tl-btn" onclick="event.stopPropagation();openExternal('https://m.uber.com/','uber://')">${ICON.car(15)}</button>`);
-    else { const w=d.whatsapp||d.phone; if(w) btns.push(`<button class="tl-btn" onclick="event.stopPropagation();whatsapp('${esc(w)}')">${ICON.chat(15)}</button>`); } }
+    else { const w=d.whatsapp||d.phone; if(w) btns.push(`<button class="tl-btn" onclick="event.stopPropagation();whatsapp('${jsAttr(w)}')">${ICON.chat(15)}</button>`); } }
   const isDriver=!s.embedded&&s.kind==='travel'&&((s.icon||'plane')==='car'||(s.ref&&isDriverItem(s.ref)));
-  if(isDriver&&sh&&sh.driver&&(sh.driver.phone||sh.driver.whatsapp)){ const w=sh.driver.whatsapp||sh.driver.phone; btns.push(`<button class="tl-btn" onclick="event.stopPropagation();whatsapp('${esc(w)}')">${ICON.chat(15)}</button>`); }
+  if(isDriver&&sh&&sh.driver&&(sh.driver.phone||sh.driver.whatsapp)){ const w=sh.driver.whatsapp||sh.driver.phone; btns.push(`<button class="tl-btn" onclick="event.stopPropagation();whatsapp('${jsAttr(w)}')">${ICON.chat(15)}</button>`); }
   if(s.kind==='set'&&sh&&showDrivers(sh).length){ btns.push(`<button class="tl-btn" onclick="event.stopPropagation();showTransport('${sh.id}')">${ICON.car(15)}</button>`); }
   return btns.join('');
 }
@@ -500,8 +500,8 @@ function openTourContacts(runKey){
     ${multi?`<div class="prio-head" style="margin:14px 4px 8px"><span class="pd" style="background:var(--accent-2)"></span>${esc(show)}</div>`:''}
     <div class="card flush">${cs.map(c=>`<div class="info-line info-line-stacked"><div class="ic">${ICON.user(17)}</div>
       <div class="tx" style="flex:1;min-width:0">${detailParts(esc(c.name||c.label), esc(c.label), c.phone?esc(c.phone):'')}</div>
-      ${(c.whatsapp||c.phone)?`<button class="header-btn" style="width:34px;height:34px;align-self:center" onclick="whatsapp('${esc(c.whatsapp||c.phone)}')">${ICON.chat(15)}</button>`:''}
-      ${c.phone?`<button class="header-btn" style="width:34px;height:34px;align-self:center" onclick="callNumber('${esc(c.phone)}')">${ICON.phone(15)}</button>`:''}
+      ${(c.whatsapp||c.phone)?`<button class="header-btn" style="width:34px;height:34px;align-self:center" onclick="whatsapp('${jsAttr(c.whatsapp||c.phone)}')">${ICON.chat(15)}</button>`:''}
+      ${c.phone?`<button class="header-btn" style="width:34px;height:34px;align-self:center" onclick="callNumber('${jsAttr(c.phone)}')">${ICON.phone(15)}</button>`:''}
     </div>`).join('')}</div>`).join('');
   openSheet('Key contacts', body+'<div class="spacer"></div>');
 }

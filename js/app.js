@@ -1136,8 +1136,8 @@ function contactRow(c){
     <div class="ic" style="background:${col}22;color:${col};font-weight:800;font-size:15px">${esc((c.name||'?').trim()[0]||'?').toUpperCase()}</div>
     <div class="body"><b>${esc(c.name)}</b><span>${esc(c.role)}${c.company?' · '+esc(c.company):''}</span></div>
     <div class="trail">
-      ${c.phone?`<button class="header-btn" style="width:34px;height:34px" onclick="event.stopPropagation();callNumber('${c.phone}')">${ICON.phone(15)}</button>`:''}
-      ${c.whatsapp||c.phone?`<button class="header-btn" style="width:34px;height:34px" onclick="event.stopPropagation();whatsapp('${c.whatsapp||c.phone}')">${ICON.chat(15)}</button>`:''}
+      ${c.phone?`<button class="header-btn" style="width:34px;height:34px" onclick="event.stopPropagation();callNumber('${jsAttr(c.phone)}')">${ICON.phone(15)}</button>`:''}
+      ${c.whatsapp||c.phone?`<button class="header-btn" style="width:34px;height:34px" onclick="event.stopPropagation();whatsapp('${jsAttr(c.whatsapp||c.phone)}')">${ICON.chat(15)}</button>`:''}
     </div>
   </div>`;
 }
@@ -1149,13 +1149,13 @@ function contactCard(id){
       <div><div style="font-size:19px;font-weight:750">${esc(c.name)}</div><div style="color:var(--text-2);font-weight:600"><span class="tag" style="background:${col}22;color:${col}">${esc(c.role)}</span>${c.company?' '+esc(c.company):''}</div></div>
     </div>
     <div class="act-grid" style="grid-template-columns:repeat(4,1fr);margin-bottom:16px">
-      <button class="act" onclick="callNumber('${c.phone||''}')"><div class="ic" style="background:var(--green-soft);color:var(--green)">${ICON.phone(19)}</div><span>Call</span></button>
-      <button class="act" onclick="whatsapp('${c.whatsapp||c.phone||''}')"><div class="ic" style="background:var(--green-soft);color:var(--green)">${ICON.chat(19)}</div><span>WhatsApp</span></button>
+      <button class="act" onclick="callNumber('${jsAttr(c.phone||'')}')"><div class="ic" style="background:var(--green-soft);color:var(--green)">${ICON.phone(19)}</div><span>Call</span></button>
+      <button class="act" onclick="whatsapp('${jsAttr(c.whatsapp||c.phone||'')}')"><div class="ic" style="background:var(--green-soft);color:var(--green)">${ICON.chat(19)}</div><span>WhatsApp</span></button>
       <button class="act" onclick="${c.email?`window.location.href='mailto:${c.email}'`:`toast('No email','x')`}"><div class="ic" style="background:var(--blue-soft);color:var(--blue)">${ICON.note(19)}</div><span>Email</span></button>
-      <button class="act" onclick="copyText('${esc(c.phone||'')}')"><div class="ic" style="background:var(--card-2);color:var(--text-2)">${ICON.copy(19)}</div><span>Copy</span></button>
+      <button class="act" onclick="copyText('${jsAttr(c.phone||'')}')"><div class="ic" style="background:var(--card-2);color:var(--text-2)">${ICON.copy(19)}</div><span>Copy</span></button>
     </div>
-    ${c.phone?`<div class="info-line" style="border:1px solid var(--stroke);border-radius:12px;margin-bottom:8px" onclick="copyText('${esc(c.phone)}')"><div class="ic">${ICON.phone(16)}</div><div class="tx"><div class="k">Phone</div><div class="v">${esc(c.phone)}</div></div></div>`:''}
-    ${c.email?`<div class="info-line" style="border:1px solid var(--stroke);border-radius:12px;margin-bottom:8px" onclick="copyText('${esc(c.email)}')"><div class="ic">${ICON.note(16)}</div><div class="tx"><div class="k">Email</div><div class="v">${esc(c.email)}</div></div></div>`:''}
+    ${c.phone?`<div class="info-line" style="border:1px solid var(--stroke);border-radius:12px;margin-bottom:8px" onclick="copyText('${jsAttr(c.phone)}')"><div class="ic">${ICON.phone(16)}</div><div class="tx"><div class="k">Phone</div><div class="v">${esc(c.phone)}</div></div></div>`:''}
+    ${c.email?`<div class="info-line" style="border:1px solid var(--stroke);border-radius:12px;margin-bottom:8px" onclick="copyText('${jsAttr(c.email)}')"><div class="ic">${ICON.note(16)}</div><div class="tx"><div class="k">Email</div><div class="v">${esc(c.email)}</div></div></div>`:''}
     ${c.notes?`<div class="info-line" style="border:1px solid var(--stroke);border-radius:12px;margin-bottom:8px"><div class="ic">${ICON.edit(16)}</div><div class="tx"><div class="k">Notes</div><div class="v" style="font-size:14px">${esc(c.notes)}</div></div></div>`:''}
     <div class="spacer"></div>
     <div class="btn-row"><button class="btn secondary" onclick="sheetContact('${c.id}')">${ICON.edit(15)} Edit</button><button class="btn danger" style="flex:0 0 auto" onclick="delContact('${c.id}')">${ICON.trash(15)}</button></div>

@@ -135,6 +135,18 @@ function commit(){ persist(); render(); }
 /* ---------- Utilities ---------- */
 const $ = sel => document.querySelector(sel);
 const esc = s => (s==null?'':String(s)).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+/* Escape a value that is interpolated as a JS *string literal* inside a
+   double-quoted inline handler, e.g. onclick="fn('${jsAttr(x)}')".
+   HTML entity-encoding (esc) is NOT enough there: the parser decodes it back
+   before the JS runs, so a raw ' still breaks out. This escapes for the JS
+   string context and keeps the attribute intact. */
+const jsAttr = s => (s==null?'':String(s))
+  .replace(/&/g,'&amp;')
+  .replace(/"/g,'&quot;')
+  .replace(/\\/g,'\\\\')
+  .replace(/'/g,"\\'")
+  .replace(/</g,'\\x3C')
+  .replace(/\r?\n/g,'\\n');
 function detailParts(title, primary, meta){
   const p = primary ? `<div class="detail-primary">${primary}</div>` : '';
   const m = meta ? `<div class="detail-meta">${meta}</div>` : '';

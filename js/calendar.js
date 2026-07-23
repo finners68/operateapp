@@ -216,19 +216,19 @@ function itemButtons(l){
     if(has){ b.push(jbtn(ICON.ticket(15),'Boarding pass',`viewItemPass('${l.id}')`,'pass'));
       if(passEditable()) b.push(jbtn(ICON.trash(15),'Remove',`delItemPass('${l.id}')`,'danger')); }
     else b.push(jbtnFile(ICON.ticket(15),'Add boarding pass',l.id,'pass')); }
-  if(isDriver){ if(l.noGround){ b.push(jbtn(ICON.car(15),'Uber/taxi',`openExternal('https://m.uber.com/','uber://')`,'call')); } else if(l.phone||l.whatsapp){ const w=l.whatsapp||l.phone; if(l.phone) b.push(jbtn(ICON.phone(15),'Call',`callNumber('${l.phone}')`,'call')); b.push(jbtn(ICON.chat(15),'Message',`whatsapp('${w}')`,'call')); } else if(!emb){ b.push(jbtn(ICON.user(15),'Add contact',`openItem('${l.id}')`)); }
+  if(isDriver){ if(l.noGround){ b.push(jbtn(ICON.car(15),'Uber/taxi',`openExternal('https://m.uber.com/','uber://')`,'call')); } else if(l.phone||l.whatsapp){ const w=l.whatsapp||l.phone; if(l.phone) b.push(jbtn(ICON.phone(15),'Call',`callNumber('${jsAttr(l.phone)}')`,'call')); b.push(jbtn(ICON.chat(15),'Message',`whatsapp('${jsAttr(w)}')`,'call')); } else if(!emb){ b.push(jbtn(ICON.user(15),'Add contact',`openItem('${l.id}')`)); }
     if(l.showId) b.push(jbtn(ICON.users(15),'Key contacts',`openTourContacts('${l.showId}')`)); }
   if(emb){ const sh2=l.showId?sel.event(l.showId):null; if(sh2) b.push(jbtn(ICON.music(15),'Show',`openView('event','${sh2.id}')`)); }
-  if(l.kind==='stay' && l.bookingRef){ b.push(jbtn(ICON.copy(15),'Ref '+esc(l.bookingRef),`copyText('${esc(l.bookingRef)}')`,'pass')); }
+  if(l.kind==='stay' && l.bookingRef){ b.push(jbtn(ICON.copy(15),'Ref '+esc(l.bookingRef),`copyText('${jsAttr(l.bookingRef)}')`,'pass')); }
   // Driver/transfer legs open turn-by-turn directions (origin -> destination); other legs search the destination place.
   if(isDriver){ const rt=driverRoute(l);
-    if(rt) b.push(jbtn(ICON.map(15),'Route',`openDirections('${esc(rt.origin)}','${esc(rt.dest)}')`));
-    else { const mq=tlMapsQuery({kind:l.kind,title:l.title,icon:l.icon,ref:l}); if(mq) b.push(jbtn(ICON.map(15),'Maps',`openMaps('${esc(mq)}')`)); }
-  } else { const mq=tlMapsQuery({kind:l.kind,title:l.title,icon:l.icon,ref:l}); if(mq) b.push(jbtn(ICON.map(15),'Maps',`openMaps('${esc(mq)}')`)); }
+    if(rt) b.push(jbtn(ICON.map(15),'Route',`openDirections('${jsAttr(rt.origin)}','${jsAttr(rt.dest)}')`));
+    else { const mq=tlMapsQuery({kind:l.kind,title:l.title,icon:l.icon,ref:l}); if(mq) b.push(jbtn(ICON.map(15),'Maps',`openMaps('${jsAttr(mq)}')`)); }
+  } else { const mq=tlMapsQuery({kind:l.kind,title:l.title,icon:l.icon,ref:l}); if(mq) b.push(jbtn(ICON.map(15),'Maps',`openMaps('${jsAttr(mq)}')`)); }
   return b.join('');
 }
 function setButtons(s){ const sh=sel.event(s.showId); const mq=tlMapsQuery(s); const b=[];
-  if(mq) b.push(jbtn(ICON.map(15),'Venue',`openMaps('${esc(mq)}')`));
+  if(mq) b.push(jbtn(ICON.map(15),'Venue',`openMaps('${jsAttr(mq)}')`));
   if(sh&&sh.promoter&&(sh.promoter.phone||sh.promoter.whatsapp)) b.push(jbtn(ICON.chat(15),'Artist Liaison',`contactPromoter('${sh.id}')`,'call'));
   if(sh) b.push(jbtn(ICON.music(15),'Show details',`openView('event','${sh.id}')`));
   return b.join('');
@@ -271,10 +271,10 @@ function showQuickLinks(e){
   const tile=(icon,color,label,onclick)=>`<button class="act" onclick="${onclick}"><div class="ic" style="background:${color}22;color:${color}">${icon}</div><span>${label}</span></button>`;
   const tileFile=(icon,color,label,itemId)=>`<label class="act"><div class="ic" style="background:${color}22;color:${color}">${icon}</div><span>${label}</span><input type="file" accept="image/*,application/pdf" style="display:none" onchange="uploadItemPass('${itemId}',this)"></label>`;
   const tiles=[];
-  tiles.push(tile(ICON.map(20),'var(--blue)','Venue',`openMaps('${esc(cleanVenue(e.venue)+' '+(e.venueAddr||e.city||''))}')`));
+  tiles.push(tile(ICON.map(20),'var(--blue)','Venue',`openMaps('${jsAttr(cleanVenue(e.venue)+' '+(e.venueAddr||e.city||''))}')`));
   if(flights.length){ const wp=flights.find(f=>f.passes&&f.passes.length);
     tiles.push(wp?tile(ICON.ticket(20),'var(--accent-2)','Boarding',`viewItemPass('${wp.id}')`):tileFile(ICON.ticket(20),'var(--accent-2)','Boarding',flights[0].id)); }
-  if(hotelItem||e.hotel){ const q=e.hotel?hotelMapQuery(e):((hotelItem.place||hotelItem.title||'').replace(/^hotel\s*[-–:]?\s*/i,'').trim()+' '+(e.city||'')); tiles.push(tile(ICON.bed(20),'var(--orange)','Hotel',`openMaps('${esc(q)}')`)); }
+  if(hotelItem||e.hotel){ const q=e.hotel?hotelMapQuery(e):((hotelItem.place||hotelItem.title||'').replace(/^hotel\s*[-–:]?\s*/i,'').trim()+' '+(e.city||'')); tiles.push(tile(ICON.bed(20),'var(--orange)','Hotel',`openMaps('${jsAttr(q)}')`)); }
   const drvPhone=e.driver&&e.driver.phone;
   if(drvPhone) tiles.push(tile(ICON.car(20),'var(--green)','Driver',`contactDriver('${e.id}')`));
   else if(drivers.length) tiles.push(tile(ICON.car(20),'var(--green)','Driver',`sheetDriver('${e.id}')`));
