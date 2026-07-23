@@ -127,5 +127,19 @@ drop policy if exists logistics_write on public.logistics_items;
 create policy logistics_write on public.logistics_items for all
   using (public.user_in_org(org_id)) with check (public.user_in_org(org_id));
 
+-- ============================================================
+-- #24 — Owner can delete their entire org (cascades all data).
+-- ============================================================
+create or replace function public.delete_my_org()
+returns void language plpgsql security definer set search_path = public as $$
+declare v_org uuid;
+begin
+  select org_id into v_org from public.org_members
+    where user_id = auth.uid() and role = 'owner' limit 1;
+  if v_org is null then raise exception 'not_owner'; end if;
+  delete from public.orgs where id = v_org;   -- FKs cascade to all org tables + storage refs
+end; $$;
+grant execute on function public.delete_my_org() to authenticated;
+
 -- Realtime for invites (optional)
 alter publication supabase_realtime add table public.org_invites;

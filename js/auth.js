@@ -173,6 +173,15 @@ function sheetInviteCrew(){
     <div class="spacer"></div>
   `);
 }
+function confirmDeleteCloudData(){
+  confirmSheet('Delete all cloud data?', 'This permanently deletes your org and every show, tour, note and file in the cloud for all members. This cannot be undone.', 'Delete everything', async ()=>{
+    const sb = getSupabase(); if(!sb) return;
+    const { error } = await sb.rpc('delete_my_org');
+    if(error){ toast('Delete failed (owner only)', 'x'); return; }
+    toast('Cloud data deleted', 'trash');
+    await signOut();
+  }, true);
+}
 async function doCreateInvite(){
   const email = val('inv-email');
   if(!email){ toast('Enter an email', 'x'); return; }
@@ -297,7 +306,9 @@ function sheetAccount(){
     <div class="hint" style="text-align:left;padding:8px 2px 14px;line-height:1.5">${isSingleAccountMode() ? 'Tour data syncs to the single linked account only.' : 'Your tour data syncs across devices signed into the same org. Invite crew to collaborate — crew can update day-of details, managers can edit everything.'}</div>
     ${isSingleAccountMode() ? '' : `<button class="btn secondary" onclick="sheetInviteCrew()">${ICON.users(16)} Invite crew</button>`}
     <button class="btn secondary" style="margin-top:10px" onclick="syncPullNow()">${ICON.reminder(16)} Refresh now</button>
+    <button class="btn secondary" style="margin-top:10px" onclick="exportData()">${ICON.file(16)} Export my data</button>
     <button class="btn danger" style="margin-top:10px" onclick="signOut()">${ICON.x(16)} Sign out</button>
+    <button class="btn danger" style="margin-top:10px" onclick="confirmDeleteCloudData()">${ICON.trash(16)} Delete all cloud data</button>
     <div class="spacer"></div>
   `);
 }
