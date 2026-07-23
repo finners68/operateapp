@@ -373,6 +373,8 @@ function viewTrip(id){
       </div>`:''}` : `<div class="card" style="text-align:center;color:var(--text-2);padding:22px">${ICON.check(24)}<div style="margin-top:6px;font-weight:650">Tour complete 🎧</div></div>`}
     </div>
 
+    ${tourContacts(r).length?`<div class="section"><button class="btn secondary" onclick="openTourContacts('${r.key}')">${ICON.users(17)} Key contacts · ${tourContacts(r).length}</button></div>`:''}
+
     <!-- 2) DAY TIMELINE — each day is its own dropdown, collapsed by default -->
     <div class="section">
       <div class="section-head"><div class="section-title">Day timeline</div><div class="section-link">${r.shows.length} day${r.shows.length!==1?'s':''}</div></div>
@@ -439,6 +441,34 @@ function saveTrip(tid){
    ============================================================ */
 function startTripFromShow(showId){ store.activeShowId=showId; persist(); overlay=null; store.tab='home'; render({ resetScroll: true }); toast('Trip Mode on','play'); }
 function endTripMode(){ confirmSheet('End Trip Mode?','This turns off the live tour view. Nothing is deleted.','End Trip Mode',()=>{ store.activeShowId=null; persist(); overlay=null; store.tab='home'; render(); toast('Trip Mode off','flag'); }); }
+/* Every callable contact saved across a tour's shows — Artist Liaison,
+   drivers (even route-TBD ones) and key contacts — each with its title so
+   it's obvious who you're phoning. */
+function tourContacts(run){
+  const out=[];
+  run.shows.forEach(s=>{
+    const show = cleanVenue(s.venue)||s.city||'Show';
+    if(s.promoter && (s.promoter.phone||s.promoter.whatsapp)) out.push({show, label:'Artist Liaison', name:s.promoter.name||'', phone:s.promoter.phone||'', whatsapp:s.promoter.whatsapp||''});
+    showDrivers(s).forEach(d=>{ if(d.noGround) return; if(d.phone||d.whatsapp) out.push({show, label:(d.journey||'Driver')+(d.time?' · '+d.time:''), name:d.name||'', phone:d.phone||'', whatsapp:d.whatsapp||''}); });
+    (s.contacts||[]).forEach(c=>{ if(c.phone||c.whatsapp) out.push({show, label:c.role||'Contact', name:c.name||'', phone:c.phone||'', whatsapp:c.whatsapp||''}); });
+  });
+  return out;
+}
+function openTourContacts(runKey){
+  const run=runOf(runKey); if(!run) return;
+  const list=tourContacts(run);
+  if(!list.length){ toast('No contacts saved on these shows yet','x'); return; }
+  const byShow={}; list.forEach(c=>{ (byShow[c.show]=byShow[c.show]||[]).push(c); });
+  const multi=Object.keys(byShow).length>1;
+  const body=Object.entries(byShow).map(([show,cs])=>`
+    ${multi?`<div class="prio-head" style="margin:14px 4px 8px"><span class="pd" style="background:var(--accent-2)"></span>${esc(show)}</div>`:''}
+    <div class="card flush">${cs.map(c=>`<div class="info-line info-line-stacked"><div class="ic">${ICON.user(17)}</div>
+      <div class="tx" style="flex:1;min-width:0">${detailParts(esc(c.name||c.label), esc(c.label), c.phone?esc(c.phone):'')}</div>
+      ${(c.whatsapp||c.phone)?`<button class="header-btn" style="width:34px;height:34px;align-self:center" onclick="whatsapp('${esc(c.whatsapp||c.phone)}')">${ICON.chat(15)}</button>`:''}
+      ${c.phone?`<button class="header-btn" style="width:34px;height:34px;align-self:center" onclick="callNumber('${esc(c.phone)}')">${ICON.phone(15)}</button>`:''}
+    </div>`).join('')}</div>`).join('');
+  openSheet('Key contacts', body+'<div class="spacer"></div>');
+}
 function completeRunStep(runKey, stepId){
   if(stepId.startsWith('set_')){ const sh=sel.event(stepId.slice(4)); if(sh){ sh.setDone=!sh.setDone; } }
   else if(stepId.startsWith('shhotel_')){ const sh=sel.event(stepId.slice(8)); if(sh&&sh.hotel){ sh.hotel.done=!sh.hotel.done; } }
