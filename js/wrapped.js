@@ -54,9 +54,12 @@ function viewWrapped(){
       </section></div>`;
   }
 
+  const totMin = y.stageMins||0;
+  const hH = Math.round(totMin/60), hM = totMin, hS = totMin*60;
+  const recap = (l,v)=>`<div><b>${v}</b><span>${l}</span></div>`;
   const slide = (i, vars, inner, dur) => `<section class="wr-slide" data-i="${i}" data-dur="${dur||5200}" style="--g1:${vars[0]};--g2:${vars[1]}">${inner}</section>`;
 
-  const slides = [
+  const slideArr = [
     // 0 — intro
     slide(0, ['#2c2060','#161230'],
       `<div class="wr-eyebrow r" style="color:var(--accent-2)">Operate · Year in review</div>
@@ -68,7 +71,7 @@ function viewWrapped(){
       `<div class="wr-eyebrow r">You played</div>
        <div class="wr-big r" data-count="${y.shows}">0</div>
        <div class="wr-word r">SHOWS</div>
-       ${y.topCity?`<div class="wr-lede r">most often in <b>${esc(y.topCity)}</b></div>`:''}`),
+       <div class="wr-lede r">across <b>${y.tours}</b> tour${y.tours===1?'':'s'} · <b>${y.daysOnRoad}</b> days on the road</div>`),
     // 2 — flight map + km
     slide(2, ['#0f1f3d','#141230'],
       `<canvas class="wr-map" id="wr-map"></canvas>
@@ -77,22 +80,49 @@ function viewWrapped(){
          <div class="wr-eyebrow r">You flew</div>
          <div class="wr-big r" data-count="${y.km}" data-suffix=" km">0</div>
          ${kmScale?`<div class="wr-lede r">${esc(kmScale)}</div>`:''}
-         ${longest?`<div class="wr-chip r">Longest hop · ${esc(longest)}</div>`:''}
+         <div class="wr-chip r">${y.flights} flights · ${y.airports} airports${longest?` · longest ${esc(y.longest.from)}→${esc(y.longest.to)}`:''}</div>
        </div>`, 7200),
-    // 3 — countries
+    // 3 — countries & cities
     slide(3, ['#3a1638','#1b1230'],
       `<div class="wr-eyebrow r">You touched down in</div>
        <div class="wr-big r" data-count="${y.countries}">0</div>
        <div class="wr-word r">COUNTRIES</div>
+       <div class="wr-lede r"><b>${y.cities}</b> different cities</div>
        <div class="wr-flags r">${flags.map((f,i)=>`<span style="--d:${i*0.06}s">${f}</span>`).join('')||''}</div>`),
-    // 4 — hours played
+    // 4 — hours behind the decks: h / m / s
     slide(4, ['#20184a','#151228'],
-      `<div class="wr-eyebrow r">On the decks</div>
-       <div class="wr-big r" data-count="${y.stageHrs}" data-suffix="h">0</div>
-       <div class="wr-word r">HOURS PLAYED</div>
-       ${y.busiestMonth?`<div class="wr-lede r">busiest in <b>${esc(y.busiestMonth)}</b></div>`:''}`),
-    // 5 — outro
-    slide(5, ['#2c2060','#120f26'],
+      `<div class="wr-eyebrow r">Behind the decks</div>
+       <div class="wr-hms">
+         <div class="r"><b data-count="${hH}">0</b><span>hours</span></div>
+         <div class="r"><b data-count="${hM}">0</b><span>minutes</span></div>
+         <div class="r"><b data-count="${hS}">0</b><span>seconds</span></div>
+       </div>`, 6200),
+    // 5 — highlights
+    slide(5, ['#12233f','#141230'],
+      `<div class="wr-eyebrow r">Highlights</div>
+       <div class="wr-hl r">
+         ${longest?`<div><span>Longest hop</span><b>${esc(y.longest.from)} → ${esc(y.longest.to)}</b><i>${Math.round(y.longest.km).toLocaleString()} km</i></div>`:''}
+         ${y.topCity?`<div><span>Home from home</span><b>${esc(y.topCity)}</b><i>${y.topCityN} show${y.topCityN===1?'':'s'}</i></div>`:''}
+         ${y.busiestMonth?`<div><span>Busiest month</span><b>${esc(y.busiestMonth)}</b><i>${y.busiestMonthN} show${y.busiestMonthN===1?'':'s'}</i></div>`:''}
+         <div><span>Nights away</span><b>${y.nights}</b><i>hotel stays</i></div>
+       </div>`, 7000),
+    // 6 — by the numbers
+    slide(6, ['#241a45','#141127'],
+      `<div class="wr-eyebrow r">${y.year} by the numbers</div>
+       <div class="wr-grid r">
+         ${recap('Shows', y.shows)}
+         ${recap('Km flown', y.km>0?y.km.toLocaleString():'—')}
+         ${recap('Flights', y.flights)}
+         ${recap('Airports', y.airports)}
+         ${recap('Countries', y.countries)}
+         ${recap('Cities', y.cities)}
+         ${recap('Hours played', y.stageHrs>0?y.stageHrs+'h':'—')}
+         ${recap('Nights away', y.nights)}
+         ${recap('Days on road', y.daysOnRoad)}
+         ${recap('Tours', y.tours)}
+       </div>`, 8000),
+    // 7 — outro
+    slide(7, ['#2c2060','#120f26'],
       `<div class="wr-eyebrow r" style="color:var(--accent-2)">That's a wrap, ${name?esc(name.split(' ')[0]):'legend'}</div>
        <div class="wr-summary r">
          <div><b>${y.shows}</b><span>shows</span></div>
@@ -101,10 +131,10 @@ function viewWrapped(){
          <div><b>${y.stageHrs>0?y.stageHrs+'h':'—'}</b><span>played</span></div>
        </div>
        <button class="wr-share r" onclick="event.stopPropagation();shareWrapped()">${ICON.share?ICON.share(17):''} Share your year</button>
-       <div class="wr-brand r">operate</div>`, 20000)
-  ].join('');
-
-  const bars = [0,1,2,3,4,5].map(i=>`<div class="wr-bar"><i></i></div>`).join('');
+       <div class="wr-brand r">operate</div>`, 30000)
+  ];
+  const slides = slideArr.join('');
+  const bars = slideArr.map(()=>`<div class="wr-bar"><i></i></div>`).join('');
 
   return `
   ${wrappedCSS()}
@@ -149,6 +179,22 @@ function wrappedCSS(){ return `<style>
   .wr-chip{margin-top:18px;font-size:13px;font-weight:700;color:#dcd6f6;background:rgba(255,255,255,.08);
     border:1px solid rgba(255,255,255,.14);border-radius:999px;padding:7px 14px;backdrop-filter:blur(6px)}
   .wr-flags{margin-top:26px;display:flex;flex-wrap:wrap;justify-content:center;gap:10px 12px;max-width:340px;font-size:32px;line-height:1}
+  /* hours h/m/s */
+  .wr-hms{display:flex;flex-direction:column;gap:22px;margin-top:14px}
+  .wr-hms>div{display:flex;flex-direction:column;align-items:center}
+  .wr-hms b{font-size:clamp(54px,16vw,88px);font-weight:900;letter-spacing:-.04em;line-height:.9;font-variant-numeric:tabular-nums;text-shadow:0 8px 40px rgba(139,125,255,.35)}
+  .wr-hms span{margin-top:3px;font-size:12px;font-weight:800;letter-spacing:.3em;text-transform:uppercase;color:#a99dff}
+  /* highlights */
+  .wr-hl{display:flex;flex-direction:column;gap:14px;margin-top:22px;width:100%;max-width:360px}
+  .wr-hl>div{background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);border-radius:16px;padding:15px 18px;text-align:left;display:flex;flex-direction:column;backdrop-filter:blur(6px)}
+  .wr-hl span{font-size:11px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:#a99dff}
+  .wr-hl b{font-size:23px;font-weight:850;margin-top:5px}
+  .wr-hl i{font-style:normal;font-size:13px;color:#b3aecb;margin-top:3px;font-weight:600}
+  /* recap grid */
+  .wr-grid{display:grid;grid-template-columns:1fr 1fr;gap:18px 20px;margin-top:24px;width:100%;max-width:380px}
+  .wr-grid>div{display:flex;flex-direction:column;align-items:flex-start;text-align:left}
+  .wr-grid b{font-size:32px;font-weight:900;letter-spacing:-.03em;line-height:1;font-variant-numeric:tabular-nums}
+  .wr-grid span{margin-top:4px;font-size:11px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:#a99dff}
   .wr-flags span{opacity:0;transform:scale(.4);animation:wrPop .5s cubic-bezier(.2,1.5,.4,1) forwards;animation-delay:calc(.5s + var(--d))}
   @keyframes wrPop{to{opacity:1;transform:none}}
   /* map slide */
@@ -336,19 +382,26 @@ function drawWrappedCanvas(y, name){
   const glow=g.createRadialGradient(W*0.8,H*0.1,0,W*0.8,H*0.1,W); glow.addColorStop(0,'rgba(139,125,255,.30)'); glow.addColorStop(1,'rgba(139,125,255,0)');
   g.fillStyle=glow; g.fillRect(0,0,W,H);
 
+  const PAD=90;
+  // header
+  let cy=168; g.textAlign='left';
+  g.fillStyle='#a99dff'; g.font='800 30px system-ui,-apple-system,sans-serif'; g.fillText('OPERATE · YEAR IN REVIEW', PAD, cy);
+  cy+=128; g.fillStyle='#f4f2fb'; g.font='900 172px system-ui,-apple-system,sans-serif'; g.fillText(String(y.year), PAD, cy);
+  if(name){ cy+=48; g.fillStyle='#d7d2f2'; g.font='700 42px system-ui,-apple-system,sans-serif'; g.fillText(name, PAD, cy); }
+
   // mini flight map band
   try{
     const { legs, nodes } = yearFlightLegs();
     if(legs.length){
-      const bx=70,by=470,bw=W-140,bh=430;
+      const bx=70,by=430,bw=W-140,bh=360;
       const proj=wrProject(legs,nodes,bw,bh);
       const home=(store.settings&&store.settings.homeAirport||'').toUpperCase();
       let li=0,lk=0; legs.forEach((l,i)=>{ if(l.km>lk){lk=l.km;li=i;} });
       g.save(); g.translate(bx,by);
       legs.forEach((l,idx)=>{ const [x1,y1]=proj(l.a),[x2,y2]=proj(l.b);
-        const mxp=(x1+x2)/2,myp=(y1+y2)/2,dist=Math.hypot(x2-x1,y2-y1),cy=myp-Math.min(150,dist*0.4)-14;
-        g.beginPath(); g.moveTo(x1,y1); g.quadraticCurveTo(mxp,cy,x2,y2);
-        const hot=idx===li; g.strokeStyle=hot?'rgba(255,150,214,0.95)':'rgba(150,132,255,0.6)'; g.lineWidth=hot?4:2.2;
+        const mxp=(x1+x2)/2,myp=(y1+y2)/2,dist=Math.hypot(x2-x1,y2-y1),cyy=myp-Math.min(130,dist*0.4)-12;
+        g.beginPath(); g.moveTo(x1,y1); g.quadraticCurveTo(mxp,cyy,x2,y2);
+        const hot=idx===li; g.strokeStyle=hot?'rgba(255,150,214,0.95)':'rgba(150,132,255,0.55)'; g.lineWidth=hot?4:2.2;
         g.shadowColor=hot?'rgba(255,120,200,.6)':'rgba(139,125,255,.5)'; g.shadowBlur=12; g.stroke(); g.shadowBlur=0; });
       nodes.forEach((ll,code)=>{ const [x,yv]=proj(ll); const ih=code===home;
         g.beginPath(); g.arc(x,yv,ih?7:5,0,Math.PI*2); g.fillStyle=ih?'#ffd27d':'#d3caff'; g.shadowColor='rgba(180,165,255,.8)'; g.shadowBlur=12; g.fill(); g.shadowBlur=0; });
@@ -356,27 +409,52 @@ function drawWrappedCanvas(y, name){
     }
   }catch(e){}
 
-  const PAD=90; let cy=170; g.textAlign='left';
-  g.fillStyle='#a99dff'; g.font='800 30px system-ui,-apple-system,sans-serif'; g.fillText('OPERATE · YEAR IN REVIEW', PAD, cy);
-  cy+=130; g.fillStyle='#f4f2fb'; g.font='900 180px system-ui,-apple-system,sans-serif'; g.fillText(String(y.year), PAD, cy);
-  cy+=52; if(name){ g.fillStyle='#d7d2f2'; g.font='700 42px system-ui,-apple-system,sans-serif'; g.fillText(name, PAD, cy); }
-
-  // stat rows below the map
-  let sy=1000;
   const EARTH=40075;
   const kmScale = y.km>=EARTH ? `${(y.km/EARTH).toFixed(1)}× around the planet` : y.km>0 ? `${Math.max(1,Math.round(y.km/EARTH*100))}% around the planet` : '';
-  const stat=(label,value,sub)=>{
-    g.fillStyle='#9b93c4'; g.font='800 26px system-ui,-apple-system,sans-serif'; g.fillText(label.toUpperCase(),PAD,sy); sy+=76;
-    g.fillStyle='#fff'; g.font='900 92px system-ui,-apple-system,sans-serif'; g.fillText(value,PAD,sy); sy+=(sub?44:92);
-    if(sub){ g.fillStyle='#b3aecb'; g.font='600 30px system-ui,-apple-system,sans-serif'; g.fillText(sub,PAD,sy); sy+=88; }
-  };
-  stat('Shows played', String(y.shows), y.topCity?('Most often in '+y.topCity):'');
-  stat('Kilometres flown', y.km>0?y.km.toLocaleString():'—', kmScale);
-  stat('Countries', String(y.countries), y.flags.slice(0,12).join(' '));
-  stat('Hours played', y.stageHrs>0?(y.stageHrs+'h'):'—', y.busiestMonth?('Busiest in '+y.busiestMonth):'');
+  const totMin=y.stageMins||0;
+
+  // full figure grid — every stat
+  const cells = [
+    ['Shows', String(y.shows)],
+    ['Km flown', y.km>0?y.km.toLocaleString():'—'],
+    ['Flights', String(y.flights)],
+    ['Airports', String(y.airports)],
+    ['Countries', String(y.countries)],
+    ['Cities', String(y.cities)],
+    ['Hours played', y.stageHrs>0?(y.stageHrs+'h'):'—'],
+    ['Nights away', String(y.nights)],
+    ['Days on road', String(y.daysOnRoad)],
+    ['Tours', String(y.tours)]
+  ];
+  const colX=[PAD, W/2+20]; const gy0=870, rowH=124;
+  cells.forEach((c,idx)=>{ const col=idx%2, row=(idx-col)/2; const x=colX[col], yy=gy0+row*rowH;
+    g.fillStyle='#9b93c4'; g.font='800 24px system-ui,-apple-system,sans-serif'; g.fillText(c[0].toUpperCase(), x, yy);
+    g.fillStyle='#fff'; g.font='900 66px system-ui,-apple-system,sans-serif'; g.fillText(c[1], x, yy+66);
+  });
+
+  // hours h/m/s band
+  let by2=gy0+5*rowH+30;
+  g.fillStyle='#a99dff'; g.font='800 24px system-ui,-apple-system,sans-serif'; g.fillText('BEHIND THE DECKS', PAD, by2);
+  by2+=52; g.fillStyle='#efeaff'; g.font='800 44px system-ui,-apple-system,sans-serif';
+  g.fillText(`${Math.round(totMin/60).toLocaleString()}h  ·  ${totMin.toLocaleString()} min  ·  ${(totMin*60).toLocaleString()} sec`, PAD, by2);
+
+  // highlights
+  let hy=by2+70;
+  const hl=[];
+  if(y.longest&&y.longest.km>0) hl.push(['Longest hop', `${y.longest.from} → ${y.longest.to} · ${Math.round(y.longest.km).toLocaleString()} km`]);
+  if(y.topCity) hl.push(['Home from home', `${y.topCity} · ${y.topCityN} show${y.topCityN===1?'':'s'}`]);
+  if(y.busiestMonth) hl.push(['Busiest month', `${y.busiestMonth} · ${y.busiestMonthN} show${y.busiestMonthN===1?'':'s'}`]);
+  if(kmScale) hl.push(['Distance', kmScale]);
+  hl.slice(0,4).forEach(h=>{
+    g.fillStyle='#8b83b8'; g.font='800 22px system-ui,-apple-system,sans-serif'; g.fillText(h[0].toUpperCase(), PAD, hy); hy+=38;
+    g.fillStyle='#e7e3f6'; g.font='700 32px system-ui,-apple-system,sans-serif'; g.fillText(h[1], PAD, hy); hy+=54;
+  });
+
+  // flags row
+  if(y.flags.length){ g.font='40px system-ui,-apple-system,sans-serif'; g.fillText(y.flags.slice(0,14).join(' '), PAD, Math.min(hy+10, H-150)); }
 
   g.textAlign='center'; g.fillStyle='#7169a0'; g.font='800 34px system-ui,-apple-system,sans-serif';
-  g.fillText('o p e r a t e', W/2, H-84);
+  g.fillText('o p e r a t e', W/2, H-70);
   return cv;
 }
 function shareWrapped(){

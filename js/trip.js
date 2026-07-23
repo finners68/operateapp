@@ -139,8 +139,15 @@ function resolvePlace(token, sh, city, role, legDate){
    address only when there's no venue name. */
 function venueMapQuery(sh){
   if(!sh) return '';
-  const name = cleanVenue(sh.venue);
-  const parts = name ? [name, sh.city, sh.country] : [sh.venueAddr, sh.city, sh.country];
+  let name = cleanVenue(sh.venue);
+  let city = sh.city, country = sh.country;
+  // If this show has no venue name, borrow it from another show on the same day
+  // (a transfer's "Venue" is wherever you're playing that date).
+  if(!name && sh.date && typeof store!=='undefined' && store.events){
+    const alt = store.events.find(e=>(e.kind||'show')==='show' && e.id!==sh.id && e.date===sh.date && cleanVenue(e.venue));
+    if(alt){ name = cleanVenue(alt.venue); city = city || alt.city; country = country || alt.country; }
+  }
+  const parts = name ? [name, city, country] : [sh.venueAddr, city, country];
   const seen = new Set();
   return parts
     .map(x=>(x||'').trim())

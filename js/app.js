@@ -768,8 +768,12 @@ function computeYearStats(){
   const otherNames=new Set();      // named countries with no ISO/flag mapping
 
   // Kilometres flown — great-circle sum of every flight leg with known airports.
-  let km=0, unknown=0, longest={km:0,from:'',to:''};
+  let km=0, unknown=0, flights=0, longest={km:0,from:'',to:''};
+  const airportSet=new Set();
   const addLeg=(from,to)=>{
+    flights++;
+    if(airportLL(from)) airportSet.add((from||'').toUpperCase());
+    if(airportLL(to)) airportSet.add((to||'').toUpperCase());
     const a=airportLL(from), b=airportLL(to);
     if(a&&b){ const d=haversineKm(a,b); km+=d; if(d>longest.km) longest={km:d,from:(from||'').toUpperCase(),to:(to||'').toUpperCase()}; }
     else if(from||to) unknown++;
@@ -802,14 +806,24 @@ function computeYearStats(){
   let topCity='', tc=0; Object.entries(cityCount).forEach(([k,v])=>{ if(v>tc){ tc=v; topCity=k; } });
   let busiestMonth='', bm=0; Object.entries(monthCount).forEach(([k,v])=>{ if(v>bm){ bm=v; busiestMonth=k; } });
 
+  // Extra counters for the year-in-review.
+  const citySet=new Set(); shows.forEach(s=>{ if(s.city) citySet.add(s.city.trim().toLowerCase()); });
+  let nights=0; const dateSet=new Set();
+  shows.forEach(s=>{ if(s.date) dateSet.add(s.date); });
+  store.events.forEach(e=>{ if((e.kind==='travel'||e.kind==='stay') && keep(e.date)){ if(e.date) dateSet.add(e.date); if(e.kind==='stay') nights++; } });
+  let tours=0; try{ (runs()||[]).forEach(r=>{ if(!scoped || String(r.start||'').slice(0,4)===String(yr) || String(r.end||'').slice(0,4)===String(yr)) tours++; }); }catch(e){}
+
   return {
     scopeLabel: scoped ? 'This year' : 'All time',
     year: yr,
     shows: shows.length,
     km: Math.round(km), unknownLegs: unknown,
+    flights, airports: airportSet.size,
+    cities: citySet.size,
+    nights, daysOnRoad: dateSet.size, tours,
     longest,
     countries: isoSet.size + otherNames.size, flags,
-    stageHrs: Math.round(stageMins/60),
+    stageMins, stageHrs: Math.round(stageMins/60),
     topCity, topCityN: tc, busiestMonth, busiestMonthN: bm
   };
 }
