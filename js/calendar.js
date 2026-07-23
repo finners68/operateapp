@@ -228,7 +228,7 @@ function itemButtons(l){
 }
 function setButtons(s){ const sh=sel.event(s.showId); const mq=tlMapsQuery(s); const b=[];
   if(mq) b.push(jbtn(ICON.map(15),'Venue',`openMaps('${esc(mq)}')`));
-  if(sh&&sh.promoter&&(sh.promoter.phone||sh.promoter.whatsapp)) b.push(jbtn(ICON.chat(15),'Promoter',`contactPromoter('${sh.id}')`,'call'));
+  if(sh&&sh.promoter&&(sh.promoter.phone||sh.promoter.whatsapp)) b.push(jbtn(ICON.chat(15),'Artist Liaison',`contactPromoter('${sh.id}')`,'call'));
   if(sh) b.push(jbtn(ICON.music(15),'Show details',`openView('event','${sh.id}')`));
   return b.join('');
 }

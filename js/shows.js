@@ -429,8 +429,8 @@ function venueSubsection(e){
   const body = `<div class="card flush">
     <div class="info-line" onclick="sheetVenueAddr('${e.id}')"><div class="ic">${ICON.pin(17)}</div>${fieldTx('Address', `<span class="addr-trunc">${esc(e.venueAddr || (e.city?cleanVenue(e.venue)+' · '+e.city+(e.country?', '+e.country:''):cleanVenue(e.venue)) || 'Tap to add')}</span>`)}
       <button class="header-btn" style="width:34px;height:34px;align-self:center" onclick="event.stopPropagation();openMaps('${esc(cleanVenue(e.venue)+' '+(e.venueAddr||e.city||''))}')">${ICON.map(17)}</button></div>
-    ${e.promoter?`<div class="info-line"><div class="ic">${ICON.user(17)}</div>${fieldTx('Promoter / Artist liaison', esc(e.promoter.name))}
-      ${(e.promoter.phone||e.promoter.whatsapp)?`<button class="btn secondary" style="width:auto;flex:0 0 auto;padding:9px 15px;font-size:13.5px;align-self:center;box-shadow:none" onclick="contactPromoter('${e.id}')">${ICON.chat(15)} Contact</button>`:`<button class="header-btn" style="width:34px;height:34px;align-self:center" onclick="sheetPromoter('${e.id}')">${ICON.edit(15)}</button>`}</div>`:`<div class="info-line" onclick="sheetPromoter('${e.id}')"><div class="ic">${ICON.plus(17)}</div><div class="tx"><div class="v" style="color:var(--accent-2)">Add promoter / artist liaison</div></div></div>`}
+    ${e.promoter?`<div class="info-line"><div class="ic">${ICON.user(17)}</div>${fieldTx('Artist Liaison', esc(e.promoter.name))}
+      ${(e.promoter.phone||e.promoter.whatsapp)?`<button class="btn secondary" style="width:auto;flex:0 0 auto;padding:9px 15px;font-size:13.5px;align-self:center;box-shadow:none" onclick="contactPromoter('${e.id}')">${ICON.chat(15)} Contact</button>`:`<button class="header-btn" style="width:34px;height:34px;align-self:center" onclick="sheetPromoter('${e.id}')">${ICON.edit(15)}</button>`}</div>`:`<div class="info-line" onclick="sheetPromoter('${e.id}')"><div class="ic">${ICON.plus(17)}</div><div class="tx"><div class="v" style="color:var(--accent-2)">Add artist liaison</div></div></div>`}
   </div>`;
   return showSubsection('Venue & liaison', '', body);
 }
@@ -824,7 +824,7 @@ function contactPromoter(eid){
   const e=sel.event(eid); const p=(e&&e.promoter)||{};
   const phone=p.phone||''; const wa=p.whatsapp||p.phone||'';
   if(!phone && !wa){ sheetPromoter(eid); return; }
-  openSheet('Contact promoter', `
+  openSheet('Contact artist liaison', `
     ${p.name?`<div class="hint" style="text-align:left;padding:0 2px 12px">${esc(p.name)}</div>`:''}
     ${wa?`<button class="btn" onclick="whatsapp('${esc(wa)}')">${ICON.chat(17)} Message on WhatsApp</button>`:''}
     ${phone?`<button class="btn secondary" style="margin-top:10px" onclick="callNumber('${esc(phone)}')">${ICON.phone(17)} Call</button>`:''}
@@ -967,7 +967,7 @@ function saveVenueAddr(eid){
 }
 function sheetPromoter(eid){
   const e=sel.event(eid); const p=e.promoter||{};
-  openSheet('Promoter / Artist liaison', `
+  openSheet('Artist Liaison', `
     <div class="field"><label>Name</label><input id="pr-name" class="input" value="${esc(p.name||'')}" placeholder="Lena"></div>
     <div class="field"><label>Phone</label><input id="pr-phone" type="tel" class="input" value="${esc(p.phone||'')}" placeholder="+31 6 99887766"></div>
     <div class="field"><label>WhatsApp (if different)</label><input id="pr-wa" type="tel" class="input" value="${esc(p.whatsapp||'')}" placeholder="+31 6 99887766"></div>
@@ -1232,7 +1232,7 @@ function buildDaySheet(e){
     if(d.noGround) contacts.push(`  Transport${tag} — No grounds, use Uber/taxi`);
     else if(d.name||d.phone) contacts.push(`  Driver${tag} — ${d.name||''} ${d.phone||''}`);
   });
-  if(e.promoter) contacts.push(`  Promoter — ${e.promoter.name||''} ${e.promoter.phone||e.promoter.whatsapp||''}`);
+  if(e.promoter) contacts.push(`  Artist Liaison — ${e.promoter.name||''} ${e.promoter.phone||e.promoter.whatsapp||''}`);
   if(contacts.length){ L.push(''); L.push('📞 CONTACTS'); contacts.forEach(x=>L.push(x)); }
   if(e.content){ L.push(''); L.push('🎬 CONTENT'); L.push(`  ${e.content}`); }
   if(c.gross){ L.push(''); L.push('💷 DEAL'); L.push(`  ${e.finance.dealType}: ${fmtMoney(c.gross,c.cur)} (${c.paid?'paid':'unpaid'})`); L.push(`  Net take-home: ${fmtMoney(c.net,c.cur)}`); }

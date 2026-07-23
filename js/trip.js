@@ -127,6 +127,12 @@ function tlMapsQuery(s){
   }
   if(s.kind==='travel'){
     if(it && it.kind==='travel') normalizeLogisticItem(it);
+    // Flights: navigate to the DEPARTURE airport — the first code in e.g. "MAN>IBZ"
+    if((s.icon||'plane')==='plane'){
+      let orig = (it&&it.from) ? String(it.from).trim() : '';
+      if(!orig){ const seg=String(s.title||'').split(/>|→/)[0]||''; const codes=seg.match(/[A-Za-z]{3}/g); orig = codes?codes[codes.length-1]:''; }
+      if(/^[A-Za-z]{3}$/.test(orig)) return orig.toUpperCase()+' airport';
+    }
     let dest = (it&&it.to) ? String(it.to).trim() : '';
     if(!dest){
       const parts=(s.title||'').split('>');

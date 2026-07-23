@@ -543,7 +543,7 @@ function eventMenu(eid){
       <button type="button" class="edit-section-btn" onclick="closeSheet(); sheetFlightInfo('${eid}')">${ICON.planeUp(16)}<span><b>Flight info</b><small>Number, gate, terminal</small></span></button>
       <button type="button" class="edit-section-btn" onclick="closeSheet(); sheetDriver('${eid}')">${ICON.car(16)}<span><b>Driver</b><small>Ground transport</small></span></button>
       <button type="button" class="edit-section-btn" onclick="closeSheet(); sheetVenueAddr('${eid}')">${ICON.pin(16)}<span><b>Venue & address</b><small>Location & maps</small></span></button>
-      <button type="button" class="edit-section-btn" onclick="closeSheet(); sheetPromoter('${eid}')">${ICON.users(16)}<span><b>Promoter</b><small>Local contact</small></span></button>
+      <button type="button" class="edit-section-btn" onclick="closeSheet(); sheetPromoter('${eid}')">${ICON.users(16)}<span><b>Artist Liaison</b><small>Show-day contact</small></span></button>
       <button type="button" class="edit-section-btn" onclick="closeSheet(); sheetAdvance('${eid}')">${ICON.file(16)}<span><b>Advance</b><small>Stage, catering, access</small></span></button>
       <button type="button" class="edit-section-btn" onclick="closeSheet(); sheetFinance('${eid}')">${ICON.coins(16)}<span><b>Deal</b><small>Fee, expenses, paid</small></span></button>
       <button type="button" class="edit-section-btn" onclick="closeSheet(); sheetShowTimeline('${eid}')">${ICON.clock(16)}<span><b>Day timeline</b><small>Schedule steps</small></span></button>
