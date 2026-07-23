@@ -107,6 +107,12 @@ async function onSignedIn(user){
   authUser = user;
   hideAuthSheet();
   try{
+    // Accept an invite link (?invite=token) before loading data so the joined
+    // org is picked up. Never let this break sign-in.
+    try{
+      const inviteToken = new URLSearchParams(location.search).get('invite');
+      if(inviteToken){ await acceptInvite(inviteToken); history.replaceState({}, '', location.pathname); }
+    }catch(e){}
     await bootstrapRemoteData();
     startRealtime(currentOrgId);
     syncSetStatus('synced');
@@ -128,6 +134,55 @@ async function onSignedIn(user){
 
 function bootApp(){
   if(typeof boot === 'function') boot();
+}
+
+/* ---- Crew invites (migration 003) ---- */
+async function acceptInvite(token){
+  const sb = getSupabase();
+  if(!sb || !token) return null;
+  const { data, error } = await sb.rpc('accept_invite', { p_token: token });
+  if(error){
+    toast(error.message === 'email_mismatch' ? 'That invite is for a different email' : 'Invite invalid or already used', 'x');
+    return null;
+  }
+  setStoredOrgId(data);
+  toast('Joined the tour', 'check');
+  return data;
+}
+async function createInvite(email, role){
+  const sb = getSupabase();
+  if(!sb || !currentOrgId){ toast('Sign in first', 'x'); return null; }
+  const { data, error } = await sb.from('org_invites')
+    .insert({ org_id: currentOrgId, email: (email||'').trim().toLowerCase(), role: role || 'crew', invited_by: authUser?.id })
+    .select('token').single();
+  if(error){ toast('Could not create invite (owner/manager only)', 'x'); return null; }
+  return location.origin + location.pathname + '?invite=' + data.token;
+}
+function sheetInviteCrew(){
+  openSheet('Invite crew', `
+    <div class="field"><label>Email</label><input id="inv-email" type="email" class="input" placeholder="crew@example.com" autocomplete="email"></div>
+    <div class="field"><label>Role</label>
+      <div class="seg" id="inv-role">
+        <button data-v="crew" class="on" onclick="segPick(this)">Crew</button>
+        <button data-v="manager" onclick="segPick(this)">Manager</button>
+      </div>
+    </div>
+    <div class="hint" style="text-align:left;padding:2px 2px 10px;line-height:1.5">Crew can update day-of details (checklists, timeline, logistics, notes, ideas). Managers can edit everything.</div>
+    <button class="btn" id="inv-make" onclick="doCreateInvite()">Create invite link</button>
+    <div id="inv-out" style="margin-top:12px"></div>
+    <div class="spacer"></div>
+  `);
+}
+async function doCreateInvite(){
+  const email = val('inv-email');
+  if(!email){ toast('Enter an email', 'x'); return; }
+  const role = getSeg('inv-role') || 'crew';
+  const link = await createInvite(email, role);
+  if(!link) return;
+  const out = document.getElementById('inv-out');
+  if(out) out.innerHTML = `<div class="hint" style="text-align:left;padding:0 2px 8px">Send this link to ${esc(email)} — they sign in with this email to join:</div>
+    <div class="card" style="word-break:break-all;font-size:12.5px;color:var(--text-2);padding:12px">${esc(link)}</div>
+    <button class="btn secondary" style="margin-top:10px" onclick="copyText('${jsAttr(link)}');toast('Link copied','check')">${ICON.copy(16)} Copy link</button>`;
 }
 
 async function signOut(){
@@ -239,8 +294,9 @@ function sheetAccount(){
       <div style="font-size:16px;font-weight:700;margin-top:4px">${esc(email)}</div>
       <div style="font-size:13px;color:var(--text-2);margin-top:4px" id="sync-status">${syncStatusLabel()}</div>
     </div>
-    <div class="hint" style="text-align:left;padding:8px 2px 14px;line-height:1.5">${isSingleAccountMode() ? 'Tour data syncs to the single linked account only.' : 'Your tour data syncs across devices when signed in with the same org. Crew members are read-only.'}</div>
-    <button class="btn secondary" onclick="syncPullNow()">${ICON.reminder(16)} Refresh now</button>
+    <div class="hint" style="text-align:left;padding:8px 2px 14px;line-height:1.5">${isSingleAccountMode() ? 'Tour data syncs to the single linked account only.' : 'Your tour data syncs across devices signed into the same org. Invite crew to collaborate — crew can update day-of details, managers can edit everything.'}</div>
+    ${isSingleAccountMode() ? '' : `<button class="btn secondary" onclick="sheetInviteCrew()">${ICON.users(16)} Invite crew</button>`}
+    <button class="btn secondary" style="margin-top:10px" onclick="syncPullNow()">${ICON.reminder(16)} Refresh now</button>
     <button class="btn danger" style="margin-top:10px" onclick="signOut()">${ICON.x(16)} Sign out</button>
     <div class="spacer"></div>
   `);

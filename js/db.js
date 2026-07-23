@@ -276,9 +276,20 @@ async function ensureOrgForUser(){
 
   if(getAllowedUserId() || getFixedOrgId()) throw new Error('not_linked_to_dev_org');
 
-  const { data: org, error: orgErr } = await sb.from('orgs').insert({ name: 'My Tour' }).select('id').single();
-  if(orgErr) throw orgErr;
-  await sb.from('org_members').insert({ org_id: org.id, user_id: user.id, role: 'owner' });
+  // Prefer the SECURITY DEFINER RPC (migration 003) which creates the org and
+  // owner membership atomically; fall back to the direct inserts if the RPC
+  // isn't deployed yet.
+  let newOrgId = null;
+  const { data: rpcOrg, error: rpcErr } = await sb.rpc('create_org', { p_name: 'My Tour' });
+  if(!rpcErr && rpcOrg){
+    newOrgId = rpcOrg;
+  } else {
+    const { data: org, error: orgErr } = await sb.from('orgs').insert({ name: 'My Tour' }).select('id').single();
+    if(orgErr) throw orgErr;
+    await sb.from('org_members').insert({ org_id: org.id, user_id: user.id, role: 'owner' });
+    newOrgId = org.id;
+  }
+  const org = { id: newOrgId };
   const local = db.read();
   const settings = (local && local.settings) ? local.settings : {};
   await sb.from('org_settings').upsert({

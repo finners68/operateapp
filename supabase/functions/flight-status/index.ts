@@ -16,6 +16,10 @@ Deno.serve(async (req) => {
   const { data: { user }, error: authErr } = await supabase.auth.getUser();
   if (authErr || !user) return jsonResponse({ error: 'unauthorized' }, 401);
 
+  // Rate limit (migration 003). Fail-open if the RPC isn't deployed yet.
+  const { data: rateOk } = await supabase.rpc('rate_ok', { p_kind: 'flight_status', p_limit: 60, p_window: '1 hour' });
+  if (rateOk === false) return jsonResponse({ error: 'rate_limited', found: false }, 429);
+
   const apiKey = Deno.env.get('FLIGHT_API_KEY');
   if (!apiKey) return jsonResponse({ error: 'no_key', found: false });
 

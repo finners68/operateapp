@@ -19,6 +19,10 @@ Deno.serve(async (req) => {
   const { data: { user }, error: authErr } = await supabase.auth.getUser();
   if (authErr || !user) return jsonResponse({ error: 'unauthorized' }, 401);
 
+  // Rate limit (migration 003). Fail-open if the RPC isn't deployed yet.
+  const { data: rateOk } = await supabase.rpc('rate_ok', { p_kind: 'scan_itinerary', p_limit: 40, p_window: '24 hours' });
+  if (rateOk === false) return jsonResponse({ error: 'rate_limited' }, 429);
+
   const openaiKey = Deno.env.get('OPENAI_API_KEY');
   if (!openaiKey) return jsonResponse({ error: 'no_key' });
 
@@ -27,6 +31,7 @@ Deno.serve(async (req) => {
 
   const image = body.image || '';
   if (!image.startsWith('data:')) return jsonResponse({ error: 'bad_image' }, 400);
+  if (image.length > 8_000_000) return jsonResponse({ error: 'image_too_large' }, 413);  // ~6MB image
 
   try {
     const res = await fetch('https://api.openai.com/v1/chat/completions', {
@@ -50,8 +55,8 @@ Deno.serve(async (req) => {
     });
 
     if (!res.ok) {
-      const err = await res.text();
-      return jsonResponse({ error: 'openai_failed', detail: err.slice(0, 200) }, 502);
+      await res.text().catch(() => '');   // drain; do not leak upstream error text to clients
+      return jsonResponse({ error: 'openai_failed' }, 502);
     }
 
     const data = await res.json();
