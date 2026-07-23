@@ -358,6 +358,7 @@ async function pushToSupabase(orgId){
   if(!sb) return;
   dbSyncInProgress = true;
   syncSetStatus('syncing');
+  if(typeof syncDirty !== 'undefined') syncDirty = false;  // capturing current state
   try{
     const org = orgId;
     const shows = store.events.filter(e => (e.kind || 'show') === 'show');
@@ -514,9 +515,16 @@ async function pushToSupabase(orgId){
     const localFlightPassIds = new Set();
     shows.forEach(s => (s.flights || []).forEach(f => (f.passes || []).forEach(p => { if(p.id) localFlightPassIds.add(p.id); })));
 
+    // Only delete a remote row if THIS device knew about it and it is now gone
+    // locally (an intentional delete). Rows created on another device that we
+    // haven't merged yet are absent from `_known`, so we never delete them —
+    // this is what prevents cross-device / offline data loss.
+    const known = new Set(store._known || []);
     async function deleteOrphans(table, localSet){
       const { data: rows } = await sb.from(table).select('legacy_id').eq('org_id', org);
-      const orphans = (rows || []).filter(r => !localSet.has(r.legacy_id)).map(r => r.legacy_id);
+      const orphans = (rows || [])
+        .filter(r => !localSet.has(r.legacy_id) && known.has(r.legacy_id))
+        .map(r => r.legacy_id);
       if(orphans.length) await sb.from(table).delete().eq('org_id', org).in('legacy_id', orphans);
     }
     await deleteOrphans('shows', localShowIds);
@@ -527,13 +535,25 @@ async function pushToSupabase(orgId){
     await deleteOrphans('show_files', localFileIds);
     await deleteOrphans('show_flight_passes', localFlightPassIds);
 
+    // Everything we just upserted is now "known" to this device.
+    store._known = [
+      ...localShowIds, ...localLogIds, ...localTripIds, ...localIdeaIds,
+      ...localNoteIds, ...localFileIds, ...localFlightPassIds
+    ];
+
     db.write(store);
     syncSetStatus('synced');
     syncMarkLastSync();
     lastPushAt = Date.now();
+    // A change arrived while we were pushing → push again shortly.
+    if(typeof syncDirty !== 'undefined' && syncDirty && typeof scheduleSyncRetry === 'function') scheduleSyncRetry(400);
+    else if(typeof syncRetryDelay !== 'undefined') syncRetryDelay = 0;   // reset backoff on success
   }catch(e){
     console.error('pushToSupabase', e);
     syncSetStatus('error');
+    // Keep the change pending and retry with backoff (offline/flaky signal).
+    if(typeof syncDirty !== 'undefined') syncDirty = true;
+    if(typeof scheduleSyncRetry === 'function') scheduleSyncRetry();
   }finally{
     dbSyncInProgress = false;
   }
@@ -702,6 +722,20 @@ async function loadFromSupabase(orgId){
       itineraries: st.itineraries || [],
       packing: st.packing || []
     };
+
+    // Record every id we just loaded as "known" — orphan-cleanup only deletes
+    // rows that were known here and then removed locally, never rows created
+    // on another device that we simply haven't merged.
+    const knownIds = [];
+    store.events.forEach(e => { knownIds.push(e.id);
+      (e.attachments || []).forEach(a => a.id && knownIds.push(a.id));
+      (e.flights || []).forEach(f => (f.passes || []).forEach(p => p.id && knownIds.push(p.id)));
+      (e.passes || []).forEach(p => p.id && knownIds.push(p.id));
+    });
+    (store.trips || []).forEach(t => knownIds.push(t.id));
+    (store.ideas || []).forEach(x => knownIds.push(x.id));
+    (store.notes || []).forEach(x => knownIds.push(x.id));
+    store._known = knownIds;
 
     // Resolve header / itinerary images in settings & itineraries
     if(store.settings.homeHeader && !store.settings.homeHeader.startsWith('data:') && !store.settings.homeHeader.startsWith('http')){

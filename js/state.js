@@ -127,7 +127,11 @@ const db = {
 
 /* ---------- Central store ---------- */
 let store = null;
-const uid = (p='id') => p + '_' + Math.random().toString(36).slice(2,10) + (store ? store._seq++ : 0);
+const uid = (p='id') => p + '_' + (
+  (typeof crypto !== 'undefined' && crypto.randomUUID)
+    ? crypto.randomUUID().replace(/-/g,'').slice(0,16)          // collision-resistant across offline devices
+    : Math.random().toString(36).slice(2,10)
+) + (store ? store._seq++ : 0);
 
 function persist(){ db.write(store); queueSync(); }
 function commit(){ persist(); render(); }

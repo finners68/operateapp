@@ -1,3 +1,21 @@
+/* ---------- Client error log (lightweight observability) ----------
+   Captures uncaught errors/rejections into a capped local ring buffer so
+   field failures are diagnosable; view with `operateErrors()` in the console.
+   Swap the sink for Sentry/a Supabase table when ready. */
+const ERRLOG_KEY = 'operate_errlog';
+function logClientError(kind, message, where){
+  try{
+    const log = JSON.parse(localStorage.getItem(ERRLOG_KEY) || '[]');
+    log.push({ t: new Date().toISOString(), kind, message: String(message||'').slice(0,500), where: String(where||'').slice(0,200), tab: (typeof store!=='undefined'&&store)?store.tab:null });
+    while(log.length > 50) log.shift();
+    localStorage.setItem(ERRLOG_KEY, JSON.stringify(log));
+  }catch(e){}
+}
+function operateErrors(){ try{ return JSON.parse(localStorage.getItem(ERRLOG_KEY) || '[]'); }catch(e){ return []; } }
+if(typeof window !== 'undefined'){
+  window.addEventListener('error', (e)=> logClientError('error', e.message, (e.filename||'')+':'+(e.lineno||'')));
+  window.addEventListener('unhandledrejection', (e)=> logClientError('promise', (e.reason && e.reason.message) || e.reason));
+}
 /* ---------- Boot ---------- */
 function boot(){
   const saved = db.read();

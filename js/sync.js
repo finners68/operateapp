@@ -36,12 +36,38 @@ function syncSetStatus(s){
 
 function syncMarkLastSync(){ syncLastSync = Date.now(); }
 
+let syncDirty = false;          // local changes not yet confirmed pushed
+let syncRetryTimer = null;
+let syncRetryDelay = 0;
 function queueSync(){
-  if(!syncActive() || dbRemoteLoading || dbSyncInProgress) return;
+  if(!syncActive()) return;
+  syncDirty = true;             // mark dirty even mid-sync so nothing is missed
+  if(dbRemoteLoading || dbSyncInProgress) return;
   clearTimeout(syncTimer);
   syncTimer = setTimeout(() => {
     if(currentOrgId) pushToSupabase(currentOrgId);
   }, 800);
+}
+/* Retry with backoff when a push fails (offline/flaky signal) or when a change
+   arrived while a push was in flight — so local edits are never silently lost. */
+function scheduleSyncRetry(delay){
+  if(delay == null){ syncRetryDelay = Math.min((syncRetryDelay || 2000) * 2, 60000); }
+  else { syncRetryDelay = delay; }
+  clearTimeout(syncRetryTimer);
+  syncRetryTimer = setTimeout(() => {
+    if(syncDirty && syncActive() && currentOrgId && !dbSyncInProgress && !dbRemoteLoading){
+      pushToSupabase(currentOrgId);
+    }
+  }, syncRetryDelay);
+}
+let syncRetryBound = false;
+function bindSyncRetry(){
+  if(syncRetryBound) return;
+  syncRetryBound = true;
+  const kick = () => { if(syncDirty && syncActive()) scheduleSyncRetry(500); };
+  window.addEventListener('online', kick);
+  window.addEventListener('focus', kick);
+  document.addEventListener('visibilitychange', () => { if(!document.hidden) kick(); });
 }
 
 function stopRealtime(){
@@ -106,6 +132,7 @@ function startRealtime(orgId){
   });
   realtimeChannel.subscribe();
   bindFocusReload();
+  bindSyncRetry();
 }
 
 async function syncPullNow(){
