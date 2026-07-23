@@ -103,7 +103,7 @@ function viewHome(){
     const hasContacts = !!(e.promoter&&(e.promoter.phone||e.promoter.whatsapp)) || showDrivers(e).some(d=>!d.noGround&&(d.phone||d.whatsapp)) || (e.contacts||[]).some(c=>c.phone||c.whatsapp);
     const hasTransport = showDrivers(e).length>0;
     const liaisonReach = e.promoter&&(e.promoter.phone||e.promoter.whatsapp);
-    const hasRem = (store.reminders||[]).some(r=>r.showId===e.id && !r.fired);
+    const hasRem = (store.reminders||[]).some(r=>r.showId===e.id && !r.fired && (r.kind||'manual')!=='usb');
     hero = `
       <div class="hero tap nextshow" onclick="openView('event','${e.id}')">
         <div class="hero-label">${ICON.music(14)} Next show · ${esc(relDay(e.date))}</div>
@@ -920,6 +920,7 @@ function sheetReminder(eid){
     : (!triggersSupported() ? `On this device reminders fire while Operate is open or backgrounded; delivery when fully closed isn't guaranteed (common on iPhone).` : ''));
   openSheet('Set a reminder', `
     ${existing?`<div class="hint" style="padding:0 2px 12px">A reminder is already set for this show. Pick a new time to replace it, or remove it below.</div>`:''}
+    <div class="field"><label>What to remind you of</label><input id="rem-note" class="input" placeholder="e.g. Bring your USB · check monitors" value="${existing?esc(existing.label||''):''}"></div>
     ${base!=null?`
       ${opt(0,'At set time')}
       ${opt(30,'30 min before set')}
@@ -936,7 +937,8 @@ function sheetReminder(eid){
   `);
 }
 function setShowReminder(eid, atMs, label){
-  scheduleReminder(eid, atMs, label).then(ok=>{ closeSheet(); renderView(); toast(ok?'Reminder set':'Saved — enable notifications to be pinged', ok?'reminder':'x'); });
+  const noteEl=document.getElementById('rem-note'); const note=noteEl?noteEl.value.trim():'';
+  scheduleReminder(eid, atMs, note||label).then(ok=>{ closeSheet(); renderView(); toast(ok?'Reminder set':'Saved — enable notifications to be pinged', ok?'reminder':'x'); });
 }
 function setShowReminderCustom(eid){
   const el=document.getElementById('rem-when'); const v=el?el.value:'';
