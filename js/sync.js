@@ -19,10 +19,11 @@ function syncStatusLabel(){
   if(isDevHardwireMode() && syncStatus === 'synced') return 'Dev · synced' + (syncLastSync ? ' · ' + timeAgo(syncLastSync) : '');
   if(isDevHardwireMode() && currentOrgId) return 'Dev · connected';
   if(!currentOrgId) return (isAuthRequired() || isSyncEnabled()) ? 'Sign in to sync' : 'Local only';
-  if(syncStatus === 'synced') return 'Synced' + (syncLastSync ? ' · ' + timeAgo(syncLastSync) : '');
   if(syncStatus === 'syncing') return 'Syncing…';
+  if(syncStatus === 'error') return (typeof syncDirty!=='undefined' && syncDirty) ? 'Not saved — will retry' : 'Sync error';
+  if(typeof syncDirty !== 'undefined' && syncDirty) return 'Unsaved changes…';
+  if(syncStatus === 'synced') return 'Synced' + (syncLastSync ? ' · ' + timeAgo(syncLastSync) : '');
   if(syncStatus === 'offline') return 'Offline · will retry';
-  if(syncStatus === 'error') return 'Sync error';
   return 'Connected';
 }
 
