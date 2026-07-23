@@ -5,6 +5,7 @@ function boot(){
   else { seed(); }
   restoreNavState();
   render();
+  if(typeof rehydrateBlobs==='function'){ rehydrateBlobs(store).then(()=>renderView()).catch(()=>{}); }
   if(appLockActive()) requireUnlock('app', ()=>render());
   initGestures();
   initKeyboard();

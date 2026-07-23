@@ -61,8 +61,45 @@ function mergePassesById(...lists){
 function passHasDisplayData(p){
   if(!p) return false;
   if(p._storagePath) return true;
+  if(p._idb) return true;
   const d = p.data;
   return typeof d === 'string' && d.length > 0 && (d.startsWith('data:') || d.startsWith('http'));
+}
+
+/* ============================================================
+   Local blob store (IndexedDB). Image/PDF bytes must NOT live in the single
+   localStorage JSON blob — one photo can blow iOS Safari's ~5MB quota, which
+   made setItem throw and silently drop the whole save (lost boarding passes).
+   The main store keeps only metadata; the bytes live here (large quota).
+   ============================================================ */
+const IDB_DB='operate-blobs', IDB_STORE='blobs'; let _idbP;
+function _idb(){
+  if(_idbP) return _idbP;
+  _idbP = new Promise((res,rej)=>{ try{
+    const r=indexedDB.open(IDB_DB,1);
+    r.onupgradeneeded=()=>{ try{ r.result.createObjectStore(IDB_STORE); }catch(e){} };
+    r.onsuccess=()=>res(r.result); r.onerror=()=>rej(r.error);
+  }catch(e){ rej(e); } });
+  return _idbP;
+}
+function idbSet(key,val){ return _idb().then(db=>new Promise((res,rej)=>{ const t=db.transaction(IDB_STORE,'readwrite'); t.objectStore(IDB_STORE).put(val,key); t.oncomplete=()=>res(); t.onerror=()=>rej(t.error); })).catch(()=>{}); }
+function idbGet(key){ return _idb().then(db=>new Promise((res)=>{ const t=db.transaction(IDB_STORE,'readonly'); const rq=t.objectStore(IDB_STORE).get(key); rq.onsuccess=()=>res(rq.result||null); rq.onerror=()=>res(null); })).catch(()=>null); }
+/* Visit every image/PDF attachment across the store. */
+function eachBlobAtt(state, fn){
+  (state && state.events || []).forEach(e=>{
+    (e.attachments||[]).forEach(fn);
+    (e.passes||[]).forEach(fn);
+    (e.flights||[]).forEach(f=>(f.passes||[]).forEach(fn));
+  });
+  (state && state.itineraries || []).forEach(it=>(it.imgs||[]).forEach(fn));
+}
+/* Copy any base64 bytes into IndexedDB and mark the attachment so we know to
+   rehydrate it. Bytes are stripped from the localStorage copy by db.write. */
+function stashBlobs(state){ eachBlobAtt(state, att=>{ if(att && att.id && typeof att.data==='string' && att.data.startsWith('data:')){ att._idb=true; idbSet(att.id, att.data); } }); }
+/* Pull bytes back out of IndexedDB into the in-memory store after a reload. */
+function rehydrateBlobs(state){
+  const jobs=[]; eachBlobAtt(state, att=>{ if(att && att._idb && (!att.data || !att.data.startsWith('data:'))){ jobs.push(idbGet(att.id).then(d=>{ if(d) att.data=d; })); } });
+  return Promise.all(jobs);
 }
 function mergePassesKeepLocal(remoteList, localList){
   const merged = mergePassesById(remoteList, localList);
@@ -128,8 +165,8 @@ function openPassByRef(itemId, passId, flightId){
   if(!p){ toast('Pass not found','x'); return; }
   if(p.kind === 'image'){
     if(!passHasDisplayData(p)){ toast('Pass not found','x'); return; }
-    if(p._storagePath && (!p.data || (!p.data.startsWith('data:') && !p.data.startsWith('http')))){
-      resolveAttachment(p).then(() => openViewer(p.data));
+    if((p._storagePath || p._idb) && (!p.data || (!p.data.startsWith('data:') && !p.data.startsWith('http')))){
+      resolveAttachment(p).then(() => p.data ? openViewer(p.data) : toast('Pass not found','x'));
       return;
     }
     openViewer(p.data);
@@ -183,6 +220,7 @@ async function signedUrlForPath(path){
 async function resolveAttachment(att){
   if(!att) return att;
   if(att._storagePath) att.data = await signedUrlForPath(att._storagePath);
+  else if(att._idb && (!att.data || !att.data.startsWith('data:'))){ const d = await idbGet(att.id); if(d) att.data = d; }
   else if(att.data && !att.data.startsWith('data:') && !att.data.startsWith('http'))
     att.data = await signedUrlForPath(att.data);
   return att;

@@ -112,7 +112,16 @@ const DB_KEY = 'artisthq.v2';
 const DB_BACKUP_KEY = DB_KEY + '.prelogistics';
 const db = {
   read(){ try{ return JSON.parse(localStorage.getItem(DB_KEY)); }catch(e){ return null; } },
-  write(state){ try{ localStorage.setItem(DB_KEY, JSON.stringify(state)); }catch(e){ toast('Storage full','x'); } },
+  write(state){
+    // Move image/PDF bytes to IndexedDB, and never write base64 data: URLs into
+    // localStorage — a single photo can exceed the quota and abort the whole save.
+    try{ if(typeof stashBlobs==='function') stashBlobs(state); }catch(e){}
+    // Strip base64 ONLY from attachments we've copied to IndexedDB (this._idb).
+    // `this` in a replacer is the object that owns the key, so siblings are visible.
+    const replacer = function(k,v){ return (k==='data' && this && this._idb && typeof v==='string' && v.startsWith('data:')) ? undefined : v; };
+    try{ localStorage.setItem(DB_KEY, JSON.stringify(state, replacer)); }
+    catch(e){ try{ localStorage.setItem(DB_KEY, JSON.stringify(state, replacer)); }catch(e2){ toast('Storage full','x'); } }
+  },
 };
 
 /* ---------- Central store ---------- */
