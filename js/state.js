@@ -579,10 +579,19 @@ function runTimeline(run){
     }
     if(!hasCar.has(s.id)){
       showDrivers(s).forEach(d=>{ if(!d.time) return;
+        // Carry the journey's endpoints (e.g. "Hotel → Venue") onto the ref so
+        // Maps/Route resolvers can find the real destination — the raw driver
+        // object only has `journey`, not from/to, which made them fall back to
+        // a bare city search.
+        const jp = String(d.journey||'').split(/→|->|>|–|-/).map(x=>x.trim()).filter(Boolean);
+        const jFrom = jp.length>1 ? jp[0] : '';
+        const jTo = jp.length>1 ? jp[jp.length-1] : '';
         rows.push({id:'shdrv_'+d.id, kind:'travel', icon:'car', date:s.date, time:d.time,
           title:d.journey||(d.noGround?'Transport':(d.name||'Driver')),
           sub:d.noGround?'No grounds — Uber/taxi':[d.name, d.phone].filter(Boolean).join(' · '),
-          done:!!d.done, embedded:true, ref:Object.assign({kind:'travel', icon:'car', showId:s.id, embedded:true}, d)});
+          done:!!d.done, embedded:true, ref:Object.assign({kind:'travel', icon:'car', showId:s.id, embedded:true}, d, {
+            from: jFrom, to: jTo, title: d.journey||'', legacyTitle: d.journey||''
+          })});
       });
     }
   });
