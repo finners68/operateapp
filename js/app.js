@@ -145,7 +145,7 @@ const TABS = [
   {id:'home', label:'Home', icon:'home', hint:'Dashboard — your next show and shortcuts'},
   {id:'calendar', label:'Calendar', icon:'calendar', hint:'Month view — day-by-day schedule'},
   {id:'shows', label:'Shows', icon:'music', hint:'Shows & tours — browse and manage everything'},
-  {id:'trips', label:'Tours', icon:'trips', hint:'Tour Mode — your live tour dashboard'},
+  {id:'trips', label:'Tour Mode', icon:'planeTop', hint:'Tour Mode — your live tour dashboard'},
   {id:'ideas', label:'Ideas', icon:'idea', hint:'Ideas & notes — content and free-form text'},
 ];
 let overlay = null; // {type, id} for detail views on top of a tab

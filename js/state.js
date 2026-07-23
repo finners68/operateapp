@@ -18,6 +18,7 @@ const ICON = {
   idea:      p=>I('<path d="M9 18h6M10 21h4M12 2a7 7 0 0 0-4 12.7c.6.5 1 1.3 1 2.1V17h6v-.2c0-.8.4-1.6 1-2.1A7 7 0 0 0 12 2Z"/>',p),
   note:      p=>I('<path d="M4 3h16v18l-4-3H4Z"/><path d="M8 8h8M8 12h6"/>',p),
   plane:     p=>I('<path d="M21 15.5 3.5 21l4-6.5L3 9l2-1 4 3 5.5-6.5 2 .5-3 7 5 1Z"/>',p),
+  planeTop:  (s=24)=>`<svg width="${s}" height="${s}" viewBox="0 0 24 24" fill="currentColor" stroke="none"><path d="M21 16v-2l-8-5V3.5c0-.83-.67-1.5-1.5-1.5S10 2.67 10 3.5V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5l8 2.5z"/></svg>`,
   planeUp:   p=>I('<path d="M12 2 4 14h5v8h6v-8h5Z"/>',p),
   bed:       p=>I('<path d="M3 8v11M3 13h18v6M21 19v-6a4 4 0 0 0-4-4H8"/><circle cx="7" cy="11" r="2"/>',p),
   pin:       p=>I('<path d="M12 21s7-6.5 7-12a7 7 0 1 0-14 0c0 5.5 7 12 7 12Z"/><circle cx="12" cy="9" r="2.5"/>',p),
