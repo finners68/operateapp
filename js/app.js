@@ -816,33 +816,15 @@ function computeYearStats(){
 function statTile(label, value, sub, color){
   return `<div class="card" style="padding:15px 16px"><div style="font-size:12px;color:${color||'var(--text-3)'};font-weight:700;text-transform:uppercase;letter-spacing:.04em">${label}</div><div style="font-size:26px;font-weight:850;letter-spacing:-0.02em;margin-top:4px">${value}</div>${sub?`<div style="font-size:12px;color:var(--text-3);font-weight:600;margin-top:1px">${sub}</div>`:''}</div>`;
 }
-/* The signature "this year" block — km flown (feature) + countries & hours played. */
-function yearStatsBlock(y){
-  if(!y) return '';
-  const EARTH = 40075; // equatorial circumference, km
+function viewStats(){
+  const st=computeStats();
+  const y=st.year||{};
+  const EARTH=40075;
   const kmVal = y.km>0 ? y.km.toLocaleString()+' km' : '—';
   const kmSub = y.km>=EARTH ? `≈ ${(y.km/EARTH).toFixed(1)}× around the world`
     : y.km>0 ? `≈ ${Math.max(1,Math.round(y.km/EARTH*100))}% around the world`
     : 'add flights to see';
-  const flagRow = y.flags.length
-    ? `<span style="font-size:15px;letter-spacing:2px">${y.flags.slice(0,12).join('')}</span>`
-    : 'played';
   const stageVal = y.stageHrs>0 ? y.stageHrs+'h' : '—';
-  return `
-  <div class="section">
-    <div class="section-head" style="margin-bottom:10px">
-      <div class="section-title">${esc(y.scopeLabel)}</div>
-      <button type="button" class="section-link" onclick="openView('wrapped')">Year in review ${ICON.chevR(13)}</button>
-    </div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
-      <div style="grid-column:1 / -1">${statTile('Kilometres flown', kmVal, kmSub, 'var(--blue)')}</div>
-      ${statTile('Countries played', y.countries, flagRow, 'var(--pink)')}
-      ${statTile('Hours played', stageVal, 'behind the decks', 'var(--accent-2)')}
-    </div>
-  </div>`;
-}
-function viewStats(){
-  const st=computeStats();
   return `
   <div class="detail-top"><div class="detail-bar">
     <button class="back-btn" onclick="back()">${ICON.chevL(20)} Settings</button>
@@ -855,9 +837,14 @@ function viewStats(){
       <div class="hero-venue" style="font-size:34px">${st.shows} shows</div>
       <div class="hero-city">${st.upcoming} upcoming · ${st.cities} cities · ${st.tours} tours</div>
     </div>
-    ${yearStatsBlock(st.year)}
     <div class="section">
+      <div class="section-head" style="margin-bottom:10px">
+        <div class="section-title">Snapshot</div>
+        <button type="button" class="section-link" onclick="openView('wrapped')">Year in review ${ICON.chevR(13)}</button>
+      </div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+        <div style="grid-column:1 / -1">${statTile('Kilometres flown', kmVal, kmSub, 'var(--blue)')}</div>
+        ${statTile('Hours played', stageVal, 'behind the decks', 'var(--accent-2)')}
         ${statTile('Flight time', st.flightHrs+'h', 'approx · ~'+st.flightDays+' days in the air', 'var(--blue)')}
         ${statTile('Days away', st.daysAway, 'across '+st.tours+' tours', 'var(--green)')}
         ${statTile('Flights', st.flights, st.hotels+' hotel stays', 'var(--accent-2)')}
