@@ -87,9 +87,36 @@ const AIRPORTS = {
   TUN:[36.8510,10.2272]
 };
 
+/* IATA -> ISO 3166-1 alpha-2 country, so a country can be inferred from a show's
+   flights when the country field itself was left blank. */
+const AIRPORT_CC = {
+  LHR:'GB',LGW:'GB',STN:'GB',LTN:'GB',LCY:'GB',MAN:'GB',BHX:'GB',EDI:'GB',GLA:'GB',BRS:'GB',NCL:'GB',LPL:'GB',LBA:'GB',BFS:'GB',EMA:'GB',ABZ:'GB',CWL:'GB',SOU:'GB',EXT:'GB',INV:'GB',DSA:'GB',SEN:'GB',BOH:'GB',NQY:'GB',
+  DUB:'IE',ORK:'IE',SNN:'IE',
+  CDG:'FR',ORY:'FR',NCE:'FR',LYS:'FR',MRS:'FR',TLS:'FR',BOD:'FR',NTE:'FR',
+  AMS:'NL',BRU:'BE',CRL:'BE',LUX:'LU',
+  FRA:'DE',MUC:'DE',DUS:'DE',CGN:'DE',HAM:'DE',BER:'DE',STR:'DE',HAJ:'DE',NUE:'DE',LEJ:'DE',BRE:'DE',
+  ZRH:'CH',GVA:'CH',BSL:'CH',VIE:'AT',SZG:'AT',INN:'AT',
+  MXP:'IT',LIN:'IT',BGY:'IT',FCO:'IT',CIA:'IT',VCE:'IT',NAP:'IT',BLQ:'IT',PSA:'IT',FLR:'IT',TRN:'IT',BRI:'IT',CTA:'IT',PMO:'IT',CAG:'IT',
+  BCN:'ES',MAD:'ES',AGP:'ES',PMI:'ES',IBZ:'ES',VLC:'ES',SVQ:'ES',BIO:'ES',ALC:'ES',GRX:'ES',SCQ:'ES',LPA:'ES',TFS:'ES',ACE:'ES',FUE:'ES',
+  LIS:'PT',OPO:'PT',FAO:'PT',FNC:'PT',
+  CPH:'DK',ARN:'SE',BMA:'SE',GOT:'SE',OSL:'NO',BGO:'NO',TRD:'NO',HEL:'FI',KEF:'IS',RIX:'LV',TLL:'EE',VNO:'LT',
+  PRG:'CZ',WAW:'PL',KRK:'PL',GDN:'PL',WRO:'PL',POZ:'PL',BUD:'HU',OTP:'RO',SOF:'BG',BEG:'RS',ZAG:'HR',SPU:'HR',DBV:'HR',ZAD:'HR',LJU:'SI',TIA:'AL',
+  ATH:'GR',SKG:'GR',JMK:'GR',JTR:'GR',HER:'GR',RHO:'GR',CFU:'GR',CHQ:'GR',
+  IST:'TR',SAW:'TR',AYT:'TR',ESB:'TR',ADB:'TR',DXB:'AE',AUH:'AE',DOH:'QA',TLV:'IL',RUH:'SA',JED:'SA',BAH:'BH',KWI:'KW',MCT:'OM',AMM:'JO',BEY:'LB',
+  JFK:'US',LGA:'US',EWR:'US',BOS:'US',PHL:'US',IAD:'US',DCA:'US',BWI:'US',ATL:'US',MIA:'US',FLL:'US',MCO:'US',TPA:'US',ORD:'US',MDW:'US',DTW:'US',MSP:'US',DEN:'US',LAS:'US',LAX:'US',SFO:'US',SJC:'US',OAK:'US',SAN:'US',SEA:'US',PDX:'US',PHX:'US',DFW:'US',IAH:'US',AUS:'US',MSY:'US',BNA:'US',CLT:'US',RDU:'US',SLC:'US',HNL:'US',
+  YYZ:'CA',YUL:'CA',YVR:'CA',YYC:'CA',YOW:'CA',YEG:'CA',YWG:'CA',YHZ:'CA',
+  MEX:'MX',CUN:'MX',GDL:'MX',PVR:'MX',BOG:'CO',MDE:'CO',LIM:'PE',SCL:'CL',EZE:'AR',AEP:'AR',GIG:'BR',GRU:'BR',BSB:'BR',MVD:'UY',UIO:'EC',PTY:'PA',SJO:'CR',HAV:'CU',
+  NRT:'JP',HND:'JP',KIX:'JP',NGO:'JP',ICN:'KR',GMP:'KR',PEK:'CN',PKX:'CN',PVG:'CN',SHA:'CN',CAN:'CN',SZX:'CN',HKG:'HK',TPE:'TW',BKK:'TH',DMK:'TH',SIN:'SG',KUL:'MY',CGK:'ID',DPS:'ID',MNL:'PH',SGN:'VN',HAN:'VN',DEL:'IN',BOM:'IN',BLR:'IN',MAA:'IN',HYD:'IN',CMB:'LK',KTM:'NP',
+  SYD:'AU',MEL:'AU',BNE:'AU',PER:'AU',ADL:'AU',AKL:'NZ',WLG:'NZ',CHC:'NZ',NAN:'FJ',
+  CMN:'MA',RAK:'MA',CAI:'EG',CPT:'ZA',JNB:'ZA',DUR:'ZA',LOS:'NG',ABV:'NG',NBO:'KE',ADD:'ET',ACC:'GH',DAR:'TZ',TUN:'TN'
+};
 function airportLL(code){
   const c = (code||'').toString().trim().toUpperCase();
   return /^[A-Z]{3}$/.test(c) ? (AIRPORTS[c] || null) : null;
+}
+function airportCC(code){
+  const c = (code||'').toString().trim().toUpperCase();
+  return /^[A-Z]{3}$/.test(c) ? (AIRPORT_CC[c] || null) : null;
 }
 /* Great-circle distance in km between two [lat,lng] points (haversine). */
 function haversineKm(a, b){
