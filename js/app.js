@@ -246,7 +246,7 @@ function renderView(opts={}){
     else if(overlay.type==='invoice') v.innerHTML = viewInvoice(overlay.id);
     else if(overlay.type==='settings') v.innerHTML = viewSettings();
     else if(overlay.type==='stats') v.innerHTML = viewStats();
-    else if(overlay.type==='wrapped') v.innerHTML = viewWrapped();
+    else if(overlay.type==='wrapped'){ v.innerHTML = viewWrapped(); if(typeof initWrapped==='function') setTimeout(initWrapped, 0); }
     renderNav(); setFab();
     if(screen) screen.scrollTop = scrollY;
     return;
