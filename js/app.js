@@ -3,6 +3,7 @@ function boot(){
   const saved = db.read();
   if(saved && saved.events){ store = saved; if(store.tab==null) store.tab='home'; migrate(); }
   else { seed(); }
+  restoreNavState();
   render();
   if(appLockActive()) requireUnlock('app', ()=>render());
   initGestures();
@@ -12,7 +13,8 @@ function boot(){
   // on another tab, in an overlay/sheet, or when the app is backgrounded.
   const canTick = () => store.tab==='home' && !overlay && !sheetEl && !document.hidden;
   setInterval(()=>{ if(canTick()) tickCountdowns(); }, 30000);
-  document.addEventListener('visibilitychange', ()=>{ if(canTick()) tickCountdowns(); });
+  document.addEventListener('visibilitychange', ()=>{ if(document.hidden) saveNavState(); else if(canTick()) tickCountdowns(); });
+  window.addEventListener('pagehide', saveNavState);
 }
 
 const INTRO_KEY = 'operate_intro:';
@@ -146,18 +148,49 @@ const TABS = [
 ];
 let overlay = null; // {type, id} for detail views on top of a tab
 let navStack = []; // history of overlays for proper Back behaviour
-function go(tab){ navStack=[]; overlay=null; store.tab=tab; if(tab==='ideas') ideasStale=false; haptic(); persist(); render({ resetScroll: true }); }
+const NAV_KEY = 'operate_nav';
+/* Remember exactly where the user is (tab + open detail + history + scroll) so
+   closing and reopening the app lands on the same screen, not back at a tab root. */
+function saveNavState(){
+  try{ const screen=document.getElementById('screen');
+    localStorage.setItem(NAV_KEY, JSON.stringify({tab:store.tab, overlay, navStack, scrollY:screen?screen.scrollTop:0})); }catch(e){}
+}
+function loadNavState(){ try{ return JSON.parse(localStorage.getItem(NAV_KEY)||'null'); }catch(e){ return null; } }
+function restoreNavState(){
+  const ns=loadNavState(); if(!ns) return;
+  if(ns.tab) store.tab=ns.tab;
+  overlay = ns.overlay || null;
+  navStack = Array.isArray(ns.navStack) ? ns.navStack : [];
+  // Never auto-open a lock-protected screen on reopen
+  if(overlay && overlay.type==='finance' && typeof financeLockActive==='function' && financeLockActive()){ overlay=null; }
+  navStack = navStack.filter(o=>!(o&&o.type==='finance' && typeof financeLockActive==='function' && financeLockActive()));
+  if(ns.scrollY){ requestAnimationFrame(()=>{ const s=document.getElementById('screen'); if(s) s.scrollTop=ns.scrollY; }); }
+}
+function go(tab){ navStack=[]; overlay=null; store.tab=tab; if(tab==='ideas') ideasStale=false; haptic(); persist(); saveNavState(); render({ resetScroll: true }); }
 function openView(type, id){
   if(type==='finance' && financeLockActive()){ requireUnlock('finance', ()=>openView('finance', id)); return; }
   if(overlay) navStack.push(overlay);   // remember where we came from
-  overlay={type, id}; haptic(); renderView({ resetScroll: true });
+  overlay={type, id}; haptic(); saveNavState(); renderView({ resetScroll: true });
 }
 function back(){
   overlay = navStack.length ? navStack.pop() : null;   // step back one screen, not all the way out
-  renderView({ resetScroll: true });
+  saveNavState(); renderView({ resetScroll: true });
 }
 
+/* Which nav tab to highlight. Drilling into a detail keeps the section you
+   were in highlighted; a detail that IS another section (a tour) highlights
+   that section instead. */
+function activeNavTab(){
+  if(overlay){
+    if(overlay.type==='trip') return 'trips';
+    if(overlay.type==='event') return 'shows';
+    if(overlay.type==='idea') return 'ideas';
+    if(overlay.type==='note') return 'notes';
+  }
+  return store.tab;
+}
 function renderNav(){
+  const active = activeNavTab();
   $('#nav').innerHTML = `
     <div class="nav-brand">
       <span class="nav-brand-mark">O</span>
@@ -165,7 +198,7 @@ function renderNav(){
       <button type="button" class="nav-collapse header-btn" onclick="toggleSidebar(true)" title="Hide sidebar">${ICON.chevL(16)}</button>
     </div>
   ` + TABS.map(t=>`
-    <button class="nav-item ${store.tab===t.id&&!overlay?'active':''}" onclick="go('${t.id}')" title="${esc(t.hint)}">
+    <button class="nav-item ${active===t.id?'active':''}" onclick="go('${t.id}')" title="${esc(t.hint)}">
       <span class="ic">${ICON[t.icon](25)}</span><span>${t.label}</span>
     </button>`).join('');
 }

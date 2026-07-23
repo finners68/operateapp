@@ -216,7 +216,8 @@ function itemButtons(l){
     if(has){ b.push(jbtn(ICON.ticket(15),'Boarding pass',`viewItemPass('${l.id}')`,'pass'));
       if(passEditable()) b.push(jbtn(ICON.trash(15),'Remove',`delItemPass('${l.id}')`,'danger')); }
     else b.push(jbtnFile(ICON.ticket(15),'Add boarding pass',l.id,'pass')); }
-  if(isDriver){ if(l.noGround){ b.push(jbtn(ICON.car(15),'Uber/taxi',`openExternal('https://m.uber.com/','uber://')`,'call')); } else if(l.phone||l.whatsapp){ const w=l.whatsapp||l.phone; if(l.phone) b.push(jbtn(ICON.phone(15),'Call',`callNumber('${l.phone}')`,'call')); b.push(jbtn(ICON.chat(15),'Message',`whatsapp('${w}')`,'call')); } else if(!emb){ b.push(jbtn(ICON.user(15),'Add contact',`openItem('${l.id}')`)); } }
+  if(isDriver){ if(l.noGround){ b.push(jbtn(ICON.car(15),'Uber/taxi',`openExternal('https://m.uber.com/','uber://')`,'call')); } else if(l.phone||l.whatsapp){ const w=l.whatsapp||l.phone; if(l.phone) b.push(jbtn(ICON.phone(15),'Call',`callNumber('${l.phone}')`,'call')); b.push(jbtn(ICON.chat(15),'Message',`whatsapp('${w}')`,'call')); } else if(!emb){ b.push(jbtn(ICON.user(15),'Add contact',`openItem('${l.id}')`)); }
+    if(l.showId) b.push(jbtn(ICON.users(15),'Key contacts',`openTourContacts('${l.showId}')`)); }
   if(emb){ const sh2=l.showId?sel.event(l.showId):null; if(sh2) b.push(jbtn(ICON.music(15),'Show',`openView('event','${sh2.id}')`)); }
   if(l.kind==='stay' && l.bookingRef){ b.push(jbtn(ICON.copy(15),'Ref '+esc(l.bookingRef),`copyText('${esc(l.bookingRef)}')`,'pass')); }
   // Driver/transfer legs open turn-by-turn directions (origin -> destination); other legs search the destination place.

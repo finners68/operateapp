@@ -156,6 +156,7 @@ function stepPills(s){
     if(s.kind==='travel' && d.icon==='car'){
       if(d.noGround) pills.push(`<div class="pill" onclick="event.stopPropagation();openExternal('https://m.uber.com/','uber://')"><div class="ic">${ICON.car(16)}</div><div class="tx"><b>Uber/taxi</b><span>No grounds</span></div></div>`);
       else { const wa=d.whatsapp||d.phone||''; if(wa) pills.push(`<div class="pill" onclick="event.stopPropagation();whatsapp('${esc(wa)}')"><div class="ic">${ICON.chat(16)}</div><div class="tx"><b>Message</b><span>WhatsApp</span></div></div>`); if(d.phone) pills.push(`<div class="pill" onclick="event.stopPropagation();callNumber('${esc(d.phone)}')"><div class="ic">${ICON.phone(16)}</div><div class="tx"><b>Call</b><span>Now</span></div></div>`); }
+      if(sh) pills.push(`<div class="pill" onclick="event.stopPropagation();openTourContacts('${sh.id}')"><div class="ic">${ICON.users(16)}</div><div class="tx"><b>Key contacts</b><span>Call someone</span></div></div>`);
       if(mq) pills.push(mapPill('Destination','Open in Maps'));
     } else if(mq){ pills.push(mapPill(s.kind==='stay'?'Hotel':'Maps','Open in Maps')); }
     if(sh) pills.push(`<div class="pill" onclick="event.stopPropagation();openView('event','${sh.id}')"><div class="ic">${ICON.music(16)}</div><div class="tx"><b>Show</b><span>All details</span></div></div>`);
@@ -177,6 +178,7 @@ function stepPills(s){
         pills.push(`<div class="pill" onclick="event.stopPropagation();callNumber('${esc(phone)}')"><div class="ic">${ICON.phone(16)}</div><div class="tx"><b>Call driver</b><span>Now</span></div></div>`); }
       else if(sh&&showDrivers(sh).length){ pills.push(`<div class="pill" onclick="event.stopPropagation();showTransport('${sh.id}')"><div class="ic">${ICON.car(16)}</div><div class="tx"><b>Transport</b><span>View</span></div></div>`); }
       else { pills.push(`<div class="pill" onclick="event.stopPropagation();openItem('${it.id}')"><div class="ic">${ICON.car(16)}</div><div class="tx"><b>Driver</b><span>Add contact</span></div></div>`); }
+      if(sh) pills.push(`<div class="pill" onclick="event.stopPropagation();openTourContacts('${sh.id}')"><div class="ic">${ICON.users(16)}</div><div class="tx"><b>Key contacts</b><span>Call someone</span></div></div>`);
       if(mq) pills.push(mapPill('Destination','Open in Maps'));
     }
   } else if(s.kind==='stay'){
