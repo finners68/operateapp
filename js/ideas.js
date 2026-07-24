@@ -5,26 +5,62 @@ let ideaFilter = 'all';
 let selectedIdeaId = null;
 var ideasStale = false; // true once the tab has rendered — suppresses the entrance animation on re-render so nothing jumps
 let contentMode = 'ideas'; // 'ideas' | 'notes' — the two views under the merged Ideas / Notes section
-function setContentMode(m){ if(contentMode===m) return; contentMode=m; ideasStale=false; haptic(); if(typeof saveNavState==='function') saveNavState(); renderView(); }
+function setContentMode(m){
+  if(contentMode===m) return;
+  contentMode=m;
+  ideasStale=false;
+  haptic();
+  if(typeof saveNavState==='function') saveNavState();
+  if(typeof swapContentModePanel==='function' && swapContentModePanel()) return;
+  renderView();
+}
 function goNotes(){ contentMode='notes'; go('ideas'); }
+function contentModeMeta(){
+  const isNotes = contentMode==='notes';
+  return {
+    sub: isNotes ? notesSub() : ideasSub(),
+    headBtn: `<button class="header-btn" onclick="${isNotes?'sheetNote()':'sheetIdea()'}">${ICON.plus(22)}</button>`
+  };
+}
+function contentModePanelInner(){
+  const isNotes = contentMode==='notes';
+  return `${isNotes?notesControls():ideasControls()}<div class="section" style="margin-top:8px">${isNotes?notesListBody():ideasListBody()}</div>`;
+}
+function refreshContentModeChrome(){
+  const meta = contentModeMeta();
+  const sub = document.getElementById('content-mode-sub');
+  const actions = document.getElementById('content-mode-actions');
+  if(sub) sub.textContent = meta.sub;
+  if(actions) actions.innerHTML = meta.headBtn;
+  if(typeof syncSeg==='function') syncSeg('content-mode-seg', contentMode);
+}
+function swapContentModePanel(){
+  const panel = document.getElementById('content-mode-panel');
+  if(!panel || store.tab !== 'ideas' || overlay) return false;
+  deselectIdea();
+  panel.innerHTML = contentModePanelInner();
+  refreshContentModeChrome();
+  setFab();
+  return true;
+}
 /* Merged Ideas / Notes tab — 50/50 toggle switches the view. */
 function viewContentTab(){
   deselectIdea();
+  const meta = contentModeMeta();
   const isNotes = contentMode==='notes';
-  const seg = `<div class="seg" style="margin-top:10px">
-      <button class="${isNotes?'':'on'}" onclick="setContentMode('ideas')">${ICON.idea(15)} Ideas</button>
-      <button class="${isNotes?'on':''}" onclick="setContentMode('notes')">${ICON.note(15)} Notes</button>
-    </div>`;
   return `
-  <div class="lg-header">
-    <div><div class="lg-title">Ideas / Notes</div><div class="lg-sub">${isNotes?notesSub():ideasSub()}</div></div>
-    <button class="header-btn" onclick="${isNotes?'sheetNote()':'sheetIdea()'}">${ICON.plus(22)}</button>
-  </div>
-  <div class="screen-pad">
-    ${isNotes?notesControls():ideasControls()}
-    ${seg}
-    <div class="section" style="margin-top:8px">${isNotes?notesListBody():ideasListBody()}</div>
-    <div class="spacer"></div>
+  <div class="tab-page" id="content-mode-page">
+    <div class="tab-page-sticky">
+      <div class="lg-header">
+        <div><div class="lg-title">Ideas / Notes</div><div class="lg-sub" id="content-mode-sub">${esc(meta.sub)}</div></div>
+        <div id="content-mode-actions">${meta.headBtn}</div>
+      </div>
+      <div class="hub-bar"><div class="seg hub-seg" id="content-mode-seg">
+        <button type="button" data-v="ideas" class="${isNotes?'':'on'}" onclick="setContentMode('ideas')">${ICON.idea(15)} Ideas</button>
+        <button type="button" data-v="notes" class="${isNotes?'on':''}" onclick="setContentMode('notes')">${ICON.note(15)} Notes</button>
+      </div></div>
+    </div>
+    <div class="screen-pad tab-page-body" id="content-mode-panel">${contentModePanelInner()}<div class="spacer"></div></div>
   </div>`;
 }
 function ideasSub(){ const toUse=sel.ideas().filter(i=>!i.done).length; return 'Content to shoot · '+toUse+' waiting'; }

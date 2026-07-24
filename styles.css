@@ -85,6 +85,17 @@ body{touch-action:manipulation;}
 /* Screen area (scrolls) */
 #screen{flex:1;overflow-y:auto;overflow-x:hidden;-webkit-overflow-scrolling:touch;position:relative;padding-bottom:calc(var(--nav-h) + 16px);}
 .screen-pad{padding:0 var(--pad-x);}
+.tab-page-sticky{
+  position:sticky;
+  top:0;
+  z-index:12;
+  background:var(--bg);
+  border-bottom:1px solid var(--stroke);
+  margin-bottom:2px;
+}
+.hub-bar{padding:0 var(--pad-x) 12px;}
+.hub-seg{max-width:420px;}
+.tab-page-body{padding-top:8px;}
 .top-safe{height:var(--safe-top);}
 
 /* ---------- Large header ---------- */
@@ -975,6 +986,7 @@ img{-webkit-touch-callout:none;}
   .sheet.full.on{transform:translateX(0);}
 
   .lg-header{padding-left:0;padding-right:0;}
+  .hub-bar{padding-left:0;padding-right:0;}
   .screen-pad{padding-left:0;padding-right:0;}
   .detail-top .detail-bar{padding-left:0;padding-right:0;}
 

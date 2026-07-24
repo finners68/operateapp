@@ -4,17 +4,27 @@
 let showFilter = 'upcoming';
 let showSearch = '';
 let showsMode = 'shows'; // 'shows' | 'tours' — the two views under the merged Shows / Tours section
-function setShowsMode(m){ if(showsMode===m) return; showsMode=m; haptic(); if(typeof saveNavState==='function') saveNavState(); renderView(); }
+function setShowsMode(m){
+  if(showsMode===m) return;
+  showsMode=m;
+  haptic();
+  if(typeof saveNavState==='function') saveNavState();
+  if(typeof swapShowsModePanel==='function' && swapShowsModePanel()) return;
+  renderView();
+}
 function goToursList(){ showsMode='tours'; go('shows'); }
-function viewShows(){
+function showsModeMeta(){
   const all = sel.events();
-  const q = showSearch.toLowerCase().trim();
-  let list = all.slice();
-  if(showFilter === 'upcoming') list = all.filter(e => !showPassed(e) && e.status !== 'cancelled');
-  else if(showFilter === 'past') list = all.filter(showPassed);
-  else if(showFilter === 'confirmed' || showFilter === 'hold' || showFilter === 'cancelled') list = all.filter(e => e.status === showFilter);
-  if(showFilter === 'past') list.sort((a,b) => (b.date||'').localeCompare(a.date||''));
-  if(q) list = list.filter(e => `${e.venue||''} ${e.city||''} ${e.country||''} ${e.date||''}`.toLowerCase().includes(q));
+  const upcomingN = all.filter(e => !showPassed(e) && e.status !== 'cancelled').length;
+  const tourN = runs().length;
+  const isTours = showsMode==='tours';
+  return {
+    sub: (isTours?(tourN+' tour'+(tourN!==1?'s':'')):(upcomingN+' upcoming'))+' · tap to open',
+    headBtn: `<button class="header-btn" onclick="sheetEvent()">${ICON.plus(22)}</button>`
+  };
+}
+function showsModeSearchAndChips(){
+  const all = sel.events();
   const upcomingN = all.filter(e => !showPassed(e) && e.status !== 'cancelled').length;
   const chips = [
     {k:'upcoming', l:`Upcoming · ${upcomingN}`},
@@ -24,33 +34,64 @@ function viewShows(){
     {k:'hold', l:'Hold'},
     {k:'cancelled', l:'Cancelled'},
   ];
-  let body;
-  if(!list.length){
-    body = `<div class="empty"><div class="ic">${ICON.music(28)}</div><b>${q?'No matches':'No shows here'}</b><span>${q?'Try another search term.':showFilter==='past'?'Past shows appear 24h after they finish.':'Tap + to add a venue, date and set time — then open the show for flights and hotels.'}</span>${q?'':`<button class="btn" style="margin-top:14px;max-width:240px" onclick="sheetEvent()">${ICON.plus(18)} Add show</button>`}</div>`;
-  } else {
-    const groups = groupShowsByMonth(list);
-    body = groups.map(g=>`<div class="shows-month">${esc(g.label)} · ${g.items.length}</div><div class="card flush" style="margin-bottom:12px">${g.items.map(showListRow).join('')}</div>`).join('');
-  }
-  const isTours = showsMode==='tours';
-  const tourN = runs().length;
-  const seg = `<div class="seg" style="margin-top:10px">
-      <button data-v="shows" class="${isTours?'':'on'}" onclick="setShowsMode('shows')">${ICON.music(15)} Shows</button>
-      <button data-v="tours" class="${isTours?'on':''}" onclick="setShowsMode('tours')">${ICON.trips(15)} Tours</button>
-    </div>`;
   return `
-  <div class="lg-header">
-    <div><div class="lg-title">Shows / Tours</div><div class="lg-sub">${isTours?(tourN+' tour'+(tourN!==1?'s':'')):(upcomingN+' upcoming')} · tap to open</div></div>
-    <button class="header-btn" onclick="sheetEvent()">${ICON.plus(22)}</button>
-  </div>
-  <div class="screen-pad">
-    ${pageIntro('shows', 'Shows & tours in one place', 'Every show, and the tours they auto-group into. Switch views with the toggle under the filter. Tap a row to open details.')}
-    ${isTours?'':`
     ${tabBlurb('Search by venue or city. Filter with the chips below.')}
     <div class="searchbar"><span class="ic">${ICON.search(18)}</span><input placeholder="Search venue or city" value="${esc(showSearch)}" oninput="showSearch=this.value;debouncedShowSearch()"></div>
-    <div class="chips" style="margin-top:10px">${chips.map(c=>`<button class="chip ${showFilter===c.k?'on':''}" onclick="setShowFilter('${c.k}')">${esc(c.l)}</button>`).join('')}</div>`}
-    ${seg}
-    <div class="section" style="margin-top:8px">${isTours?toursListBody():body}</div>
-    <div class="spacer"></div>
+    <div class="chips" style="margin-top:10px">${chips.map(c=>`<button class="chip ${showFilter===c.k?'on':''}" onclick="setShowFilter('${c.k}')">${esc(c.l)}</button>`).join('')}</div>`;
+}
+function showsListBody(){
+  const all = sel.events();
+  const q = showSearch.toLowerCase().trim();
+  let list = all.slice();
+  if(showFilter === 'upcoming') list = all.filter(e => !showPassed(e) && e.status !== 'cancelled');
+  else if(showFilter === 'past') list = all.filter(showPassed);
+  else if(showFilter === 'confirmed' || showFilter === 'hold' || showFilter === 'cancelled') list = all.filter(e => e.status === showFilter);
+  if(showFilter === 'past') list.sort((a,b) => (b.date||'').localeCompare(a.date||''));
+  if(q) list = list.filter(e => `${e.venue||''} ${e.city||''} ${e.country||''} ${e.date||''}`.toLowerCase().includes(q));
+  if(!list.length){
+    return `<div class="empty"><div class="ic">${ICON.music(28)}</div><b>${q?'No matches':'No shows here'}</b><span>${q?'Try another search term.':showFilter==='past'?'Past shows appear 24h after they finish.':'Tap + to add a venue, date and set time — then open the show for flights and hotels.'}</span>${q?'':`<button class="btn" style="margin-top:14px;max-width:240px" onclick="sheetEvent()">${ICON.plus(18)} Add show</button>`}</div>`;
+  }
+  const groups = groupShowsByMonth(list);
+  return groups.map(g=>`<div class="shows-month">${esc(g.label)} · ${g.items.length}</div><div class="card flush" style="margin-bottom:12px">${g.items.map(showListRow).join('')}</div>`).join('');
+}
+function showsModePanelInner(){
+  return `
+    ${pageIntro('shows', 'Shows & tours in one place', 'Every show, and the tours they auto-group into. Switch views with the toggle above. Tap a row to open details.')}
+    ${showsMode==='tours'?'':showsModeSearchAndChips()}
+    <div class="section" style="margin-top:8px">${showsMode==='tours'?toursListBody():showsListBody()}</div>`;
+}
+function refreshShowsModeChrome(){
+  const meta = showsModeMeta();
+  const sub = document.getElementById('shows-mode-sub');
+  const actions = document.getElementById('shows-mode-actions');
+  if(sub) sub.textContent = meta.sub;
+  if(actions) actions.innerHTML = meta.headBtn;
+  if(typeof syncSeg==='function') syncSeg('shows-mode-seg', showsMode);
+}
+function swapShowsModePanel(){
+  const panel = document.getElementById('shows-mode-panel');
+  if(!panel || store.tab !== 'shows' || overlay) return false;
+  panel.innerHTML = showsModePanelInner();
+  refreshShowsModeChrome();
+  setFab();
+  return true;
+}
+function viewShows(){
+  const meta = showsModeMeta();
+  const isTours = showsMode==='tours';
+  return `
+  <div class="tab-page" id="shows-mode-page">
+    <div class="tab-page-sticky">
+      <div class="lg-header">
+        <div><div class="lg-title">Shows / Tours</div><div class="lg-sub" id="shows-mode-sub">${esc(meta.sub)}</div></div>
+        <div id="shows-mode-actions">${meta.headBtn}</div>
+      </div>
+      <div class="hub-bar"><div class="seg hub-seg" id="shows-mode-seg">
+        <button type="button" data-v="shows" class="${isTours?'':'on'}" onclick="setShowsMode('shows')">${ICON.music(15)} Shows</button>
+        <button type="button" data-v="tours" class="${isTours?'on':''}" onclick="setShowsMode('tours')">${ICON.trips(15)} Tours</button>
+      </div></div>
+    </div>
+    <div class="screen-pad tab-page-body" id="shows-mode-panel">${showsModePanelInner()}<div class="spacer"></div></div>
   </div>`;
 }
 function setShowFilter(k){ showFilter=k; haptic(); renderView(); }

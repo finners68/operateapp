@@ -260,6 +260,11 @@ function renderView(opts={}){
   renderNav(); setFab();
   if(screen) screen.scrollTop = scrollY;
 }
+function syncSeg(segId, activeKey){
+  const seg = document.getElementById(segId);
+  if(!seg) return;
+  seg.querySelectorAll('button[data-v]').forEach(btn => btn.classList.toggle('on', btn.dataset.v === activeKey));
+}
 /* Persistent floating + button — anchored to the app frame so it never scrolls away.
    Its action follows the current tab; hidden where there's nothing to add. */
 function setFab(){
