@@ -66,7 +66,7 @@ async function sendMagicLink(){
   try{
     const { error } = await sb.auth.signInWithOtp({
       email,
-      options: { emailRedirectTo: window.location.origin + window.location.pathname }
+      options: { emailRedirectTo: window.OPERATE_NATIVE_REDIRECT || (window.location.origin + window.location.pathname) }
     });
     if(error) throw error;
     setAuthMsg('Check your email for the sign-in link.', false);

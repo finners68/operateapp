@@ -2,3 +2,22 @@
 js/config.js
 .env
 .env.local
+
+# Node / Capacitor
+node_modules/
+www/
+
+# Capacitor copies the web assets into the native projects at sync time —
+# they are generated, so keep them out of git.
+ios/App/App/public/
+android/app/src/main/assets/public/
+ios/App/Pods/
+ios/App/Podfile.lock
+android/.gradle/
+android/app/build/
+android/build/
+android/local.properties
+*.apk
+*.aab
+*.ipa
+.DS_Store

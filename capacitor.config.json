@@ -1,0 +1,18 @@
+{
+  "appId": "app.operate.mobile",
+  "appName": "Operate",
+  "webDir": "www",
+  "server": {
+    "androidScheme": "https"
+  },
+  "ios": {
+    "contentInset": "always"
+  },
+  "plugins": {
+    "SplashScreen": {
+      "launchShowDuration": 600,
+      "backgroundColor": "#0a0a0c",
+      "showSpinner": false
+    }
+  }
+}

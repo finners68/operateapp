@@ -6,6 +6,23 @@
   "scripts": {
     "check": "node scripts/check-syntax.mjs",
     "test": "node --test",
-    "ci": "npm run check && npm test"
+    "ci": "npm run check && npm test",
+    "build:www": "node scripts/build-www.mjs",
+    "sync": "npm run build:www && cap sync",
+    "open:ios": "cap open ios",
+    "open:android": "cap open android",
+    "icons": "capacitor-assets generate --assetPath assets/store --iconBackgroundColor '#0a0a0c' --iconBackgroundColorDark '#0a0a0c' --splashBackgroundColor '#0a0a0c' --splashBackgroundColorDark '#0a0a0c'"
+  },
+  "devDependencies": {
+    "@capacitor/assets": "^3.0.5",
+    "@capacitor/cli": "^8.4.2"
+  },
+  "dependencies": {
+    "@capacitor/android": "^8.4.2",
+    "@capacitor/app": "^8.1.1",
+    "@capacitor/core": "^8.4.2",
+    "@capacitor/ios": "^8.4.2",
+    "@capacitor/splash-screen": "^8.0.2",
+    "@capacitor/status-bar": "^8.0.3"
   }
 }
