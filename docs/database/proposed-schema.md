@@ -1,874 +1,690 @@
-# Operate — Proposed PostgreSQL Schema
+# Operate — Proposed PostgreSQL Schema (Revision 2)
 
-## Executive summary
-
-### 1. Current data model (as-is)
-
-Operate uses a **single client-side store** (`store`) persisted to localStorage and synchronised to Supabase. Shows and calendar logistics share one polymorphic `events[]` array discriminated by `kind`. Most operational detail on a show — hotel, finance, promoter, drivers, advance, contacts — lives in **JSONB columns** on `shows`. Global collections (contacts, invoices, itineraries, packing, artists) live in **JSONB arrays** on `org_settings`. Travel exists in **three parallel shapes**: embedded show flights, calendar logistics legs, and embedded show hotel/drivers.
-
-Tour Mode uses **computed runs** (grouped consecutive shows) that are not stored; a separate **named trips** table exists but is secondary in the UI.
-
-### 2. Biggest structural problems
-
-| Problem | Impact |
-|---------|--------|
-| Finance embedded in `shows.finance` JSON | Crew users can read fees via RLS on shows; no audit trail |
-| Duplicate travel/accommodation models | Sync conflicts, incomplete Trip Mode timelines, migration complexity |
-| Contacts/invoices in org_settings JSON | No FK integrity, no reuse, poor querying |
-| `legacy_id` text keys everywhere | Works offline but weak referential integrity in Postgres |
-| Mixed sync coverage | Reminders local-only; trip.packing not synced; orphan cleanup incomplete |
-| Packed logistics `info` JSON | Fields not queryable; import recovery fragile |
-| Polymorphic events array | Hard to enforce constraints; calendar vs show concerns mixed |
-
-### 3. Recommended target structure
-
-A **normalised, org-scoped relational model** with:
-
-- Clear entity tables: organisations → artists → tours → shows → journeys → files
-- Reusable **contacts** and **companies** with junction tables for show/tour assignments
-- **Unified journeys** table subtyped into flight, ground, rail, ferry, stay (hotel booking)
-- **show_financials** separated from shows with restrictive RLS
-- Central **files** table with typed link tables
-- **Computed tour runs** materialised optionally later; named tours as first-class `tours`
-- `legacy_id` retained during migration; UUID primary keys for all new rows
-
-### 4. Approximate table count
-
-**52 core business tables** + 8 reference/lookup tables + 6 link/junction tables + **8 recommended views** ≈ **66 database objects**.
-
-Grouped:
-
-| Domain | Tables |
-|--------|--------|
-| Accounts & access | 5 |
-| Organisations & settings | 4 |
-| Artists & tours | 6 |
-| Shows & venue | 8 |
-| Contacts & companies | 5 |
-| Travel & journeys | 8 |
-| Accommodation | 4 |
-| Operations (checklists, tasks, reminders) | 8 |
-| Finance & invoices | 7 |
-| Files | 5 |
-| Ideas, notes, content | 4 |
-| Reference/lookup | 8 |
-
-### 5. Essential changes (do first)
-
-1. Extract **show_financials** + RLS excluding crew
-2. Normalise **contacts** and **show_contacts** out of JSON
-3. Unify **journeys** (merge show flights + logistics_items travel/stay)
-4. Central **files** + boarding_passes linked to journeys
-5. Add **legacy_id** + **deleted_at** columns for safe dual-write migration
-
-### 6. Can wait
-
-- Materialised tour runs table (keep computing in app initially)
-- Guest list normalisation (currently text in advance)
-- Expense categories reference table (free text works initially)
-- Venue spaces sub-rooms
-- Full company hierarchy
-
-### 7. Decisions requiring product owner input
-
-| # | Question | Recommendation |
-|---|----------|----------------|
-| 1 | Should computed auto-runs be persisted as tours, or stay derived? | Persist optional `tours.is_auto_generated` runs later; keep derived for v1 |
-| 2 | Can one show have multiple artists (b2b)? | Add `show_artists` junction; primary artist on show row |
-| 3 | Should crew edit show deal/finance? | No — owner/manager only on financial tables |
-| 4 | Should reminders sync to cloud? | Yes — new `reminders` table with push notification metadata |
-| 5 | Retire named `store.trips[]` or merge with auto-runs? | Merge conceptually into `tours`; deprecate duplicate packing on trip object |
-| 6 | Single journey model replacing embedded show hotel/flights/drivers? | Yes — embed only as UI cache during transition |
-| 7 | Timezone per show venue? | Add `shows.venue_timezone` (IANA text); store set times as local + UTC |
-| 8 | Currency per org or per deal? | Org `base_currency`; deal keeps `currency_code`; store amounts as numeric + code |
+**Status:** Step 1 — target design for approval. No SQL, no migrations, no application changes.
 
 ---
 
-## Architecture decisions
+## Plain-English summary (Revision 2)
 
-### Artists belong to organisations
+### 1. What changed from the first proposal
 
-**Decision:** `artists.organisation_id` FK. Artists are roster entries, not tour-owned. Shows reference `shows.primary_artist_id`. Optional `show_artists` for co-billing.
+| Area | First proposal | Revision 2 |
+|------|----------------|------------|
+| Journeys | Included hotel stays and calendar markers | **Movement only** (flight, rail, ground, ferry, walk) |
+| Journey ↔ show | Required `show_id` | Optional `related_show_id` and optional `tour_id` |
+| Show timing | Three tables (`advance_schedule`, `schedule_items`, `timeline_steps`) | **One** `show_schedule_items` table |
+| Contacts | `contacts.company_id` (single company) | **`company_contacts`** many-to-many |
+| Boarding passes | `boarding_passes` + `journey_files` overlap | **`boarding_passes` only**; `journey_files` for other docs |
+| Flight seat | On `flight_journeys` | On **`boarding_passes`** |
+| Settings | Mixed in `org_settings` JSON + cloud tab/PIN | **Org / user / device** split; PIN and tab stay local |
+| Packing | Org-wide JSON array | **`packing_lists`** + **`packing_list_items`** |
+| Finance | Mentioned income/payments tables | **`show_financials`** + **`show_expenses` only** (matches app) |
+| Invoices | Unclear multi-show | **`show_id` optional FK**; no link table (app is one show per invoice) |
+| Tours | Auto-runs materialisation discussed | **User-created tours only**; auto-runs stay in frontend |
+| Artists | `show_artists` in initial build | **Primary artist only**; multi-artist deferred |
+| Reminders | Org-level sync implied | **User-scoped** with optional show/tour/journey links |
+| Guest lists | Normalisation considered | **Deferred**; free text kept in advance fields |
+| Table prefixes | Inconsistent | **`organisation_*`, `show_*`, `journey_*`, etc.** |
 
-**Excluded:** Artists owned by tours only — tours rotate; artists persist across tours.
+### 2. Overlapping tables combined or removed
 
-### One show, multiple artists
+**Combined into `show_schedule_items`:**
+- `show_advance_schedule_items`
+- `show_timeline_steps`
+- calendar `marker` logistics rows (when tied to a show)
 
-**Decision:** Support via `show_artists (show_id, artist_id, billing_order)` junction. `shows.primary_artist_id` remains for default display. Current app only stores one `artist` string — migrate to primary artist name match.
+**Removed from journeys:**
+- Hotel stays → `hotel_bookings`
+- Markers → `show_schedule_items`
 
-**Product decision needed** for b2b fee splits (not in app today).
+**Removed (not needed for current app):**
+- `show_income`, `show_payments`
+- `invoice_shows`
+- `hotel_booking_guests`, `hotel_rooms`
+- `journey_files` for boarding passes (passes use `boarding_passes` only)
+- `organisation_security_settings` in Supabase (PIN is device-local)
+- `show_artists` (deferred)
+- `passenger` tables (deferred)
 
-### Journeys link to show, tour, or both
+**Renamed / clarified:**
+- `trip_*` → **`tour_*`** (align with product language)
+- `start` / `startDate` → **`start_date`**, **`end_date`**
 
-**Decision:** Every journey has **required `show_id`** (primary anchor). Optional **`tour_id`** when part of a named/auto tour span. Optional **`organisation_id`** denormalised for RLS index.
+### 3. Deferred future tables
 
-Journeys do not use polymorphic parent_type. Markers/deadlines become `show_schedule_items` with `item_kind = 'marker'`.
+| Table | Reason deferred |
+|-------|-----------------|
+| `show_artists` | B2B / multi-artist not in current app |
+| `guest_lists` | No guest-list management UI |
+| `guest_list_entries` | Same |
+| `hotel_booking_guests` | No per-guest room tracking in app |
+| `hotel_rooms` | Same |
+| `invoice_shows` | App creates one invoice per show (`eventId`) |
+| `show_income` | No separate income ledger in app |
+| `show_payments` | Paid flag + invoices sufficient today |
+| `tour_auto_runs` (materialised) | Auto-runs computed in frontend |
+| `passengers` | No passenger management |
 
-### Hotels and venues — separate tables
+### 4. Revised immediate table count
 
-**Decision:** **Do not** use a generic locations table.
+| Category | Count |
+|----------|------:|
+| **Required for current features** | **38** |
+| Lookup / reference tables | 6 |
+| **Immediate build total** | **44 tables** |
+| Recommended views (not tables) | 8 |
+| Deferred tables (not in build) | 9 |
 
-- `venues` — performance locations (name, address, city, country, timezone, geo)
-- `hotels` — accommodation properties (reusable property record)
-- `hotel_bookings` — stay linked to show + hotel + check-in/out dates
+Down from ~52 business tables in revision 1.
 
-Different lifecycles and attributes justify separation.
+### 5. Tables required for current functionality
 
-### Drivers as contacts
+**Access & org (8):** `profiles`, `organisations`, `organisation_members`, `organisation_invites`, `usage_events`, `organisation_settings`, `organisation_billing_profiles`, `organisation_exchange_rates`
 
-**Decision:** **Yes.** `ground_transfers` table with journey-specific pickup_time, pickup_location, notes, is_self_arranged (noGround). Assign driver via `ground_transfer_assignments (ground_transfer_id, contact_id, assignment_role)`.
+**Users (1):** `user_preferences`
 
-### Promoters as companies and contacts
+**Roster & tours (3):** `artists`, `tours`, `venues`
 
-**Decision:** `companies` for promoter org; `contacts` for people. `show_contacts` junction with `contact_role` (promoter, production, venue_manager, …). Legacy `show.promoter` maps to one `show_contacts` row with role `artist_liaison`.
+**Shows (6):** `shows`, `show_advances`, `show_checklist_items`, `show_schedule_items`, `show_contacts`
 
-### Notes — separate parent tables vs polymorphic
+**Contacts (3):** `contacts`, `companies`, `company_contacts`
 
-**Decision:** Single `notes` table with **nullable FKs**: `show_id`, `tour_id`, `organisation_id` (for org-wide). Check: at least one parent or `is_org_wide = true`. Avoid `parent_type`/`parent_id`.
+**Travel (6):** `journeys`, `flight_journeys`, `rail_journeys`, `ferry_journeys`, `ground_transfers`, `ground_transfer_contacts`
 
-Same pattern for `ideas`.
+**Hotels (3):** `hotels`, `hotel_bookings`, `hotel_booking_shows`
 
-### Files — central table
+**Files (4):** `files`, `boarding_passes`, `journey_files`, `show_files`
 
-**Decision:** `files` stores storage_path, mime_type, size_bytes, uploaded_by. Link via:
+**Finance (4):** `show_financials`, `show_expenses`, `invoices`, `invoice_line_items`
 
-- `show_files (show_id, file_id, file_purpose)`
-- `journey_files (journey_id, file_id, file_purpose)` — includes boarding_pass
-- `invoice_files`, `hotel_booking_files`
+**Packing (2):** `packing_lists`, `packing_list_items`
 
-### Boarding passes belong to journeys
+**Reminders (1):** `reminders`
 
-**Decision:** `boarding_passes (journey_id, file_id, passenger_name, seat_number)`. Journey must be `journey_kind = 'flight'`. Merges `show_flight_passes` and logistics pass JSON.
+**Content (4):** `ideas`, `notes`, `itinerary_submissions`, `itinerary_submission_files`
 
-### Show finance protection
+**Tour contacts (1):** `tour_contacts`
 
-**Decision:** Table `show_financials` with RLS:
+### 6. Remaining product decisions
 
-- SELECT/INSERT/UPDATE/DELETE: owner, manager
-- crew: **no access** (separate view `show_public` excluding finance)
+| # | Question | Recommendation |
+|---|----------|----------------|
+| 1 | Should Trip Mode “live” anchor sync across devices? | **No for v1** — keep `active_show_id` device-local; optional `user_preferences.active_show_id` later |
+| 2 | Shared reminder on a show vs per-user only? | **Per-user `reminders.user_id`**; same show can have multiple users’ reminders |
+| 3 | Rail journeys without detail in current imports? | **`rail_journeys`** subtype for consistency; minimal columns OK |
+| 4 | Org-wide default packing template storage? | **`packing_lists`** row with `is_organisation_template = true` |
+| 5 | Itinerary inbox retention period? | Product policy only; schema supports `itinerary_submissions` |
 
-Invoices link to `show_financials` not raw show row.
+### 7. Main structure (simple diagram)
 
-### Organisation ownership
+```text
+organisations
+├── organisation_settings, billing, exchange_rates
+├── artists, contacts, companies, packing_lists (templates)
+├── tours ── tour_contacts
+│     ├── shows ── show_advances, show_schedule_items, show_checklist_items
+│     │              show_contacts, show_financials, show_expenses
+│     ├── journeys ── flight_journeys | rail_journeys | ferry_journeys | ground_transfers
+│     │              boarding_passes → files
+│     │              journey_files (non-pass docs)
+│     └── hotel_bookings ── hotels
+│                        └── hotel_booking_shows (multi-show stays)
+├── invoices → invoice_line_items
+├── ideas, notes, reminders (user-scoped)
+└── files (central storage metadata)
 
-**Decision:** Keep `orgs` + `org_members.role`. All business tables include `organisation_id`. RLS helper functions: `user_in_org(org_id)`, `user_can_manage_org(org_id)` (owner|manager).
+user_preferences (per user, per org)
+device-local: tab, PIN, biometric, _known sync sets (not in Postgres)
+```
 
-### Legacy IDs
+---
 
-**Decision:** Retain `legacy_id text` on all migrated entities until Phase 13. Unique constraint `(organisation_id, legacy_id)`. New offline clients generate UUID v4 as `id` immediately; `legacy_id` populated for backward compatibility during dual-write.
+## Design principles (unchanged intent)
 
-### Offline UUIDs
-
-**Decision:** Client generates UUID v4 primary keys. Postgres uses same UUID — no server-assigned IDs required for insert. `created_at_client` optional for conflict debugging.
-
-### Deletions and tombstones
-
-**Decision:** Add `deleted_at timestamptz` nullable on syncable tables. Sync protocol: tombstone wins over missing row (safer than `_known` set). Keep `_known` during transition.
-
-### Timestamps and timezones
-
-**Decision:**
-
-- `timestamptz` for absolute instants (created_at, flight departure UTC)
-- `date` + `time` columns for venue-local show times where timezone matters
-- `shows.venue_timezone text` (IANA, e.g. `Europe/Amsterdam`)
-- View layer converts for display
-
-### Currencies
-
-**Decision:** `organisation_settings.base_currency_code char(3)`. Money columns: `amount numeric(12,2)` + `currency_code char(3)`. FX rates in `organisation_exchange_rates (organisation_id, currency_code, rate_to_base)`.
-
-### Lookup values
-
-| Domain | Approach |
-|--------|----------|
-| show status | Reference table `show_statuses` (confirmed, hold, cancelled) |
-| idea type | Reference table `idea_types` (matches IDEA_TYPES in app) |
-| invoice status | Reference table `invoice_statuses` |
-| journey kind | Reference table `journey_kinds` (flight, ground, rail, ferry, stay, marker) |
-| contact role | Reference table `contact_roles` (seeded, extensible) |
-| priority | CHECK constraint on ideas: high, med, low |
-| org member role | CHECK: owner, manager, crew |
+- One obvious table per real-world object the app uses today
+- UUID primary keys, explicit foreign keys, descriptive column names
+- `organisation_id` on org-owned rows for RLS and indexing
+- `created_at`, `updated_at` on business tables
+- `legacy_id` optional during migration from client IDs
+- Minimal JSON; core business data never in JSONB
 
 ---
 
 ## Naming conventions
 
-- Foreign keys: `{entity}_id`
-- Timestamps: `{action}_at`
-- Dates: `{event}_date`
-- Money: `{description}_amount` + `currency_code`
-- Booleans: `is_{state}`, `has_{feature}`
-- No abbreviations: use `departure_airport_id` not `dep`
+| Pattern | Example |
+|---------|---------|
+| Foreign keys | `related_show_id`, `tour_id`, `organisation_id` |
+| Timestamps | `departure_at`, `created_at` |
+| Dates | `show_date`, `check_in_date` |
+| Money | `agreed_fee_amount` + `currency_code` |
+| Booleans | `is_paid`, `is_archived`, `has_boarding_pass` |
+
+Avoid: `dep`, `arr`, `ref`, `fstatus`, `prio`, `sub`.
 
 ---
 
-## Proposed tables
+## Table prefix groups (Supabase readability)
 
-### Accounts and access
+Tables sort together when prefixed consistently:
+
+| Prefix | Tables |
+|--------|--------|
+| `organisation_*` | settings, billing, exchange_rates, members, invites |
+| `tour_*` | tours, tour_contacts |
+| `show_*` | shows, advances, schedule_items, checklist_items, contacts, financials, expenses, files |
+| `journey_*` | journeys, flight_journeys, rail_journeys, ferry_journeys, ground_transfers, ground_transfer_contacts, files |
+| `hotel_*` | hotels, hotel_bookings, hotel_booking_shows |
+| `invoice_*` | invoices, line_items |
+| `packing_*` | packing_lists, packing_list_items |
+
+Unprefixed where globally clear: `contacts`, `companies`, `company_contacts`, `artists`, `venues`, `files`, `boarding_passes`, `reminders`, `ideas`, `notes`, `profiles`, `organisations`.
+
+---
+
+## Required tables (detail)
+
+### Access and organisations
 
 #### `profiles`
-| Column | Type | Null | Default | Notes |
-|--------|------|------|---------|-------|
-| id | uuid | NO | — | PK, FK → auth.users |
-| display_name | text | YES | — | |
-| email | text | YES | — | |
-| created_at | timestamptz | NO | now() | |
-| updated_at | timestamptz | NO | now() | |
-
-**RLS:** self read/update.
+Existing auth mirror. `id` → auth.users, `display_name`, `email`, timestamps.
 
 #### `organisations`
-| Column | Type | Null | Default |
-|--------|------|------|---------|
-| id | uuid | NO | gen_random_uuid() |
-| name | text | NO | — |
-| created_at | timestamptz | NO | now() |
-| updated_at | timestamptz | NO | now() |
-| deleted_at | timestamptz | YES | — |
+Workspace. `id`, `organisation_name`, timestamps, optional `deleted_at`.
 
 #### `organisation_members`
-| Column | Type | Null | Default |
-|--------|------|------|---------|
-| organisation_id | uuid | NO | FK → organisations CASCADE |
-| user_id | uuid | NO | FK → auth.users CASCADE |
-| member_role | text | NO | CHECK owner/manager/crew |
-| created_at | timestamptz | NO | now() |
-
-**PK:** (organisation_id, user_id)  
-**Index:** (user_id)
+`organisation_id`, `user_id`, `member_role` (owner | manager | crew), `created_at`. PK composite.
 
 #### `organisation_invites`
-| Column | Type | Null | Default |
-|--------|------|------|---------|
-| id | uuid | NO | gen_random_uuid() |
-| organisation_id | uuid | NO | FK CASCADE |
-| email | text | NO | — |
-| invite_role | text | NO | CHECK |
-| invite_token | text | NO | UNIQUE |
-| invited_by_user_id | uuid | YES | FK |
-| accepted_at | timestamptz | YES | — |
-| created_at | timestamptz | NO | now() |
+Token-based invites. Unchanged purpose from migration 003.
 
-#### `usage_events` (retain)
-Rate-limit ledger for edge functions — unchanged purpose.
-
----
-
-### Organisation settings
+#### `usage_events`
+Edge-function rate limits. No client access.
 
 #### `organisation_settings`
-| Column | Type | Null | Default | Notes |
-|--------|------|------|---------|-------|
-| organisation_id | uuid | NO | PK/FK | |
-| base_currency_code | char(3) | NO | 'EUR' | |
-| home_airport_iata | char(3) | YES | — | |
-| account_type | text | YES | 'dj' | CHECK dj/manager/tm/agent |
-| invoice_prefix | text | YES | 'AHQ' | |
-| invoice_next_sequence | integer | NO | 1 | |
-| invoice_default_terms_days | integer | NO | 14 | |
-| packing_template | jsonb | YES | '[]' | **JSON — UI template only** |
-| home_header_file_id | uuid | YES | FK → files | |
-| usb_reminder_enabled | boolean | NO | true | |
-| active_tour_id | uuid | YES | FK → tours | replaces active_trip_id |
-| active_show_id | uuid | YES | FK → shows | |
-| last_tab | text | YES | 'home' | UI preference |
-| store_sequence | integer | NO | 1 | replaces _seq |
-| created_at | timestamptz | NO | now() | |
-| updated_at | timestamptz | NO | now() | |
+**Shared org configuration only.**
+
+| Column | Type | Notes |
+|--------|------|-------|
+| organisation_id | uuid PK/FK | |
+| base_currency_code | char(3) | NOT NULL |
+| home_airport_iata | char(3) | Tour grouping helper |
+| account_type | text | dj, manager, tm, agent |
+| invoice_prefix | text | |
+| invoice_next_sequence | integer | |
+| invoice_default_terms_days | integer | |
+| usb_reminder_enabled | boolean | Org default for USB reminders |
+| home_header_file_id | uuid FK → files | Branding |
+| store_sequence | integer | Client ID generation helper during migration |
+| created_at, updated_at | timestamptz | |
+
+**Not stored here (device-local):** `tab`, `active_show_id`, PIN, biometric, scroll position, `_known`.
 
 #### `organisation_billing_profiles`
-| Column | Type | Null | Notes |
-|--------|------|------|-------|
-| organisation_id | uuid | NO | PK/FK |
-| billing_name | text | YES | |
-| billing_address | text | YES | |
-| tax_identifier | text | YES | Sensitive |
-| bank_iban | text | YES | Sensitive |
-| billing_email | text | YES | |
-| updated_at | timestamptz | NO | |
-
-**RLS:** owner/manager only (sensitive).
+Invoice “from” block: `billing_name`, `billing_address`, `tax_identifier`, `bank_iban`, `billing_email`. RLS: owner/manager only.
 
 #### `organisation_exchange_rates`
-| Column | Type | Null |
-|--------|------|------|
-| organisation_id | uuid | NO |
-| currency_code | char(3) | NO |
-| rate_to_base | numeric(12,6) | NO |
-| updated_at | timestamptz | NO |
+`(organisation_id, currency_code)` PK, `rate_to_base`, `updated_at`.
 
-**PK:** (organisation_id, currency_code)
+#### `user_preferences`
+Per user per organisation. **Not shared org state.**
 
-#### `organisation_security_settings`
-| Column | Type | Null | Notes |
-|--------|------|------|-------|
-| organisation_id | uuid | NO | PK/FK |
-| is_passcode_enabled | boolean | NO | false |
-| passcode_hash | text | YES | Sensitive |
-| lock_scope | text | NO | finance/app |
-| is_biometric_enabled | boolean | NO | false |
+| Column | Type | Notes |
+|--------|------|-------|
+| id | uuid PK | |
+| organisation_id | uuid FK | |
+| user_id | uuid FK | |
+| last_open_tab | text | Optional cross-device UI restore |
+| ui_preferences | jsonb | See JSON section — flexible UI only |
+| created_at, updated_at | timestamptz | |
 
-**RLS:** owner only.
+**Unique:** `(organisation_id, user_id)`
+
+**`active_show_id` / Trip Mode:** Today the app stores these in `org_settings` and syncs them org-wide, which is wrong for multi-user. **Recommendation:** Trip Mode live anchor is **device-local** (localStorage / IndexedDB), not Postgres. If cross-device Trip Mode is wanted later, add `user_preferences.active_show_id` — not `organisation_settings`.
 
 ---
 
 ### Artists and tours
 
 #### `artists`
-| Column | Type | Null | Default |
-|--------|------|------|---------|
-| id | uuid | NO | gen_random_uuid() |
-| organisation_id | uuid | NO | FK |
-| legacy_id | text | YES | migration |
-| display_name | text | NO | — |
-| is_default | boolean | NO | false |
-| created_at | timestamptz | NO | now() |
-| updated_at | timestamptz | NO | now() |
-| deleted_at | timestamptz | YES | — |
-
-**Unique:** (organisation_id, legacy_id) WHERE legacy_id IS NOT NULL
+`organisation_id`, `legacy_id`, `display_name`, `is_default`, timestamps, optional `deleted_at`.
 
 #### `tours`
-| Column | Type | Null | Default | Notes |
-|--------|------|------|---------|-------|
-| id | uuid | NO | gen_random_uuid() | |
-| organisation_id | uuid | NO | FK | |
-| legacy_id | text | YES | — | |
-| tour_name | text | NO | — | |
-| color_key | text | YES | — | |
-| start_date | date | YES | — | |
-| end_date | date | YES | — | |
-| is_archived | boolean | NO | false | |
-| is_auto_generated | boolean | NO | false | future: materialised runs |
-| primary_show_id | uuid | YES | FK → shows | run key equivalent |
-| created_at | timestamptz | NO | now() | |
-| updated_at | timestamptz | NO | now() | |
-| deleted_at | timestamptz | YES | — | |
+**User-created or user-confirmed tours only.** Auto-detected runs stay computed in the frontend (`runs()` in `js/state.js`).
 
-#### `tour_emergency_contacts`
-| Column | Type | Null |
-|--------|------|------|
-| id | uuid | NO |
-| organisation_id | uuid | NO |
-| tour_id | uuid | NO | FK CASCADE |
-| contact_name | text | NO |
-| phone_number | text | YES |
-| sort_order | integer | NO | 0 |
-| created_at | timestamptz | NO |
+| Column | Type | Notes |
+|--------|------|-------|
+| id | uuid PK | |
+| organisation_id | uuid FK | |
+| legacy_id | text | Maps old `trip.id` |
+| tour_name | text | NOT NULL |
+| color_key | text | |
+| start_date | date | **Final name** (replaces `start` / `startDate`) |
+| end_date | date | |
+| is_archived | boolean | |
+| created_at, updated_at, deleted_at | | |
 
-*Alternative:* link to `contacts` — prefer FK `contact_id` when contact exists.
+Shows link via `shows.tour_id`. Naming fix: app UI writes `startDate` but sync maps `t.start` — migration normalises to `start_date`.
 
-#### `tour_checklist_items` / `tour_timeline_steps`
-Mirror show checklist structure with `tour_id` FK, label/time/title/sub, is_done, sort_order.
+#### `tour_contacts`
+` tour_id`, `contact_id`, `contact_role`, `is_primary`, `sort_order`. Reuses central `contacts` (including emergency contacts with role `emergency`).
 
 ---
 
-### Shows and venues
+### Venues and shows
 
 #### `venues`
-| Column | Type | Null |
-|--------|------|------|
-| id | uuid | NO |
-| organisation_id | uuid | NO |
-| venue_name | text | NO |
-| address_line | text | YES |
-| city_name | text | YES |
-| country_code | char(2) | YES |
-| postcode | text | YES |
-| venue_timezone | text | YES |
-| latitude | numeric(9,6) | YES |
-| longitude | numeric(9,6) | YES |
-| created_at | timestamptz | NO |
-| updated_at | timestamptz | NO |
-| deleted_at | timestamptz | YES |
+Reusable performance locations: `venue_name`, address fields, `venue_timezone` (IANA), optional lat/long, `organisation_id`, timestamps, `deleted_at`.
 
 #### `shows`
-| Column | Type | Null | Notes |
-|--------|------|------|-------|
-| id | uuid | NO | PK |
-| organisation_id | uuid | NO | RLS |
-| legacy_id | text | YES | migration |
-| tour_id | uuid | YES | FK → tours |
-| primary_artist_id | uuid | YES | FK → artists |
-| venue_id | uuid | YES | FK → venues |
-| show_date | date | NO | |
-| show_status | text | NO | FK → show_statuses |
-| color_key | text | YES | |
-| set_start_time | time | YES | local venue time |
-| set_end_time | time | YES | |
-| venue_arrival_time | time | YES | |
-| venue_timezone | text | YES | IANA |
-| internal_notes | text | YES | was notes |
-| content_plan | text | YES | was content |
-| is_set_done | boolean | NO | false |
-| created_at | timestamptz | NO | |
-| updated_at | timestamptz | NO | |
-| deleted_at | timestamptz | YES | |
+Operational show record **without finance JSON.**
 
-**Excluded from shows:** hotel, finance, promoter, drivers, advance — separate tables.
+| Column | Type | Notes |
+|--------|------|-------|
+| id | uuid PK | |
+| organisation_id | uuid FK | |
+| legacy_id | text | |
+| tour_id | uuid FK nullable | Named tour |
+| primary_artist_id | uuid FK nullable | **One primary artist only** |
+| venue_id | uuid FK nullable | |
+| show_date | date | NOT NULL |
+| show_status | text FK → show_statuses | |
+| color_key | text | |
+| set_start_time | time | Venue-local |
+| set_end_time | time | |
+| venue_arrival_time | time | |
+| venue_timezone | text | IANA |
+| internal_notes | text | |
+| content_plan | text | |
+| is_set_done | boolean | Trip Mode |
+| created_at, updated_at, deleted_at | | |
 
-#### `show_artists`
-| Column | Type | Null |
-|--------|------|------|
-| show_id | uuid | NO |
-| artist_id | uuid | NO |
-| billing_order | integer | NO | 0 |
+**Deferred:** `show_artists` junction documented below under Future.
 
-**PK:** (show_id, artist_id)
+Crew RLS: SELECT allowed on `shows` (and related ops tables). **No access** to `show_financials`.
 
 #### `show_advances`
-One row per show (1:1).
+One row per show. Text fields from current `advance` object:
 
-| Column | Type | Null |
-|--------|------|------|
-| show_id | uuid | NO | PK/FK |
-| organisation_id | uuid | NO |
-| stage_name | text | YES |
-| access_notes | text | YES |
-| soundcheck_notes | text | YES |
-| curfew_notes | text | YES |
-| dressing_room_notes | text | YES |
-| guestlist_notes | text | YES |
-| catering_notes | text | YES |
-| parking_notes | text | YES |
-| wifi_notes | text | YES |
-| navigation_address | text | YES |
-| general_remarks | text | YES |
-| updated_at | timestamptz | NO |
+`stage_name`, `access_notes`, `soundcheck_notes`, `curfew_notes`, `dressing_room_notes`, **`guestlist_notes`** (unstructured — no guest tables), `catering_notes`, `parking_notes`, `wifi_notes`, `navigation_address`, `general_remarks`, `updated_at`.
 
-#### `show_advance_schedule_items`
-| Column | Type | Null |
-|--------|------|------|
-| id | uuid | NO |
-| show_id | uuid | NO | FK |
-| scheduled_time | time | YES |
-| item_label | text | NO |
-| sort_order | integer | NO |
+Advance **timed schedule rows** migrate to `show_schedule_items`, not duplicate columns here.
 
 #### `show_schedule_items`
-For markers/deadlines currently in logistics_items kind=marker.
+**Single schedule table** replacing timeline steps, advance schedule array, and show-linked markers.
 
-| Column | Type | Null |
-|--------|------|------|
-| id | uuid | NO |
-| organisation_id | uuid | NO |
-| show_id | uuid | YES |
-| tour_id | uuid | YES |
-| item_date | date | NO |
-| item_title | text | NO |
-| is_all_day | boolean | NO | true |
-| sort_order | integer | NO |
+| Column | Type | Notes |
+|--------|------|-------|
+| id | uuid PK | |
+| organisation_id | uuid FK | |
+| show_id | uuid FK | NOT NULL |
+| schedule_item_type | text FK → schedule_item_types | |
+| item_title | text | |
+| item_notes | text | |
+| scheduled_date | date | Optional for all-day markers |
+| scheduled_time | time | Optional |
+| scheduled_end_time | time | Optional |
+| is_all_day | boolean | Markers, deadlines |
+| is_done | boolean | Trip Mode / prep progress |
+| sort_order | integer | |
+| created_at, updated_at, deleted_at | | |
 
-#### `show_checklist_items` (retain, enhance)
-Add `organisation_id`, UUID PK (keep legacy_id), FK to show UUID not legacy.
+**Supported types (lookup `schedule_item_types`):** `venue_arrival`, `soundcheck`, `doors`, `set`, `curfew`, `deadline`, `calendar_marker`, `custom`, plus any legacy timeline titles mapped to `custom`.
 
-#### `show_timeline_steps` (retain, enhance)
-Same pattern as checklist.
+**Checklists stay separate** in `show_checklist_items` — prep todos, not timed schedule.
+
+#### `show_checklist_items`
+`show_id`, `item_label`, `is_done`, `sort_order`, timestamps, `deleted_at`. Same role as today’s checklist.
+
+#### `show_contacts`
+`show_id`, `contact_id`, optional `company_id` (promoter org), `contact_role`, `is_primary_liaison`, `sort_order`.
+
+Promoter may appear as company only, contact only, or both (company on row + contact linked).
 
 ---
 
 ### Contacts and companies
 
 #### `companies`
-| Column | Type | Null |
-|--------|------|------|
-| id | uuid | NO |
-| organisation_id | uuid | NO |
-| company_name | text | NO |
-| company_notes | text | YES |
-| created_at | timestamptz | NO |
-| deleted_at | timestamptz | YES |
+`organisation_id`, `company_name`, `company_notes`, timestamps, `deleted_at`.
 
 #### `contacts`
-| Column | Type | Null |
-|--------|------|------|
-| id | uuid | NO |
-| organisation_id | uuid | NO |
-| legacy_id | text | YES |
-| company_id | uuid | YES | FK |
-| first_name | text | YES | split from name |
-| last_name | text | YES | |
-| display_name | text | NO | computed or stored |
-| email_address | text | YES | |
-| phone_number | text | YES | |
-| whatsapp_number | text | YES | |
-| contact_notes | text | YES | |
-| created_at | timestamptz | NO |
-| updated_at | timestamptz | NO |
-| deleted_at | timestamptz | YES |
+`organisation_id`, `legacy_id`, `first_name`, `last_name`, `display_name`, `email_address`, `phone_number`, `whatsapp_number`, `contact_notes`, timestamps, `deleted_at`.
 
-#### `show_contacts`
-| Column | Type | Null |
-|--------|------|------|
-| id | uuid | NO |
-| organisation_id | uuid | NO |
-| show_id | uuid | NO | FK |
-| contact_id | uuid | NO | FK |
-| contact_role | text | NO | FK → contact_roles |
-| is_primary_liaison | boolean | NO | false |
-| sort_order | integer | NO |
+**No `company_id` on contacts** — use junction.
 
-**Unique partial:** one primary liaison per show (optional constraint).
+#### `company_contacts`
+`company_id`, `contact_id`, `job_title`, `is_primary`, `sort_order`. A contact may link to many companies.
 
-#### `tour_contacts`
-Same pattern with `tour_id`.
+#### Drivers
+Not a separate table. Ground drivers are `contacts` linked via `ground_transfer_contacts`.
 
 ---
 
-### Travel and journeys (unified)
-
-#### `journey_kinds` (reference)
-Values: `flight`, `ground_transfer`, `rail`, `ferry`, `hotel_stay`, `walk`, `marker`
+### Journeys (movement only)
 
 #### `journeys`
-| Column | Type | Null | Notes |
-|--------|------|------|-------|
-| id | uuid | NO | PK |
-| organisation_id | uuid | NO | |
-| legacy_id | text | YES | |
-| show_id | uuid | NO | FK — primary anchor |
-| tour_id | uuid | YES | FK |
-| journey_kind | text | NO | FK → journey_kinds |
-| journey_date | date | NO | |
-| title | text | YES | |
-| is_done | boolean | NO | false |
-| sort_order | integer | NO | 0 |
-| created_at | timestamptz | NO | |
-| updated_at | timestamptz | NO | |
-| deleted_at | timestamptz | YES | |
+Represents **movement between places** — not hotels, not calendar notes.
+
+| Column | Type | Notes |
+|--------|------|-------|
+| id | uuid PK | |
+| organisation_id | uuid FK | |
+| legacy_id | text | |
+| journey_kind | text FK → journey_kinds | flight, rail, ground_transfer, ferry, walk |
+| tour_id | uuid FK nullable | Optional tour span |
+| related_show_id | uuid FK nullable | **Optional** — not required |
+| journey_date | date | Primary calendar date |
+| journey_title | text | Display label |
+| is_done | boolean | Trip Mode |
+| sort_order | integer | |
+| created_at, updated_at, deleted_at | | |
+
+**Kinds:** `flight`, `rail`, `ground_transfer`, `ferry`, `walk`.
+
+A journey may relate to a tour only, a show only, both, or neither (rare — org-level travel).
 
 #### `flight_journeys`
-| Column | Type | Null |
-|--------|------|------|
-| journey_id | uuid | NO | PK/FK |
-| flight_number | text | YES |
-| departure_airport_iata | char(3) | YES |
-| arrival_airport_iata | char(3) | YES |
-| departure_at | timestamptz | YES |
-| arrival_at | timestamptz | YES |
-| seat_number | text | YES |
-| terminal_name | text | YES |
-| gate_name | text | YES |
-| flight_status | text | YES |
-| delay_description | text | YES |
-| status_updated_at | timestamptz | YES |
-| is_live_status | boolean | NO | false |
+1:1 with `journeys` where kind = flight.
+
+`flight_number`, `departure_airport_iata`, `arrival_airport_iata`, `departure_at`, `arrival_at` (timestamptz), `terminal_name`, `gate_name`, `flight_status`, `delay_description`, `status_updated_at`, `is_live_status`.
+
+**No seat on flight row** — seat lives on `boarding_passes`.
+
+#### `rail_journeys`
+1:1 for trains. `train_number`, `departure_station`, `arrival_station`, `departure_at`, `arrival_at`.
+
+#### `ferry_journeys`
+1:1 for ferries. `ferry_operator`, `departure_port`, `arrival_port`, `departure_at`, `arrival_at`.
 
 #### `ground_transfers`
-| Column | Type | Null |
-|--------|------|------|
-| journey_id | uuid | NO | PK/FK |
-| route_description | text | YES | was journey |
-| pickup_location | text | YES |
-| scheduled_pickup_time | time | YES |
-| is_self_arranged | boolean | NO | false (noGround) |
-| transfer_notes | text | YES |
+1:1 for car/walk-style movement. `route_description`, `pickup_location`, `scheduled_pickup_time`, `is_self_arranged` (Uber/taxi mode), `transfer_notes`.
 
-#### `ground_transfer_assignments`
-| Column | Type | Null |
-|--------|------|------|
-| ground_transfer_id | uuid | NO | FK |
-| contact_id | uuid | NO | FK |
-| assignment_role | text | NO | driver |
+Walk journeys with kind `walk` may use minimal ground_transfers row or title-only on `journeys` — product choice at implementation.
 
-#### `hotel_stays` (journey subtype for calendar stays)
-| Column | Type | Null |
-|--------|------|------|
-| journey_id | uuid | NO | PK/FK |
-| hotel_booking_id | uuid | YES | FK |
-
-*Links journey row to booking record below.*
+#### `ground_transfer_contacts`
+`ground_transfer_id`, `contact_id`, `assignment_role` (default `driver`), `sort_order`.
 
 ---
 
-### Accommodation
+### Hotels and accommodation
 
 #### `hotels`
-| Column | Type | Null |
-|--------|------|------|
-| id | uuid | NO |
-| organisation_id | uuid | NO |
-| hotel_name | text | NO |
-| address_line | text | YES |
-| postcode | text | YES |
-| city_name | text | YES |
-| country_code | char(2) | YES |
-| created_at | timestamptz | NO |
-| deleted_at | timestamptz | YES |
+Property catalog: `hotel_name`, address fields, `organisation_id`, timestamps, `deleted_at`.
 
 #### `hotel_bookings`
-| Column | Type | Null |
-|--------|------|------|
-| id | uuid | NO |
-| organisation_id | uuid | NO |
-| show_id | uuid | NO | FK |
-| hotel_id | uuid | NO | FK |
-| booking_reference | text | YES |
-| check_in_date | date | YES |
-| check_out_date | date | YES |
-| room_notes | text | YES |
-| is_done | boolean | NO | false |
-| created_at | timestamptz | NO |
-| updated_at | timestamptz | NO |
-| deleted_at | timestamptz | YES |
+A stay reservation — **not a journey**.
 
-#### `hotel_booking_guests`
-| Column | Type | Null |
-|--------|------|------|
-| hotel_booking_id | uuid | NO |
-| contact_id | uuid | YES | FK |
-| guest_name | text | YES | when not in contacts |
+| Column | Type | Notes |
+|--------|------|-------|
+| id | uuid PK | |
+| organisation_id | uuid FK | |
+| legacy_id | text | |
+| hotel_id | uuid FK | |
+| tour_id | uuid FK nullable | Whole-tour block booking |
+| booking_reference | text | |
+| check_in_date | date | |
+| check_out_date | date | |
+| room_notes | text | |
+| is_done | boolean | Trip Mode |
+| created_at, updated_at, deleted_at | | |
 
----
+**No `related_show_id` required on booking** when multiple shows covered — use junction.
 
-### Finance
+#### `hotel_booking_shows`
+Links one booking to **one or many shows** (e.g. Ibiza hotel across two show dates).
 
-#### `show_financials`
-| Column | Type | Null | Notes |
-|--------|------|------|-------|
-| show_id | uuid | NO | PK/FK |
-| organisation_id | uuid | NO | |
-| agreed_fee_amount | numeric(12,2) | NO | 0 |
-| currency_code | char(3) | NO | |
-| deal_type | text | YES | |
-| commission_percent | numeric(5,2) | YES | |
-| per_diem_amount | numeric(12,2) | YES | |
-| is_paid | boolean | NO | false |
-| is_estimated | boolean | NO | false |
-| is_not_disclosed | boolean | NO | false |
-| updated_at | timestamptz | NO | |
+| Column | Type |
+|--------|------|
+| hotel_booking_id | uuid FK |
+| show_id | uuid FK |
 
-**RLS:** owner/manager only — **no crew access**.
+**PK:** `(hotel_booking_id, show_id)`
 
-#### `show_expenses`
-| Column | Type | Null |
-|--------|------|------|
-| id | uuid | NO |
-| show_id | uuid | NO | FK |
-| organisation_id | uuid | NO |
-| expense_label | text | NO |
-| expense_amount | numeric(12,2) | NO |
-| currency_code | char(3) | NO |
-| sort_order | integer | NO |
+**Example:** Booking covers Fri–Sun with shows on Fri and Sat → one `hotel_bookings` row, two `hotel_booking_shows` rows, optional `tour_id` on booking for tour context.
 
-#### `invoices`
-| Column | Type | Null |
-|--------|------|------|
-| id | uuid | NO |
-| organisation_id | uuid | NO |
-| legacy_id | text | YES |
-| show_id | uuid | NO | FK |
-| invoice_number | text | NO |
-| invoice_date | date | NO |
-| client_name | text | YES |
-| client_address | text | YES |
-| currency_code | char(3) | NO |
-| invoice_status | text | NO | FK |
-| payment_terms_days | integer | NO |
-| created_at | timestamptz | NO |
-| updated_at | timestamptz | NO |
-| deleted_at | timestamptz | YES |
-
-#### `invoice_line_items`
-| Column | Type | Null |
-|--------|------|------|
-| id | uuid | NO |
-| invoice_id | uuid | NO | FK |
-| line_label | text | NO |
-| line_amount | numeric(12,2) | NO |
-| sort_order | integer | NO |
+**Not included:** `hotel_booking_guests`, `hotel_rooms` — app has no guest/room UI.
 
 ---
 
-### Files
+### Files and boarding passes
 
 #### `files`
-| Column | Type | Null |
-|--------|------|------|
-| id | uuid | NO |
-| organisation_id | uuid | NO |
-| legacy_id | text | YES |
-| storage_path | text | NO |
-| original_filename | text | YES |
-| mime_type | text | YES |
-| file_size_bytes | bigint | YES |
-| uploaded_by_user_id | uuid | YES |
-| created_at | timestamptz | NO |
-| deleted_at | timestamptz | YES |
+Central file metadata. `organisation_id`, `legacy_id`, `storage_path`, `original_filename`, `mime_type`, `file_size_bytes`, `uploaded_by_user_id`, timestamps, `deleted_at`.
 
 #### `boarding_passes`
-| Column | Type | Null |
-|--------|------|------|
-| id | uuid | NO |
-| organisation_id | uuid | NO |
-| journey_id | uuid | NO | FK → flight journeys |
-| file_id | uuid | NO | FK → files |
-| passenger_name | text | YES |
-| seat_number | text | YES |
-| legacy_id | text | YES |
+**Only path for boarding-pass files.**
 
-#### `show_files`
-| Column | Type | Null |
-|--------|------|------|
-| show_id | uuid | NO |
-| file_id | uuid | NO |
-| file_purpose | text | NO | attachment, header, … |
+| Column | Type |
+|--------|------|
+| id | uuid PK |
+| organisation_id | uuid FK |
+| journey_id | uuid FK → journeys (flight) |
+| file_id | uuid FK → files |
+| passenger_name | text nullable |
+| seat_number | text nullable |
+| legacy_id | text |
+| created_at, updated_at |
+
+**No `journey_files` row for boarding passes.**
 
 #### `journey_files`
-| Column | Type | Null |
-|--------|------|------|
-| journey_id | uuid | NO |
-| file_id | uuid | NO |
-| file_purpose | text | NO | boarding_pass, document |
+Non-pass travel documents only: confirmations, train tickets, itineraries, supporting PDFs.
+
+`journey_id`, `file_id`, `file_purpose` (booking_confirmation, train_ticket, itinerary, other).
+
+#### `show_files`
+Show attachments (contracts, riders, etc.). `show_id`, `file_id`, `file_purpose`.
 
 ---
 
-### Operations
+### Finance (current app scope only)
 
-#### `packing_list_items` (org-global, replaces org_settings.packing)
-| Column | Type | Null |
-|--------|------|------|
-| id | uuid | NO |
-| organisation_id | uuid | NO |
-| item_label | text | NO |
-| is_done | boolean | NO | false |
-| sort_order | integer | NO |
+The app stores per show: fee, currency, deal type, commission %, per diem, paid flag, estimated, not disclosed, and a list of expenses `{label, amount}`. Invoices are separate entities with lines.
 
-#### `reminders` (new — synced)
-| Column | Type | Null |
-|--------|------|------|
-| id | uuid | NO |
-| organisation_id | uuid | NO |
-| show_id | uuid | NO | FK |
-| reminder_kind | text | NO | manual, usb |
-| remind_at | timestamptz | NO |
-| reminder_label | text | YES |
-| is_fired | boolean | NO | false |
-| created_by_user_id | uuid | YES |
+**Included:**
 
-#### `itinerary_submissions`
-| Column | Type | Null |
-|--------|------|------|
-| id | uuid | NO |
-| organisation_id | uuid | NO |
-| show_id | uuid | YES | FK |
-| source_description | text | YES |
-| submission_date | date | YES |
-| submission_time | time | YES |
-| submission_notes | text | YES |
-| created_at | timestamptz | NO |
+#### `show_financials`
+1:1 with show. RLS: **owner and manager only** — crew denied.
 
-#### `itinerary_submission_files`
-| Column | Type | Null |
-|--------|------|------|
-| itinerary_submission_id | uuid | NO |
-| file_id | uuid | NO |
+`show_id` PK, `organisation_id`, `agreed_fee_amount`, `currency_code`, `deal_type`, `commission_percent`, `per_diem_amount`, `is_paid`, `is_estimated`, `is_not_disclosed`, `updated_at`.
+
+#### `show_expenses`
+`id`, `show_id`, `organisation_id`, `expense_label`, `expense_amount`, `currency_code`, `sort_order`, `deleted_at`.
+
+**Excluded (no current app need):** `show_income`, `show_payments`.
+
+#### `invoices`
+Current app: `createInvoiceFromEvent(eid)` — **one invoice per show**, `eventId` required.
+
+| Column | Type |
+|--------|------|
+| id | uuid PK |
+| organisation_id | uuid FK |
+| legacy_id | text |
+| show_id | uuid FK nullable | Set when invoice is for one show |
+| invoice_number | text |
+| invoice_date | date |
+| client_name | text |
+| client_address | text |
+| currency_code | char(3) |
+| invoice_status | text FK |
+| payment_terms_days | integer |
+| timestamps, deleted_at | |
+
+**No `invoice_shows` junction** — not needed until multi-show invoicing exists.
+
+#### `invoice_line_items`
+`invoice_id`, `line_label`, `line_amount`, `sort_order`.
 
 ---
 
-### Ideas and notes
+### Packing lists
 
-#### `ideas` (enhance existing)
-Add UUID PK, organisation_id, FK show_id/tour_id UUID, legacy_id, created_at timestamptz.
+Replaces `org_settings.packing` JSON array.
 
-#### `notes` (enhance existing)
-Add optional show_id, tour_id FKs; created_at; UUID PK.
+#### `packing_lists`
+| Column | Type | Notes |
+|--------|------|-------|
+| id | uuid PK | |
+| organisation_id | uuid FK | |
+| tour_id | uuid FK nullable | When list belongs to a tour |
+| list_name | text | e.g. "Default template", "Summer tour" |
+| is_organisation_template | boolean | Reusable template |
+| is_archived | boolean | |
+| created_at, updated_at | | |
+
+#### `packing_list_items`
+`packing_list_id`, `item_label`, `is_done`, `sort_order`, `deleted_at`.
+
+Tour Mode today uses a **global** org packing list — model as one `packing_lists` row with `is_organisation_template = true` and no `tour_id`. Per-tour lists attach via `tour_id`.
+
+**Not included:** user-specific packing lists unless product requests later (`user_id` on `packing_lists` — deferred).
 
 ---
 
-## JSON and JSONB — explicit retention list
+### Reminders
 
-| Location | Column | Why JSON is retained |
-|----------|--------|----------------------|
-| `organisation_settings` | `packing_template` | UI template list; low business value as rows until user saves |
-| `itinerary_submissions` | `raw_scan_response` (new, optional) | Raw OpenAI vision output from edge function — unpredictable fields |
-| `journeys` | none | — |
-| `show_advances` | none | schedule items normalised to child table |
-| Future: `import_batches` | `source_payload` | One-off ABOSS/import dumps during migration only |
+Cloud-synced, **user-specific**. One user dismissing does not dismiss for others.
 
-**Everything else** listed in current JSON columns should migrate to relational tables per this schema.
+#### `reminders`
+| Column | Type | Notes |
+|--------|------|-------|
+| id | uuid PK | |
+| organisation_id | uuid FK | |
+| user_id | uuid FK | Owner of reminder |
+| show_id | uuid FK nullable | |
+| tour_id | uuid FK nullable | |
+| journey_id | uuid FK nullable | |
+| reminder_kind | text | manual, usb |
+| remind_at | timestamptz | |
+| reminder_label | text | |
+| is_fired | boolean | |
+| created_at, updated_at | |
+
+At least one of show/tour/journey should be set for context (check constraint at implementation).
+
+**Not in scope:** Web Push subscription storage.
+
+---
+
+### Content
+
+#### `ideas`, `notes`
+Enhance existing tables: UUID PKs, `organisation_id`, FK `show_id` / `tour_id` as UUIDs, `legacy_id`, timestamps. Priority column renamed `priority_level` in migration (avoid `prio`).
+
+#### `itinerary_submissions` + `itinerary_submission_files`
+Inbox for scanned itineraries. Optional `raw_scan_response jsonb` for OpenAI payload — see JSON section.
+
+---
+
+## Lookup tables (6)
+
+| Table | Values |
+|-------|--------|
+| `show_statuses` | confirmed, hold, cancelled |
+| `journey_kinds` | flight, rail, ground_transfer, ferry, walk |
+| `schedule_item_types` | venue_arrival, soundcheck, doors, set, curfew, deadline, calendar_marker, custom |
+| `invoice_statuses` | draft, sent, paid |
+| `idea_types` | reel, caption, hook, youtube, podcast, interview, location, other |
+| `contact_roles` | artist_liaison, promoter, production, venue_manager, driver, emergency, other |
+
+---
+
+## Deferred tables (documented, not in immediate build)
+
+### `show_artists` (future B2B)
+`show_id`, `artist_id`, `billing_order`. Fee splitting deferred.
+
+### `guest_lists` / `guest_list_entries` (future)
+Only when guest-list management is built. Until then: `show_advances.guestlist_notes` text.
+
+### Other deferred
+See section 3 above.
+
+---
+
+## JSON fields (complete list)
+
+| Location | Column | Justification |
+|----------|--------|---------------|
+| `user_preferences` | `ui_preferences` | Flexible UI toggles/layout — unpredictable keys |
+| `organisation_settings` | none | Removed — was dumping ground in v1 |
+| `itinerary_submissions` | `raw_scan_response` | Raw third-party API (OpenAI vision) — unpredictable |
+| Import staging (future) | `source_payload` | Temporary ABOSS/import blobs — not in immediate build |
+
+**Everything else** — hotels, bookings, contacts, finance, invoices, journeys, schedules, checklists, passes — **relational only**.
+
+---
+
+## `deleted_at` — where and why
+
+Include `deleted_at` only on entities that users **delete independently while offline** and that must tombstone-sync:
+
+| Table | Why |
+|-------|-----|
+| shows | User deletes show |
+| show_checklist_items, show_schedule_items | Delete line items |
+| show_contacts | Remove assignment |
+| journeys + subtype rows | Delete travel leg (cascade from journey) |
+| hotel_bookings | Remove stay |
+| contacts, companies | Delete from rolodex |
+| files | Delete attachment/pass |
+| show_expenses | Delete expense line |
+| invoices | Delete invoice |
+| packing_list_items | Remove packing row |
+| ideas, notes | Delete content |
+
+**Omit `deleted_at`** on: lookup tables, `show_financials` (1:1 — delete with show), `show_advances` (1:1), `organisation_settings`, junction rows (hard delete OK), `boarding_passes` (delete with file/journey).
 
 ---
 
 ## Recommended views
 
-### `show_overview`
-Joins: shows → venues → primary_artist → tour → show_statuses. Excludes finance.  
-**Purpose:** Crew-safe show list/detail header.
+| View | Plain English |
+|------|---------------|
+| `show_overview` | One row per show: venue, artist, date, status, city, tour name — **no money** |
+| `tour_overview` | Tour name, dates, show count, cities, archived flag |
+| `travel_schedule` | All journeys with flight/train/ferry/ground details, related show and tour names, sorted by date |
+| `hotel_schedule` | Hotel bookings with hotel name, dates, booking ref, linked show names |
+| `show_contact_summary` | Show + all contacts and companies with roles and phones |
+| `outstanding_payments` | Shows where financials.is_paid = false with fee amounts (manager view) |
+| `missing_documents` | Upcoming shows/journeys missing boarding passes or key attachments |
+| `upcoming_shows` | Confirmed shows from today forward with venue and countdown fields |
 
-### `show_finance_overview`
-Joins: shows → show_financials → show_expenses → invoices.  
-**Purpose:** Finance tab; manager/owner only via security barrier or RLS on underlying tables.
-
-### `tour_overview`
-Joins: tours → shows (count, date range) → tour_emergency_contacts.  
-**Purpose:** Tours list and dashboard.
-
-### `travel_schedule`
-Joins: journeys → flight_journeys / ground_transfers → shows → boarding_passes.  
-**Purpose:** Calendar and Trip Mode timeline source.
-
-### `hotel_schedule`
-Joins: hotel_bookings → hotels → shows.  
-**Purpose:** Accommodation report across tour.
-
-### `show_contact_summary`
-Joins: show_contacts → contacts → companies.  
-**Purpose:** Contact sheet export, day-of contact list.
-
-### `outstanding_payments`
-Joins: show_financials → shows where is_paid = false.  
-**Purpose:** Finance dashboard widget.
-
-### `missing_documents`
-Joins: shows → journeys LEFT JOIN boarding_passes/files HAVING missing passes before show_date.  
-**Purpose:** Ops checklist.
-
-### `upcoming_shows`
-Joins: shows → venues WHERE show_date >= current_date AND status = confirmed.  
-**Purpose:** Home screen next-show queries.
+Views do not weaken RLS — underlying table policies still apply; finance views restricted to owner/manager.
 
 ---
 
-## Indexes (cross-cutting)
+## Flights — single source of truth
 
-- `(organisation_id, show_date)` on shows
-- `(organisation_id, journey_date)` on journeys
-- `(organisation_id, legacy_id)` unique where not null on all migrated tables
-- `(show_id)` on all show-child tables
-- `(organisation_id, deleted_at)` partial WHERE deleted_at IS NULL for active-row queries
+**Final state:** All flight data lives in `journeys` + `flight_journeys` + `boarding_passes`.
 
----
+The show detail UI may still look like “show flights”, but reads/writes journey rows filtered by `related_show_id`. **No parallel `show_flights` table** in the target schema.
 
-## RLS summary (proposed)
-
-| Table group | owner | manager | crew |
-|-------------|-------|---------|------|
-| shows, venues, journeys, contacts | R/W | R/W | R / W* |
-| show_checklist, show_timeline | R/W | R/W | R/W |
-| show_financials, invoices, billing | R/W | R/W | **deny** |
-| organisation_security_settings | R/W | deny | deny |
-| files | R/W | R/W | R read, W limited |
-
-*Crew write on journeys/checklists matches current 003 policy intent but requires scoped client push, not full-store upsert.
+Show-level live flight widget fields (`flight_no`, terminal, gate on show) migrate onto the **primary flight journey** for that show, or the nearest journey by date.
 
 ---
 
-## Tables explicitly excluded or deferred
+## RLS summary
 
-| Suggested table | Decision |
-|-----------------|----------|
-| Generic `locations` | Excluded — venues and hotels differ |
-| `drivers` standalone | Excluded — use contacts + ground_transfers |
-| `tasks` generic | Deferred — checklist items sufficient today |
-| `guest_list_entries` | Deferred — guestlist is text in advance |
-| `venue_spaces` | Deferred — not in app |
-| `airports` reference | Optional lookup later; IATA codes sufficient initially |
-| Polymorphic `notes_parent` | Excluded — nullable FKs instead |
+| Data | owner | manager | crew |
+|------|-------|---------|------|
+| shows, venues, schedules, checklists, journeys, hotels | R/W | R/W | R (W on checklist/schedule/journey per policy) |
+| show_financials, show_expenses, invoices, billing | R/W | R/W | **deny** |
+| reminders | own rows | own rows | own rows |
+| user_preferences | own row | own row | own row |
 
 ---
 
-## Uncertain shapes requiring follow-up
+## Migration notes (design only)
 
-Documented in `current-data-inventory.md` § Conflicting shapes. Migration plan Phase 0 resolves these with product sign-off before dual-write begins.
+- `legacy_id` retained on migrated entities during transition
+- Current `store.trips[]` → `tours` with `start_date` / `end_date`
+- Current markers (`kind: marker`) → `show_schedule_items` with type `calendar_marker`
+- Current stay legs → `hotel_bookings` + optional `hotel_booking_shows`
+- Current travel legs + `show.flights[]` → unified `journeys` (dedupe carefully)
+- Current `show.timeline[]` + `advance.schedule[]` → `show_schedule_items`
+- Current `org_settings.active_*` and `tab` → device-local, not Postgres org settings
+
+Implementation rollout is **Step 2** — not covered in this document.
