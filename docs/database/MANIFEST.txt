@@ -1,0 +1,11 @@
+# Operate Database Planning — Minimum AI Upload Manifest
+# Attach these files + INTERPRETATION-PROMPT.md to your interpreting AI session.
+
+docs/database/proposed-schema.md
+docs/database/current-data-inventory.md
+docs/database/schema-erd.md
+docs/database/data-migration-map.md
+docs/database/migration-plan.md
+docs/database/INTERPRETATION-PROMPT.md
+
+# Optional verification sources: see optional-source-manifest.txt

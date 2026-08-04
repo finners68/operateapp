@@ -1,0 +1,40 @@
+# Operate — Optional source files for AI verification
+# Attach ONLY if the interpreting AI must cross-check planning docs against code.
+# Do not upload secrets (.env) or the entire js/ folder.
+
+# --- Application store and sync (recommended for validation bundle) ---
+js/state.js
+js/db.js
+js/sync.js
+
+# --- Current Supabase schema ---
+supabase/migrations/001_initial_schema.sql
+supabase/migrations/003_collab_security.sql
+
+# SKIP unless discussing dev hardwire (001+002 only, missing 003):
+# supabase/migrations/combined_dev_setup.sql
+
+# --- Feature CRUD (add by topic) ---
+js/shows.js
+js/calendar.js
+js/trip.js
+js/app.js
+js/auth.js
+
+# --- Validation bundle (10 files) ---
+# docs/database/proposed-schema.md
+# docs/database/current-data-inventory.md
+# docs/database/schema-erd.md
+# docs/database/data-migration-map.md
+# docs/database/migration-plan.md
+# docs/database/INTERPRETATION-PROMPT.md
+# js/state.js
+# js/db.js
+# supabase/migrations/001_initial_schema.sql
+# supabase/migrations/003_collab_security.sql
+
+# --- Deep review bundle (13 files) ---
+# validation bundle above, plus:
+# js/shows.js
+# js/calendar.js
+# js/trip.js
