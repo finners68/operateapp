@@ -81,6 +81,22 @@ function v2CombineDateTime(dateStr, timeVal){
   return v2ParseTs(dateStr, t);
 }
 
+/* Overnight travel often stores arrival time on the same calendar date
+   as departure (e.g. depart 23:50, arrive 06:25). The V2 journeys table
+   requires arrival_at >= departure_at — bump arrival by one day when needed. */
+function v2NormalizeJourneyTimes(departureAt, arrivalAt){
+  if(!departureAt || !arrivalAt) return { departure_at: departureAt || null, arrival_at: arrivalAt || null };
+  if(arrivalAt >= departureAt) return { departure_at: departureAt, arrival_at: arrivalAt };
+  const next = new Date(arrivalAt);
+  if(isNaN(next)) return { departure_at: departureAt, arrival_at: null };
+  next.setUTCDate(next.getUTCDate() + 1);
+  const bumped = next.toISOString();
+  return {
+    departure_at: departureAt,
+    arrival_at: bumped >= departureAt ? bumped : null
+  };
+}
+
 function v2BuildLegacyMap(rows, idField){
   const m = {};
   (rows || []).forEach(r => {

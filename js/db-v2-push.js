@@ -456,6 +456,10 @@ async function pushToSupabaseV2(orgId){
 
     for(const [i, f] of (s.flights || []).entries()){
       const jLegacy = v2PrefixedLegacy('show_flight:', f.id);
+      const flightTimes = v2NormalizeJourneyTimes(
+        v2CombineDateTime(s.date, f.dep),
+        v2CombineDateTime(s.date, f.arr)
+      );
       const jRow = await v2UpsertOneByLegacy(sb, 'journeys', orgId, {
         organisation_id: orgId,
         legacy_id: jLegacy,
@@ -466,8 +470,8 @@ async function pushToSupabaseV2(orgId){
         flight_number: f.code || null,
         departure_location_code: f.from || null,
         arrival_location_code: f.to || null,
-        departure_at: v2CombineDateTime(s.date, f.dep),
-        arrival_at: v2CombineDateTime(s.date, f.arr),
+        departure_at: flightTimes.departure_at,
+        arrival_at: flightTimes.arrival_at,
         journey_notes: f.seat ? 'Legacy seat: ' + f.seat : null,
         sort_order: i
       });
@@ -537,14 +541,18 @@ async function pushToSupabaseV2(orgId){
       const jType = v2JourneyTypeFromEvent(l) || 'other';
       const jLegacy = v2PrefixedLegacy('logistics:', l.id);
       const showUuid = l.showId && showUuidMap[l.showId] ? showUuidMap[l.showId] : null;
+      const travelTimes = v2NormalizeJourneyTimes(
+        v2CombineDateTime(l.date, l.start),
+        v2CombineDateTime(l.date, l.end)
+      );
       const jRow = await v2UpsertOneByLegacy(sb, 'journeys', orgId, {
         organisation_id: orgId,
         legacy_id: jLegacy,
         related_show_id: showUuid,
         journey_type: jType,
         journey_title: l.title || logisticTypeLabel(l),
-        departure_at: v2CombineDateTime(l.date, l.start),
-        arrival_at: v2CombineDateTime(l.date, l.end),
+        departure_at: travelTimes.departure_at,
+        arrival_at: travelTimes.arrival_at,
         departure_location_name: l.from || null,
         arrival_location_name: l.to || null,
         flight_number: l.flightNo || null,
