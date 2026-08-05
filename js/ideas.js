@@ -138,14 +138,15 @@ function showIdeaActionBar(id){
 function confirmDeleteIdeaInline(iid){
   confirmSheet('Delete idea?','This can\'t be undone.','Delete',()=>{
     store.ideas = store.ideas.filter(x=>x.id!==iid);
-    persist(); deselectIdea(); renderView(); toast('Idea deleted','trash');
+    persist('ideas', iid); deselectIdea(); renderView(); toast('Idea deleted','trash');
   }, true);
 }
 function quickIdea(){
   const el=document.getElementById('idea-quick'); const v=el?el.value.trim():'';
   if(!v){ if(el)el.focus(); return; }
-  store.ideas.push({id:uid('idea'), type:'other', title:v, prio:'med', done:false, created:nowMs(), note:'', eventId:null, tripId:null});
-  persist(); renderView(); toast('Idea captured','idea');
+  const idea = {id:uid('idea'), type:'other', title:v, prio:'med', done:false, created:nowMs(), note:'', eventId:null, tripId:null};
+  store.ideas.push(idea);
+  persist('ideas', idea.id); renderView(); toast('Idea captured','idea');
   setTimeout(()=>{ const n=document.getElementById('idea-quick'); if(n) n.focus(); },50);
 }
 /* ============================================================
@@ -204,9 +205,9 @@ function attachIdeaTo(iid, kind){
 function doAttachIdea(iid, kind, id){
   const i=store.ideas.find(x=>x.id===iid);
   if(kind==='event'){ i.eventId=id; i.tripId=null; } else { i.tripId=id; i.eventId=null; }
-  persist(); closeSheet(); renderView(); toast('Linked','check');
+  persist('ideas', iid); closeSheet(); renderView(); toast('Linked','check');
 }
-function detachIdea(iid){ const i=store.ideas.find(x=>x.id===iid); i.eventId=null; i.tripId=null; persist(); renderView(); toast('Unlinked','check'); }
+function detachIdea(iid){ const i=store.ideas.find(x=>x.id===iid); i.eventId=null; i.tripId=null; persist('ideas', iid); renderView(); toast('Unlinked','check'); }
 function attachIdeaPickForEvent(eid){
   const avail=sel.ideas().filter(i=>i.eventId!==eid);
   openSheet('Add a content idea', `
@@ -251,18 +252,20 @@ function saveIdea(iid){
   const eventId = evSel ? (evSel.value || null) : null;
   const data = {title, type:getChip('id-type'), prio:getSeg('id-prio')||'med', note:rawVal('id-note')};
   withButton($('#id-save'), ()=>{
+    let ideaId = iid;
     if(iid){
       const idea = store.ideas.find(x=>x.id===iid);
       Object.assign(idea, data);
       // Linking to a show clears any trip link; "Not linked" only clears a show link
       if(eventId){ idea.eventId=eventId; idea.tripId=null; } else { idea.eventId=null; }
     } else {
-      store.ideas.push(Object.assign({id:uid('idea'), done:false, created:nowMs(), eventId, tripId:null}, data));
+      ideaId = uid('idea');
+      store.ideas.push(Object.assign({id:ideaId, done:false, created:nowMs(), eventId, tripId:null}, data));
     }
-    persist(); closeSheet(); renderView();
+    persist('ideas', ideaId); closeSheet(); renderView();
   }, iid?'Idea updated':'Idea saved');
 }
 function editIdea(iid){ back(); setTimeout(()=>sheetIdea(iid),60); }
-function toggleIdeaDone(iid){ const i=store.ideas.find(x=>x.id===iid); i.done=!i.done; persist(); renderView(); toast(i.done?'Marked done':'Back in the list', i.done?'check':'arrowUp'); }
-function saveIdeaNote(iid,v){ const i=store.ideas.find(x=>x.id===iid); if(i){i.note=v; persist();} }
+function toggleIdeaDone(iid){ const i=store.ideas.find(x=>x.id===iid); i.done=!i.done; persist('ideas', iid); renderView(); toast(i.done?'Marked done':'Back in the list', i.done?'check':'arrowUp'); }
+function saveIdeaNote(iid,v){ const i=store.ideas.find(x=>x.id===iid); if(i){i.note=v; persist('ideas', iid);} }
 

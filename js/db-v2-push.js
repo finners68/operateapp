@@ -225,9 +225,26 @@ async function v2UpsertPk(sb, table, row, onConflict){
   return data;
 }
 
-async function pushToSupabaseV2(orgId){
+async function pushToSupabaseV2(orgId, dirtyIn){
   const sb = getSupabase();
-  if(!sb || !orgId || !store) return;
+  if(!sb || !orgId || !store) return null;
+
+  let dirty = dirtyIn ? cloneDirty(dirtyIn) : cloneDirty(store._dirty);
+  if(isEmptyDirty(dirty)) dirty = { '*': '*' };
+  const full = isFullDirty(dirty);
+  const needSettings = full || isTableDirty(dirty, 'settings') || isTableDirty(dirty, 'organisation_settings');
+  const needPrefs = full || needSettings || isTableDirty(dirty, 'user_preferences');
+  const needContacts = full || isTableDirty(dirty, 'contacts');
+  const needArtists = full || isTableDirty(dirty, 'artists');
+  const needTours = full || isTableDirty(dirty, 'tours');
+  const needShows = full || isTableDirty(dirty, 'shows');
+  const needIdeas = full || isTableDirty(dirty, 'ideas');
+  const needNotes = full || isTableDirty(dirty, 'notes');
+  const needLogistics = full || isTableDirty(dirty, 'journeys')
+    || isTableDirty(dirty, 'hotel_bookings') || isTableDirty(dirty, 'schedule_items');
+  const needInvoices = full || isTableDirty(dirty, 'invoices');
+  const needShowNested = needShows; /* dirty shows still push nested rows for those shows */
+  const needTripNested = full || needTours;
 
   /* Snapshot view data BEFORE any await. Concurrent cloud reloads can replace
      store.events mid-push; reading after awaits would upload stale notes. */
@@ -244,12 +261,38 @@ async function pushToSupabaseV2(orgId){
   const tabSnap = store.tab || 'home';
   const itinerariesSnap = (store.itineraries || []).slice();
 
-  const memberRole = await v2GetMemberRole(sb, orgId);
+  const memberRole = (needInvoices || needShowNested || full) ? await v2GetMemberRole(sb, orgId) : 'owner';
   const canFinance = v2CanManageFinance(memberRole);
   const contactCache = new Map();
 
-  const shows = eventsSnap.filter(e => (e.kind || 'show') === 'show');
-  const logistics = eventsSnap.filter(e => ['travel','stay','marker'].includes(e.kind));
+  const showsAll = eventsSnap.filter(e => (e.kind || 'show') === 'show');
+  const logisticsAll = eventsSnap.filter(e => ['travel','stay','marker'].includes(e.kind));
+  const shows = needShows ? filterByDirtyIds(showsAll, dirty, 'shows') : [];
+  const logistics = (() => {
+    if(!needLogistics) return [];
+    if(full) return logisticsAll;
+    const seen = new Set();
+    const out = [];
+    const add = (row) => { if(row && row.id && !seen.has(row.id)){ seen.add(row.id); out.push(row); } };
+    const jIds = dirtyIds(dirty, 'journeys');
+    const hIds = dirtyIds(dirty, 'hotel_bookings');
+    const mIds = dirtyIds(dirty, 'schedule_items');
+    if(isTableDirty(dirty, 'journeys')){
+      logisticsAll.filter(l => l.kind === 'travel' && (jIds == null || jIds.has(l.id))).forEach(add);
+    }
+    if(isTableDirty(dirty, 'hotel_bookings')){
+      logisticsAll.filter(l => l.kind === 'stay' && (hIds == null || hIds.has(l.id))).forEach(add);
+    }
+    if(isTableDirty(dirty, 'schedule_items')){
+      logisticsAll.filter(l => l.kind === 'marker' && (mIds == null || mIds.has(l.id))).forEach(add);
+    }
+    return out;
+  })();
+  const tripsPush = needTours ? filterByDirtyIds(tripsSnap, dirty, 'tours') : [];
+  const contactsPush = needContacts ? filterByDirtyIds(contactsSnap, dirty, 'contacts') : [];
+  const ideasPush = needIdeas ? filterByDirtyIds(ideasSnap, dirty, 'ideas') : [];
+  const notesPush = needNotes ? filterByDirtyIds(notesSnap, dirty, 'notes') : [];
+  const invoicesPush = needInvoices ? filterByDirtyIds(invoicesSnap, dirty, 'invoices') : [];
 
   const uiPrefs = {
     security: settingsSnap.security || {},
@@ -261,186 +304,222 @@ async function pushToSupabaseV2(orgId){
     itineraries: itinerariesSnap
   };
 
-  const settingsRow = {
-    organisation_id: orgId,
-    base_currency_code: v2Currency(settingsSnap.baseCurrency, 'GBP'),
-    home_airport_iata: v2Iata(settingsSnap.homeAirport),
-    account_type: V2_ACCT_FROM_STORE[settingsSnap.accountType] || null,
-    invoice_prefix: settingsSnap.invoicePrefix || 'INV',
-    invoice_next_sequence: Math.max(1, settingsSnap.invoiceSeq || 1),
-    invoice_default_terms_days: Math.max(0, settingsSnap.invoiceTerms || 30),
-    store_sequence: Math.max(1, store._seq || 1)
-  };
-  {
-    const { error } = await sb.from('organisation_settings').upsert(settingsRow, { onConflict: 'organisation_id' });
-    if(error && /store_sequence/i.test(error.message || '')){
-      delete settingsRow.store_sequence;
-      const retry = await sb.from('organisation_settings').upsert(settingsRow, { onConflict: 'organisation_id' });
-      v2Throw(retry.error, 'organisation_settings');
-    } else {
-      v2Throw(error, 'organisation_settings');
+  if(needSettings){
+    const settingsRow = {
+      organisation_id: orgId,
+      base_currency_code: v2Currency(settingsSnap.baseCurrency, 'GBP'),
+      home_airport_iata: v2Iata(settingsSnap.homeAirport),
+      account_type: V2_ACCT_FROM_STORE[settingsSnap.accountType] || null,
+      invoice_prefix: settingsSnap.invoicePrefix || 'INV',
+      invoice_next_sequence: Math.max(1, settingsSnap.invoiceSeq || 1),
+      invoice_default_terms_days: Math.max(0, settingsSnap.invoiceTerms || 30),
+      store_sequence: Math.max(1, store._seq || 1)
+    };
+    {
+      const { error } = await sb.from('organisation_settings').upsert(settingsRow, { onConflict: 'organisation_id' });
+      if(error && /store_sequence/i.test(error.message || '')){
+        delete settingsRow.store_sequence;
+        const retry = await sb.from('organisation_settings').upsert(settingsRow, { onConflict: 'organisation_id' });
+        v2Throw(retry.error, 'organisation_settings');
+      } else {
+        v2Throw(error, 'organisation_settings');
+      }
+    }
+
+    const bill = settingsSnap.billing || {};
+    await v2UpsertPk(sb, 'organisation_billing_profiles', {
+      organisation_id: orgId,
+      billing_name: bill.name || null,
+      billing_email_address: bill.email || null,
+      billing_phone_number: bill.phone || null,
+      address_line_1: bill.address || null,
+      address_line_2: bill.addressLine2 || null,
+      city: bill.city || null,
+      region: bill.region || null,
+      postal_code: bill.postcode || null,
+      country_code: v2CountryCode(bill.countryCode || bill.country),
+      tax_identifier: bill.vatNumber || null,
+      bank_account_name: bill.bankAccountName || null,
+      bank_account_number: bill.bankAccountNumber || null,
+      bank_sort_code: bill.sortCode || null,
+      bank_iban: bill.iban || null,
+      bank_swift_bic: bill.swift || null,
+      payment_notes: bill.paymentNotes || null
+    }, 'organisation_id');
+
+    const fx = settingsSnap.fx || {};
+    const fxRows = Object.keys(fx).filter(k => /^[A-Z]{3}$/i.test(k)).map(k => ({
+      organisation_id: orgId,
+      currency_code: k.toUpperCase(),
+      rate_to_base: Number(fx[k]) || 1
+    }));
+    if(fxRows.length){
+      const { error } = await sb.from('organisation_exchange_rates').upsert(fxRows, { onConflict: 'organisation_id,currency_code' });
+      v2Throw(error, 'organisation_exchange_rates');
     }
   }
 
-  const bill = settingsSnap.billing || {};
-  await v2UpsertPk(sb, 'organisation_billing_profiles', {
-    organisation_id: orgId,
-    billing_name: bill.name || null,
-    billing_email_address: bill.email || null,
-    billing_phone_number: bill.phone || null,
-    address_line_1: bill.address || null,
-    address_line_2: bill.addressLine2 || null,
-    city: bill.city || null,
-    region: bill.region || null,
-    postal_code: bill.postcode || null,
-    country_code: v2CountryCode(bill.countryCode || bill.country),
-    tax_identifier: bill.vatNumber || null,
-    bank_account_name: bill.bankAccountName || null,
-    bank_account_number: bill.bankAccountNumber || null,
-    bank_sort_code: bill.sortCode || null,
-    bank_iban: bill.iban || null,
-    bank_swift_bic: bill.swift || null,
-    payment_notes: bill.paymentNotes || null
-  }, 'organisation_id');
-
-  const fx = settingsSnap.fx || {};
-  const fxRows = Object.keys(fx).filter(k => /^[A-Z]{3}$/i.test(k)).map(k => ({
-    organisation_id: orgId,
-    currency_code: k.toUpperCase(),
-    rate_to_base: Number(fx[k]) || 1
-  }));
-  if(fxRows.length){
-    const { error } = await sb.from('organisation_exchange_rates').upsert(fxRows, { onConflict: 'organisation_id,currency_code' });
-    v2Throw(error, 'organisation_exchange_rates');
+  if(needPrefs){
+    const user = await getAuthUser();
+    if(user){
+      const { error } = await sb.from('user_preferences').upsert({
+        organisation_id: orgId,
+        user_id: user.id,
+        last_open_tab: tabSnap,
+        ui_preferences: uiPrefs
+      }, { onConflict: 'organisation_id,user_id' });
+      v2Throw(error, 'user_preferences');
+    }
   }
 
-  const user = await getAuthUser();
-  if(user){
-    const { error } = await sb.from('user_preferences').upsert({
-      organisation_id: orgId,
-      user_id: user.id,
-      last_open_tab: tabSnap,
-      ui_preferences: uiPrefs
-    }, { onConflict: 'organisation_id,user_id' });
-    v2Throw(error, 'user_preferences');
+  if(needContacts){
+    for(const c of contactsPush){
+      await v2EnsureContact(sb, orgId, c, contactCache);
+    }
   }
 
-  for(const c of contactsSnap){
-    await v2EnsureContact(sb, orgId, c, contactCache);
-  }
-
-  const artistRows = artistsSnap.map(a => {
-    const id = v2EnsureId(a);
-    return {
-      id,
-      organisation_id: orgId,
-      legacy_id: null,
-      display_name: a.name || a.display_name || 'Artist',
-      is_default: !!a.default
-    };
-  });
-  if(!artistRows.length && settingsSnap.artistName){
-    const id = newUuid();
-    artistRows.push({
-      id,
-      organisation_id: orgId,
-      legacy_id: null,
-      display_name: settingsSnap.artistName,
-      is_default: true
+  let defaultArtistId = artistsSnap.find(a => a.default)?.id || artistsSnap[0]?.id || null;
+  if(needArtists || needShows){
+    const artistRows = (needArtists ? artistsSnap : artistsSnap.slice(0, 0)).map(a => {
+      const id = v2EnsureId(a);
+      return {
+        id,
+        organisation_id: orgId,
+        legacy_id: null,
+        display_name: a.name || a.display_name || 'Artist',
+        is_default: !!a.default
+      };
     });
-    artistsSnap.push({ id, name: settingsSnap.artistName, default: true });
-    if(store) store.artists = artistsSnap.slice();
+    if(needArtists){
+      if(!artistRows.length && settingsSnap.artistName){
+        const id = newUuid();
+        artistRows.push({
+          id,
+          organisation_id: orgId,
+          legacy_id: null,
+          display_name: settingsSnap.artistName,
+          is_default: true
+        });
+        artistsSnap.push({ id, name: settingsSnap.artistName, default: true });
+        if(store) store.artists = artistsSnap.slice();
+      }
+      if(artistRows.length) await v2UpsertById(sb, 'artists', orgId, artistRows);
+    }
+    defaultArtistId = artistsSnap.find(a => a.default)?.id || artistsSnap[0]?.id || null;
   }
-  if(artistRows.length) await v2UpsertById(sb, 'artists', orgId, artistRows);
-  const defaultArtistId = artistsSnap.find(a => a.default)?.id || artistsSnap[0]?.id || null;
 
-  const tripRows = tripsSnap.map(t => ({
-    id: v2EnsureId(t),
-    organisation_id: orgId,
-    legacy_id: null,
-    tour_name: t.name,
-    color_key: t.color,
-    start_date: t.start || null,
-    end_date: t.end || null,
-    is_archived: !!t.archived
-  }));
-  if(tripRows.length) await v2UpsertById(sb, 'tours', orgId, tripRows);
+  if(needTours){
+    const tripRows = tripsPush.map(t => ({
+      id: v2EnsureId(t),
+      organisation_id: orgId,
+      legacy_id: null,
+      tour_name: t.name,
+      color_key: t.color,
+      start_date: t.start || null,
+      end_date: t.end || null,
+      is_archived: !!t.archived
+    }));
+    if(tripRows.length) await v2UpsertById(sb, 'tours', orgId, tripRows);
+  }
 
   const venueIdByShow = {};
-  const venueRows = [];
-  for(const s of shows){
-    if(!s.venue && !s.city) continue;
-    const existing = (store.v2?.venues || []).find(v =>
-      (store.v2.shows || []).some(sh => sh.id === s.id && sh.venue_id === v.id)
-    );
-    const vid = existing?.id || newUuid();
-    venueIdByShow[s.id] = vid;
-    venueRows.push({
-      id: vid,
+  if(needShows){
+    const venueRows = [];
+    for(const s of shows){
+      if(!s.venue && !s.city) continue;
+      const existing = (store.v2?.venues || []).find(v =>
+        (store.v2.shows || []).some(sh => sh.id === s.id && sh.venue_id === v.id)
+      );
+      const vid = existing?.id || newUuid();
+      venueIdByShow[s.id] = vid;
+      venueRows.push({
+        id: vid,
+        organisation_id: orgId,
+        legacy_id: null,
+        venue_name: s.venue || 'Venue',
+        address_line_1: s.venueAddr || null,
+        city: s.city || null,
+        country_code: v2CountryCode(s.country)
+      });
+    }
+    if(venueRows.length) await v2UpsertById(sb, 'venues', orgId, venueRows);
+
+    const showRows = shows.map(s => ({
+      id: v2EnsureId(s),
       organisation_id: orgId,
       legacy_id: null,
-      venue_name: s.venue || 'Venue',
-      address_line_1: s.venueAddr || null,
-      city: s.city || null,
-      country_code: v2CountryCode(s.country)
-    });
+      tour_id: (s.tripId && isUuid(s.tripId)) ? s.tripId : null,
+      primary_artist_id: s.artist ? defaultArtistId : null,
+      venue_id: venueIdByShow[s.id] || null,
+      show_date: s.date,
+      show_status: V2_SHOW_STATUS_FROM_STORE[s.status] || 'confirmed',
+      color_key: s.color || null,
+      venue_arrival_time: s.arrival || null,
+      set_start_time: s.setTime || null,
+      set_end_time: s.endTime || null,
+      internal_notes: s.notes || null,
+      content_plan: s.content || null,
+      is_set_done: !!s.setDone
+    }));
+    if(showRows.length) await v2UpsertById(sb, 'shows', orgId, showRows);
   }
-  if(venueRows.length) await v2UpsertById(sb, 'venues', orgId, venueRows);
 
-  const showRows = shows.map(s => ({
-    id: v2EnsureId(s),
-    organisation_id: orgId,
-    legacy_id: null,
-    tour_id: (s.tripId && isUuid(s.tripId)) ? s.tripId : null,
-    primary_artist_id: s.artist ? defaultArtistId : null,
-    venue_id: venueIdByShow[s.id] || null,
-    show_date: s.date,
-    show_status: V2_SHOW_STATUS_FROM_STORE[s.status] || 'confirmed',
-    color_key: s.color || null,
-    venue_arrival_time: s.arrival || null,
-    set_start_time: s.setTime || null,
-    set_end_time: s.endTime || null,
-    internal_notes: s.notes || null,
-    content_plan: s.content || null,
-    is_set_done: !!s.setDone
-  }));
-  if(showRows.length) await v2UpsertById(sb, 'shows', orgId, showRows);
+  /* Notes + ideas early: small and user-facing. */
+  if(needIdeas){
+    const ideaRows = ideasPush.map((x, i) => ({
+      id: v2EnsureId(x),
+      organisation_id: orgId,
+      legacy_id: null,
+      show_id: (x.eventId && isUuid(x.eventId)) ? x.eventId : null,
+      tour_id: (x.tripId && isUuid(x.tripId)) ? x.tripId : null,
+      idea_type: ['reel','caption','hook','youtube','podcast','interview','location'].includes(x.type) ? x.type : 'other',
+      idea_title: x.title,
+      idea_note: x.note,
+      priority_level: V2_PRIO_FROM_STORE[x.prio] || null,
+      is_done: !!x.done,
+      sort_order: i
+    }));
+    if(ideaRows.length) await v2UpsertById(sb, 'ideas', orgId, ideaRows);
+    const ideaDirty = dirtyIds(dirty, 'ideas');
+    if(ideaDirty){
+      const local = new Set(ideasSnap.map(x => x.id));
+      const gone = [...ideaDirty].filter(id => id && !local.has(id));
+      if(gone.length){
+        const { error } = await sb.from('ideas').delete().eq('organisation_id', orgId).in('id', gone);
+        if(error) console.warn('ideas targeted delete', error);
+      }
+    }
+  }
 
-  /* Notes + ideas early: they are small and user-facing. Writing them before
-     the heavy logistics/journey pass means a later failure cannot strand them. */
-  const ideaRows = ideasSnap.map((x, i) => ({
-    id: v2EnsureId(x),
-    organisation_id: orgId,
-    legacy_id: null,
-    show_id: (x.eventId && isUuid(x.eventId)) ? x.eventId : null,
-    tour_id: (x.tripId && isUuid(x.tripId)) ? x.tripId : null,
-    idea_type: ['reel','caption','hook','youtube','podcast','interview','location'].includes(x.type) ? x.type : 'other',
-    idea_title: x.title,
-    idea_note: x.note,
-    priority_level: V2_PRIO_FROM_STORE[x.prio] || null,
-    is_done: !!x.done,
-    sort_order: i
-  }));
-  if(ideaRows.length) await v2UpsertById(sb, 'ideas', orgId, ideaRows);
-
-  const noteRows = notesSnap.map((x, i) => ({
-    id: v2EnsureId(x),
-    organisation_id: orgId,
-    legacy_id: null,
-    note_title: x.title,
-    note_body: x.body,
-    folder_name: x.folder,
-    sort_order: i,
-    updated_at: x.updated ? new Date(x.updated).toISOString() : undefined
-  }));
-  if(noteRows.length) await v2UpsertById(sb, 'notes', orgId, noteRows);
+  if(needNotes){
+    const noteRows = notesPush.map((x, i) => ({
+      id: v2EnsureId(x),
+      organisation_id: orgId,
+      legacy_id: null,
+      note_title: x.title,
+      note_body: x.body,
+      folder_name: x.folder,
+      sort_order: i,
+      updated_at: x.updated ? new Date(x.updated).toISOString() : undefined
+    }));
+    if(noteRows.length) await v2UpsertById(sb, 'notes', orgId, noteRows);
+    const noteDirty = dirtyIds(dirty, 'notes');
+    if(noteDirty){
+      const local = new Set(notesSnap.map(x => x.id));
+      const gone = [...noteDirty].filter(id => id && !local.has(id));
+      if(gone.length){
+        const { error } = await sb.from('notes').delete().eq('organisation_id', orgId).in('id', gone);
+        if(error) console.warn('notes targeted delete', error);
+      }
+    }
+  }
 
   const showUuidMap = {};
-  shows.forEach(s => { showUuidMap[s.id] = s.id; });
+  showsAll.forEach(s => { showUuidMap[s.id] = s.id; });
   const tourUuidMap = {};
   tripsSnap.forEach(t => { tourUuidMap[t.id] = t.id; });
 
-  for(const s of shows){
+  for(const s of (needShowNested ? shows : [])){
     const sid = s.id;
     if(!sid) continue;
 
@@ -689,7 +768,7 @@ async function pushToSupabaseV2(orgId){
     }
   }
 
-  for(const l of logistics){
+  for(const l of (needLogistics ? logistics : [])){
     if(l.kind === 'travel'){
       const jType = v2JourneyTypeFromEvent(l) || 'other';
       const showUuid = (l.showId && isUuid(l.showId)) ? l.showId : null;
@@ -780,7 +859,7 @@ async function pushToSupabaseV2(orgId){
     }
   }
 
-  for(const t of tripsSnap){
+  for(const t of (needTripNested ? (full ? tripsSnap : tripsPush) : [])){
     const tid = t.id;
     if(!tid) continue;
     for(const [i, c] of (t.checklist || []).entries()){
@@ -826,7 +905,7 @@ async function pushToSupabaseV2(orgId){
   }
 
   const packingTemplate = packingTemplateSnap;
-  if(packingTemplate.length){
+  if(needSettings && packingTemplate.length){
     let pl = null;
     const { data: existing } = await sb.from('packing_lists')
       .select('id')
@@ -861,8 +940,8 @@ async function pushToSupabaseV2(orgId){
     }
   }
 
-  if(canFinance){
-    for(const inv of invoicesSnap){
+  if(canFinance && needInvoices){
+    for(const inv of invoicesPush){
       if(!inv.number) continue;
       const showUuid = (inv.eventId && isUuid(inv.eventId)) ? inv.eventId : null;
       const invPayload = {
@@ -911,50 +990,77 @@ async function pushToSupabaseV2(orgId){
 
   // Itineraries live in user_preferences.ui_preferences (already written above).
   // Avoid re-inserting itinerary_submissions on every push (duplicate rows).
-  // Notes + ideas were already upserted earlier in this push.
 
-  const localShowIds = new Set(shows.map(s => s.id));
-  const localLogIds = new Set(logistics.map(l => l.id));
-  const localTripIds = new Set(tripsSnap.map(t => t.id));
-  const localIdeaIds = new Set(ideasSnap.map(x => x.id));
-  const localNoteIds = new Set(notesSnap.map(x => x.id));
-  const localFileIds = new Set();
-  shows.forEach(s => {
-    (s.attachments || []).forEach(a => { if(a.id) localFileIds.add(a.id); });
-    (s.flights || []).forEach(f => (f.passes || []).forEach(p => { if(p.id) localFileIds.add(p.id); }));
-  });
-  logistics.forEach(l => (l.passes || []).forEach(p => { if(p.id) localFileIds.add(p.id); }));
-
-  const known = knownSnap;
-
-  async function deleteOrphansById(table, localSet){
-    const { data: rows } = await sb.from(table).select('id').eq('organisation_id', orgId);
-    const orphans = (rows || [])
-      .map(r => r.id)
-      .filter(id => id && !localSet.has(id) && known.has(id));
-    if(orphans.length){
-      const { error } = await sb.from(table).delete().eq('organisation_id', orgId).in('id', orphans);
-      if(error) console.warn('orphan delete', table, error);
+  /* Targeted deletes for dirty show/tour ids removed locally. */
+  if(needShows){
+    const showDirty = dirtyIds(dirty, 'shows');
+    if(showDirty){
+      const local = new Set(showsAll.map(s => s.id));
+      const gone = [...showDirty].filter(id => id && !local.has(id));
+      if(gone.length){
+        const { error } = await sb.from('shows').delete().eq('organisation_id', orgId).in('id', gone);
+        if(error) console.warn('shows targeted delete', error);
+      }
+    }
+  }
+  if(needTours){
+    const tourDirty = dirtyIds(dirty, 'tours');
+    if(tourDirty){
+      const local = new Set(tripsSnap.map(t => t.id));
+      const gone = [...tourDirty].filter(id => id && !local.has(id));
+      if(gone.length){
+        const { error } = await sb.from('tours').delete().eq('organisation_id', orgId).in('id', gone);
+        if(error) console.warn('tours targeted delete', error);
+      }
     }
   }
 
-  const journeyLocalIds = new Set([
-    ...localLogIds,
-    ...shows.flatMap(s => (s.flights || []).map(f => f.id)),
-    ...shows.flatMap(s => showDrivers(s).map(d => d.id)),
-    ...shows.map(s => s._primaryFlightId).filter(Boolean)
-  ]);
+  if(full){
+    const localShowIds = new Set(showsAll.map(s => s.id));
+    const localLogIds = new Set(logisticsAll.map(l => l.id));
+    const localTripIds = new Set(tripsSnap.map(t => t.id));
+    const localIdeaIds = new Set(ideasSnap.map(x => x.id));
+    const localNoteIds = new Set(notesSnap.map(x => x.id));
+    const localFileIds = new Set();
+    showsAll.forEach(s => {
+      (s.attachments || []).forEach(a => { if(a.id) localFileIds.add(a.id); });
+      (s.flights || []).forEach(f => (f.passes || []).forEach(p => { if(p.id) localFileIds.add(p.id); }));
+    });
+    logisticsAll.forEach(l => (l.passes || []).forEach(p => { if(p.id) localFileIds.add(p.id); }));
 
-  await deleteOrphansById('shows', localShowIds);
-  await deleteOrphansById('journeys', journeyLocalIds);
-  await deleteOrphansById('tours', localTripIds);
-  await deleteOrphansById('ideas', localIdeaIds);
-  await deleteOrphansById('notes', localNoteIds);
-  await deleteOrphansById('files', localFileIds);
+    const known = knownSnap;
 
-  store._known = [
-    ...localShowIds, ...localLogIds, ...localTripIds, ...localIdeaIds,
-    ...localNoteIds, ...localFileIds,
-    ...shows.flatMap(s => (s.flights || []).map(f => f.id))
-  ];
+    async function deleteOrphansById(table, localSet){
+      const { data: rows } = await sb.from(table).select('id').eq('organisation_id', orgId);
+      const orphans = (rows || [])
+        .map(r => r.id)
+        .filter(id => id && !localSet.has(id) && known.has(id));
+      if(orphans.length){
+        const { error } = await sb.from(table).delete().eq('organisation_id', orgId).in('id', orphans);
+        if(error) console.warn('orphan delete', table, error);
+      }
+    }
+
+    const journeyLocalIds = new Set([
+      ...localLogIds,
+      ...showsAll.flatMap(s => (s.flights || []).map(f => f.id)),
+      ...showsAll.flatMap(s => showDrivers(s).map(d => d.id)),
+      ...showsAll.map(s => s._primaryFlightId).filter(Boolean)
+    ]);
+
+    await deleteOrphansById('shows', localShowIds);
+    await deleteOrphansById('journeys', journeyLocalIds);
+    await deleteOrphansById('tours', localTripIds);
+    await deleteOrphansById('ideas', localIdeaIds);
+    await deleteOrphansById('notes', localNoteIds);
+    await deleteOrphansById('files', localFileIds);
+
+    store._known = [
+      ...localShowIds, ...localLogIds, ...localTripIds, ...localIdeaIds,
+      ...localNoteIds, ...localFileIds,
+      ...showsAll.flatMap(s => (s.flights || []).map(f => f.id))
+    ];
+  }
+
+  return dirty;
 }

@@ -120,6 +120,78 @@ function isDirty(table, id){
   return false;
 }
 
+function isFullDirty(dirty){
+  return !!(dirty && dirty['*'] === '*');
+}
+
+function isEmptyDirty(dirty){
+  if(!dirty) return true;
+  if(dirty['*'] === '*') return false;
+  return !Object.keys(dirty).some(k => {
+    const d = dirty[k];
+    return d === '*' || (d instanceof Set && d.size > 0);
+  });
+}
+
+function isTableDirty(dirty, table){
+  if(!dirty) return false;
+  if(dirty['*'] === '*') return true;
+  const d = dirty[table];
+  if(d === '*') return true;
+  return d instanceof Set && d.size > 0;
+}
+
+/* null => whole table; Set => only those ids. */
+function dirtyIds(dirty, table){
+  if(!dirty) return new Set();
+  if(dirty['*'] === '*') return null;
+  const d = dirty[table];
+  if(d === '*') return null;
+  if(d instanceof Set) return d;
+  return new Set();
+}
+
+function cloneDirty(dirty){
+  const out = Object.create(null);
+  if(!dirty) return out;
+  Object.keys(dirty).forEach(k => {
+    const d = dirty[k];
+    if(d === '*') out[k] = '*';
+    else if(d instanceof Set) out[k] = new Set(d);
+  });
+  return out;
+}
+
+/* Remove snapshot entries from live dirty; keep newer ids marked after snapshot. */
+function subtractDirty(live, snapshot){
+  if(!live || !snapshot) return;
+  if(snapshot['*'] === '*'){
+    if(live['*'] === '*') delete live['*'];
+    return;
+  }
+  Object.keys(snapshot).forEach(table => {
+    const snap = snapshot[table];
+    const cur = live[table];
+    if(cur == null) return;
+    if(snap === '*'){
+      delete live[table];
+      return;
+    }
+    if(!(snap instanceof Set)) return;
+    if(cur === '*') return; /* live was widened to full table — keep it */
+    if(!(cur instanceof Set)) return;
+    snap.forEach(id => cur.delete(id));
+    if(!cur.size) delete live[table];
+  });
+}
+
+function filterByDirtyIds(rows, dirty, table, idKey){
+  const key = idKey || 'id';
+  const ids = dirtyIds(dirty, table);
+  if(ids == null) return rows || [];
+  return (rows || []).filter(r => r && ids.has(r[key]));
+}
+
 function isUuid(v){
   /* Accept any UUID-shaped id. A strict RFC variant check rejected many
      already-stored journey ids, so each push minted a new row and duplicates exploded. */

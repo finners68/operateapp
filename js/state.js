@@ -138,8 +138,15 @@ const uid = (_p) => {
   return newUuid();
 };
 
-function persist(){
-  if(typeof markDirtyAll === 'function') markDirtyAll();
+/* persist() = full cloud sync. persist('notes', id) = upload only that slice. */
+function persist(scope, id){
+  if(typeof markDirty === 'function'){
+    if(scope == null || scope === true || scope === '*'){
+      if(typeof markDirtyAll === 'function') markDirtyAll();
+    } else {
+      markDirty(scope, id == null ? '*' : id);
+    }
+  }
   db.write(store);
   queueSync();
 }
@@ -689,7 +696,7 @@ function pinSubmit(){
   if(pinPurpose==='setup'){
     if(pinSetupFirst===null){ pinSetupFirst=pinBuf; pinBuf=''; paintDots();
       $('#lock .lock-title').textContent='Confirm passcode'; $('#lock .lock-sub').textContent='Re-enter to confirm'; return; }
-    if(pinBuf===pinSetupFirst){ s.pin=pinHash(pinBuf); s.enabled=true; persist(); pinSetupFirst=null; closeLock(); toast('Passcode set','check'); if(pinResolve){pinResolve(true);pinResolve=null;} }
+    if(pinBuf===pinSetupFirst){ s.pin=pinHash(pinBuf); s.enabled=true; persist('settings'); pinSetupFirst=null; closeLock(); toast('Passcode set','check'); if(pinResolve){pinResolve(true);pinResolve=null;} }
     else { pinSetupFirst=null; pinBuf=''; shakeDots(); $('#lock .lock-title').textContent='Create a passcode'; $('#lock .lock-sub').textContent="Didn't match — try again"; }
     return;
   }

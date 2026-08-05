@@ -52,17 +52,17 @@ function viewNote(id){
    ============================================================ */
 function sheetNote(){
   const n = {id:uid('note'), title:'', folder:'', body:'', updated:nowMs(), created:nowMs()};
-  store.notes.push(n); persist();
+  store.notes.push(n); persist('notes', n.id);
   openView('note', n.id);
   setTimeout(()=>{ const el=$('#note-title'); if(el) el.focus(); },80);
 }
-function liveNoteTitle(id,v){ const n=store.notes.find(x=>x.id===id); if(n){n.title=v;n.updated=nowMs();persist();} }
-function liveNoteFolder(id,v){ const n=store.notes.find(x=>x.id===id); if(n){n.folder=v.trim();n.updated=nowMs();persist();} }
-function liveNoteBody(id,v){ const n=store.notes.find(x=>x.id===id); if(n){n.body=v;n.updated=nowMs();persist();} }
+function liveNoteTitle(id,v){ const n=store.notes.find(x=>x.id===id); if(n){n.title=v;n.updated=nowMs();persist('notes', id);} }
+function liveNoteFolder(id,v){ const n=store.notes.find(x=>x.id===id); if(n){n.folder=v.trim();n.updated=nowMs();persist('notes', id);} }
+function liveNoteBody(id,v){ const n=store.notes.find(x=>x.id===id); if(n){n.body=v;n.updated=nowMs();persist('notes', id);} }
 function saveNoteAndBack(id){
   const n=store.notes.find(x=>x.id===id);
-  if(n && !n.title.trim() && !n.body.trim()){ store.notes=store.notes.filter(x=>x.id!==id); persist(); }
+  if(n && !n.title.trim() && !n.body.trim()){ store.notes=store.notes.filter(x=>x.id!==id); persist('notes', id); }
   back();
 }
-function confirmDeleteNote(id){ confirmSheet('Delete note?','This can\'t be undone.','Delete note',()=>{ store.notes=store.notes.filter(x=>x.id!==id); persist(); back(); toast('Note deleted','trash'); }, true); }
+function confirmDeleteNote(id){ confirmSheet('Delete note?','This can\'t be undone.','Delete note',()=>{ store.notes=store.notes.filter(x=>x.id!==id); persist('notes', id); back(); toast('Note deleted','trash'); }, true); }
 

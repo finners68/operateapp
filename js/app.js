@@ -190,7 +190,7 @@ function restoreNavState(){
   navStack = navStack.filter(o=>!(o&&o.type==='finance' && typeof financeLockActive==='function' && financeLockActive()));
   if(ns.scrollY){ requestAnimationFrame(()=>{ const s=document.getElementById('screen'); if(s) s.scrollTop=ns.scrollY; }); }
 }
-function go(tab){ navStack=[]; overlay=null; store.tab=tab; if(tab==='ideas') ideasStale=false; haptic(); persist(); saveNavState(); render({ resetScroll: true }); }
+function go(tab){ navStack=[]; overlay=null; store.tab=tab; if(tab==='ideas') ideasStale=false; haptic(); persist('user_preferences'); saveNavState(); render({ resetScroll: true }); }
 function openView(type, id){
   if(type==='finance' && financeLockActive()){ requireUnlock('finance', ()=>openView('finance', id)); return; }
   if(overlay) navStack.push(overlay);   // remember where we came from
@@ -381,7 +381,7 @@ function toggleTripCheck(tid,cid){ const t=sel.trip(tid); const i=t.checklist.fi
 function delTripCheck(tid,cid){ const t=sel.trip(tid); t.checklist=t.checklist.filter(x=>x.id!==cid); persist(); renderView(); }
 function addTripCheckPrompt(tid){ promptSheet('Packing / checklist item','e.g. Battery packs', function(v){ const t=sel.trip(tid); t.checklist.push({id:uid('ck'),label:v,done:false}); persist(); renderView(); toast('Added','check'); }); }
 function completeStep(tid,sid){ const t=sel.trip(tid); const s=t.timeline.find(x=>x.id===sid); if(s){ s.done=!s.done; haptic(); persist(); renderView(); if(s.done) toast('Step done ✓','check'); } }
-function saveEventNotes(eid,v){ const e=sel.event(eid); if(e){e.notes=v; persist();} }
+function saveEventNotes(eid,v){ const e=sel.event(eid); if(e){e.notes=v; persist('shows', eid);} }
 
 /* ============================================================
    File uploads (stored as data URLs — Phase 2: cloud storage)
@@ -631,7 +631,7 @@ function tripMenu(tid){
 }
 function confirmDeleteEvent(eid){ confirmSheet('Delete show?','This removes the show and its details permanently.','Delete',()=>{ store.events=store.events.filter(e=>e.id!==eid); persist(); back(); toast('Show deleted','trash'); }, true); }
 function confirmDeleteTrip(tid){ confirmSheet('Delete trip?','Shows in this trip are kept, but the trip itself is removed.','Delete trip',()=>{ store.events.forEach(e=>{ if(e.tripId===tid) e.tripId=null; }); if(store.activeTripId===tid) store.activeTripId=null; store.trips=store.trips.filter(t=>t.id!==tid); persist(); back(); toast('Trip deleted','trash'); }, true); }
-function confirmDeleteIdea(iid){ confirmSheet('Delete idea?','This can\'t be undone.','Delete',()=>{ store.ideas=store.ideas.filter(x=>x.id!==iid); persist(); back(); toast('Idea deleted','trash'); }, true); }
+function confirmDeleteIdea(iid){ confirmSheet('Delete idea?','This can\'t be undone.','Delete',()=>{ store.ideas=store.ideas.filter(x=>x.id!==iid); persist('ideas', iid); back(); toast('Idea deleted','trash'); }, true); }
 
 /* ============================================================
    Settings
@@ -875,29 +875,29 @@ function viewStats(){
     <div class="spacer"></div>
   </div>`;
 }
-function setAccountType(k){ store.settings.accountType=k; haptic(); persist(); renderView(); toast(ACCOUNT_TYPES[k].label,'check'); }
+function setAccountType(k){ store.settings.accountType=k; haptic(); persist('settings'); renderView(); toast(ACCOUNT_TYPES[k].label,'check'); }
 function editHomeAirport(){
   openSheet('Home airport', `
     <div class="field"><label>Airport code (IATA)</label><input id="ha-code" class="input" style="text-transform:uppercase" maxlength="4" value="${esc(store.settings.homeAirport||'AMS')}" placeholder="AMS"></div>
     <div class="hint" style="text-align:left;padding:2px 2px 12px">A tour ends whenever a flight brings you back here. Change this and tours regroup automatically.</div>
-    <button class="btn" onclick="store.settings.homeAirport=(val('ha-code')||'AMS').toUpperCase();if(store.settings.baseCurrencyAuto!==false)store.settings.baseCurrency=homeCurrency();persist();closeSheet();renderView();toast('Home airport set','check')">Save</button><div class="spacer"></div>
+    <button class="btn" onclick="store.settings.homeAirport=(val('ha-code')||'AMS').toUpperCase();if(store.settings.baseCurrencyAuto!==false)store.settings.baseCurrency=homeCurrency();persist('settings');closeSheet();renderView();toast('Home airport set','check')">Save</button><div class="spacer"></div>
   `);
   setTimeout(()=>{const i=document.getElementById('ha-code');if(i)i.focus();},300);
 }
 function editProfileName(){
-  openSheet('Your name', `<div class="field"><label>Name / act</label><input id="pf-name" class="input" value="${esc(store.settings.artistName==='You'?'':store.settings.artistName)}" placeholder="Your DJ / act name"></div><button class="btn" onclick="store.settings.artistName=val('pf-name')||'You';persist();closeSheet();renderView();toast('Saved','check')">Save</button><div class="spacer"></div>`);
+  openSheet('Your name', `<div class="field"><label>Name / act</label><input id="pf-name" class="input" value="${esc(store.settings.artistName==='You'?'':store.settings.artistName)}" placeholder="Your DJ / act name"></div><button class="btn" onclick="store.settings.artistName=val('pf-name')||'You';persist('settings');closeSheet();renderView();toast('Saved','check')">Save</button><div class="spacer"></div>`);
   setTimeout(()=>{const i=document.getElementById('pf-name');if(i)i.focus();},300);
 }
-function uploadHomeHeader(input){ toast('Uploading photo…','image'); readFile(input, att=>{ if(att.kind!=='image'){ toast('Pick an image','x'); return; } store.settings.homeHeader=att.data; persist(); renderView(); toast('Header photo set','check');
-  if(syncActive() && att.data.startsWith('data:')) uploadFileDataUrl(att.data,'header','header','home_header').then(({path,url})=>{ store.settings._homeHeaderPath=path; store.settings.homeHeader=url; persist(); renderView(); }).catch(()=>{}); }); }
-function removeHomeHeader(){ confirmSheet('Remove header photo?','','Remove',()=>{ store.settings.homeHeader=null; persist(); closeSheet(); renderView(); toast('Removed','trash'); }, true); }
+function uploadHomeHeader(input){ toast('Uploading photo…','image'); readFile(input, att=>{ if(att.kind!=='image'){ toast('Pick an image','x'); return; } store.settings.homeHeader=att.data; persist('settings'); persist('user_preferences'); renderView(); toast('Header photo set','check');
+  if(syncActive() && att.data.startsWith('data:')) uploadFileDataUrl(att.data,'header','header','home_header').then(({path,url})=>{ store.settings._homeHeaderPath=path; store.settings.homeHeader=url; persist('settings'); persist('user_preferences'); renderView(); }).catch(()=>{}); }); }
+function removeHomeHeader(){ confirmSheet('Remove header photo?','','Remove',()=>{ store.settings.homeHeader=null; persist('settings'); persist('user_preferences'); closeSheet(); renderView(); toast('Removed','trash'); }, true); }
 function toggleSecurity(){
   const sec=store.settings.security;
-  if(secOn()){ confirmSheet('Turn off passcode?','The app and finance will be accessible without a passcode.','Turn off',()=>{ sec.enabled=false; sec.pin=''; sec.biometric=false; session.appUnlocked=true; session.financeUnlocked=true; persist(); renderView(); toast('Passcode off','unlock'); }); }
+  if(secOn()){ confirmSheet('Turn off passcode?','The app and finance will be accessible without a passcode.','Turn off',()=>{ sec.enabled=false; sec.pin=''; sec.biometric=false; session.appUnlocked=true; session.financeUnlocked=true; persist('settings'); renderView(); toast('Passcode off','unlock'); }); }
   else { pinSetupFirst=null; pinResolve=()=>{ session.appUnlocked=true; session.financeUnlocked=true; renderView(); }; renderLock('setup'); }
 }
-function setLockScope(sc){ store.settings.security.scope=sc; persist(); if(sc==='finance') session.financeUnlocked=false; renderView(); toast(sc==='app'?'Locking whole app':'Locking finance only','lock'); }
-function toggleBiometric(){ const sec=store.settings.security; sec.biometric=!sec.biometric; persist(); renderView(); toast(sec.biometric?'Face ID on':'Face ID off', sec.biometric?'face':'x'); }
+function setLockScope(sc){ store.settings.security.scope=sc; persist('settings'); if(sc==='finance') session.financeUnlocked=false; renderView(); toast(sc==='app'?'Locking whole app':'Locking finance only','lock'); }
+function toggleBiometric(){ const sec=store.settings.security; sec.biometric=!sec.biometric; persist('settings'); renderView(); toast(sec.biometric?'Face ID on':'Face ID off', sec.biometric?'face':'x'); }
 function changePasscode(){ pinSetupFirst=null; pinResolve=()=>{ toast('Passcode changed','check'); renderView(); }; renderLock('setup'); }
 function sheetCurrency(){
   const s=store.settings;
@@ -915,12 +915,12 @@ function saveCurrency(){
   const base=rawVal('set-base')||store.settings.baseCurrency;
   withButton($('#set-save'), ()=>{
     document.querySelectorAll('#set-rates input[data-cur]').forEach(inp=>{ const r=parseFloat(inp.value); if(r>0) store.settings.fx[inp.dataset.cur]=r; });
-    store.settings.baseCurrency=base; store.settings.baseCurrencyAuto=false; persist(); closeSheet(); renderView();
+    store.settings.baseCurrency=base; store.settings.baseCurrencyAuto=false; persist('settings'); closeSheet(); renderView();
   }, 'Rates saved');
 }
 function sheetPacking(){
   const s=store.settings;
-  openSheet('Default packing list', `<div class="field"><label>One item per line</label><textarea id="set-pack" class="textarea" style="min-height:200px">${esc((s.packingTemplate||[]).join('\n'))}</textarea><div class="hint" style="text-align:left;padding:6px 2px">Added to every new trip.</div></div><button class="btn" onclick="store.settings.packingTemplate=rawVal('set-pack').split('\\n').map(x=>x.trim()).filter(Boolean);persist();closeSheet();renderView();toast('Saved','check')">Save list</button><div class="spacer"></div>`);
+  openSheet('Default packing list', `<div class="field"><label>One item per line</label><textarea id="set-pack" class="textarea" style="min-height:200px">${esc((s.packingTemplate||[]).join('\n'))}</textarea><div class="hint" style="text-align:left;padding:6px 2px">Added to every new trip.</div></div><button class="btn" onclick="store.settings.packingTemplate=rawVal('set-pack').split('\\n').map(x=>x.trim()).filter(Boolean);persist('settings');closeSheet();renderView();toast('Saved','check')">Save list</button><div class="spacer"></div>`);
 }
 function exportData(){
   const blob=new Blob([JSON.stringify(store,null,2)],{type:'application/json'});

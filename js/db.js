@@ -362,12 +362,22 @@ async function pushToSupabase(orgId){
     let loops = 0;
     do {
       if(typeof syncDirty !== 'undefined') syncDirty = false;
-      await pushToSupabaseV2(orgId);
-      if(typeof clearDirty === 'function') clearDirty();
+      let dirtySnap = (typeof cloneDirty === 'function') ? cloneDirty(store._dirty) : null;
+      if(typeof isEmptyDirty === 'function' && isEmptyDirty(dirtySnap)){
+        dirtySnap = { '*': '*' }; /* safety net: something asked to sync with no scope */
+      }
+      await pushToSupabaseV2(orgId, dirtySnap);
+      if(typeof subtractDirty === 'function' && dirtySnap) subtractDirty(store._dirty, dirtySnap);
+      else if(typeof clearDirty === 'function') clearDirty();
       db.write(store);
       loops += 1;
       /* Cap tight loops; leftover dirty is handled in finally via retry. */
-    } while(typeof syncDirty !== 'undefined' && syncDirty && loops < 5);
+    } while(
+      loops < 5 && (
+        (typeof syncDirty !== 'undefined' && syncDirty) ||
+        (typeof isEmptyDirty === 'function' && !isEmptyDirty(store._dirty))
+      )
+    );
     syncSetStatus('synced');
     syncMarkLastSync();
     lastPushAt = Date.now();
