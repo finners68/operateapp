@@ -406,6 +406,35 @@ async function pushToSupabaseV2(orgId){
   }));
   if(showRows.length) await v2UpsertById(sb, 'shows', orgId, showRows);
 
+  /* Notes + ideas early: they are small and user-facing. Writing them before
+     the heavy logistics/journey pass means a later failure cannot strand them. */
+  const ideaRows = ideasSnap.map((x, i) => ({
+    id: v2EnsureId(x),
+    organisation_id: orgId,
+    legacy_id: null,
+    show_id: (x.eventId && isUuid(x.eventId)) ? x.eventId : null,
+    tour_id: (x.tripId && isUuid(x.tripId)) ? x.tripId : null,
+    idea_type: ['reel','caption','hook','youtube','podcast','interview','location'].includes(x.type) ? x.type : 'other',
+    idea_title: x.title,
+    idea_note: x.note,
+    priority_level: V2_PRIO_FROM_STORE[x.prio] || null,
+    is_done: !!x.done,
+    sort_order: i
+  }));
+  if(ideaRows.length) await v2UpsertById(sb, 'ideas', orgId, ideaRows);
+
+  const noteRows = notesSnap.map((x, i) => ({
+    id: v2EnsureId(x),
+    organisation_id: orgId,
+    legacy_id: null,
+    note_title: x.title,
+    note_body: x.body,
+    folder_name: x.folder,
+    sort_order: i,
+    updated_at: x.updated ? new Date(x.updated).toISOString() : undefined
+  }));
+  if(noteRows.length) await v2UpsertById(sb, 'notes', orgId, noteRows);
+
   const showUuidMap = {};
   shows.forEach(s => { showUuidMap[s.id] = s.id; });
   const tourUuidMap = {};
@@ -882,33 +911,7 @@ async function pushToSupabaseV2(orgId){
 
   // Itineraries live in user_preferences.ui_preferences (already written above).
   // Avoid re-inserting itinerary_submissions on every push (duplicate rows).
-
-  const ideaRows = ideasSnap.map((x, i) => ({
-    id: v2EnsureId(x),
-    organisation_id: orgId,
-    legacy_id: null,
-    show_id: (x.eventId && isUuid(x.eventId)) ? x.eventId : null,
-    tour_id: (x.tripId && isUuid(x.tripId)) ? x.tripId : null,
-    idea_type: ['reel','caption','hook','youtube','podcast','interview','location'].includes(x.type) ? x.type : 'other',
-    idea_title: x.title,
-    idea_note: x.note,
-    priority_level: V2_PRIO_FROM_STORE[x.prio] || null,
-    is_done: !!x.done,
-    sort_order: i
-  }));
-  if(ideaRows.length) await v2UpsertById(sb, 'ideas', orgId, ideaRows);
-
-  const noteRows = notesSnap.map((x, i) => ({
-    id: v2EnsureId(x),
-    organisation_id: orgId,
-    legacy_id: null,
-    note_title: x.title,
-    note_body: x.body,
-    folder_name: x.folder,
-    sort_order: i,
-    updated_at: x.updated ? new Date(x.updated).toISOString() : undefined
-  }));
-  if(noteRows.length) await v2UpsertById(sb, 'notes', orgId, noteRows);
+  // Notes + ideas were already upserted earlier in this push.
 
   const localShowIds = new Set(shows.map(s => s.id));
   const localLogIds = new Set(logistics.map(l => l.id));

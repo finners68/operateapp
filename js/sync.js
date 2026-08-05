@@ -45,7 +45,13 @@ let syncRetryDelay = 0;
 function queueSync(){
   if(!syncActive()) return;
   syncDirty = true;             // mark dirty even mid-sync so nothing is missed
-  if(dbRemoteLoading || dbSyncInProgress) return;
+  if(dbRemoteLoading || dbSyncInProgress){
+    /* In-flight push should loop; also arm a retry so an edit that lands in
+       the finish gap (after the loop check, before dbSyncInProgress clears)
+       is never left dirty with no timer scheduled. */
+    scheduleSyncRetry(600);
+    return;
+  }
   clearTimeout(syncTimer);
   syncTimer = setTimeout(() => {
     if(currentOrgId) pushToSupabase(currentOrgId);

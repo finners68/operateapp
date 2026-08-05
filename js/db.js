@@ -349,8 +349,8 @@ async function pushToSupabase(orgId){
   if(!orgId || !store) return;
   const sb = getSupabase();
   if(!sb) return;
-  /* If a push is already running, mark dirty so it loops once more with
-     the latest edits when it finishes — never start a second overlapping push. */
+  /* If a push is already running, mark dirty so the in-flight push loops
+     once more — never start a second overlapping push. */
   if(dbSyncInProgress){
     if(typeof syncDirty !== 'undefined') syncDirty = true;
     return;
@@ -359,12 +359,15 @@ async function pushToSupabase(orgId){
   dbSyncInProgress = true;
   syncSetStatus('syncing');
   try{
+    let loops = 0;
     do {
       if(typeof syncDirty !== 'undefined') syncDirty = false;
       await pushToSupabaseV2(orgId);
       if(typeof clearDirty === 'function') clearDirty();
       db.write(store);
-    } while(typeof syncDirty !== 'undefined' && syncDirty);
+      loops += 1;
+      /* Cap tight loops; leftover dirty is handled in finally via retry. */
+    } while(typeof syncDirty !== 'undefined' && syncDirty && loops < 5);
     syncSetStatus('synced');
     syncMarkLastSync();
     lastPushAt = Date.now();
@@ -378,6 +381,12 @@ async function pushToSupabase(orgId){
     if(typeof toast === 'function') toast(msg.length > 80 ? 'Cloud sync failed — see console' : msg, 'x');
   }finally{
     dbSyncInProgress = false;
+    /* Edits that landed after the last loop check (while this flag was still
+       true) only set syncDirty — queueSync bails and never arms a timer.
+       Always kick a follow-up push if anything is still dirty. */
+    if(typeof syncDirty !== 'undefined' && syncDirty && typeof scheduleSyncRetry === 'function'){
+      scheduleSyncRetry(300);
+    }
   }
 }
 
