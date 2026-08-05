@@ -8,6 +8,13 @@ async function loadFromSupabaseV2(orgId, sb){
   const prevPacking = store?.packing || [];
   const prevReminders = store?.reminders || [];
 
+  /* Keep newer/dirty local notes across cloud reload so an in-progress
+     notepad edit is not wiped by realtime echo. */
+  const prevNotes = (store?.notes || []).slice();
+  const prevDirtyNotes = (store?._dirty && store._dirty.notes instanceof Set)
+    ? new Set(store._dirty.notes)
+    : (store?._dirty?.notes === '*' || store?._dirty?.['*'] === '*') ? null : new Set();
+
   const v2 = await v2RepoFetchOrg(sb, orgId);
   const view = await composeViewFromV2(v2, { prevEvents });
 
@@ -36,6 +43,36 @@ async function loadFromSupabaseV2(orgId, sb){
   store.packing = prevPacking;
   store.reminders = prevReminders;
 
+  if(prevNotes.length){
+    const byId = new Map(store.notes.map(n => [n.id, n]));
+    prevNotes.forEach(local => {
+      if(!local || !local.id) return;
+      const keep = prevDirtyNotes == null || prevDirtyNotes.has(local.id);
+      const cloud = byId.get(local.id);
+      if(!keep) return;
+      if(!cloud || (local.updated || 0) >= (cloud.updated || 0)){
+        byId.set(local.id, local);
+        if(typeof v2RepoPatchLocal === 'function'){
+          v2RepoPatchLocal('notes', {
+            id: local.id,
+            organisation_id: orgId,
+            note_title: local.title || '',
+            note_body: local.body || '',
+            folder_name: local.folder || null,
+            updated_at: local.updated ? new Date(local.updated).toISOString() : null
+          });
+        }
+      }
+    });
+    store.notes = [...byId.values()];
+    if(prevDirtyNotes == null){
+      /* full dirty — restore all dirty flags after clear below */
+    } else if(prevDirtyNotes.size){
+      store._dirty = store._dirty || Object.create(null);
+      store._dirty.notes = prevDirtyNotes;
+    }
+  }
+
   const knownIds = [];
   store.events.forEach(e => {
     knownIds.push(e.id);
@@ -50,7 +87,13 @@ async function loadFromSupabaseV2(orgId, sb){
   (store.ideas || []).forEach(x => knownIds.push(x.id));
   (store.notes || []).forEach(x => knownIds.push(x.id));
   store._known = knownIds;
+
+  const keepNoteDirty = store._dirty && store._dirty.notes;
   clearDirty();
+  if(keepNoteDirty){
+    store._dirty = store._dirty || Object.create(null);
+    store._dirty.notes = keepNoteDirty;
+  }
 
   if(typeof migrate === 'function') migrate();
   db.write(store);

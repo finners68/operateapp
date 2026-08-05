@@ -48,21 +48,55 @@ function viewNote(id){
 }
 
 /* ============================================================
-   NOTE — create + live edit
+   NOTE — create + live edit (instant cloud write when online)
    ============================================================ */
 function sheetNote(){
   const n = {id:uid('note'), title:'', folder:'', body:'', updated:nowMs(), created:nowMs()};
-  store.notes.push(n); persist('notes', n.id);
+  store.notes.push(n);
+  if(typeof persistNoteLocal === 'function') persistNoteLocal(n);
+  else db.write(store);
   openView('note', n.id);
+  if(typeof pushNoteNow === 'function') pushNoteNow(n);
   setTimeout(()=>{ const el=$('#note-title'); if(el) el.focus(); },80);
 }
-function liveNoteTitle(id,v){ const n=store.notes.find(x=>x.id===id); if(n){n.title=v;n.updated=nowMs();persist('notes', id);} }
-function liveNoteFolder(id,v){ const n=store.notes.find(x=>x.id===id); if(n){n.folder=v.trim();n.updated=nowMs();persist('notes', id);} }
-function liveNoteBody(id,v){ const n=store.notes.find(x=>x.id===id); if(n){n.body=v;n.updated=nowMs();persist('notes', id);} }
+function liveNoteTitle(id,v){
+  const n=store.notes.find(x=>x.id===id);
+  if(!n) return;
+  n.title=v; n.updated=nowMs();
+  if(typeof persistNoteLocal === 'function') persistNoteLocal(n); else db.write(store);
+  if(typeof pushNoteNow === 'function') pushNoteNow(n);
+}
+function liveNoteFolder(id,v){
+  const n=store.notes.find(x=>x.id===id);
+  if(!n) return;
+  n.folder=v.trim(); n.updated=nowMs();
+  if(typeof persistNoteLocal === 'function') persistNoteLocal(n); else db.write(store);
+  if(typeof pushNoteNow === 'function') pushNoteNow(n);
+}
+function liveNoteBody(id,v){
+  const n=store.notes.find(x=>x.id===id);
+  if(!n) return;
+  n.body=v; n.updated=nowMs();
+  if(typeof persistNoteLocal === 'function') persistNoteLocal(n); else db.write(store);
+  if(typeof pushNoteNow === 'function') pushNoteNow(n);
+}
 function saveNoteAndBack(id){
   const n=store.notes.find(x=>x.id===id);
-  if(n && !n.title.trim() && !n.body.trim()){ store.notes=store.notes.filter(x=>x.id!==id); persist('notes', id); }
+  if(n && !n.title.trim() && !n.body.trim()){
+    store.notes=store.notes.filter(x=>x.id!==id);
+    db.write(store);
+    if(typeof deleteNoteNow === 'function') deleteNoteNow(id);
+  } else if(n && typeof pushNoteNow === 'function'){
+    pushNoteNow(n);
+  }
   back();
 }
-function confirmDeleteNote(id){ confirmSheet('Delete note?','This can\'t be undone.','Delete note',()=>{ store.notes=store.notes.filter(x=>x.id!==id); persist('notes', id); back(); toast('Note deleted','trash'); }, true); }
-
+function confirmDeleteNote(id){
+  confirmSheet('Delete note?','This can\'t be undone.','Delete note',()=>{
+    store.notes=store.notes.filter(x=>x.id!==id);
+    db.write(store);
+    if(typeof deleteNoteNow === 'function') deleteNoteNow(id);
+    back();
+    toast('Note deleted','trash');
+  }, true);
+}

@@ -345,6 +345,123 @@ async function ensureOrgForUser(){
   return newOrgId;
 }
 
+/* Instant notepad write-through. Does not wait for the full tour sync queue. */
+const _notePushSeq = Object.create(null);
+const _notePushInflight = Object.create(null);
+
+function noteRowFromView(note){
+  if(!note || !note.id) return null;
+  return {
+    id: note.id,
+    organisation_id: currentOrgId,
+    legacy_id: null,
+    note_title: note.title || '',
+    note_body: note.body || '',
+    folder_name: note.folder || null,
+    updated_at: note.updated ? new Date(note.updated).toISOString() : new Date().toISOString()
+  };
+}
+
+async function pushNoteNow(note){
+  if(!note || !note.id) return false;
+  const id = note.id;
+  if(typeof syncActive === 'function' && !syncActive()){
+    if(typeof markDirty === 'function') markDirty('notes', id);
+    return false;
+  }
+  const sb = getSupabase();
+  if(!sb || !currentOrgId){
+    if(typeof markDirty === 'function') markDirty('notes', id);
+    return false;
+  }
+  _notePushSeq[id] = (_notePushSeq[id] || 0) + 1;
+  const mySeq = _notePushSeq[id];
+  /* Latest-wins: wait for any in-flight write, then only the newest seq continues. */
+  if(_notePushInflight[id]){
+    try{ await _notePushInflight[id]; }catch(e){}
+  }
+  if(mySeq !== _notePushSeq[id]) return false;
+
+  const run = (async () => {
+    const latest = (store.notes || []).find(n => n.id === id) || note;
+    const row = noteRowFromView(latest);
+    if(!row) return false;
+    if(typeof syncSetStatus === 'function') syncSetStatus('syncing');
+    const { data, error } = await sb.from(V2_TABLES.notes)
+      .upsert(row, { onConflict: 'id' })
+      .select('*')
+      .maybeSingle();
+    if(error){
+      console.error('pushNoteNow', error);
+      if(typeof markDirty === 'function') markDirty('notes', id);
+      if(typeof syncSetStatus === 'function') syncSetStatus('error');
+      if(typeof toast === 'function') toast('Note not saved to cloud', 'x');
+      if(typeof scheduleSyncRetry === 'function') scheduleSyncRetry(800);
+      return false;
+    }
+    if(data && typeof v2RepoPatchLocal === 'function') v2RepoPatchLocal('notes', data);
+    if(typeof subtractDirty === 'function' && store?._dirty){
+      const snap = Object.create(null);
+      snap.notes = new Set([id]);
+      subtractDirty(store._dirty, snap);
+    }
+    if(typeof syncSetStatus === 'function') syncSetStatus('synced');
+    if(typeof syncMarkLastSync === 'function') syncMarkLastSync();
+    lastPushAt = Date.now();
+    return true;
+  })();
+  _notePushInflight[id] = run;
+  try{
+    return await run;
+  }finally{
+    if(_notePushInflight[id] === run) delete _notePushInflight[id];
+  }
+}
+
+async function deleteNoteNow(id){
+  if(!id) return false;
+  if(typeof syncActive === 'function' && !syncActive()){
+    if(typeof markDirty === 'function') markDirty('notes', id);
+    return false;
+  }
+  const sb = getSupabase();
+  if(!sb || !currentOrgId){
+    if(typeof markDirty === 'function') markDirty('notes', id);
+    return false;
+  }
+  if(typeof syncSetStatus === 'function') syncSetStatus('syncing');
+  const { error } = await sb.from(V2_TABLES.notes)
+    .delete()
+    .eq('organisation_id', currentOrgId)
+    .eq('id', id);
+  if(error){
+    console.error('deleteNoteNow', error);
+    if(typeof markDirty === 'function') markDirty('notes', id);
+    if(typeof syncSetStatus === 'function') syncSetStatus('error');
+    if(typeof toast === 'function') toast('Note delete not saved to cloud', 'x');
+    return false;
+  }
+  if(typeof v2RepoRemoveLocal === 'function') v2RepoRemoveLocal('notes', id);
+  if(typeof subtractDirty === 'function' && store?._dirty){
+    const snap = Object.create(null);
+    snap.notes = new Set([id]);
+    subtractDirty(store._dirty, snap);
+  }
+  if(typeof syncSetStatus === 'function') syncSetStatus('synced');
+  if(typeof syncMarkLastSync === 'function') syncMarkLastSync();
+  lastPushAt = Date.now();
+  return true;
+}
+
+function persistNoteLocal(note){
+  if(!store || !note) return;
+  if(!store.notes) store.notes = [];
+  const i = store.notes.findIndex(x => x.id === note.id);
+  if(i >= 0) store.notes[i] = note;
+  else store.notes.push(note);
+  db.write(store);
+}
+
 async function pushToSupabase(orgId){
   if(!orgId || !store) return;
   const sb = getSupabase();
