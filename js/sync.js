@@ -124,10 +124,12 @@ function startRealtime(orgId){
   const sb = getSupabase();
   if(!sb || !orgId) return;
 
+  /* V2 entity tables — reload recomposes UUID-native view projections. */
   const tables = [
     'shows', 'journeys', 'schedule_items', 'checklist_items', 'tours',
     'organisation_settings', 'files', 'travel_tickets', 'show_files',
-    'hotel_bookings', 'ideas', 'notes', 'contacts'
+    'hotel_bookings', 'ideas', 'notes', 'contacts', 'venues', 'hotels',
+    'show_advances', 'show_contacts', 'hotel_booking_shows'
   ];
 
   realtimeChannel = sb.channel('operate:' + orgId);
@@ -135,7 +137,15 @@ function startRealtime(orgId){
     realtimeChannel.on('postgres_changes', {
       event: '*', schema: 'public', table,
       filter: `organisation_id=eq.${orgId}`
-    }, () => scheduleRemoteReload());
+    }, (payload) => {
+      /* Prefer full reload for correctness; patch local v2 row when possible. */
+      try{
+        const row = payload.new || payload.old;
+        if(payload.eventType === 'DELETE' && row?.id) v2RepoRemoveLocal(table, row.id);
+        else if(row?.id) v2RepoPatchLocal(table, row);
+      }catch(e){}
+      scheduleRemoteReload();
+    });
   });
   realtimeChannel.subscribe();
   bindFocusReload();

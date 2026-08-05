@@ -109,10 +109,15 @@ function showDrivers(e){
 }
 
 /* ---------- Persistence layer (swap-able) ---------- */
-const DB_KEY = 'artisthq.v2';
-const DB_BACKUP_KEY = DB_KEY + '.prelogistics';
+/* DB_KEY / clearLegacyLocalStore live in js/db-v2-state.js */
 const db = {
-  read(){ try{ return JSON.parse(localStorage.getItem(DB_KEY)); }catch(e){ return null; } },
+  read(){
+    try{
+      const raw = localStorage.getItem(DB_KEY);
+      if(raw) return JSON.parse(raw);
+    }catch(e){}
+    return null;
+  },
   write(state){
     // Move image/PDF bytes to IndexedDB, and never write base64 data: URLs into
     // localStorage — a single photo can exceed the quota and abort the whole save.
@@ -127,13 +132,17 @@ const db = {
 
 /* ---------- Central store ---------- */
 let store = null;
-const uid = (p='id') => p + '_' + (
-  (typeof crypto !== 'undefined' && crypto.randomUUID)
-    ? crypto.randomUUID().replace(/-/g,'').slice(0,16)          // collision-resistant across offline devices
-    : Math.random().toString(36).slice(2,10)
-) + (store ? store._seq++ : 0);
+/* UUIDs match Postgres primary keys (V2-native). */
+const uid = (_p) => {
+  if(store) store._seq = (store._seq || 1) + 1;
+  return newUuid();
+};
 
-function persist(){ db.write(store); queueSync(); }
+function persist(){
+  if(typeof markDirtyAll === 'function') markDirtyAll();
+  db.write(store);
+  queueSync();
+}
 function commit(){ persist(); render(); }
 
 /* ---------- Utilities ---------- */
@@ -715,18 +724,7 @@ async function biometricUnlock(silent){
 
 /* ---------- Seed data (demo tour so the app feels alive) ---------- */
 function seed(){
-  const s = { _seq:1, activeTripId:null, activeShowId:null, tab:'home',
-    settings:{ artistName:'You', packingTemplate:['Passport','USBs','Headphones','Power Bank','Chargers','Camera','SD Cards','Laptop','IEMs'],
-      baseCurrency:'EUR',
-      fx:{GBP:1, EUR:0.85, USD:0.79, CHF:0.88, AUD:0.52, CAD:0.58, AED:0.215, SGD:0.59, SEK:0.075, NOK:0.075, DKK:0.114, PLN:0.20, CZK:0.034, ZAR:0.043},
-      billing:{name:'', address:'', taxId:'', iban:'', email:''},
-      invoicePrefix:'AHQ', invoiceSeq:1, invoiceTerms:14,
-      accountType:'dj', homeAirport:'AMS',
-      security:{ enabled:false, pin:'', scope:'finance', biometric:false } },
-    artists:[{id:'art_1',name:'You'}],
-    events:[], trips:[], ideas:[], notes:[], drivers:[], hotels:[], contacts:[], invoices:[],
-    itineraries:[], packing:[]
-  };
+  const s = emptyOperateState();
   store = s;
   // ---- builders ----
   const parseCity = title => { const p=title.split(' - '); return p.length>1 ? p[p.length-1].trim() : ''; };

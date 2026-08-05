@@ -1,4 +1,4 @@
-/* Operate — Supabase row sync (maps store ↔ Postgres, keeps artisthq.v2 shape) */
+/* Operate — Supabase sync (V2-native entity state + composed view projections) */
 const ORG_KEY = 'operate_org_id';
 const MIGRATION_PREFIX = 'operate_supabase_migrated:';
 const BUCKET = STORAGE_BUCKET;
@@ -24,16 +24,18 @@ function storeSnapshot(){
   if(!store) return '';
   let h = 5381;
   const add = s => { s = String(s==null?'':s); for(let i=0;i<s.length;i++) h = ((h*33) ^ s.charCodeAt(i)) >>> 0; };
+  const v2 = store.v2 || {};
+  add((v2.shows||[]).length); add((v2.journeys||[]).length); add((v2.tours||[]).length);
   (store.events||[]).forEach(e=>{
     add(e.id); add(e.date); add(e.start); add(e.end); add(e.setTime); add(e.endTime);
     add(e.title); add(e.venue); add(e.venueAddr); add(e.city); add(e.info); add(e.from); add(e.to);
-    add(e.setDone?1:0); add(e.done?1:0);
+    add(e.setDone?1:0); add(e.done?1:0); add(e.notes);
     (e.drivers||[]).forEach(d=>{ add(d.journey); add(d.time); add(d.phone); add(d.name); add(d.noGround?1:0); });
-    (e.flights||[]).forEach(f=>{ add(f.from); add(f.to); add(f.dep); add(f.code); });
+    (e.flights||[]).forEach(f=>{ add(f.id); add(f.from); add(f.to); add(f.dep); add(f.code); });
     if(e.hotel){ add(e.hotel.name); add(e.hotel.postcode); add(e.hotel.address); }
   });
   (store.ideas||[]).forEach(x=>{ add(x.id); add(x.title); add(x.done?1:0); });
-  (store.notes||[]).forEach(x=>{ add(x.id); add(x.updated); });
+  (store.notes||[]).forEach(x=>{ add(x.id); add(x.updated); add(x.body); });
   (store.trips||[]).forEach(t=>{ add(t.id); add(t.name); add(t.start); add(t.end); });
   return (store._seq||0) + '|' + (store.events?.length||0) + '|' + (store.ideas?.length||0) + '|' + (store.notes?.length||0) + '|' + h;
 }
@@ -352,6 +354,7 @@ async function pushToSupabase(orgId){
   if(typeof syncDirty !== 'undefined') syncDirty = false;
   try{
     await pushToSupabaseV2(orgId);
+    if(typeof clearDirty === 'function') clearDirty();
     db.write(store);
     syncSetStatus('synced');
     syncMarkLastSync();
@@ -384,6 +387,7 @@ async function loadFromSupabase(orgId){
 async function bootstrapRemoteData(){
   const orgId = await ensureOrgForUser();
   currentOrgId = orgId;
+  if(typeof clearLegacyLocalStore === 'function') clearLegacyLocalStore();
   const local = db.read();
   const sb = getSupabase();
   let cloudEmpty = true;
@@ -393,11 +397,15 @@ async function bootstrapRemoteData(){
       .eq('organisation_id', orgId);
     if(!error) cloudEmpty = !count;
   }
-  const pushLocal = local?.events?.length && cloudEmpty &&
+  /* Prefer cloud. Only seed-push when cloud is empty and local V2 cache has events. */
+  const localIsV2 = !!(local && local.v2);
+  const pushLocal = localIsV2 && local?.events?.length && cloudEmpty &&
     (!isMigrated(orgId) || isDevHardwireMode());
   if(pushLocal){
     store = local;
+    if(!store.v2) store.v2 = emptyV2Collections();
     if(store.tab == null) store.tab = 'home';
+    store.organisationId = orgId;
     migrate();
     await pushToSupabase(orgId);
     markMigrated(orgId);

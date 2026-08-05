@@ -18,8 +18,9 @@ if(typeof window !== 'undefined'){
 }
 /* ---------- Boot ---------- */
 function boot(){
+  if(typeof clearLegacyLocalStore === 'function') clearLegacyLocalStore();
   const saved = db.read();
-  if(saved && saved.events){ store = saved; if(store.tab==null) store.tab='home'; migrate(); }
+  if(saved && saved.v2 && Array.isArray(saved.events)){ store = saved; if(store.tab==null) store.tab='home'; migrate(); }
   else { seed(); }
   restoreNavState();
   if(store.tab==='notes'){ store.tab='ideas'; if(typeof contentMode!=='undefined') contentMode='notes'; }

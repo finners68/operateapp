@@ -1,6 +1,4 @@
-/* Decompose artisthq.v2 store into V2 relational upserts.
-   Prefer bulk upsert on (organisation_id,legacy_id). Fall back to
-   update-or-insert if PostgREST rejects onConflict. */
+/* Decompose view projections into V2 relational upserts by primary key (UUID). */
 
 function v2Throw(error, label){
   if(!error) return;
@@ -23,6 +21,48 @@ function v2CountryCode(v){
   return /^[A-Z]{2}$/.test(s) ? s : null;
 }
 
+function v2EnsureId(obj){
+  if(!obj) return null;
+  if(!obj.id || !isUuid(obj.id)) obj.id = newUuid();
+  return obj.id;
+}
+
+function v2FindLocalByLegacy(table, legacyId){
+  if(!legacyId || !store?.v2) return null;
+  const list = store.v2[table];
+  if(!Array.isArray(list)) return null;
+  return list.find(r => r.legacy_id === legacyId) || null;
+}
+
+function v2IdForLegacy(table, legacyId, preferredId){
+  /* Prefer existing DB row for this classification tag so upsert-by-id
+     does not collide with unique (organisation_id, legacy_id). */
+  const existing = v2FindLocalByLegacy(table, legacyId);
+  if(existing?.id) return existing.id;
+  if(preferredId && isUuid(preferredId)) return preferredId;
+  return newUuid();
+}
+
+function v2FindTravelTicket(journeyId, fileId){
+  return (store?.v2?.travel_tickets || []).find(t => t.journey_id === journeyId && t.file_id === fileId) || null;
+}
+
+async function v2UpsertTravelTicket(sb, orgId, pass, journeyId, fileId){
+  const existing = v2FindTravelTicket(journeyId, fileId);
+  const row = {
+    id: existing?.id || (pass._ticketId && isUuid(pass._ticketId) ? pass._ticketId : newUuid()),
+    organisation_id: orgId,
+    legacy_id: null,
+    journey_id: journeyId,
+    file_id: fileId,
+    ticket_type: 'boarding_pass',
+    sort_order: 0
+  };
+  const data = await v2UpsertOneByLegacy(sb, 'travel_tickets', orgId, row);
+  if(data) pass._ticketId = data.id;
+  return data;
+}
+
 async function v2GetMemberRole(sb, orgId){
   if(isDevHardwireMode()) return 'owner';
   const user = await getAuthUser();
@@ -36,72 +76,42 @@ async function v2GetMemberRole(sb, orgId){
   return data?.member_role || 'owner';
 }
 
-/* Load existing id map for an org table by legacy_id (stripped + raw). */
-async function v2LoadLegacyIds(sb, table, orgId){
-  const { data, error } = await sb.from(table).select('id,legacy_id').eq('organisation_id', orgId);
-  v2Throw(error, table + ' select');
-  const byLegacy = {};
-  (data || []).forEach(r => {
-    if(!r.legacy_id) return;
-    byLegacy[r.legacy_id] = r.id;
-    byLegacy[v2StripLegacyId(r.legacy_id)] = r.id;
+/* UUID-primary upsert. Classification tags may still set legacy_id. */
+async function v2UpsertById(sb, table, orgId, rowOrRows){
+  const rows = (Array.isArray(rowOrRows) ? rowOrRows : [rowOrRows]).filter(Boolean);
+  if(!rows.length) return [];
+  const mapped = rows.map(r => {
+    const row = Object.assign({}, r, { organisation_id: orgId });
+    if(!row.id || !isUuid(row.id)) row.id = newUuid();
+    return row;
   });
-  return byLegacy;
+  /* Postgres rejects upsert payloads that touch the same id twice. */
+  const byId = new Map();
+  mapped.forEach(r => byId.set(r.id, r));
+  const payload = [...byId.values()];
+  const data = await v2RepoUpsert(sb, table, payload, 'id');
+  (data || []).forEach(r => { if(r) v2RepoPatchLocal(table, r); });
+  return data || [];
 }
 
 async function v2UpsertByLegacy(sb, table, orgId, rowOrRows){
-  const rows = (Array.isArray(rowOrRows) ? rowOrRows : [rowOrRows]).filter(Boolean);
-  if(!rows.length) return [];
-  const payload = rows.map(r => {
-    const row = Object.assign({}, r, { organisation_id: orgId });
-    delete row.id;
-    return row;
-  });
-
-  // Fast path — requires unique index on (organisation_id, legacy_id)
-  const { data: upserted, error: upErr } = await sb.from(table)
-    .upsert(payload, { onConflict: 'organisation_id,legacy_id' })
-    .select('id,legacy_id');
-  if(!upErr) return upserted || [];
-
-  // Slow path fallback
-  console.warn('v2 bulk upsert fallback for', table, upErr.message || upErr);
-  const byLegacy = await v2LoadLegacyIds(sb, table, orgId);
-  const out = [];
-  for(const row of payload){
-    const existingId = row.legacy_id
-      ? (byLegacy[row.legacy_id] || byLegacy[v2StripLegacyId(row.legacy_id)])
-      : null;
-    if(existingId){
-      const { data, error } = await sb.from(table).update(row).eq('id', existingId).select('id,legacy_id').single();
-      v2Throw(error, table + ' update');
-      out.push(data);
-      if(data?.legacy_id){
-        byLegacy[data.legacy_id] = data.id;
-        byLegacy[v2StripLegacyId(data.legacy_id)] = data.id;
-      }
-    } else {
-      const { data, error } = await sb.from(table).insert(row).select('id,legacy_id').single();
-      v2Throw(error, table + ' insert');
-      out.push(data);
-      if(data?.legacy_id){
-        byLegacy[data.legacy_id] = data.id;
-        byLegacy[v2StripLegacyId(data.legacy_id)] = data.id;
-      }
-    }
-  }
-  return out;
+  return v2UpsertById(sb, table, orgId, rowOrRows);
 }
-
 async function v2UpsertOneByLegacy(sb, table, orgId, row){
-  const rows = await v2UpsertByLegacy(sb, table, orgId, row);
+  const rows = await v2UpsertById(sb, table, orgId, row);
   return rows[0] || null;
+}
+async function v2LoadLegacyIds(_sb, _table, _orgId){
+  return {};
 }
 
 async function v2UpsertFile(sb, orgId, att, storagePath, mime){
+  const fileId = (att.id && isUuid(att.id)) ? att.id : newUuid();
+  att.id = fileId;
   const row = {
+    id: fileId,
     organisation_id: orgId,
-    legacy_id: att.id,
+    legacy_id: null,
     bucket_name: STORAGE_BUCKET,
     storage_path: storagePath,
     original_filename: att.name || null,
@@ -112,6 +122,8 @@ async function v2UpsertFile(sb, orgId, att, storagePath, mime){
   const { data: byPath } = await sb.from('files')
     .select('id').eq('organisation_id', orgId).eq('storage_path', storagePath).maybeSingle();
   if(byPath){
+    row.id = byPath.id;
+    att.id = byPath.id;
     const { data, error } = await sb.from('files').update(row).eq('id', byPath.id).select('id').single();
     v2Throw(error, 'files update');
     return data.id;
@@ -124,16 +136,17 @@ async function v2EnsureContact(sb, orgId, c, cache){
   if(!c || !c.name) return null;
   const key = (c.email || c.phone || c.name).toLowerCase();
   if(cache.has(key)) return cache.get(key);
+  const cid = v2EnsureId(c);
   const row = {
+    id: cid,
     organisation_id: orgId,
-    legacy_id: c.id || uid('con'),
+    legacy_id: null,
     display_name: c.name,
     email_address: c.email || null,
     phone_number: c.phone || null,
     whatsapp_number: c.whatsapp || null,
     contact_notes: c.notes || null
   };
-  if(!c.id) c.id = row.legacy_id;
   const data = await v2UpsertOneByLegacy(sb, 'contacts', orgId, row);
   cache.set(key, data.id);
   return data.id;
@@ -234,60 +247,70 @@ async function pushToSupabaseV2(orgId){
     await v2EnsureContact(sb, orgId, c, contactCache);
   }
 
-  const artistRows = (store.artists || []).map(a => ({
-    organisation_id: orgId,
-    legacy_id: a.id,
-    display_name: a.name || a.display_name || 'Artist',
-    is_default: !!a.default
-  }));
-  if(!artistRows.length && store.settings?.artistName){
-    artistRows.push({
+  const artistRows = (store.artists || []).map(a => {
+    const id = v2EnsureId(a);
+    return {
+      id,
       organisation_id: orgId,
-      legacy_id: 'default-artist',
+      legacy_id: null,
+      display_name: a.name || a.display_name || 'Artist',
+      is_default: !!a.default
+    };
+  });
+  if(!artistRows.length && store.settings?.artistName){
+    const id = newUuid();
+    artistRows.push({
+      id,
+      organisation_id: orgId,
+      legacy_id: null,
       display_name: store.settings.artistName,
       is_default: true
     });
+    store.artists = [{ id, name: store.settings.artistName, default: true }];
   }
-  if(artistRows.length) await v2UpsertByLegacy(sb, 'artists', orgId, artistRows);
+  if(artistRows.length) await v2UpsertById(sb, 'artists', orgId, artistRows);
+  const defaultArtistId = (store.artists || []).find(a => a.default)?.id || (store.artists || [])[0]?.id || null;
 
   const tripRows = (store.trips || []).map(t => ({
+    id: v2EnsureId(t),
     organisation_id: orgId,
-    legacy_id: t.id,
+    legacy_id: null,
     tour_name: t.name,
     color_key: t.color,
     start_date: t.start || null,
     end_date: t.end || null,
     is_archived: !!t.archived
   }));
-  if(tripRows.length) await v2UpsertByLegacy(sb, 'tours', orgId, tripRows);
+  if(tripRows.length) await v2UpsertById(sb, 'tours', orgId, tripRows);
 
-  const tourUuidMap = await v2LoadLegacyIds(sb, 'tours', orgId);
-
+  const venueIdByShow = {};
   const venueRows = [];
   for(const s of shows){
     if(!s.venue && !s.city) continue;
+    const existing = (store.v2?.venues || []).find(v =>
+      (store.v2.shows || []).some(sh => sh.id === s.id && sh.venue_id === v.id)
+    );
+    const vid = existing?.id || newUuid();
+    venueIdByShow[s.id] = vid;
     venueRows.push({
+      id: vid,
       organisation_id: orgId,
-      legacy_id: 'venue:' + s.id,
+      legacy_id: null,
       venue_name: s.venue || 'Venue',
       address_line_1: s.venueAddr || null,
       city: s.city || null,
       country_code: v2CountryCode(s.country)
     });
   }
-  if(venueRows.length) await v2UpsertByLegacy(sb, 'venues', orgId, venueRows);
-
-  const venueUuidMap = await v2LoadLegacyIds(sb, 'venues', orgId);
-  const artistUuidMap = await v2LoadLegacyIds(sb, 'artists', orgId);
+  if(venueRows.length) await v2UpsertById(sb, 'venues', orgId, venueRows);
 
   const showRows = shows.map(s => ({
+    id: v2EnsureId(s),
     organisation_id: orgId,
-    legacy_id: s.id,
-    tour_id: s.tripId && tourUuidMap[s.tripId] ? tourUuidMap[s.tripId] : null,
-    primary_artist_id: s.artist
-      ? (artistUuidMap['default-artist'] || artistUuidMap[Object.keys(artistUuidMap).find(k => !k.includes(':'))] || null)
-      : null,
-    venue_id: venueUuidMap['venue:' + s.id] || null,
+    legacy_id: null,
+    tour_id: (s.tripId && isUuid(s.tripId)) ? s.tripId : null,
+    primary_artist_id: s.artist ? defaultArtistId : null,
+    venue_id: venueIdByShow[s.id] || null,
     show_date: s.date,
     show_status: V2_SHOW_STATUS_FROM_STORE[s.status] || 'confirmed',
     color_key: s.color || null,
@@ -298,12 +321,15 @@ async function pushToSupabaseV2(orgId){
     content_plan: s.content || null,
     is_set_done: !!s.setDone
   }));
-  if(showRows.length) await v2UpsertByLegacy(sb, 'shows', orgId, showRows);
+  if(showRows.length) await v2UpsertById(sb, 'shows', orgId, showRows);
 
-  const showUuidMap = await v2LoadLegacyIds(sb, 'shows', orgId);
+  const showUuidMap = {};
+  shows.forEach(s => { showUuidMap[s.id] = s.id; });
+  const tourUuidMap = {};
+  (store.trips || []).forEach(t => { tourUuidMap[t.id] = t.id; });
 
   for(const s of shows){
-    const sid = showUuidMap[s.id];
+    const sid = s.id;
     if(!sid) continue;
 
     if(s.advance){
@@ -375,10 +401,11 @@ async function pushToSupabaseV2(orgId){
     for(const [i, d] of showDrivers(s).entries()){
       if(!d.name && !d.phone) continue;
       const cid = await v2EnsureContact(sb, orgId, { id: d.id, name: d.name || 'Driver', phone: d.phone, whatsapp: d.whatsapp }, contactCache);
-      const jLegacy = v2PrefixedLegacy('show_driver_journey:', s.id + ':' + i);
+      const driverLegacy = 'show_driver_journey:' + (d.id || (sid + ':' + i));
       const jRow = await v2UpsertOneByLegacy(sb, 'journeys', orgId, {
+        id: v2IdForLegacy('journeys', driverLegacy, d.id),
         organisation_id: orgId,
-        legacy_id: jLegacy,
+        legacy_id: driverLegacy,
         related_show_id: sid,
         tour_id: s.tripId && tourUuidMap[s.tripId] ? tourUuidMap[s.tripId] : null,
         journey_type: 'ground_transfer',
@@ -401,8 +428,9 @@ async function pushToSupabaseV2(orgId){
 
     if(s.hotel && (s.hotel.name || s.hotel.address)){
       const h = s.hotel;
-      const hotelLegacy = 'hotel:' + s.id;
+      const hotelLegacy = 'hotel:' + sid;
       const hotelRow = await v2UpsertOneByLegacy(sb, 'hotels', orgId, {
+        id: v2IdForLegacy('hotels', hotelLegacy, h._hotelId),
         organisation_id: orgId,
         legacy_id: hotelLegacy,
         hotel_name: h.name || 'Hotel',
@@ -412,10 +440,12 @@ async function pushToSupabaseV2(orgId){
         email_address: h.email || null
       });
       if(hotelRow){
-        const bookingLegacy = v2PrefixedLegacy('show_hotel:', s.id);
+        h._hotelId = hotelRow.id;
         const checkIn = h.checkin || s.date;
         const checkOut = h.checkout || h.checkin || s.date;
+        const bookingLegacy = 'show_hotel:' + sid;
         const bk = await v2UpsertOneByLegacy(sb, 'hotel_bookings', orgId, {
+          id: v2IdForLegacy('hotel_bookings', bookingLegacy, h._bookingId),
           organisation_id: orgId,
           legacy_id: bookingLegacy,
           hotel_id: hotelRow.id,
@@ -426,6 +456,7 @@ async function pushToSupabaseV2(orgId){
           is_done: !!h.done
         });
         if(bk){
+          h._bookingId = bk.id;
           await v2UpsertPk(sb, 'hotel_booking_shows', {
             organisation_id: orgId,
             hotel_booking_id: bk.id,
@@ -436,9 +467,11 @@ async function pushToSupabaseV2(orgId){
     }
 
     if(s.flightNo && !(s.flights || []).length){
+      const primaryLegacy = 'show_primary_flight:' + sid;
       await v2UpsertOneByLegacy(sb, 'journeys', orgId, {
+        id: v2IdForLegacy('journeys', primaryLegacy, s._primaryFlightId),
         organisation_id: orgId,
-        legacy_id: v2PrefixedLegacy('show_primary_flight:', s.id),
+        legacy_id: primaryLegacy,
         related_show_id: sid,
         tour_id: s.tripId && tourUuidMap[s.tripId] ? tourUuidMap[s.tripId] : null,
         journey_type: 'flight',
@@ -455,14 +488,15 @@ async function pushToSupabaseV2(orgId){
     }
 
     for(const [i, f] of (s.flights || []).entries()){
-      const jLegacy = v2PrefixedLegacy('show_flight:', f.id);
       const flightTimes = v2NormalizeJourneyTimes(
         v2CombineDateTime(s.date, f.dep),
         v2CombineDateTime(s.date, f.arr)
       );
+      const flightLegacy = 'show_flight:' + f.id;
       const jRow = await v2UpsertOneByLegacy(sb, 'journeys', orgId, {
+        id: v2IdForLegacy('journeys', flightLegacy, f.id),
         organisation_id: orgId,
-        legacy_id: jLegacy,
+        legacy_id: flightLegacy,
         related_show_id: sid,
         tour_id: s.tripId && tourUuidMap[s.tripId] ? tourUuidMap[s.tripId] : null,
         journey_type: 'flight',
@@ -480,40 +514,47 @@ async function pushToSupabaseV2(orgId){
         const path = await ensurePassUploaded(pp, s.id, f.id);
         if(!path || !jRow) continue;
         const fileId = await v2UpsertFile(sb, orgId, pp, path, mimeFromPassKind(pp.kind));
-        await v2UpsertOneByLegacy(sb, 'travel_tickets', orgId, {
-          organisation_id: orgId,
-          legacy_id: pp.id,
-          journey_id: jRow.id,
-          file_id: fileId,
-          ticket_type: 'boarding_pass',
-          sort_order: 0
-        });
+        await v2UpsertTravelTicket(sb, orgId, pp, jRow.id, fileId);
       }
     }
 
-    const chkBatch = (s.checklist || []).map((c, i) => ({
-      organisation_id: orgId,
-      legacy_id: v2PrefixedLegacy('show_checklist:', c.id),
-      show_id: sid,
-      item_label: c.label,
-      is_done: !!c.done,
-      sort_order: i
-    }));
-    if(chkBatch.length) await v2UpsertByLegacy(sb, 'checklist_items', orgId, chkBatch);
+    const chkBatch = (s.checklist || []).map((c, i) => {
+      v2EnsureId(c);
+      const leg = 'show_checklist:' + c.id;
+      const id = v2IdForLegacy('checklist_items', leg, c.id);
+      c.id = id;
+      return {
+        id,
+        organisation_id: orgId,
+        legacy_id: leg,
+        show_id: sid,
+        item_label: c.label,
+        is_done: !!c.done,
+        sort_order: i
+      };
+    });
+    if(chkBatch.length) await v2UpsertById(sb, 'checklist_items', orgId, chkBatch);
 
-    const tlBatch = (s.timeline || []).map((t, i) => ({
-      organisation_id: orgId,
-      legacy_id: v2PrefixedLegacy('show_timeline:', t.id),
-      show_id: sid,
-      schedule_item_type: 'custom',
-      item_title: t.title || 'Schedule item',
-      item_notes: t.sub || null,
-      scheduled_date: s.date,
-      scheduled_time: t.time || null,
-      is_done: !!t.done,
-      sort_order: i
-    }));
-    if(tlBatch.length) await v2UpsertByLegacy(sb, 'schedule_items', orgId, tlBatch);
+    const tlBatch = (s.timeline || []).map((t, i) => {
+      v2EnsureId(t);
+      const leg = 'show_timeline:' + t.id;
+      const id = v2IdForLegacy('schedule_items', leg, t.id);
+      t.id = id;
+      return {
+        id,
+        organisation_id: orgId,
+        legacy_id: leg,
+        show_id: sid,
+        schedule_item_type: 'custom',
+        item_title: t.title || 'Schedule item',
+        item_notes: t.sub || null,
+        scheduled_date: s.date,
+        scheduled_time: t.time || null,
+        is_done: !!t.done,
+        sort_order: i
+      };
+    });
+    if(tlBatch.length) await v2UpsertById(sb, 'schedule_items', orgId, tlBatch);
 
     for(const att of (s.attachments || [])){
       let path = att._storagePath || null;
@@ -539,15 +580,16 @@ async function pushToSupabaseV2(orgId){
   for(const l of logistics){
     if(l.kind === 'travel'){
       const jType = v2JourneyTypeFromEvent(l) || 'other';
-      const jLegacy = v2PrefixedLegacy('logistics:', l.id);
-      const showUuid = l.showId && showUuidMap[l.showId] ? showUuidMap[l.showId] : null;
+      const showUuid = (l.showId && isUuid(l.showId)) ? l.showId : null;
       const travelTimes = v2NormalizeJourneyTimes(
         v2CombineDateTime(l.date, l.start),
         v2CombineDateTime(l.date, l.end)
       );
+      const travelLegacy = 'logistics:' + l.id;
       const jRow = await v2UpsertOneByLegacy(sb, 'journeys', orgId, {
+        id: v2IdForLegacy('journeys', travelLegacy, l.id),
         organisation_id: orgId,
-        legacy_id: jLegacy,
+        legacy_id: travelLegacy,
         related_show_id: showUuid,
         journey_type: jType,
         journey_title: l.title || logisticTypeLabel(l),
@@ -569,28 +611,25 @@ async function pushToSupabaseV2(orgId){
         const path = await ensurePassUploaded(pp, l.showId || l.id, l.id);
         if(!path || !jRow) continue;
         const fileId = await v2UpsertFile(sb, orgId, pp, path, mimeFromPassKind(pp.kind));
-        await v2UpsertOneByLegacy(sb, 'travel_tickets', orgId, {
-          organisation_id: orgId,
-          legacy_id: pp.id,
-          journey_id: jRow.id,
-          file_id: fileId,
-          ticket_type: 'boarding_pass',
-          sort_order: 0
-        });
+        await v2UpsertTravelTicket(sb, orgId, pp, jRow.id, fileId);
       }
     } else if(l.kind === 'stay'){
-      const hotelLegacy = 'hotel:stay:' + l.id;
+      const stayHotelLegacy = 'hotel:stay:' + l.id;
       const hotelRow = await v2UpsertOneByLegacy(sb, 'hotels', orgId, {
+        id: v2IdForLegacy('hotels', stayHotelLegacy, l._hotelId),
         organisation_id: orgId,
-        legacy_id: hotelLegacy,
+        legacy_id: stayHotelLegacy,
         hotel_name: l.place || l.title || 'Hotel',
         address_line_1: l.addr || null
       });
       if(hotelRow){
-        const showUuid = l.showId && showUuidMap[l.showId] ? showUuidMap[l.showId] : null;
+        l._hotelId = hotelRow.id;
+        const showUuid = (l.showId && isUuid(l.showId)) ? l.showId : null;
+        const stayLegacy = 'logistics_stay:' + l.id;
         const bk = await v2UpsertOneByLegacy(sb, 'hotel_bookings', orgId, {
+          id: v2IdForLegacy('hotel_bookings', stayLegacy, l.id),
           organisation_id: orgId,
-          legacy_id: v2PrefixedLegacy('logistics_stay:', l.id),
+          legacy_id: stayLegacy,
           hotel_id: hotelRow.id,
           check_in_date: l.date,
           check_out_date: l.date,
@@ -607,11 +646,13 @@ async function pushToSupabaseV2(orgId){
         }
       }
     } else if(l.kind === 'marker'){
-      const showUuid = l.showId && showUuidMap[l.showId] ? showUuidMap[l.showId] : null;
-      if(showUuid){
+      const showUuid = (l.showId && isUuid(l.showId)) ? l.showId : null;
+      {
+        const markerLegacy = 'logistics_marker:' + l.id;
         await v2UpsertOneByLegacy(sb, 'schedule_items', orgId, {
+          id: v2IdForLegacy('schedule_items', markerLegacy, l.id),
           organisation_id: orgId,
-          legacy_id: v2PrefixedLegacy('logistics_marker:', l.id),
+          legacy_id: markerLegacy,
           show_id: showUuid,
           schedule_item_type: 'calendar_marker',
           item_title: l.title || 'Calendar marker',
@@ -628,12 +669,13 @@ async function pushToSupabaseV2(orgId){
   }
 
   for(const t of (store.trips || [])){
-    const tid = tourUuidMap[t.id];
+    const tid = t.id;
     if(!tid) continue;
     for(const [i, c] of (t.checklist || []).entries()){
       await v2UpsertOneByLegacy(sb, 'checklist_items', orgId, {
+        id: v2EnsureId(c),
         organisation_id: orgId,
-        legacy_id: v2PrefixedLegacy('tour_checklist:', t.id + ':' + c.id),
+        legacy_id: 'tour_checklist:' + c.id,
         tour_id: tid,
         item_label: c.label,
         is_done: !!c.done,
@@ -642,8 +684,9 @@ async function pushToSupabaseV2(orgId){
     }
     for(const [i, tl] of (t.timeline || []).entries()){
       await v2UpsertOneByLegacy(sb, 'schedule_items', orgId, {
+        id: v2EnsureId(tl),
         organisation_id: orgId,
-        legacy_id: v2PrefixedLegacy('tour_timeline:', t.id + ':' + (tl.id || i)),
+        legacy_id: 'tour_timeline:' + tl.id,
         tour_id: tid,
         schedule_item_type: tl.type === 'deadline' ? 'deadline' : (tl.type === 'marker' ? 'calendar_marker' : 'custom'),
         item_title: tl.title || 'Tour schedule item',
@@ -709,10 +752,9 @@ async function pushToSupabaseV2(orgId){
   if(canFinance){
     for(const inv of (store.invoices || [])){
       if(!inv.number) continue;
-      const showUuid = inv.eventId && showUuidMap[inv.eventId] ? showUuidMap[inv.eventId] : null;
-      const invRow = await v2UpsertOneByLegacy(sb, 'invoices', orgId, {
+      const showUuid = (inv.eventId && isUuid(inv.eventId)) ? inv.eventId : null;
+      const invPayload = {
         organisation_id: orgId,
-        legacy_id: inv.id,
         show_id: showUuid,
         invoice_number: inv.number,
         invoice_date: inv.date || new Date().toISOString().slice(0, 10),
@@ -724,9 +766,19 @@ async function pushToSupabaseV2(orgId){
         invoice_status: inv.status || 'draft',
         payment_terms_days: inv.terms || 30,
         invoice_notes: inv.notes || null
-      });
-
+      };
+      const existingInv = (store.v2?.invoices || []).find(x => x.invoice_number === inv.number);
+      if(existingInv?.id) invPayload.id = existingInv.id;
+      else if(inv.id && isUuid(inv.id)) invPayload.id = inv.id;
+      const { data: invRow, error: invErr } = await sb.from('invoices')
+        .upsert(invPayload, { onConflict: 'organisation_id,invoice_number' })
+        .select('*').maybeSingle();
+      if(invErr){
+        console.warn('invoices upsert', invErr);
+        continue;
+      }
       if(invRow){
+        inv.id = invRow.id;
         await sb.from('invoice_line_items').delete().eq('organisation_id', orgId).eq('invoice_id', invRow.id);
         const lines = (inv.lines || []).map((l, i) => ({
           organisation_id: orgId,
@@ -739,7 +791,7 @@ async function pushToSupabaseV2(orgId){
         }));
         if(lines.length){
           const { error } = await sb.from('invoice_line_items').insert(lines);
-          v2Throw(error, 'invoice_line_items');
+          if(error) console.warn('invoice_line_items', error);
         }
       }
     }
@@ -749,10 +801,11 @@ async function pushToSupabaseV2(orgId){
   // Avoid re-inserting itinerary_submissions on every push (duplicate rows).
 
   const ideaRows = (store.ideas || []).map((x, i) => ({
+    id: v2EnsureId(x),
     organisation_id: orgId,
-    legacy_id: x.id,
-    show_id: x.eventId && showUuidMap[x.eventId] ? showUuidMap[x.eventId] : null,
-    tour_id: x.tripId && tourUuidMap[x.tripId] ? tourUuidMap[x.tripId] : null,
+    legacy_id: null,
+    show_id: (x.eventId && isUuid(x.eventId)) ? x.eventId : null,
+    tour_id: (x.tripId && isUuid(x.tripId)) ? x.tripId : null,
     idea_type: ['reel','caption','hook','youtube','podcast','interview','location'].includes(x.type) ? x.type : 'other',
     idea_title: x.title,
     idea_note: x.note,
@@ -760,18 +813,19 @@ async function pushToSupabaseV2(orgId){
     is_done: !!x.done,
     sort_order: i
   }));
-  if(ideaRows.length) await v2UpsertByLegacy(sb, 'ideas', orgId, ideaRows);
+  if(ideaRows.length) await v2UpsertById(sb, 'ideas', orgId, ideaRows);
 
   const noteRows = (store.notes || []).map((x, i) => ({
+    id: v2EnsureId(x),
     organisation_id: orgId,
-    legacy_id: x.id,
+    legacy_id: null,
     note_title: x.title,
     note_body: x.body,
     folder_name: x.folder,
     sort_order: i,
     updated_at: x.updated ? new Date(x.updated).toISOString() : undefined
   }));
-  if(noteRows.length) await v2UpsertByLegacy(sb, 'notes', orgId, noteRows);
+  if(noteRows.length) await v2UpsertById(sb, 'notes', orgId, noteRows);
 
   const localShowIds = new Set(shows.map(s => s.id));
   const localLogIds = new Set(logistics.map(l => l.id));
@@ -787,17 +841,13 @@ async function pushToSupabaseV2(orgId){
 
   const known = new Set(store._known || []);
 
-  async function deleteOrphans(table, localSet){
-    const { data: rows } = await sb.from(table).select('legacy_id').eq('organisation_id', orgId);
+  async function deleteOrphansById(table, localSet){
+    const { data: rows } = await sb.from(table).select('id').eq('organisation_id', orgId);
     const orphans = (rows || [])
-      .filter(r => {
-        if(!r.legacy_id) return false;
-        const stripped = v2StripLegacyId(r.legacy_id);
-        return !localSet.has(stripped) && !localSet.has(r.legacy_id) && (known.has(stripped) || known.has(r.legacy_id));
-      })
-      .map(r => r.legacy_id);
+      .map(r => r.id)
+      .filter(id => id && !localSet.has(id) && known.has(id));
     if(orphans.length){
-      const { error } = await sb.from(table).delete().eq('organisation_id', orgId).in('legacy_id', orphans);
+      const { error } = await sb.from(table).delete().eq('organisation_id', orgId).in('id', orphans);
       if(error) console.warn('orphan delete', table, error);
     }
   }
@@ -805,18 +855,16 @@ async function pushToSupabaseV2(orgId){
   const journeyLocalIds = new Set([
     ...localLogIds,
     ...shows.flatMap(s => (s.flights || []).map(f => f.id)),
-    ...shows.flatMap(s => (s.flights || []).map(f => 'show_flight:' + f.id)),
-    ...shows.map(s => 'show_primary_flight:' + s.id),
-    ...logistics.filter(l => l.kind === 'travel').map(l => 'logistics:' + l.id)
+    ...shows.flatMap(s => showDrivers(s).map(d => d.id)),
+    ...shows.map(s => s._primaryFlightId).filter(Boolean)
   ]);
 
-  await deleteOrphans('shows', localShowIds);
-  await deleteOrphans('journeys', journeyLocalIds);
-  await deleteOrphans('tours', localTripIds);
-  await deleteOrphans('ideas', localIdeaIds);
-  await deleteOrphans('notes', localNoteIds);
-  await deleteOrphans('files', localFileIds);
-  await deleteOrphans('travel_tickets', localFileIds);
+  await deleteOrphansById('shows', localShowIds);
+  await deleteOrphansById('journeys', journeyLocalIds);
+  await deleteOrphansById('tours', localTripIds);
+  await deleteOrphansById('ideas', localIdeaIds);
+  await deleteOrphansById('notes', localNoteIds);
+  await deleteOrphansById('files', localFileIds);
 
   store._known = [
     ...localShowIds, ...localLogIds, ...localTripIds, ...localIdeaIds,

@@ -1,58 +1,52 @@
-# V2 client mapping (Supabase sync layer)
+# V2 client mapping (UUID-native frontend)
 
-The UI keeps the in-memory `store` shape (`artisthq.v2`). `js/db.js` adapts between `store` and V2 Postgres tables. **Never query `*_v1` tables.**
+The app is **V2-native**. In-memory `store.v2` holds Postgres entity collections. Screens keep the same look by reading **composed view projections** (`store.events`, `store.trips`, …) built from those collections. Entity **primary keys are UUIDs**.
 
-## Column renames
+**Never query `*_v1` tables.**
 
-| V1 / store | V2 |
-|------------|-----|
-| `org_id` | `organisation_id` |
-| `orgs` | `organisations` |
-| `org_members.role` | `organisation_members.member_role` |
-| `trips.name` | `tours.tour_name` |
-| `trips.archived` | `tours.is_archived` |
-| `ideas.prio` (`med`) | `ideas.priority_level` (`medium`) |
-| `settings.accountType` (`tm`) | `organisation_settings.account_type` (`tour_manager`) |
-| `org_settings.seq` | `organisation_settings.store_sequence` |
+## Architecture
 
-## Legacy ID prefixes (migration)
+| Layer | Role |
+|-------|------|
+| `store.v2.*` | Source of truth after load (shows, journeys, tours, …) |
+| `store.events` / `trips` / … | Look-identical view projections (composed) |
+| `js/db-v2-repo.js` | Fetch org + upsert/delete by `id` |
+| `js/db-v2-compose.js` | V2 collections → view projections |
+| `js/db-v2-push.js` | View mutations → V2 upserts by UUID |
+| Local key | `operate.v2.state` (legacy `artisthq.v2` is cleared on boot) |
 
-Migrated rows may use prefixed `legacy_id` values. The load path strips these back to store IDs:
+## IDs
 
-| Prefix | Entity |
-|--------|--------|
-| `show_flight:` | Embedded show flight → `journeys` + `store.events[].flights[]` |
-| `show_primary_flight:` | Show-level flight widget fields on show event |
-| `logistics:` | Calendar travel leg → `journeys` |
-| `logistics_marker:` | Calendar marker → `schedule_items` |
-| `logistics_stay:` | Calendar stay → `hotel_bookings` |
-| `show_hotel:` | Embedded show hotel → `event.hotel` |
-| `show_timeline:` | Show timeline step → `schedule_items` |
-| `show_checklist:` | Show checklist → `checklist_items` |
+- App entity ids = Postgres `uuid` primary keys
+- New rows: client generates UUID (`newUuid()` / `uid()`), then upserts with that `id`
+- `legacy_id` may still hold **classification tags** for migrated rows (`show_flight:…`, `logistics:…`, `show_hotel:…`) so compose can tell show-embedded flights from calendar travel. New app logic must not treat `legacy_id` as the UI id.
 
-Push writes the same prefixes for compatibility with migrated data.
+## View projection map
 
-## Query map
+| View field | V2 source |
+|------------|-----------|
+| `store.trips[]` | `tours` |
+| `store.events[kind=show]` | `shows` + venues/artists/journeys/hotels/… |
+| `store.events[kind=travel]` | `journeys` classified as calendar travel |
+| `store.events[kind=stay]` | `hotel_bookings` (+ hotels) classified as stays |
+| `store.events[kind=marker]` | `schedule_items` (`calendar_marker`) |
+| Show `flights[]` | `journeys` (`show_flight` / related show + flight) |
+| Show `drivers[]` | `journeys` ground_transfer + `journey_contacts` |
+| Show `hotel` | `hotel_bookings` tagged `show_hotel:` |
+| `store.ideas` / `notes` | `ideas` / `notes` |
+| Settings | `organisation_settings`, billing, fx, `user_preferences` |
 
-| Operation (old) | V2 target |
-|-----------------|-----------|
-| `org_members` | `organisation_members` |
-| RPC `create_org` | RPC `create_organisation_v2` |
-| `org_settings` blob | `organisation_settings`, `organisation_billing_profiles`, `organisation_exchange_rates`, `user_preferences`, `contacts`, `invoices`, `packing_lists`, `artists`, `itinerary_submissions` |
-| `trips` | `tours` + `checklist_items` / `schedule_items` / `tour_contacts` |
-| `shows` JSON fields | `shows`, `venues`, `artists`, `show_advances`, `show_financials`, `show_expenses`, `show_contacts`, `journeys`, `hotel_bookings` |
-| `logistics_items` | `journeys`, `hotel_bookings`, `schedule_items` |
-| `show_flights` / passes | `journeys`, `files`, `travel_tickets` |
-| `show_files` | `files`, `show_files` |
-| `show_checklist_items` | `checklist_items` |
-| `show_timeline_steps` | `schedule_items` |
-| `ideas`, `notes` | same table names, `organisation_id` |
-| RPC `accept_invite` | RPC `accept_organisation_invite_v2` |
-| `org_invites` | `organisation_invites` |
-| Storage `operate-documents` | `operate-documents-v2` + `files` registry |
+## Writes
 
-## Realtime (`js/sync.js`)
+- Upsert on primary key `id` (not `organisation_id,legacy_id`)
+- Overnight journeys: `v2NormalizeJourneyTimes` ensures `arrival_at >= departure_at`
+- Storage bucket: `operate-documents-v2`
 
-Filter: `organisation_id=eq.{id}` on: `shows`, `journeys`, `schedule_items`, `checklist_items`, `tours`, `organisation_settings`, `files`, `travel_tickets`, `show_files`, `hotel_bookings`, `ideas`, `notes`, `contacts`.
+## Auth RPCs
 
-Finance tables (`show_financials`, `invoices`) are omitted from realtime so crew reloads stay safe.
+- `create_organisation_v2`
+- `accept_organisation_invite_v2`
+
+## Realtime
+
+Filter `organisation_id=eq.{id}` on core V2 tables. Finance tables stay off realtime. Handlers patch `store.v2` when possible, then reload/recompose.
