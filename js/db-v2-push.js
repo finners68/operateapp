@@ -47,6 +47,28 @@ function v2IdForLegacy(table, legacyId, preferredId){
   return newUuid();
 }
 
+async function v2ResolveLegacyId(sb, table, orgId, legacyId, preferredId){
+  const local = v2IdForLegacy(table, legacyId, preferredId);
+  if(legacyId){
+    const byLocalLegacy = v2FindLocalByLegacy(table, legacyId);
+    if(byLocalLegacy?.id) return byLocalLegacy.id;
+  }
+  if(preferredId && isUuid(preferredId)){
+    const byId = (store?.v2?.[table] || []).find(r => r.id === preferredId);
+    if(byId?.id) return byId.id;
+  }
+  if(legacyId){
+    const { data } = await sb.from(table).select('id,legacy_id')
+      .eq('organisation_id', orgId).eq('legacy_id', legacyId).maybeSingle();
+    if(data?.id){
+      v2RepoPatchLocal(table, data);
+      return data.id;
+    }
+  }
+  if(preferredId && isUuid(preferredId)) return preferredId;
+  return local || newUuid();
+}
+
 function v2PreserveLegacyId(table, row){
   if(!row || !row.id) return row;
   const existing = (store?.v2?.[table] || []).find(r => r.id === row.id);
@@ -91,21 +113,52 @@ async function v2GetMemberRole(sb, orgId){
 async function v2UpsertById(sb, table, orgId, rowOrRows){
   const rows = (Array.isArray(rowOrRows) ? rowOrRows : [rowOrRows]).filter(Boolean);
   if(!rows.length) return [];
-  const mapped = rows.map(r => {
+  const mapped = [];
+  for(const r of rows){
     const row = Object.assign({}, r, { organisation_id: orgId });
-    if(!row.id || !isUuid(row.id)) row.id = newUuid();
+    if(row.legacy_id){
+      row.id = await v2ResolveLegacyId(sb, table, orgId, row.legacy_id, row.id);
+    } else if(!row.id || !isUuid(row.id)){
+      row.id = newUuid();
+    }
     if(table === 'journeys' || table === 'hotel_bookings' || table === 'hotels' || table === 'schedule_items' || table === 'checklist_items'){
       v2PreserveLegacyId(table, row);
     }
-    return row;
-  });
-  /* Postgres rejects upsert payloads that touch the same id twice. */
+    mapped.push(row);
+  }
+  /* Postgres rejects upsert payloads that touch the same id twice.
+     Also collapse duplicate legacy_id tags in one batch. */
   const byId = new Map();
-  mapped.forEach(r => byId.set(r.id, r));
+  const byLegacy = new Map();
+  mapped.forEach(r => {
+    if(r.legacy_id && byLegacy.has(r.legacy_id)){
+      const keep = byLegacy.get(r.legacy_id);
+      byId.delete(keep.id);
+      r.id = keep.id;
+    }
+    if(r.legacy_id) byLegacy.set(r.legacy_id, r);
+    byId.set(r.id, r);
+  });
   const payload = [...byId.values()];
-  const data = await v2RepoUpsert(sb, table, payload, 'id');
-  (data || []).forEach(r => { if(r) v2RepoPatchLocal(table, r); });
-  return data || [];
+  try{
+    const data = await v2RepoUpsert(sb, table, payload, 'id');
+    (data || []).forEach(r => { if(r) v2RepoPatchLocal(table, r); });
+    return data || [];
+  }catch(e){
+    const msg = String(e && e.message || e);
+    if(!/legacy_id/i.test(msg) || !payload.some(r => r.legacy_id)) throw e;
+    /* Stale local cache: resolve each legacy_id from DB and retry once. */
+    for(const row of payload){
+      if(!row.legacy_id) continue;
+      row.id = await v2ResolveLegacyId(sb, table, orgId, row.legacy_id, row.id);
+      v2PreserveLegacyId(table, row);
+    }
+    const retryMap = new Map();
+    payload.forEach(r => retryMap.set(r.id, r));
+    const data = await v2RepoUpsert(sb, table, [...retryMap.values()], 'id');
+    (data || []).forEach(r => { if(r) v2RepoPatchLocal(table, r); });
+    return data || [];
+  }
 }
 
 async function v2UpsertByLegacy(sb, table, orgId, rowOrRows){
