@@ -68,21 +68,14 @@ function isSingleAccountMode(){
   return !!(getFixedOrgId() && getAllowedUserId());
 }
 
-/* Dev-hardwire (no sign-in, shared org, "anyone with the URL can read/write")
-   must NEVER be active on a public production host. Restrict it to local dev
-   and Netlify deploy previews. */
-function isDevHost(){
-  const h = (location.hostname || '').toLowerCase();
-  return h === 'localhost' || h === '127.0.0.1' || h === '::1'
-    || h.endsWith('.local') || h.includes('--') /* netlify deploy previews */
-    || location.protocol === 'file:';
-}
+/* Dev-hardwire (no sign-in, shared org). Enabled only when OPERATE_DEV_MODE
+   is explicitly true with a fixed OPERATE_ORG_ID — including Netlify production
+   when those env vars are set intentionally. */
 function isDevHardwireMode(){
   return isSupabaseConfigured()
     && OPERATE_CONFIG.OPERATE_DEV_MODE === true
     && !!getFixedOrgId()
-    && isSyncEnabled()
-    && isDevHost();
+    && isSyncEnabled();
 }
 
 function isAllowedUser(user){
