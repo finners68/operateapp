@@ -363,6 +363,8 @@ async function pushToSupabase(orgId){
     syncSetStatus('error');
     if(typeof syncDirty !== 'undefined') syncDirty = true;
     if(typeof scheduleSyncRetry === 'function') scheduleSyncRetry();
+    const msg = (e && e.message) ? String(e.message) : 'Sync failed';
+    if(typeof toast === 'function') toast(msg.length > 80 ? 'Cloud sync failed — see console' : msg, 'x');
   }finally{
     dbSyncInProgress = false;
   }

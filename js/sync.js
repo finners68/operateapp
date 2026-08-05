@@ -9,7 +9,9 @@ let focusListenersBound = false;
 function syncActive(){
   if(!isSupabaseConfigured() || !currentOrgId) return false;
   if(isDevHardwireMode()) return true;
+  if(!isSyncEnabled()) return false;
   if(getAllowedUserId() && (!authUser || !isAllowedUser(authUser))) return false;
+  if(isAuthRequired() && !authUser) return false;
   return true;
 }
 
