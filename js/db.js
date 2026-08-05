@@ -349,18 +349,26 @@ async function pushToSupabase(orgId){
   if(!orgId || !store) return;
   const sb = getSupabase();
   if(!sb) return;
+  /* If a push is already running, mark dirty so it loops once more with
+     the latest edits when it finishes — never start a second overlapping push. */
+  if(dbSyncInProgress){
+    if(typeof syncDirty !== 'undefined') syncDirty = true;
+    return;
+  }
+  if(typeof syncTimer !== 'undefined') clearTimeout(syncTimer);
   dbSyncInProgress = true;
   syncSetStatus('syncing');
-  if(typeof syncDirty !== 'undefined') syncDirty = false;
   try{
-    await pushToSupabaseV2(orgId);
-    if(typeof clearDirty === 'function') clearDirty();
-    db.write(store);
+    do {
+      if(typeof syncDirty !== 'undefined') syncDirty = false;
+      await pushToSupabaseV2(orgId);
+      if(typeof clearDirty === 'function') clearDirty();
+      db.write(store);
+    } while(typeof syncDirty !== 'undefined' && syncDirty);
     syncSetStatus('synced');
     syncMarkLastSync();
     lastPushAt = Date.now();
-    if(typeof syncDirty !== 'undefined' && syncDirty && typeof scheduleSyncRetry === 'function') scheduleSyncRetry(400);
-    else if(typeof syncRetryDelay !== 'undefined') syncRetryDelay = 0;
+    if(typeof syncRetryDelay !== 'undefined') syncRetryDelay = 0;
   }catch(e){
     console.error('pushToSupabase', e);
     syncSetStatus('error');
