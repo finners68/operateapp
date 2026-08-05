@@ -229,31 +229,46 @@ async function pushToSupabaseV2(orgId){
   const sb = getSupabase();
   if(!sb || !orgId || !store) return;
 
+  /* Snapshot view data BEFORE any await. Concurrent cloud reloads can replace
+     store.events mid-push; reading after awaits would upload stale notes. */
+  const eventsSnap = (store.events || []).slice();
+  const tripsSnap = (store.trips || []).slice();
+  const artistsSnap = (store.artists || []).slice();
+  const contactsSnap = (store.contacts || []).slice();
+  const ideasSnap = (store.ideas || []).slice();
+  const notesSnap = (store.notes || []).slice();
+  const invoicesSnap = (store.invoices || []).slice();
+  const settingsSnap = store.settings ? Object.assign({}, store.settings) : {};
+  const packingTemplateSnap = (settingsSnap.packingTemplate || []).slice();
+  const knownSnap = new Set(store._known || []);
+  const tabSnap = store.tab || 'home';
+  const itinerariesSnap = (store.itineraries || []).slice();
+
   const memberRole = await v2GetMemberRole(sb, orgId);
   const canFinance = v2CanManageFinance(memberRole);
   const contactCache = new Map();
 
-  const shows = store.events.filter(e => (e.kind || 'show') === 'show');
-  const logistics = store.events.filter(e => ['travel','stay','marker'].includes(e.kind));
+  const shows = eventsSnap.filter(e => (e.kind || 'show') === 'show');
+  const logistics = eventsSnap.filter(e => ['travel','stay','marker'].includes(e.kind));
 
   const uiPrefs = {
-    security: store.settings?.security || {},
-    packingTemplate: store.settings?.packingTemplate || [],
-    homeHeaderPath: store.settings?._homeHeaderPath
-      || (typeof store.settings?.homeHeader === 'string' && !store.settings.homeHeader.startsWith('http') && !store.settings.homeHeader.startsWith('data:')
-        ? store.settings.homeHeader : null),
-    artistName: store.settings?.artistName,
-    itineraries: store.itineraries || []
+    security: settingsSnap.security || {},
+    packingTemplate: packingTemplateSnap,
+    homeHeaderPath: settingsSnap._homeHeaderPath
+      || (typeof settingsSnap.homeHeader === 'string' && !settingsSnap.homeHeader.startsWith('http') && !settingsSnap.homeHeader.startsWith('data:')
+        ? settingsSnap.homeHeader : null),
+    artistName: settingsSnap.artistName,
+    itineraries: itinerariesSnap
   };
 
   const settingsRow = {
     organisation_id: orgId,
-    base_currency_code: v2Currency(store.settings?.baseCurrency, 'GBP'),
-    home_airport_iata: v2Iata(store.settings?.homeAirport),
-    account_type: V2_ACCT_FROM_STORE[store.settings?.accountType] || null,
-    invoice_prefix: store.settings?.invoicePrefix || 'INV',
-    invoice_next_sequence: Math.max(1, store.settings?.invoiceSeq || 1),
-    invoice_default_terms_days: Math.max(0, store.settings?.invoiceTerms || 30),
+    base_currency_code: v2Currency(settingsSnap.baseCurrency, 'GBP'),
+    home_airport_iata: v2Iata(settingsSnap.homeAirport),
+    account_type: V2_ACCT_FROM_STORE[settingsSnap.accountType] || null,
+    invoice_prefix: settingsSnap.invoicePrefix || 'INV',
+    invoice_next_sequence: Math.max(1, settingsSnap.invoiceSeq || 1),
+    invoice_default_terms_days: Math.max(0, settingsSnap.invoiceTerms || 30),
     store_sequence: Math.max(1, store._seq || 1)
   };
   {
@@ -267,7 +282,7 @@ async function pushToSupabaseV2(orgId){
     }
   }
 
-  const bill = store.settings?.billing || {};
+  const bill = settingsSnap.billing || {};
   await v2UpsertPk(sb, 'organisation_billing_profiles', {
     organisation_id: orgId,
     billing_name: bill.name || null,
@@ -288,7 +303,7 @@ async function pushToSupabaseV2(orgId){
     payment_notes: bill.paymentNotes || null
   }, 'organisation_id');
 
-  const fx = store.settings?.fx || {};
+  const fx = settingsSnap.fx || {};
   const fxRows = Object.keys(fx).filter(k => /^[A-Z]{3}$/i.test(k)).map(k => ({
     organisation_id: orgId,
     currency_code: k.toUpperCase(),
@@ -304,17 +319,17 @@ async function pushToSupabaseV2(orgId){
     const { error } = await sb.from('user_preferences').upsert({
       organisation_id: orgId,
       user_id: user.id,
-      last_open_tab: store.tab || 'home',
+      last_open_tab: tabSnap,
       ui_preferences: uiPrefs
     }, { onConflict: 'organisation_id,user_id' });
     v2Throw(error, 'user_preferences');
   }
 
-  for(const c of (store.contacts || [])){
+  for(const c of contactsSnap){
     await v2EnsureContact(sb, orgId, c, contactCache);
   }
 
-  const artistRows = (store.artists || []).map(a => {
+  const artistRows = artistsSnap.map(a => {
     const id = v2EnsureId(a);
     return {
       id,
@@ -324,21 +339,22 @@ async function pushToSupabaseV2(orgId){
       is_default: !!a.default
     };
   });
-  if(!artistRows.length && store.settings?.artistName){
+  if(!artistRows.length && settingsSnap.artistName){
     const id = newUuid();
     artistRows.push({
       id,
       organisation_id: orgId,
       legacy_id: null,
-      display_name: store.settings.artistName,
+      display_name: settingsSnap.artistName,
       is_default: true
     });
-    store.artists = [{ id, name: store.settings.artistName, default: true }];
+    artistsSnap.push({ id, name: settingsSnap.artistName, default: true });
+    if(store) store.artists = artistsSnap.slice();
   }
   if(artistRows.length) await v2UpsertById(sb, 'artists', orgId, artistRows);
-  const defaultArtistId = (store.artists || []).find(a => a.default)?.id || (store.artists || [])[0]?.id || null;
+  const defaultArtistId = artistsSnap.find(a => a.default)?.id || artistsSnap[0]?.id || null;
 
-  const tripRows = (store.trips || []).map(t => ({
+  const tripRows = tripsSnap.map(t => ({
     id: v2EnsureId(t),
     organisation_id: orgId,
     legacy_id: null,
@@ -393,7 +409,7 @@ async function pushToSupabaseV2(orgId){
   const showUuidMap = {};
   shows.forEach(s => { showUuidMap[s.id] = s.id; });
   const tourUuidMap = {};
-  (store.trips || []).forEach(t => { tourUuidMap[t.id] = t.id; });
+  tripsSnap.forEach(t => { tourUuidMap[t.id] = t.id; });
 
   for(const s of shows){
     const sid = s.id;
@@ -424,7 +440,7 @@ async function pushToSupabaseV2(orgId){
         show_id: sid,
         organisation_id: orgId,
         agreed_fee_amount: f.fee,
-        currency_code: v2Currency(f.currency, store.settings?.baseCurrency),
+        currency_code: v2Currency(f.currency, settingsSnap.baseCurrency),
         deal_type: f.dealType || null,
         commission_percent: f.commission,
         per_diem_amount: f.perDiem,
@@ -439,7 +455,7 @@ async function pushToSupabaseV2(orgId){
         show_id: sid,
         expense_label: x.label || 'Expense',
         expense_amount: Math.max(0, Number(x.amount) || 0),
-        currency_code: v2Currency(f.currency, store.settings?.baseCurrency),
+        currency_code: v2Currency(f.currency, settingsSnap.baseCurrency),
         sort_order: i
       }));
       if(expRows.length){
@@ -735,7 +751,7 @@ async function pushToSupabaseV2(orgId){
     }
   }
 
-  for(const t of (store.trips || [])){
+  for(const t of tripsSnap){
     const tid = t.id;
     if(!tid) continue;
     for(const [i, c] of (t.checklist || []).entries()){
@@ -780,7 +796,7 @@ async function pushToSupabaseV2(orgId){
     }
   }
 
-  const packingTemplate = store.settings?.packingTemplate || [];
+  const packingTemplate = packingTemplateSnap;
   if(packingTemplate.length){
     let pl = null;
     const { data: existing } = await sb.from('packing_lists')
@@ -817,7 +833,7 @@ async function pushToSupabaseV2(orgId){
   }
 
   if(canFinance){
-    for(const inv of (store.invoices || [])){
+    for(const inv of invoicesSnap){
       if(!inv.number) continue;
       const showUuid = (inv.eventId && isUuid(inv.eventId)) ? inv.eventId : null;
       const invPayload = {
@@ -829,7 +845,7 @@ async function pushToSupabaseV2(orgId){
         client_name: inv.client || 'Unknown client',
         client_email_address: inv.clientEmail || null,
         client_address: inv.clientAddr || null,
-        currency_code: v2Currency(inv.currency, store.settings?.baseCurrency),
+        currency_code: v2Currency(inv.currency, settingsSnap.baseCurrency),
         invoice_status: inv.status || 'draft',
         payment_terms_days: inv.terms || 30,
         invoice_notes: inv.notes || null
@@ -867,7 +883,7 @@ async function pushToSupabaseV2(orgId){
   // Itineraries live in user_preferences.ui_preferences (already written above).
   // Avoid re-inserting itinerary_submissions on every push (duplicate rows).
 
-  const ideaRows = (store.ideas || []).map((x, i) => ({
+  const ideaRows = ideasSnap.map((x, i) => ({
     id: v2EnsureId(x),
     organisation_id: orgId,
     legacy_id: null,
@@ -882,7 +898,7 @@ async function pushToSupabaseV2(orgId){
   }));
   if(ideaRows.length) await v2UpsertById(sb, 'ideas', orgId, ideaRows);
 
-  const noteRows = (store.notes || []).map((x, i) => ({
+  const noteRows = notesSnap.map((x, i) => ({
     id: v2EnsureId(x),
     organisation_id: orgId,
     legacy_id: null,
@@ -896,9 +912,9 @@ async function pushToSupabaseV2(orgId){
 
   const localShowIds = new Set(shows.map(s => s.id));
   const localLogIds = new Set(logistics.map(l => l.id));
-  const localTripIds = new Set((store.trips || []).map(t => t.id));
-  const localIdeaIds = new Set((store.ideas || []).map(x => x.id));
-  const localNoteIds = new Set((store.notes || []).map(x => x.id));
+  const localTripIds = new Set(tripsSnap.map(t => t.id));
+  const localIdeaIds = new Set(ideasSnap.map(x => x.id));
+  const localNoteIds = new Set(notesSnap.map(x => x.id));
   const localFileIds = new Set();
   shows.forEach(s => {
     (s.attachments || []).forEach(a => { if(a.id) localFileIds.add(a.id); });
@@ -906,7 +922,7 @@ async function pushToSupabaseV2(orgId){
   });
   logistics.forEach(l => (l.passes || []).forEach(p => { if(p.id) localFileIds.add(p.id); }));
 
-  const known = new Set(store._known || []);
+  const known = knownSnap;
 
   async function deleteOrphansById(table, localSet){
     const { data: rows } = await sb.from(table).select('id').eq('organisation_id', orgId);
