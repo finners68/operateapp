@@ -121,5 +121,7 @@ function isDirty(table, id){
 }
 
 function isUuid(v){
-  return typeof v === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(v);
+  /* Accept any UUID-shaped id. A strict RFC variant check rejected many
+     already-stored journey ids, so each push minted a new row and duplicates exploded. */
+  return typeof v === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v);
 }

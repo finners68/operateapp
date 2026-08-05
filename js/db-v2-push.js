@@ -39,8 +39,19 @@ function v2IdForLegacy(table, legacyId, preferredId){
      does not collide with unique (organisation_id, legacy_id). */
   const existing = v2FindLocalByLegacy(table, legacyId);
   if(existing?.id) return existing.id;
-  if(preferredId && isUuid(preferredId)) return preferredId;
+  if(preferredId && isUuid(preferredId)){
+    const byId = (store?.v2?.[table] || []).find(r => r.id === preferredId);
+    if(byId?.id) return byId.id;
+    return preferredId;
+  }
   return newUuid();
+}
+
+function v2PreserveLegacyId(table, row){
+  if(!row || !row.id) return row;
+  const existing = (store?.v2?.[table] || []).find(r => r.id === row.id);
+  if(existing?.legacy_id) row.legacy_id = existing.legacy_id;
+  return row;
 }
 
 function v2FindTravelTicket(journeyId, fileId){
@@ -83,6 +94,9 @@ async function v2UpsertById(sb, table, orgId, rowOrRows){
   const mapped = rows.map(r => {
     const row = Object.assign({}, r, { organisation_id: orgId });
     if(!row.id || !isUuid(row.id)) row.id = newUuid();
+    if(table === 'journeys' || table === 'hotel_bookings' || table === 'hotels' || table === 'schedule_items' || table === 'checklist_items'){
+      v2PreserveLegacyId(table, row);
+    }
     return row;
   });
   /* Postgres rejects upsert payloads that touch the same id twice. */
