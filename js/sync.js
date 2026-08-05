@@ -123,16 +123,16 @@ function startRealtime(orgId){
   if(!sb || !orgId) return;
 
   const tables = [
-    'shows', 'logistics_items', 'show_flights', 'show_flight_passes',
-    'show_files', 'show_checklist_items', 'show_timeline_steps',
-    'ideas', 'notes', 'trips', 'org_settings'
+    'shows', 'journeys', 'schedule_items', 'checklist_items', 'tours',
+    'organisation_settings', 'files', 'travel_tickets', 'show_files',
+    'hotel_bookings', 'ideas', 'notes', 'contacts'
   ];
 
   realtimeChannel = sb.channel('operate:' + orgId);
   tables.forEach(table => {
     realtimeChannel.on('postgres_changes', {
       event: '*', schema: 'public', table,
-      filter: `org_id=eq.${orgId}`
+      filter: `organisation_id=eq.${orgId}`
     }, () => scheduleRemoteReload());
   });
   realtimeChannel.subscribe();

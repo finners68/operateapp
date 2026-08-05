@@ -1,5 +1,35 @@
-/* Supabase client singleton */
-const STORAGE_BUCKET = 'operate-documents';
+/* Supabase client singleton — V2 schema (never query *_v1 tables) */
+const STORAGE_BUCKET = 'operate-documents-v2';
+
+const V2_TABLES = {
+  organisations: 'organisations',
+  members: 'organisation_members',
+  invites: 'organisation_invites',
+  settings: 'organisation_settings',
+  billing: 'organisation_billing_profiles',
+  fx: 'organisation_exchange_rates',
+  userPrefs: 'user_preferences',
+  tours: 'tours',
+  shows: 'shows',
+  venues: 'venues',
+  artists: 'artists',
+  journeys: 'journeys',
+  hotels: 'hotels',
+  hotelBookings: 'hotel_bookings',
+  schedule: 'schedule_items',
+  checklist: 'checklist_items',
+  contacts: 'contacts',
+  files: 'files',
+  showFiles: 'show_files',
+  travelTickets: 'travel_tickets',
+  ideas: 'ideas',
+  notes: 'notes'
+};
+
+const V2_RPC = {
+  createOrg: 'create_organisation_v2',
+  acceptInvite: 'accept_organisation_invite_v2'
+};
 
 function isSupabaseConfigured(){
   const c = window.OPERATE_CONFIG;

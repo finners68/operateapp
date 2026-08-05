@@ -140,9 +140,10 @@ function bootApp(){
 async function acceptInvite(token){
   const sb = getSupabase();
   if(!sb || !token) return null;
-  const { data, error } = await sb.rpc('accept_invite', { p_token: token });
+  const { data, error } = await sb.rpc(V2_RPC.acceptInvite, { p_invite_token: token });
   if(error){
-    toast(error.message === 'email_mismatch' ? 'That invite is for a different email' : 'Invite invalid or already used', 'x');
+    const msg = error.message || '';
+    toast(msg.includes('different email') ? 'That invite is for a different email' : 'Invite invalid or already used', 'x');
     return null;
   }
   setStoredOrgId(data);
@@ -152,11 +153,16 @@ async function acceptInvite(token){
 async function createInvite(email, role){
   const sb = getSupabase();
   if(!sb || !currentOrgId){ toast('Sign in first', 'x'); return null; }
-  const { data, error } = await sb.from('org_invites')
-    .insert({ org_id: currentOrgId, email: (email||'').trim().toLowerCase(), role: role || 'crew', invited_by: authUser?.id })
-    .select('token').single();
+  const { data, error } = await sb.from(V2_TABLES.invites)
+    .insert({
+      organisation_id: currentOrgId,
+      email_address: (email||'').trim().toLowerCase(),
+      invited_role: role === 'manager' ? 'manager' : 'crew',
+      created_by_user_id: authUser?.id
+    })
+    .select('invite_token').single();
   if(error){ toast('Could not create invite (owner/manager only)', 'x'); return null; }
-  return location.origin + location.pathname + '?invite=' + data.token;
+  return location.origin + location.pathname + '?invite=' + data.invite_token;
 }
 function sheetInviteCrew(){
   openSheet('Invite crew', `
@@ -174,13 +180,7 @@ function sheetInviteCrew(){
   `);
 }
 function confirmDeleteCloudData(){
-  confirmSheet('Delete all cloud data?', 'This permanently deletes your org and every show, tour, note and file in the cloud for all members. This cannot be undone.', 'Delete everything', async ()=>{
-    const sb = getSupabase(); if(!sb) return;
-    const { error } = await sb.rpc('delete_my_org');
-    if(error){ toast('Delete failed (owner only)', 'x'); return; }
-    toast('Cloud data deleted', 'trash');
-    await signOut();
-  }, true);
+  confirmSheet('Delete all cloud data?', 'Organisation deletion is not yet available in the V2 schema. Sign out to stop syncing, or contact support to remove cloud data.', 'OK', ()=>{}, false);
 }
 async function doCreateInvite(){
   const email = val('inv-email');
