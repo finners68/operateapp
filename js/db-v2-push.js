@@ -1,6 +1,6 @@
 /* Decompose artisthq.v2 store into V2 relational upserts.
-   V2 legacy_id uniqueness is only a partial index, so PostgREST
-   onConflict: organisation_id,legacy_id fails. We update-or-insert by legacy_id. */
+   Prefer bulk upsert on (organisation_id,legacy_id). Fall back to
+   update-or-insert if PostgREST rejects onConflict. */
 
 function v2Throw(error, label){
   if(!error) return;
@@ -52,16 +52,28 @@ async function v2LoadLegacyIds(sb, table, orgId){
 async function v2UpsertByLegacy(sb, table, orgId, rowOrRows){
   const rows = (Array.isArray(rowOrRows) ? rowOrRows : [rowOrRows]).filter(Boolean);
   if(!rows.length) return [];
+  const payload = rows.map(r => {
+    const row = Object.assign({}, r, { organisation_id: orgId });
+    delete row.id;
+    return row;
+  });
+
+  // Fast path — requires unique index on (organisation_id, legacy_id)
+  const { data: upserted, error: upErr } = await sb.from(table)
+    .upsert(payload, { onConflict: 'organisation_id,legacy_id' })
+    .select('id,legacy_id');
+  if(!upErr) return upserted || [];
+
+  // Slow path fallback
+  console.warn('v2 bulk upsert fallback for', table, upErr.message || upErr);
   const byLegacy = await v2LoadLegacyIds(sb, table, orgId);
   const out = [];
-  for(const row of rows){
-    const payload = Object.assign({}, row, { organisation_id: orgId });
-    delete payload.id;
+  for(const row of payload){
     const existingId = row.legacy_id
       ? (byLegacy[row.legacy_id] || byLegacy[v2StripLegacyId(row.legacy_id)])
       : null;
     if(existingId){
-      const { data, error } = await sb.from(table).update(payload).eq('id', existingId).select('id,legacy_id').single();
+      const { data, error } = await sb.from(table).update(row).eq('id', existingId).select('id,legacy_id').single();
       v2Throw(error, table + ' update');
       out.push(data);
       if(data?.legacy_id){
@@ -69,7 +81,7 @@ async function v2UpsertByLegacy(sb, table, orgId, rowOrRows){
         byLegacy[v2StripLegacyId(data.legacy_id)] = data.id;
       }
     } else {
-      const { data, error } = await sb.from(table).insert(payload).select('id,legacy_id').single();
+      const { data, error } = await sb.from(table).insert(row).select('id,legacy_id').single();
       v2Throw(error, table + ' insert');
       out.push(data);
       if(data?.legacy_id){
@@ -97,7 +109,6 @@ async function v2UpsertFile(sb, orgId, att, storagePath, mime){
     mime_type: mime || mimeFromPassKind(att.kind),
     uploaded_by_user_id: (await getAuthUser())?.id || null
   };
-  // Prefer storage_path uniqueness when file already exists from migration
   const { data: byPath } = await sb.from('files')
     .select('id').eq('organisation_id', orgId).eq('storage_path', storagePath).maybeSingle();
   if(byPath){
@@ -476,31 +487,29 @@ async function pushToSupabaseV2(orgId){
       }
     }
 
-    for(const [i, c] of (s.checklist || []).entries()){
-      await v2UpsertOneByLegacy(sb, 'checklist_items', orgId, {
-        organisation_id: orgId,
-        legacy_id: v2PrefixedLegacy('show_checklist:', c.id),
-        show_id: sid,
-        item_label: c.label,
-        is_done: !!c.done,
-        sort_order: i
-      });
-    }
+    const chkBatch = (s.checklist || []).map((c, i) => ({
+      organisation_id: orgId,
+      legacy_id: v2PrefixedLegacy('show_checklist:', c.id),
+      show_id: sid,
+      item_label: c.label,
+      is_done: !!c.done,
+      sort_order: i
+    }));
+    if(chkBatch.length) await v2UpsertByLegacy(sb, 'checklist_items', orgId, chkBatch);
 
-    for(const [i, t] of (s.timeline || []).entries()){
-      await v2UpsertOneByLegacy(sb, 'schedule_items', orgId, {
-        organisation_id: orgId,
-        legacy_id: v2PrefixedLegacy('show_timeline:', t.id),
-        show_id: sid,
-        schedule_item_type: 'custom',
-        item_title: t.title || 'Schedule item',
-        item_notes: t.sub || null,
-        scheduled_date: s.date,
-        scheduled_time: t.time || null,
-        is_done: !!t.done,
-        sort_order: i
-      });
-    }
+    const tlBatch = (s.timeline || []).map((t, i) => ({
+      organisation_id: orgId,
+      legacy_id: v2PrefixedLegacy('show_timeline:', t.id),
+      show_id: sid,
+      schedule_item_type: 'custom',
+      item_title: t.title || 'Schedule item',
+      item_notes: t.sub || null,
+      scheduled_date: s.date,
+      scheduled_time: t.time || null,
+      is_done: !!t.done,
+      sort_order: i
+    }));
+    if(tlBatch.length) await v2UpsertByLegacy(sb, 'schedule_items', orgId, tlBatch);
 
     for(const att of (s.attachments || [])){
       let path = att._storagePath || null;
