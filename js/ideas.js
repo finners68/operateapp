@@ -225,7 +225,10 @@ function ideaShowSelectOptionsHtml(q, selectedId){
   groups.forEach(g => {
     html += `<optgroup label="${esc(g.label)}">`;
     g.items.forEach(e => {
-      const label = `${esc(e.venue||'Untitled show')} · ${esc(fmtDate(e.date))}${e.city ? ' · '+esc(e.city) : ''}`;
+      const show = esc(e.venue || 'Untitled show');
+      const location = esc([e.city, e.country].filter(Boolean).join(', ') || '—');
+      const when = esc(fmtDayDate(e.date) || '—');
+      const label = `${show}  ${location}  ${when}`;
       html += `<option value="${e.id}"${selectedId===e.id?' selected':''}>${label}</option>`;
     });
     html += `</optgroup>`;

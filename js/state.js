@@ -431,6 +431,10 @@ function fmtDate(dstr){
   const d = parseDT(dstr); if(!d) return '';
   return `${DOW[d.getDay()]} ${d.getDate()} ${MON[d.getMonth()]}`;
 }
+function fmtDayDate(dstr){
+  const d = parseDT(dstr); if(!d) return '';
+  return `${DOW[d.getDay()]} ${d.getDate()}`;
+}
 function fmtDateLong(dstr){
   const d = parseDT(dstr); if(!d) return '';
   return `${DOW[d.getDay()]}, ${d.getDate()} ${MONTHS[d.getMonth()]} ${d.getFullYear()}`;
