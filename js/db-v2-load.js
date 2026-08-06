@@ -152,8 +152,16 @@ async function loadFromSupabaseV2(orgId, sb){
   store._known = knownIds;
 
   clearDirty();
-  /* Restore dirty flags so offline / in-flight edits still flush after reload. */
-  if(keepDirtySnap && typeof isEmptyDirty === 'function' && !isEmptyDirty(keepDirtySnap)){
+  store._forceFullSync = false;
+  /* Restore scoped dirty only. Never restore a full-tour dirty snap after
+     cloud load — that re-uploaded every local row and duplicated the tour. */
+  if(
+    keepDirtySnap &&
+    typeof isEmptyDirty === 'function' &&
+    !isEmptyDirty(keepDirtySnap) &&
+    typeof isFullDirty === 'function' &&
+    !isFullDirty(keepDirtySnap)
+  ){
     store._dirty = keepDirtySnap;
   }
 

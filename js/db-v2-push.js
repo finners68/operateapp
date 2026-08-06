@@ -234,6 +234,30 @@ async function v2EnsureContact(sb, orgId, c, cache){
   return data.id;
 }
 
+/* If local state still has duplicate copies of a show, collapse onto the
+   existing cloud row (same date + venue) instead of inserting another. */
+function v2ResolveShowId(s){
+  if(!s) return newUuid();
+  if(s.id && isUuid(s.id)){
+    const byId = (store?.v2?.shows || []).find(sh => sh.id === s.id);
+    if(byId?.id) return byId.id;
+  }
+  const name = String(s.venue || '').trim().toLowerCase();
+  const date = s.date;
+  if(date && name){
+    const match = (store?.v2?.shows || []).find(sh => {
+      if(String(sh.show_date || '') !== String(date)) return false;
+      const v = (store?.v2?.venues || []).find(x => x.id === sh.venue_id);
+      return !!v && String(v.venue_name || '').trim().toLowerCase() === name;
+    });
+    if(match?.id){
+      s.id = match.id;
+      return match.id;
+    }
+  }
+  return v2EnsureId(s);
+}
+
 /* Reuse the show's current venue row. Minting a new venue UUID on every
    save was creating duplicate venue rows and leaving old ones behind. */
 function v2ResolveVenueIdForShow(s){
@@ -478,12 +502,10 @@ async function pushToSupabaseV2(orgId, dirtyIn){
     if(venueRows.length) await v2UpsertById(sb, 'venues', orgId, venueRows);
 
     const showRows = shows.map(s => {
-      /* Never remint a show id that already exists in the cloud cache. */
-      const cached = (store.v2?.shows || []).find(sh => sh.id === s.id);
-      if(cached?.id) s.id = cached.id;
-      else v2EnsureId(s);
+      const sid = v2ResolveShowId(s);
+      const cached = (store.v2?.shows || []).find(sh => sh.id === sid);
       return {
-      id: s.id,
+      id: sid,
       organisation_id: orgId,
       legacy_id: cached?.legacy_id || null,
       tour_id: (s.tripId && isUuid(s.tripId)) ? s.tripId : null,
