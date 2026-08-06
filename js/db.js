@@ -365,6 +365,17 @@ async function ensureOrgForUser(){
 const _notePushSeq = Object.create(null);
 const _notePushInflight = Object.create(null);
 
+function noteFolderRowFromView(folder){
+  if(!folder || !folder.id) return null;
+  return {
+    id: folder.id,
+    organisation_id: currentOrgId,
+    legacy_id: null,
+    folder_name: (folder.name || '').trim() || 'Folder',
+    sort_order: folder.sortOrder || 0
+  };
+}
+
 function noteRowFromView(note){
   if(!note || !note.id) return null;
   return {
@@ -373,9 +384,50 @@ function noteRowFromView(note){
     legacy_id: null,
     note_title: note.title || '',
     note_body: note.body || '',
+    folder_id: note.folderId || null,
     folder_name: note.folder || null,
     updated_at: note.updated ? new Date(note.updated).toISOString() : new Date().toISOString()
   };
+}
+
+async function pushNoteFolderNow(folder){
+  if(!folder || !folder.id) return false;
+  const id = folder.id;
+  if(typeof syncActive === 'function' && !syncActive()){
+    if(typeof markDirty === 'function') markDirty('note_folders', id);
+    return false;
+  }
+  const sb = getSupabase();
+  if(!sb || !currentOrgId){
+    if(typeof markDirty === 'function') markDirty('note_folders', id);
+    return false;
+  }
+  const latest = (store.noteFolders || []).find(f => f.id === id) || folder;
+  const row = noteFolderRowFromView(latest);
+  if(!row) return false;
+  if(typeof syncSetStatus === 'function') syncSetStatus('syncing');
+  const { data, error } = await sb.from(V2_TABLES.noteFolders)
+    .upsert(row, { onConflict: 'id' })
+    .select('*')
+    .maybeSingle();
+  if(error){
+    console.error('pushNoteFolderNow', error);
+    if(typeof markDirty === 'function') markDirty('note_folders', id);
+    if(typeof syncSetStatus === 'function') syncSetStatus('error');
+    if(typeof toast === 'function') toast('Folder not saved to cloud', 'x');
+    if(typeof scheduleSyncRetry === 'function') scheduleSyncRetry(800);
+    return false;
+  }
+  if(data && typeof v2RepoPatchLocal === 'function') v2RepoPatchLocal('note_folders', data);
+  if(typeof subtractDirty === 'function' && store?._dirty){
+    const snap = Object.create(null);
+    snap.note_folders = new Set([id]);
+    subtractDirty(store._dirty, snap);
+  }
+  if(typeof syncSetStatus === 'function') syncSetStatus('synced');
+  if(typeof syncMarkLastSync === 'function') syncMarkLastSync();
+  lastPushAt = Date.now();
+  return true;
 }
 
 async function pushNoteNow(note){
@@ -400,6 +452,11 @@ async function pushNoteNow(note){
 
   const run = (async () => {
     const latest = (store.notes || []).find(n => n.id === id) || note;
+    /* Ensure folder row exists in cloud before note FK upsert. */
+    if(latest.folderId){
+      const folder = (store.noteFolders || []).find(f => f.id === latest.folderId);
+      if(folder) await pushNoteFolderNow(folder);
+    }
     const row = noteRowFromView(latest);
     if(!row) return false;
     if(typeof syncSetStatus === 'function') syncSetStatus('syncing');
@@ -475,6 +532,35 @@ function persistNoteLocal(note){
   const i = store.notes.findIndex(x => x.id === note.id);
   if(i >= 0) store.notes[i] = note;
   else store.notes.push(note);
+  if(typeof v2RepoPatchLocal === 'function' && currentOrgId){
+    v2RepoPatchLocal('notes', {
+      id: note.id,
+      organisation_id: currentOrgId,
+      note_title: note.title || '',
+      note_body: note.body || '',
+      folder_id: note.folderId || null,
+      folder_name: note.folder || null,
+      updated_at: note.updated ? new Date(note.updated).toISOString() : null
+    });
+  }
+  db.write(store);
+}
+
+function persistNoteFolderLocal(folder){
+  if(!store || !folder) return;
+  if(!store.noteFolders) store.noteFolders = [];
+  const i = store.noteFolders.findIndex(x => x.id === folder.id);
+  if(i >= 0) store.noteFolders[i] = folder;
+  else store.noteFolders.push(folder);
+  if(typeof v2RepoPatchLocal === 'function' && currentOrgId){
+    v2RepoPatchLocal('note_folders', {
+      id: folder.id,
+      organisation_id: currentOrgId,
+      folder_name: folder.name || '',
+      sort_order: folder.sortOrder || 0
+    });
+  }
+  if(typeof markDirty === 'function') markDirty('note_folders', folder.id);
   db.write(store);
 }
 

@@ -502,6 +502,10 @@ const sel = {
   tripEvents: tid => sel.events().filter(e=>e.tripId===tid),
   ideas: () => store.ideas.slice().sort((a,b)=> b.created-a.created),
   notes: () => store.notes.slice().sort((a,b)=> b.updated-a.updated),
+  noteFolders: () => (store.noteFolders || []).slice().sort((a,b)=> (a.sortOrder-b.sortOrder) || (a.name||'').localeCompare(b.name||'')),
+  noteFolder: id => (store.noteFolders || []).find(f => f.id === id) || null,
+  notesInFolder: folderId => sel.notes().filter(n => folderId ? n.folderId === folderId : !n.folderId),
+  unfiledNotes: () => sel.notes().filter(n => !n.folderId),
   eventChecklistProgress: e => {
     const items = e.checklist||[]; if(!items.length) return {done:0,total:0,pct:0};
     const done = items.filter(i=>i.done).length;

@@ -48,7 +48,8 @@ async function v2RepoFetchOrg(sb, orgId){
     { data: itinerary_submissions, error: e28 },
     { data: itinerary_submission_files, error: e29 },
     { data: ideas, error: e30 },
-    { data: notes, error: e31 }
+    { data: note_folders, error: e31 },
+    { data: notes, error: e32 }
   ] = await Promise.all([
     q('organisation_settings').maybeSingle(),
     q('organisation_billing_profiles').maybeSingle(),
@@ -81,10 +82,11 @@ async function v2RepoFetchOrg(sb, orgId){
     q('itinerary_submissions', { order: 'created_at' }),
     q('itinerary_submission_files'),
     q('ideas', { order: 'sort_order' }),
+    q('note_folders', { order: 'sort_order' }),
     q('notes', { order: 'sort_order' })
   ]);
 
-  const errs = [e0,e1,e2,e3,e4,e5,e6,e7,e8,e9,e10,e11,e12,e13,e14,e15,e16,e17,e18,e19,e20,e21,e22,e23,e24,e25,e26,e27,e28,e29,e30,e31];
+  const errs = [e0,e1,e2,e3,e4,e5,e6,e7,e8,e9,e10,e11,e12,e13,e14,e15,e16,e17,e18,e19,e20,e21,e22,e23,e24,e25,e26,e27,e28,e29,e30,e31,e32];
   const first = errs.find(Boolean);
   if(first) v2RepoThrow(first, 'v2RepoFetchOrg');
 
@@ -120,6 +122,7 @@ async function v2RepoFetchOrg(sb, orgId){
     itinerary_submissions: itinerary_submissions || [],
     itinerary_submission_files: itinerary_submission_files || [],
     ideas: ideas || [],
+    note_folders: note_folders || [],
     notes: notes || []
   };
 }

@@ -23,6 +23,7 @@ const V2_TABLES = {
   showFiles: 'show_files',
   travelTickets: 'travel_tickets',
   ideas: 'ideas',
+  noteFolders: 'note_folders',
   notes: 'notes'
 };
 

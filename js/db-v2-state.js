@@ -46,6 +46,7 @@ function emptyV2Collections(){
     itinerary_submissions: [],
     itinerary_submission_files: [],
     ideas: [],
+    note_folders: [],
     notes: []
   };
 }
@@ -74,6 +75,7 @@ function emptyOperateState(){
     trips: [],
     ideas: [],
     notes: [],
+    noteFolders: [],
     drivers: [],
     hotels: [],
     contacts: [],

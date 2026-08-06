@@ -210,6 +210,7 @@ function activeNavTab(){
     if(overlay.type==='event') return 'shows';
     if(overlay.type==='idea') return 'ideas';
     if(overlay.type==='note') return 'ideas';
+    if(overlay.type==='noteFolder') return 'ideas';
   }
   return store.tab;
 }
@@ -237,6 +238,7 @@ function renderView(opts={}){
     if(overlay.type==='event') v.innerHTML = viewEvent(overlay.id);
     else if(overlay.type==='trip') v.innerHTML = viewTrip(overlay.id);
     else if(overlay.type==='note') v.innerHTML = viewNote(overlay.id);
+    else if(overlay.type==='noteFolder') v.innerHTML = viewNoteFolder(overlay.id);
     else if(overlay.type==='idea') v.innerHTML = viewIdea(overlay.id);
     else if(overlay.type==='finance') v.innerHTML = viewFinance();
     else if(overlay.type==='search') v.innerHTML = viewSearch();
@@ -276,6 +278,8 @@ function setFab(){
   if(!overlay){
     if(store.tab==='shows' || store.tab==='calendar') action = 'sheetEvent()';
     else if(store.tab==='ideas') action = (typeof contentMode!=='undefined' && contentMode==='notes') ? 'sheetNote()' : 'sheetIdea()';
+  } else if(overlay.type==='noteFolder' && overlay.id){
+    action = `sheetNoteInFolder('${overlay.id}')`;
   }
   if(action){ fab.style.display='flex'; fab.setAttribute('onclick', action); }
   else { fab.style.display='none'; fab.removeAttribute('onclick'); }

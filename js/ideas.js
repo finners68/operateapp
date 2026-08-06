@@ -17,9 +17,13 @@ function setContentMode(m){
 function goNotes(){ contentMode='notes'; go('ideas'); }
 function contentModeMeta(){
   const isNotes = contentMode==='notes';
+  const inFolder = !!(overlay && overlay.type === 'noteFolder' && overlay.id);
+  const addAction = isNotes
+    ? (inFolder ? `sheetNoteInFolder('${overlay.id}')` : 'sheetNote()')
+    : 'sheetIdea()';
   return {
     sub: isNotes ? notesSub() : ideasSub(),
-    headBtn: `<button class="header-btn" onclick="${isNotes?'sheetNote()':'sheetIdea()'}">${ICON.plus(22)}</button>`
+    headBtn: `<button class="header-btn" onclick="${addAction}">${ICON.plus(22)}</button>`
   };
 }
 function contentModePanelInner(){

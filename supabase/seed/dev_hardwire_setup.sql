@@ -10,7 +10,7 @@ DECLARE
   v2_tables text[] := ARRAY[
     'shows', 'journeys', 'schedule_items', 'checklist_items', 'tours',
     'organisation_settings', 'files', 'travel_tickets', 'show_files',
-    'hotel_bookings', 'ideas', 'notes', 'contacts', 'venues', 'artists',
+    'hotel_bookings', 'ideas', 'note_folders', 'notes', 'contacts', 'venues', 'artists',
     'show_advances', 'show_financials', 'show_expenses', 'invoices',
     'packing_lists', 'packing_list_items', 'itinerary_submissions'
   ];

@@ -298,6 +298,7 @@ async function pushToSupabaseV2(orgId, dirtyIn){
   const needTours = full || isTableDirty(dirty, 'tours');
   const needShows = full || isTableDirty(dirty, 'shows');
   const needIdeas = full || isTableDirty(dirty, 'ideas');
+  const needNoteFolders = full || isTableDirty(dirty, 'note_folders');
   const needNotes = full || isTableDirty(dirty, 'notes');
   const needLogistics = full || isTableDirty(dirty, 'journeys')
     || isTableDirty(dirty, 'hotel_bookings') || isTableDirty(dirty, 'schedule_items');
@@ -312,6 +313,7 @@ async function pushToSupabaseV2(orgId, dirtyIn){
   const artistsSnap = (store.artists || []).slice();
   const contactsSnap = (store.contacts || []).slice();
   const ideasSnap = (store.ideas || []).slice();
+  const noteFoldersSnap = (store.noteFolders || []).slice();
   const notesSnap = (store.notes || []).slice();
   const invoicesSnap = (store.invoices || []).slice();
   const settingsSnap = store.settings ? Object.assign({}, store.settings) : {};
@@ -350,7 +352,20 @@ async function pushToSupabaseV2(orgId, dirtyIn){
   const tripsPush = needTours ? filterByDirtyIds(tripsSnap, dirty, 'tours') : [];
   const contactsPush = needContacts ? filterByDirtyIds(contactsSnap, dirty, 'contacts') : [];
   const ideasPush = needIdeas ? filterByDirtyIds(ideasSnap, dirty, 'ideas') : [];
+  const noteFoldersPush = (needNoteFolders || needNotes)
+    ? filterByDirtyIds(noteFoldersSnap, dirty, 'note_folders')
+    : [];
+  /* Notes need their folder rows first — also push any folders those notes reference. */
   const notesPush = needNotes ? filterByDirtyIds(notesSnap, dirty, 'notes') : [];
+  if(needNotes && notesPush.length){
+    const folderIds = new Set(noteFoldersPush.map(f => f.id));
+    notesPush.forEach(n => {
+      if(!n.folderId) return;
+      if(folderIds.has(n.folderId)) return;
+      const f = noteFoldersSnap.find(x => x.id === n.folderId);
+      if(f){ noteFoldersPush.push(f); folderIds.add(f.id); }
+    });
+  }
   const invoicesPush = needInvoices ? filterByDirtyIds(invoicesSnap, dirty, 'invoices') : [];
 
   const uiPrefs = {
@@ -528,7 +543,7 @@ async function pushToSupabaseV2(orgId, dirtyIn){
     if(showRows.length) await v2UpsertById(sb, 'shows', orgId, showRows);
   }
 
-  /* Notes + ideas early: small and user-facing. */
+  /* Notes + ideas early: small and user-facing. Folders before notes (FK). */
   if(needIdeas){
     const ideaRows = ideasPush.map((x, i) => ({
       id: v2EnsureId(x),
@@ -555,6 +570,26 @@ async function pushToSupabaseV2(orgId, dirtyIn){
     }
   }
 
+  if(needNoteFolders || noteFoldersPush.length){
+    const folderRows = noteFoldersPush.map((x, i) => ({
+      id: v2EnsureId(x),
+      organisation_id: orgId,
+      legacy_id: null,
+      folder_name: (x.name || '').trim() || 'Folder',
+      sort_order: x.sortOrder != null ? x.sortOrder : i
+    }));
+    if(folderRows.length) await v2UpsertById(sb, 'note_folders', orgId, folderRows);
+    const folderDirty = dirtyIds(dirty, 'note_folders');
+    if(folderDirty){
+      const local = new Set(noteFoldersSnap.map(x => x.id));
+      const gone = [...folderDirty].filter(id => id && !local.has(id));
+      if(gone.length){
+        const { error } = await sb.from('note_folders').delete().eq('organisation_id', orgId).in('id', gone);
+        if(error) console.warn('note_folders targeted delete', error);
+      }
+    }
+  }
+
   if(needNotes){
     const noteRows = notesPush.map((x, i) => ({
       id: v2EnsureId(x),
@@ -562,7 +597,8 @@ async function pushToSupabaseV2(orgId, dirtyIn){
       legacy_id: null,
       note_title: x.title,
       note_body: x.body,
-      folder_name: x.folder,
+      folder_id: x.folderId || null,
+      folder_name: x.folder || null,
       sort_order: i,
       updated_at: x.updated ? new Date(x.updated).toISOString() : undefined
     }));
@@ -1084,6 +1120,7 @@ async function pushToSupabaseV2(orgId, dirtyIn){
     const localLogIds = new Set(logisticsAll.map(l => l.id));
     const localTripIds = new Set(tripsSnap.map(t => t.id));
     const localIdeaIds = new Set(ideasSnap.map(x => x.id));
+    const localNoteFolderIds = new Set(noteFoldersSnap.map(x => x.id));
     const localNoteIds = new Set(notesSnap.map(x => x.id));
     const localFileIds = new Set();
     showsAll.forEach(s => {
@@ -1117,11 +1154,12 @@ async function pushToSupabaseV2(orgId, dirtyIn){
     await deleteOrphansById('tours', localTripIds);
     await deleteOrphansById('ideas', localIdeaIds);
     await deleteOrphansById('notes', localNoteIds);
+    await deleteOrphansById('note_folders', localNoteFolderIds);
     await deleteOrphansById('files', localFileIds);
 
     store._known = [
       ...localShowIds, ...localLogIds, ...localTripIds, ...localIdeaIds,
-      ...localNoteIds, ...localFileIds,
+      ...localNoteFolderIds, ...localNoteIds, ...localFileIds,
       ...showsAll.flatMap(s => (s.flights || []).map(f => f.id))
     ];
   }

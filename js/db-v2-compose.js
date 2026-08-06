@@ -570,12 +570,25 @@ async function composeViewFromV2(v2, opts){
     tripId: x.tour_id || null
   }));
 
+  const noteFolders = (v2.note_folders || [])
+    .filter(f => f && !f.deleted_at)
+    .map(f => ({
+      id: f.id,
+      name: f.folder_name || '',
+      sortOrder: f.sort_order || 0
+    }))
+    .sort((a, b) => (a.sortOrder - b.sortOrder) || a.name.localeCompare(b.name));
+
+  const folderNameById = new Map(noteFolders.map(f => [f.id, f.name]));
+
   const notes = (v2.notes || []).map(x => ({
     id: x.id,
     title: x.note_title,
     body: x.note_body,
-    folder: x.folder_name,
-    updated: x.updated_at ? new Date(x.updated_at).getTime() : null
+    folderId: x.folder_id || null,
+    folder: x.folder_name || (x.folder_id ? (folderNameById.get(x.folder_id) || '') : '') || '',
+    updated: x.updated_at ? new Date(x.updated_at).getTime() : null,
+    created: x.created_at ? new Date(x.created_at).getTime() : null
   }));
 
   const artists = (v2.artists || []).map(a => ({
@@ -585,7 +598,7 @@ async function composeViewFromV2(v2, opts){
   }));
 
   return {
-    events, trips, ideas, notes, artists, settings,
+    events, trips, ideas, notes, noteFolders, artists, settings,
     contacts: orgContacts,
     invoices: storeInvoices,
     itineraries: storeItineraries

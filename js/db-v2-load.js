@@ -36,9 +36,11 @@ async function loadFromSupabaseV2(orgId, sb){
 
   /* Keep dirty local rows across cloud reload so mid-edit work is not wiped. */
   const prevNotes = (store?.notes || []).slice();
+  const prevNoteFolders = (store?.noteFolders || []).slice();
   const prevIdeas = (store?.ideas || []).slice();
   const prevContacts = (store?.contacts || []).slice();
   const prevDirtyNotes = _dirtyIdSet('notes');
+  const prevDirtyNoteFolders = _dirtyIdSet('note_folders');
   const prevDirtyIdeas = _dirtyIdSet('ideas');
   const prevDirtyContacts = _dirtyIdSet('contacts');
   const prevDirtyShows = _dirtyIdSet('shows');
@@ -72,11 +74,26 @@ async function loadFromSupabaseV2(orgId, sb){
   store.trips = view.trips;
   store.ideas = view.ideas;
   store.notes = view.notes;
+  store.noteFolders = view.noteFolders || [];
   store.contacts = view.contacts;
   store.invoices = view.invoices;
   store.itineraries = view.itineraries;
   store.packing = prevPacking;
   store.reminders = prevReminders;
+
+  /* Note folders */
+  if(prevNoteFolders.length){
+    store.noteFolders = _mergeDirtyById(store.noteFolders, prevNoteFolders, prevDirtyNoteFolders, (local) => {
+      if(typeof v2RepoPatchLocal === 'function'){
+        v2RepoPatchLocal('note_folders', {
+          id: local.id,
+          organisation_id: orgId,
+          folder_name: local.name || '',
+          sort_order: local.sortOrder || 0
+        });
+      }
+    });
+  }
 
   /* Notes */
   if(prevNotes.length){
@@ -87,6 +104,7 @@ async function loadFromSupabaseV2(orgId, sb){
           organisation_id: orgId,
           note_title: local.title || '',
           note_body: local.body || '',
+          folder_id: local.folderId || null,
           folder_name: local.folder || null,
           updated_at: local.updated ? new Date(local.updated).toISOString() : null
         });
@@ -182,6 +200,7 @@ async function rebuildViewFromLocalV2(){
   store.trips = view.trips;
   store.ideas = view.ideas;
   store.notes = view.notes;
+  store.noteFolders = view.noteFolders || [];
   store.contacts = view.contacts;
   store.invoices = view.invoices;
   store.itineraries = view.itineraries;

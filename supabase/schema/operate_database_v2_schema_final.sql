@@ -1263,6 +1263,27 @@ CREATE UNIQUE INDEX ideas_organisation_legacy_id_idx
     ON public.ideas (organisation_id, legacy_id)
     WHERE legacy_id IS NOT NULL;
 
+CREATE TABLE public.note_folders (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    organisation_id uuid NOT NULL
+        REFERENCES public.organisations(id) ON DELETE CASCADE,
+    legacy_id text,
+    folder_name text NOT NULL,
+    sort_order integer NOT NULL DEFAULT 0,
+    created_at timestamptz NOT NULL DEFAULT now(),
+    updated_at timestamptz NOT NULL DEFAULT now(),
+    deleted_at timestamptz,
+    UNIQUE (id, organisation_id)
+);
+
+CREATE UNIQUE INDEX note_folders_org_name_lower_idx
+    ON public.note_folders (organisation_id, lower(folder_name))
+    WHERE deleted_at IS NULL;
+
+CREATE UNIQUE INDEX note_folders_organisation_legacy_id_idx
+    ON public.note_folders (organisation_id, legacy_id)
+    WHERE legacy_id IS NOT NULL;
+
 CREATE TABLE public.notes (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     organisation_id uuid NOT NULL
@@ -1272,6 +1293,7 @@ CREATE TABLE public.notes (
     tour_id uuid,
     note_title text,
     note_body text,
+    folder_id uuid,
     folder_name text,
     sort_order integer NOT NULL DEFAULT 0,
     created_at timestamptz NOT NULL DEFAULT now(),
@@ -1284,12 +1306,20 @@ CREATE TABLE public.notes (
     CONSTRAINT notes_tour_fk
         FOREIGN KEY (tour_id, organisation_id)
         REFERENCES public.tours(id, organisation_id)
-        ON DELETE SET NULL (tour_id)
+        ON DELETE SET NULL (tour_id),
+    CONSTRAINT notes_folder_fk
+        FOREIGN KEY (folder_id, organisation_id)
+        REFERENCES public.note_folders(id, organisation_id)
+        ON DELETE SET NULL (folder_id)
 );
 
 CREATE UNIQUE INDEX notes_organisation_legacy_id_idx
     ON public.notes (organisation_id, legacy_id)
     WHERE legacy_id IS NOT NULL;
+
+CREATE INDEX notes_folder_id_idx
+    ON public.notes (folder_id)
+    WHERE folder_id IS NOT NULL;
 
 CREATE TABLE public.itinerary_submissions (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -1737,6 +1767,7 @@ DECLARE
         'packing_list_items',
         'reminders',
         'ideas',
+        'note_folders',
         'notes',
         'itinerary_submissions',
         'itinerary_submission_files'
@@ -1964,6 +1995,7 @@ DECLARE
         'show_files',
         'packing_list_items',
         'ideas',
+        'note_folders',
         'notes',
         'itinerary_submissions',
         'itinerary_submission_files'

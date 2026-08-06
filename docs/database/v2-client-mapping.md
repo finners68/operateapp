@@ -34,6 +34,7 @@ The app is **V2-native**. In-memory `store.v2` holds Postgres entity collections
 | Show `drivers[]` | `journeys` ground_transfer + `journey_contacts` |
 | Show `hotel` | `hotel_bookings` tagged `show_hotel:` |
 | `store.ideas` / `notes` | `ideas` / `notes` |
+| `store.noteFolders` | `note_folders` (UUID folders; notes use `folder_id` + mirrored `folder_name`) |
 | Settings | `organisation_settings`, billing, fx, `user_preferences` |
 
 ## Writes
