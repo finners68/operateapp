@@ -11,7 +11,7 @@ function showDisplay(show, venue, artist){
     tripId: show.tour_id || null,
     status: V2_SHOW_STATUS_TO_STORE[show.show_status] || show.show_status,
     color: show.color_key,
-    venue: venue?.venue_name || '',
+    venue: show.venue_name || venue?.venue_name || '',
     city: venue?.city || '',
     country: venue?.country_code || '',
     setTime: show.set_start_time ? String(show.set_start_time).slice(0, 5) : '',
