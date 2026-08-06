@@ -514,7 +514,7 @@ function toursListBody(){
     ${past.length?`<div class="section"><div class="section-head"><div class="section-title" style="font-size:16px;color:var(--text-2)">Past</div></div>
       <div class="card flush">${past.slice(0,12).map(runRow).join('')}</div></div>`:''}`;
 }
-function toggleLegDone(runKey, showId){ const sh=sel.event(showId); if(sh){ sh.setDone=!sh.setDone; haptic(); persist(); renderView(); toast(sh.setDone?'Leg complete ✓':'Leg reopened', sh.setDone?'check':'arrowUp'); } }
+function toggleLegDone(runKey, showId){ const sh=sel.event(showId); if(sh){ sh.setDone=!sh.setDone; haptic(); persist('shows', showId); renderView(); toast(sh.setDone?'Leg complete ✓':'Leg reopened', sh.setDone?'check':'arrowUp'); } }
 
 /* ============================================================
    TRIP — create / edit
@@ -542,20 +542,23 @@ function saveTrip(tid){
   withButton($('#tr-save'), ()=>{
     if(tid){ Object.assign(sel.trip(tid), data); }
     else {
-      store.trips.push(Object.assign({id:uid('trip'), archived:false,
+      tid = uid('trip');
+      store.trips.push(Object.assign({id:tid, archived:false,
         packing:store.settings.packingTemplate.map(x=>({id:uid('pk'),label:x,done:false})),
         checklist:store.settings.packingTemplate.map(x=>({id:uid('ck'),label:x,done:false})),
         timeline:[], emergency:[], attachments:[]}, data));
     }
-    persist(); closeSheet(); renderView();
+    persist('tours', tid);
+    if(typeof pushTourNow === 'function') pushTourNow(tid);
+    closeSheet(); renderView();
   }, tid?'Trip updated':'Trip created');
 }
 
 /* ============================================================
    Trip Mode  (runs — no named trips)
    ============================================================ */
-function startTripFromShow(showId){ store.activeShowId=showId; persist(); overlay=null; navStack=[]; store.tab='trips'; if(typeof saveNavState==='function') saveNavState(); render({ resetScroll: true }); toast('Trip Mode on','play'); }
-function endTripMode(){ confirmSheet('End Trip Mode?','This turns off the live tour view. Nothing is deleted.','End Trip Mode',()=>{ store.activeShowId=null; persist(); overlay=null; store.tab='trips'; if(typeof saveNavState==='function') saveNavState(); render({ resetScroll: true }); toast('Trip Mode off','flag'); }); }
+function startTripFromShow(showId){ store.activeShowId=showId; persist('user_preferences'); overlay=null; navStack=[]; store.tab='trips'; if(typeof saveNavState==='function') saveNavState(); render({ resetScroll: true }); toast('Trip Mode on','play'); }
+function endTripMode(){ confirmSheet('End Trip Mode?','This turns off the live tour view. Nothing is deleted.','End Trip Mode',()=>{ store.activeShowId=null; persist('user_preferences'); overlay=null; store.tab='trips'; if(typeof saveNavState==='function') saveNavState(); render({ resetScroll: true }); toast('Trip Mode off','flag'); }); }
 /* Every callable contact saved across a tour's shows — Artist Liaison,
    drivers (even route-TBD ones) and key contacts — each with its title so
    it's obvious who you're phoning. */
@@ -590,8 +593,8 @@ function completeRunStep(runKey, stepId){
   else if(stepId.startsWith('shflt_')){ const id=stepId.slice(6); store.events.forEach(e=>(e.flights||[]).forEach(f=>{ if(f.id===id) f.done=!f.done; })); }
   else if(stepId.startsWith('shdrv_')){ const id=stepId.slice(6); store.events.forEach(e=>(e.drivers||[]).forEach(d=>{ if(d.id===id) d.done=!d.done; })); }
   else { const it=store.events.find(x=>x.id===stepId); if(it){ it.done=!it.done; if(it.done) toast('Done ✓','check'); } }
-  haptic(); persist(); renderView();
+  haptic(); persist('user_preferences'); renderView();
 }
-function togglePack(id){ const p=store.packing.find(x=>x.id===id); if(p){p.done=!p.done; haptic(); persist(); renderView();} }
-function delPack(id){ store.packing=store.packing.filter(x=>x.id!==id); persist(); renderView(); }
-function addPackPrompt(){ promptSheet('Packing item','e.g. Rain jacket', function(v){ store.packing.push({id:uid('pk'),label:v,done:false}); persist(); renderView(); toast('Added','check'); }); }
+function togglePack(id){ const p=store.packing.find(x=>x.id===id); if(p){p.done=!p.done; haptic(); persist('user_preferences'); renderView();} }
+function delPack(id){ store.packing=store.packing.filter(x=>x.id!==id); persist('user_preferences'); renderView(); }
+function addPackPrompt(){ promptSheet('Packing item','e.g. Rain jacket', function(v){ store.packing.push({id:uid('pk'),label:v,done:false}); persist('user_preferences'); renderView(); toast('Added','check'); }); }

@@ -230,7 +230,9 @@ async function pushToSupabaseV2(orgId, dirtyIn){
   if(!sb || !orgId || !store) return null;
 
   let dirty = dirtyIn ? cloneDirty(dirtyIn) : cloneDirty(store._dirty);
-  if(isEmptyDirty(dirty)) dirty = { '*': '*' };
+  /* Empty dirty = no-op (never invent a full-tour rewrite here). Full sync is
+     only via persistAll / _forceFullSync which passes { '*': '*' }. */
+  if(isEmptyDirty(dirty)) return null;
   const full = isFullDirty(dirty);
   const needSettings = full || isTableDirty(dirty, 'settings') || isTableDirty(dirty, 'organisation_settings');
   const needPrefs = full || needSettings || isTableDirty(dirty, 'user_preferences');

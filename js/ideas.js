@@ -138,7 +138,9 @@ function showIdeaActionBar(id){
 function confirmDeleteIdeaInline(iid){
   confirmSheet('Delete idea?','This can\'t be undone.','Delete',()=>{
     store.ideas = store.ideas.filter(x=>x.id!==iid);
-    persist('ideas', iid); deselectIdea(); renderView(); toast('Idea deleted','trash');
+    if(typeof deleteIdeaNow === 'function') deleteIdeaNow(iid);
+    else persist('ideas', iid);
+    deselectIdea(); renderView(); toast('Idea deleted','trash');
   }, true);
 }
 function quickIdea(){
@@ -146,7 +148,9 @@ function quickIdea(){
   if(!v){ if(el)el.focus(); return; }
   const idea = {id:uid('idea'), type:'other', title:v, prio:'med', done:false, created:nowMs(), note:'', eventId:null, tripId:null};
   store.ideas.push(idea);
-  persist('ideas', idea.id); renderView(); toast('Idea captured','idea');
+  persist('ideas', idea.id);
+  if(typeof pushIdeaNow === 'function') pushIdeaNow(idea);
+  renderView(); toast('Idea captured','idea');
   setTimeout(()=>{ const n=document.getElementById('idea-quick'); if(n) n.focus(); },50);
 }
 /* ============================================================
@@ -262,10 +266,29 @@ function saveIdea(iid){
       ideaId = uid('idea');
       store.ideas.push(Object.assign({id:ideaId, done:false, created:nowMs(), eventId, tripId:null}, data));
     }
-    persist('ideas', ideaId); closeSheet(); renderView();
+    persist('ideas', ideaId);
+    if(typeof pushIdeaNow === 'function'){
+      const idea = store.ideas.find(x=>x.id===ideaId);
+      if(idea) pushIdeaNow(idea);
+    }
+    closeSheet(); renderView();
   }, iid?'Idea updated':'Idea saved');
 }
 function editIdea(iid){ back(); setTimeout(()=>sheetIdea(iid),60); }
-function toggleIdeaDone(iid){ const i=store.ideas.find(x=>x.id===iid); i.done=!i.done; persist('ideas', iid); renderView(); toast(i.done?'Marked done':'Back in the list', i.done?'check':'arrowUp'); }
-function saveIdeaNote(iid,v){ const i=store.ideas.find(x=>x.id===iid); if(i){i.note=v; persist('ideas', iid);} }
+function toggleIdeaDone(iid){
+  const i=store.ideas.find(x=>x.id===iid);
+  i.done=!i.done;
+  persist('ideas', iid);
+  if(typeof pushIdeaNow === 'function') pushIdeaNow(i);
+  renderView();
+  toast(i.done?'Marked done':'Back in the list', i.done?'check':'arrowUp');
+}
+function saveIdeaNote(iid,v){
+  const i=store.ideas.find(x=>x.id===iid);
+  if(i){
+    i.note=v;
+    persist('ideas', iid);
+    if(typeof pushIdeaNow === 'function') pushIdeaNow(i);
+  }
+}
 

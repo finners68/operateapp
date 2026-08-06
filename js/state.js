@@ -138,19 +138,44 @@ const uid = (_p) => {
   return newUuid();
 };
 
-/* persist() = full cloud sync. persist('notes', id) = upload only that slice. */
+/* persist(scope, id) = day-to-day scoped dirty; online flush is immediate.
+   persistAll() = intentional full tour sync (bootstrap / recovery only).
+   Bare persist() with no scope still full-syncs but logs a warning — migrate callers. */
+function persistAll(){
+  if(typeof markDirtyAll === 'function') markDirtyAll();
+  if(store) store._forceFullSync = true;
+  db.write(store);
+  if(typeof flushDirtyNow === 'function' && typeof syncActive === 'function' && syncActive()
+      && (typeof navigator === 'undefined' || navigator.onLine !== false)){
+    flushDirtyNow();
+  } else {
+    queueSync();
+  }
+}
 function persist(scope, id){
+  let scoped = false;
   if(typeof markDirty === 'function'){
     if(scope == null || scope === true || scope === '*'){
+      if(typeof console !== 'undefined' && console.warn){
+        console.warn('persist() without scope triggers a full sync — prefer persist(scope, id) or persistAll()');
+      }
       if(typeof markDirtyAll === 'function') markDirtyAll();
+      if(store) store._forceFullSync = true;
     } else {
       markDirty(scope, id == null ? '*' : id);
+      scoped = true;
     }
   }
   db.write(store);
-  queueSync();
+  /* Online scoped edits: push dirty set now (single-row / partial). Offline: queue for reconnect flush. */
+  if(scoped && typeof flushDirtyNow === 'function' && typeof syncActive === 'function' && syncActive()
+      && (typeof navigator === 'undefined' || navigator.onLine !== false)){
+    flushDirtyNow();
+  } else {
+    queueSync();
+  }
 }
-function commit(){ persist(); render(); }
+function commit(){ persistAll(); render(); }
 
 /* ---------- Utilities ---------- */
 const $ = sel => document.querySelector(sel);
@@ -930,7 +955,7 @@ function seed(){
   s.invoices = [];
   s.packing = s.settings.packingTemplate.map(x=>({id:uid('pk'),label:x,done:false}));
   assignLogistics();
-  persist();
+  persistAll();
 }
 /* Attach each flight/hotel/driver to the show it belongs to (nearest show, preferring the upcoming one). */
 function assignLogistics(){
@@ -1008,7 +1033,7 @@ function restoreMissingLogistics(){
   const n = recoverLogisticsMetadata();
   store.events.forEach(e=>{ if(e.kind==='travel'||e.kind==='stay') normalizeLogisticItem(e); });
   if(store.events.some(e=>(e.kind==='travel'||e.kind==='stay') && e.showId===undefined)) assignLogistics();
-  persist();
+  persistAll();
   renderView();
   toast(n ? `Restored details on ${n} journey item${n>1?'s':''}` : 'No extra journey details found to restore','check');
 }
@@ -1037,5 +1062,5 @@ function migrate(){
   recoverLogisticsMetadata();
   store.events.forEach(e=>{ if(e.kind==='travel'||e.kind==='stay') normalizeLogisticItem(e); });
   if(store.events.some(e=>(e.kind==='travel'||e.kind==='stay') && e.showId===undefined)) assignLogistics();
-  persist();
+  db.write(store);
 }

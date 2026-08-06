@@ -346,7 +346,11 @@ function saveLogisticFor(showId){
     it.title = 'Hotel';
     if(!it.place && !it.addr){ toast('Add a hotel name or address','x'); return; }
   }
-  store.events.push(it); persist(); closeSheet(); renderView(); toast('Added to journey','check');
+  store.events.push(it);
+  const logScope = it.kind === 'stay' ? 'hotel_bookings' : (it.kind === 'marker' ? 'schedule_items' : 'journeys');
+  persist(logScope, it.id);
+  if (typeof pushLogisticsNow === 'function') pushLogisticsNow(it.kind, it.id);
+  closeSheet(); renderView(); toast('Added to journey','check');
 }
 /* Lightweight editor for travel / stay / marker items */
 function openItem(id){
@@ -400,9 +404,14 @@ function saveItem(id){
     e.bookingRef=val('it-ref');
     e.title='Hotel';
   }
-  persist(); closeSheet(); renderView(); toast('Saved','check');
+  const logScope = e.kind === 'stay' ? 'hotel_bookings' : (e.kind === 'marker' ? 'schedule_items' : 'journeys');
+  persist(logScope, e.id);
+  if (typeof pushLogisticsNow === 'function') pushLogisticsNow(e.kind, e.id);
+  closeSheet(); renderView(); toast('Saved','check');
 }
-function delItem(id){ store.events=store.events.filter(x=>x.id!==id); persist(); closeSheet(); renderView(); toast('Deleted','trash'); }
+function delItem(id){ const gone=store.events.find(x=>x.id===id); store.events=store.events.filter(x=>x.id!==id);
+  const logScope = gone && gone.kind === 'stay' ? 'hotel_bookings' : (gone && gone.kind === 'marker' ? 'schedule_items' : 'journeys');
+  persist(logScope, id); closeSheet(); renderView(); toast('Deleted','trash'); }
 let calSel = null;
 function calMove(d){ calCursor.m+=d; if(calCursor.m<0){calCursor.m=11;calCursor.y--;} if(calCursor.m>11){calCursor.m=0;calCursor.y++;} calSel=null; renderView(); }
 function calToday(){ const n=new Date(); calCursor={y:n.getFullYear(),m:n.getMonth()}; calSel=null; renderView(); }

@@ -42,7 +42,7 @@ async function scheduleReminder(showId, atMs, label, kind){
   r.at=atMs; r.label=label; r.kind=kind; r.fired=false; r.triggered=false;
   const ok=await ensureNotifPermission();
   if(ok) await armTrigger(r);
-  persist();
+  persist('user_preferences');
   return ok;
 }
 /* Auto-schedule the built-in "Don't forget your USB" reminder at every upcoming
@@ -60,7 +60,7 @@ function ensureUsbReminders(){
     else if(!r.fired && r.at!==at){ cancelTrigger(r); r.at=at; r.triggered=false; changed=true; }
     if(!r.triggered && !r.fired && notifSupported() && Notification.permission==='granted' && triggersSupported()){ armTrigger(r); changed=true; }
   });
-  if(changed) persist();
+  if(changed) persist('user_preferences');
 }
 async function armTrigger(r){
   if(!triggersSupported() || !('serviceWorker' in navigator)) return;
@@ -84,7 +84,7 @@ function cancelReminder(showId, kind){
   if(!r) return;
   cancelTrigger(r);
   store.reminders=list.filter(x=>x!==r);
-  persist();
+  persist('user_preferences');
 }
 function fireReminderNow(r){
   if(!notifSupported() || Notification.permission!=='granted') return;
@@ -111,5 +111,5 @@ function checkDueReminders(){
   });
   const kept=list.filter(r=>!(r.at < now - 12*3600000));   // forget reminders >12h past
   if(kept.length!==list.length){ store.reminders=kept; changed=true; }
-  if(changed) persist();
+  if(changed) persist('user_preferences');
 }

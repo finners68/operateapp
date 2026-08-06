@@ -842,6 +842,7 @@ function saveEvent(eid){
   }
   const btn = document.getElementById('ev-save');
   if(btn) btn.disabled = true;
+  let showId = eid;
   if(eid){ Object.assign(sel.event(eid), data); }
   else {
     const ev = Object.assign({id:uid('evt'), artist:store.settings.artistName, tripId:null,
@@ -849,8 +850,10 @@ function saveEvent(eid){
       checklist:[], timeline:[], attachments:[],
       finance:{fee:0, currency:store.settings.baseCurrency, dealType:'Guarantee', expenses:[], perDiem:0, commission:0, paid:false}}, data);
     store.events.push(ev);
+    showId = ev.id;
   }
-  persist();
+  persist('shows', showId);
+  if(typeof pushShowNow === 'function') pushShowNow(showId);
   closeSheet(true);
   renderView();
   toast(eid?'Show updated':'Show added','check');
@@ -880,7 +883,7 @@ function sheetHotel(eid){
 }
 function saveHotel(eid){
   const e=sel.event(eid);
-  withButton($('#ho-save'), ()=>{ e.hotel={name:val('ho-name'),address:val('ho-addr'),postcode:val('ho-post'),checkin:rawVal('ho-in'),checkout:rawVal('ho-out'),conf:val('ho-conf'),notes:val('ho-notes')}; persist(); closeSheet(); renderView(); }, 'Hotel saved');
+  withButton($('#ho-save'), ()=>{ e.hotel={name:val('ho-name'),address:val('ho-addr'),postcode:val('ho-post'),checkin:rawVal('ho-in'),checkout:rawVal('ho-out'),conf:val('ho-conf'),notes:val('ho-notes')}; persist('shows', eid); closeSheet(); renderView(); }, 'Hotel saved');
 }
 function sheetFlight(eid){
   openSheet('Add flight', `
@@ -902,9 +905,9 @@ function saveFlight(eid){
   if(!code){ toast('Add a flight number','x'); return; }
   const depRaw = rawVal('fl-dep'); // yyyy-mm-ddThh:mm
   const dep = depRaw? depRaw.replace('T',' ') : '';
-  withButton($('#fl-save'), ()=>{ e.flights.push({id:uid('fl'),code,from:val('fl-from').toUpperCase(),to:val('fl-to').toUpperCase(),dep,arr:'',seat:val('fl-seat'),passes:[]}); persist(); closeSheet(); renderView(); }, 'Flight added');
+  withButton($('#fl-save'), ()=>{ e.flights.push({id:uid('fl'),code,from:val('fl-from').toUpperCase(),to:val('fl-to').toUpperCase(),dep,arr:'',seat:val('fl-seat'),passes:[]}); persist('shows', eid); closeSheet(); renderView(); }, 'Flight added');
 }
-function delFlight(eid,fid){ const e=sel.event(eid); e.flights=e.flights.filter(f=>f.id!==fid); persist(); renderView(); toast('Flight removed','trash'); }
+function delFlight(eid,fid){ const e=sel.event(eid); e.flights=e.flights.filter(f=>f.id!==fid); persist('shows', eid); renderView(); toast('Flight removed','trash'); }
 /* Tapping the Driver quick-link opens a chooser — Call or WhatsApp — instead of dialling immediately. */
 function contactDriver(eid){
   const e=sel.event(eid); const d=(e&&e.driver)||{};
@@ -1027,7 +1030,7 @@ async function flightTrack(id){
     if(d.gate) e.gate=d.gate;
     e.delay=d.delay||'';
     e.fiUpdated=Date.now(); e.fiLive=true;
-    persist(); renderView(); toast('Live status updated ✈︎','check');
+    persist('shows', eid); renderView(); toast('Live status updated ✈︎','check');
   }catch(err){ toast('Could not reach flight service','x'); }
 }
 function sheetFlightInfo(id){
@@ -1052,11 +1055,11 @@ function sheetFlightInfo(id){
 function saveFlightInfo(id){
   const e=store.events.find(x=>x.id===id); if(!e) return;
   e.flightNo=val('fi-no'); e.terminal=val('fi-term'); e.gate=val('fi-gate'); e.fstatus=val('fi-status'); e.delay=val('fi-delay'); e.fiUpdated=Date.now();
-  persist(); closeSheet(); renderView(); toast('Flight info saved','check');
+  persist('shows', eid); closeSheet(); renderView(); toast('Flight info saved','check');
 }
 function clearFlightInfo(id){
   const e=store.events.find(x=>x.id===id); if(e){ e.flightNo=''; e.terminal=''; e.gate=''; e.fstatus=''; e.delay=''; e.fiUpdated=null; }
-  persist(); closeSheet(); renderView(); toast('Flight info cleared','trash');
+  persist('shows', eid); closeSheet(); renderView(); toast('Flight info cleared','trash');
 }
 function sheetDriver(eid, idx){
   const e=sel.event(eid); const list=showDrivers(e);
@@ -1107,7 +1110,7 @@ function saveDriver(eid, idx){
       : Object.assign(base, { name, phone:val('dr-phone'), whatsapp:val('dr-wa'), pickup:val('dr-pick'), notes:val('dr-notes') });
     if(idx!=null && list[idx]) list[idx]=drv; else list.push(drv);
     e.driver = list.find(x=>!x.noGround) || null;
-    persist(); closeSheet(); renderView();
+    persist('shows', eid); closeSheet(); renderView();
   }, idx!=null?'Saved':'Added');
 }
 function sheetVenueAddr(eid){
@@ -1121,7 +1124,7 @@ function sheetVenueAddr(eid){
 }
 function saveVenueAddr(eid){
   const e=sel.event(eid); if(!e) return;
-  withButton($('#va-save'), ()=>{ e.venue=val('va-venue')||e.venue; e.venueAddr=val('va-addr'); persist(); closeSheet(); renderView(); }, 'Saved');
+  withButton($('#va-save'), ()=>{ e.venue=val('va-venue')||e.venue; e.venueAddr=val('va-addr'); persist('shows', eid); closeSheet(); renderView(); }, 'Saved');
 }
 function sheetPromoter(eid){
   const e=sel.event(eid); const p=e.promoter||{};
@@ -1138,7 +1141,7 @@ function sheetPromoter(eid){
 function savePromoter(eid){
   const e=sel.event(eid); const name=val('pr-name');
   if(!name){ toast('Add a name','x'); return; }
-  withButton($('#pr-save'), ()=>{ e.promoter={name,phone:val('pr-phone'),whatsapp:val('pr-wa')}; persist(); closeSheet(); renderView(); }, 'Promoter saved');
+  withButton($('#pr-save'), ()=>{ e.promoter={name,phone:val('pr-phone'),whatsapp:val('pr-wa')}; persist('shows', eid); closeSheet(); renderView(); }, 'Promoter saved');
 }
 /* ---- Advancing: rich, ABOSS-depth show-day info. Every field hidden unless filled. ---- */
 function advRow(icon,k,v,extra){ if(!v) return ''; return `<div class="info-line"><div class="ic">${icon}</div>${fieldTx(k, `<span style="white-space:pre-wrap">${esc(v)}</span>`)}${extra||''}</div>`; }
@@ -1184,7 +1187,7 @@ function saveAdvance(eid){
   const schedule=[...document.querySelectorAll('#ad-ro .ro-edit')].map(r=>({time:(r.querySelector('.ro-t')||{}).value||'',label:(r.querySelector('.ro-l')||{}).value||''})).filter(s=>s.time||s.label);
   withButton($('#ad-save'), ()=>{
     e.advance={stage:val('ad-stage'),schedule,access:val('ad-access'),soundcheck:val('ad-sc'),curfew:val('ad-curfew'),dressingRoom:val('ad-dr'),guestlist:val('ad-gl'),catering:val('ad-cat'),parking:val('ad-park'),wifi:val('ad-wifi'),navAddr:val('ad-nav'),remarks:val('ad-rem')};
-    persist(); closeSheet(); renderView();
+    persist('shows', eid); closeSheet(); renderView();
   }, 'Details saved');
 }
 function sheetEventContact(eid,cid){
@@ -1207,10 +1210,10 @@ function saveEventContact(eid,cid){
   withButton($('#ct-save'), ()=>{
     if(cid){ const c=e.contacts.find(x=>x.id===cid); if(c) Object.assign(c,data); }
     else e.contacts.push({id:uid('ct'),...data});
-    persist(); closeSheet(); renderView();
+    persist('shows', eid); closeSheet(); renderView();
   }, 'Contact saved');
 }
-function delEventContact(eid,cid){ const e=sel.event(eid); e.contacts=(e.contacts||[]).filter(x=>x.id!==cid); persist(); closeSheet(); renderView(); toast('Contact removed','trash'); }
+function delEventContact(eid,cid){ const e=sel.event(eid); e.contacts=(e.contacts||[]).filter(x=>x.id!==cid); persist('shows', eid); closeSheet(); renderView(); toast('Contact removed','trash'); }
 function sheetShowChecklist(eid){
   const e = sel.event(eid);
   if(!e) return;
@@ -1255,20 +1258,20 @@ function saveShowTimelineStep(eid){
   withButton($('#est-save'), ()=>{
     (e.timeline = e.timeline || []).push({ id: uid('tl'), time: time||'', title, sub: val('est-sub'), done: false });
     e.timeline.sort((a,b)=>(a.time||'').localeCompare(b.time||''));
-    persist(); closeSheet(); sheetShowTimeline(eid);
+    persist('shows', eid); closeSheet(); sheetShowTimeline(eid);
   }, 'Step added');
 }
 function toggleShowTimelineStep(eid,sid){
   const e = sel.event(eid);
   const s = e && (e.timeline||[]).find(x=>x.id===sid);
   if(!s) return;
-  s.done = !s.done; haptic(); persist(); renderView();
+  s.done = !s.done; haptic(); persist('shows', eid); renderView();
 }
 function delShowTimelineStep(eid,sid){
   const e = sel.event(eid);
   if(!e || !e.timeline) return;
   e.timeline = e.timeline.filter(x=>x.id!==sid);
-  persist(); renderView(); toast('Step removed','trash');
+  persist('shows', eid); renderView(); toast('Step removed','trash');
 }
 function sheetTimelineStep(tid){
   openSheet('Add timeline step', `
@@ -1287,7 +1290,7 @@ function saveTimelineStep(tid){
   withButton($('#ts-save'), ()=>{
     t.timeline.push({id:uid('tl'),time:time||'',title,sub:val('ts-sub'),done:false});
     t.timeline.sort((a,b)=>(a.time||'').localeCompare(b.time||''));
-    persist(); closeSheet(); renderView();
+    persist('tours', tid); closeSheet(); renderView();
   }, 'Step added');
 }
 function sheetEmergency(tid){
@@ -1301,7 +1304,7 @@ function sheetEmergency(tid){
 function saveEmergency(tid){
   const t=sel.trip(tid); const name=val('em-name');
   if(!name){ toast('Add a name','x'); return; }
-  withButton($('#em-save'), ()=>{ (t.emergency=t.emergency||[]).push({name,phone:val('em-phone')}); persist(); closeSheet(); renderView(); }, 'Contact added');
+  withButton($('#em-save'), ()=>{ (t.emergency=t.emergency||[]).push({name,phone:val('em-phone')}); persist('tours', tid); closeSheet(); renderView(); }, 'Contact added');
 }
 /* ============================================================
    MONEY — event block, editor, overview
@@ -1344,10 +1347,10 @@ function saveFinance(eid){
       notDisclosed:getSeg('fi-nd')==='1', estimated:false,
       expenses:f.expenses||[],
     });
-    persist(); closeSheet(); renderView();
+    persist('shows', eid); closeSheet(); renderView();
   }, 'Deal saved');
 }
-function togglePaid(eid){ const e=sel.event(eid); e.finance.paid=!e.finance.paid; haptic(); persist(); renderView(); toast(e.finance.paid?'Marked paid':'Marked unpaid', e.finance.paid?'check':'money'); }
+function togglePaid(eid){ const e=sel.event(eid); e.finance.paid=!e.finance.paid; haptic(); persist('shows', eid); renderView(); toast(e.finance.paid?'Marked paid':'Marked unpaid', e.finance.paid?'check':'money'); }
 function addExpense(eid){
   openSheet('Add expense', `
     <div class="row-2">
@@ -1361,9 +1364,9 @@ function saveExpense(eid){
   const label=val('ex-label'); const amount=+val('ex-amt')||0;
   if(!label && !amount){ toast('Add a label or amount','x'); return; }
   const e=sel.event(eid); (e.finance.expenses=e.finance.expenses||[]).push({id:uid('ex'),label,amount});
-  persist(); closeSheet(); renderView(); toast('Expense added','receipt');
+  persist('shows', eid); closeSheet(); renderView(); toast('Expense added','receipt');
 }
-function delExpense(eid,xid){ const e=sel.event(eid); e.finance.expenses=e.finance.expenses.filter(x=>x.id!==xid); persist(); renderView(); }
+function delExpense(eid,xid){ const e=sel.event(eid); e.finance.expenses=e.finance.expenses.filter(x=>x.id!==xid); persist('shows', eid); renderView(); }
 
 /* ============================================================
    DAY SHEET — shareable advancing doc (ABOSS core, beaten on UX)

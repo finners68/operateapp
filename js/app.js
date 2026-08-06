@@ -374,13 +374,13 @@ function promptSheet(title, placeholder, onSave, initial=''){
 /* ============================================================
    Checklists (event + trip) and timeline steps
    ============================================================ */
-function toggleEventCheck(eid,cid){ const e=sel.event(eid); const i=e.checklist.find(x=>x.id===cid); if(i){i.done=!i.done; haptic(); persist(); renderView();} }
-function delEventCheck(eid,cid){ const e=sel.event(eid); e.checklist=e.checklist.filter(x=>x.id!==cid); persist(); renderView(); }
-function addEventCheckPrompt(eid){ promptSheet('Checklist item','e.g. Track ID list', function(v){ const e=sel.event(eid); e.checklist.push({id:uid('ck'),label:v,done:false}); persist(); renderView(); toast('Added','check'); }); }
-function toggleTripCheck(tid,cid){ const t=sel.trip(tid); const i=t.checklist.find(x=>x.id===cid); if(i){i.done=!i.done; haptic(); persist(); renderView();} }
-function delTripCheck(tid,cid){ const t=sel.trip(tid); t.checklist=t.checklist.filter(x=>x.id!==cid); persist(); renderView(); }
-function addTripCheckPrompt(tid){ promptSheet('Packing / checklist item','e.g. Battery packs', function(v){ const t=sel.trip(tid); t.checklist.push({id:uid('ck'),label:v,done:false}); persist(); renderView(); toast('Added','check'); }); }
-function completeStep(tid,sid){ const t=sel.trip(tid); const s=t.timeline.find(x=>x.id===sid); if(s){ s.done=!s.done; haptic(); persist(); renderView(); if(s.done) toast('Step done ✓','check'); } }
+function toggleEventCheck(eid,cid){ const e=sel.event(eid); const i=e.checklist.find(x=>x.id===cid); if(i){i.done=!i.done; haptic(); persist('shows', eid); renderView();} }
+function delEventCheck(eid,cid){ const e=sel.event(eid); e.checklist=e.checklist.filter(x=>x.id!==cid); persist('shows', eid); renderView(); }
+function addEventCheckPrompt(eid){ promptSheet('Checklist item','e.g. Track ID list', function(v){ const e=sel.event(eid); e.checklist.push({id:uid('ck'),label:v,done:false}); persist('shows', eid); renderView(); toast('Added','check'); }); }
+function toggleTripCheck(tid,cid){ const t=sel.trip(tid); const i=t.checklist.find(x=>x.id===cid); if(i){i.done=!i.done; haptic(); persist('tours', tid); renderView();} }
+function delTripCheck(tid,cid){ const t=sel.trip(tid); t.checklist=t.checklist.filter(x=>x.id!==cid); persist('tours', tid); renderView(); }
+function addTripCheckPrompt(tid){ promptSheet('Packing / checklist item','e.g. Battery packs', function(v){ const t=sel.trip(tid); t.checklist.push({id:uid('ck'),label:v,done:false}); persist('tours', tid); renderView(); toast('Added','check'); }); }
+function completeStep(tid,sid){ const t=sel.trip(tid); const s=t.timeline.find(x=>x.id===sid); if(s){ s.done=!s.done; haptic(); persist('tours', tid); renderView(); if(s.done) toast('Step done ✓','check'); } }
 function saveEventNotes(eid,v){ const e=sel.event(eid); if(e){e.notes=v; persist('shows', eid);} }
 
 /* ============================================================
@@ -474,7 +474,7 @@ function submitItinerary(input){
     if(!imgs.length){ toast('Nothing added','x'); return; }
     const n=new Date(); const date=`${n.getFullYear()}-${pad(n.getMonth()+1)}-${pad(n.getDate())}`;
     const entry={id:uid('itin'), source:'', date, time:'', note:'', showId:'', imgs, created:Date.now()};
-    store.itineraries.unshift(entry); persist(); renderView();
+    store.itineraries.unshift(entry); persist('user_preferences'); renderView();
     imgs.forEach(im => hostImg(im, 'itinerary', 'itinerary'));
     sheetItinerary(entry.id);
   });
@@ -503,11 +503,11 @@ function sheetItinerary(id){
 function saveItinerary(id){
   const it=(store.itineraries||[]).find(x=>x.id===id); if(!it) return;
   it.source=val('itn-src'); it.date=rawVal('itn-date'); it.time=rawVal('itn-time'); it.showId=rawVal('itn-show'); it.note=val('itn-note');
-  persist(); closeSheet(); renderView(); toast('Itinerary saved','check');
+  persist('user_preferences'); closeSheet(); renderView(); toast('Itinerary saved','check');
 }
 function addItineraryShots(id,input){
   const it=(store.itineraries||[]).find(x=>x.id===id); if(!it) return;
-  readFiles(input, imgs=>{ if(imgs.length){ it.imgs=(it.imgs||[]).concat(imgs); persist(); imgs.forEach(im=>hostImg(im,'itinerary','itinerary')); sheetItinerary(id); } });
+  readFiles(input, imgs=>{ if(imgs.length){ it.imgs=(it.imgs||[]).concat(imgs); persist('user_preferences'); imgs.forEach(im=>hostImg(im,'itinerary','itinerary')); sheetItinerary(id); } });
 }
 /* ---- Phase 2: read an itinerary screenshot and fill ONLY the missing show fields ---- */
 function applyScanToShow(e, f){
@@ -566,31 +566,32 @@ async function scanItinerary(id){
     const f=(data&&data.fields)||{};
     if(!Object.keys(f).length){ toast('Nothing readable found','x'); scanBtnReset(); return; }
     const filled=applyScanToShow(e, f);
-    persist();
+    persist('shows', e.id);
+    if(typeof pushShowNow === 'function') pushShowNow(e.id);
     if(filled.length){ closeSheet(); renderView(); toast('Filled: '+filled.join(', '),'check'); }
     else { toast('Show already has this info','check'); scanBtnReset(); }
   }catch(err){ toast('Scan error','x'); scanBtnReset(); }
 }
 function delItinShot(id,imid){
-  const it=(store.itineraries||[]).find(x=>x.id===id); if(it){ it.imgs=(it.imgs||[]).filter(im=>im.id!==imid); } persist(); sheetItinerary(id);
+  const it=(store.itineraries||[]).find(x=>x.id===id); if(it){ it.imgs=(it.imgs||[]).filter(im=>im.id!==imid); } persist('user_preferences'); sheetItinerary(id);
 }
 function delItinerary(id){
-  confirmSheet('Delete submission?','','Delete',()=>{ store.itineraries=(store.itineraries||[]).filter(x=>x.id!==id); persist(); closeSheet(); renderView(); toast('Deleted','trash'); }, true);
+  confirmSheet('Delete submission?','','Delete',()=>{ store.itineraries=(store.itineraries||[]).filter(x=>x.id!==id); persist('user_preferences'); closeSheet(); renderView(); toast('Deleted','trash'); }, true);
 }
-function uploadAttachment(eid,input){ toast('Uploading…','image'); readFile(input, att=>{ const e=sel.event(eid); (e.attachments=e.attachments||[]).push(att); persist(); renderView(); toast('Attached','check'); hostImg(att, eid, 'attachment'); }); }
-function delAttachment(eid,aid){ const e=sel.event(eid); e.attachments=e.attachments.filter(a=>a.id!==aid); persist(); renderView(); toast('Removed','trash'); }
+function uploadAttachment(eid,input){ toast('Uploading…','image'); readFile(input, att=>{ const e=sel.event(eid); (e.attachments=e.attachments||[]).push(att); persist('shows', eid); renderView(); toast('Attached','check'); hostImg(att, eid, 'attachment'); }); }
+function delAttachment(eid,aid){ const e=sel.event(eid); e.attachments=e.attachments.filter(a=>a.id!==aid); persist('shows', eid); renderView(); toast('Removed','trash'); }
 function uploadPass(eid,fid,input){ toast('Uploading pass…','ticket'); readFile(input, att=>{ attachPassToShowFlight(eid, fid, att).then(ok=>{ if(ok) toast('Boarding pass added','check'); else toast('Could not attach pass','x'); }); }); }
-function delFlightPass(eid,fid,pid){ const e=sel.event(eid); const f=e&&e.flights&&e.flights.find(x=>x.id===fid); if(f&&f.passes){ f.passes=f.passes.filter(p=>p.id!==pid); } persist(); renderView(); toast('Boarding pass removed','trash'); }
+function delFlightPass(eid,fid,pid){ const e=sel.event(eid); const f=e&&e.flights&&e.flights.find(x=>x.id===fid); if(f&&f.passes){ f.passes=f.passes.filter(p=>p.id!==pid); } persist('shows', eid); renderView(); toast('Boarding pass removed','trash'); }
 function delItemPass(itemId, passId){
   const it=store.events.find(x=>x.id===itemId);
   if(!it || !it.passes) return;
   if(passId) it.passes=it.passes.filter(p=>p.id!==passId);
   else it.passes=[];
-  persist(); renderView(); toast('Boarding pass removed','trash');
+  persist('shows', itemId || eid); renderView(); toast('Boarding pass removed','trash');
 }
-function removeHotel(eid){ const e=sel.event(eid); if(e){ e.hotel=null; } persist(); closeSheet(); renderView(); toast('Hotel removed','trash'); }
-function removeDriver(eid, idx){ const e=sel.event(eid); if(e){ const list=showDrivers(e); if(idx!=null) list.splice(idx,1); e.driver=list.find(d=>!d.noGround)||null; } persist(); closeSheet(); renderView(); toast('Removed','trash'); }
-function removePromoter(eid){ const e=sel.event(eid); if(e){ e.promoter=null; } persist(); closeSheet(); renderView(); toast('Contact removed','trash'); }
+function removeHotel(eid){ const e=sel.event(eid); if(e){ e.hotel=null; } persist('shows', eid); closeSheet(); renderView(); toast('Hotel removed','trash'); }
+function removeDriver(eid, idx){ const e=sel.event(eid); if(e){ const list=showDrivers(e); if(idx!=null) list.splice(idx,1); e.driver=list.find(d=>!d.noGround)||null; } persist('shows', eid); closeSheet(); renderView(); toast('Removed','trash'); }
+function removePromoter(eid){ const e=sel.event(eid); if(e){ e.promoter=null; } persist('shows', eid); closeSheet(); renderView(); toast('Contact removed','trash'); }
 /* ============================================================
    Menus + delete
    ============================================================ */
@@ -629,9 +630,9 @@ function tripMenu(tid){
     <div class="spacer"></div>
   `);
 }
-function confirmDeleteEvent(eid){ confirmSheet('Delete show?','This removes the show and its details permanently.','Delete',()=>{ store.events=store.events.filter(e=>e.id!==eid); persist(); back(); toast('Show deleted','trash'); }, true); }
-function confirmDeleteTrip(tid){ confirmSheet('Delete trip?','Shows in this trip are kept, but the trip itself is removed.','Delete trip',()=>{ store.events.forEach(e=>{ if(e.tripId===tid) e.tripId=null; }); if(store.activeTripId===tid) store.activeTripId=null; store.trips=store.trips.filter(t=>t.id!==tid); persist(); back(); toast('Trip deleted','trash'); }, true); }
-function confirmDeleteIdea(iid){ confirmSheet('Delete idea?','This can\'t be undone.','Delete',()=>{ store.ideas=store.ideas.filter(x=>x.id!==iid); persist('ideas', iid); back(); toast('Idea deleted','trash'); }, true); }
+function confirmDeleteEvent(eid){ confirmSheet('Delete show?','This removes the show and its details permanently.','Delete',()=>{ store.events=store.events.filter(e=>e.id!==eid); persist('shows', eid); back(); toast('Show deleted','trash'); }, true); }
+function confirmDeleteTrip(tid){ confirmSheet('Delete trip?','Shows in this trip are kept, but the trip itself is removed.','Delete trip',()=>{ store.events.forEach(e=>{ if(e.tripId===tid) e.tripId=null; }); if(store.activeTripId===tid) store.activeTripId=null; store.trips=store.trips.filter(t=>t.id!==tid); persist('tours', tid); back(); toast('Trip deleted','trash'); }, true); }
+function confirmDeleteIdea(iid){ confirmSheet('Delete idea?','This can\'t be undone.','Delete',()=>{ store.ideas=store.ideas.filter(x=>x.id!==iid); if(typeof deleteIdeaNow === 'function') deleteIdeaNow(iid); else persist('ideas', iid); back(); toast('Idea deleted','trash'); }, true); }
 
 /* ============================================================
    Settings
@@ -937,7 +938,7 @@ function importData(input){
     if(!data || !Array.isArray(data.events)){ toast('Not an Operate backup','x'); return; }
     confirmSheet('Restore this backup?', 'This replaces the data currently on this device with the backup ('+data.events.length+' events).', 'Restore', ()=>{
       store = data; if(store.tab==null) store.tab='home';
-      migrate(); persist(); overlay=null; closeSheet(); render();
+      migrate(); persistAll(); overlay=null; closeSheet(); render();
       if(syncActive()) queueSync();
       toast('Backup restored','check');
     });
@@ -1069,7 +1070,7 @@ function createInvoiceFromEvent(eid){
     terms:store.settings.invoiceTerms||14,
   };
   store.settings.invoiceSeq++;
-  store.invoices.push(inv); persist();
+  store.invoices.push(inv); persist('invoices', inv.id);
   if(!store.settings.billing.name){ closeSheet(); toast('Add your billing details','receipt'); openBilling(inv.id); }
   else openView('invoice', inv.id);
 }
@@ -1161,10 +1162,10 @@ function viewInvoice(id){
     <div class="spacer"></div>
   </div>`;
 }
-function setInvStatus(id,st){ const inv=store.invoices.find(x=>x.id===id); inv.status=st; if(st==='paid'){ const e=sel.event(inv.eventId); if(e&&e.finance) e.finance.paid=true; } haptic(); persist(); renderView(); toast('Marked '+st, st==='paid'?'check':'receipt'); }
+function setInvStatus(id,st){ const inv=store.invoices.find(x=>x.id===id); inv.status=st; if(st==='paid'){ const e=sel.event(inv.eventId); if(e&&e.finance) e.finance.paid=true; } haptic(); persist('invoices', id); renderView(); toast('Marked '+st, st==='paid'?'check':'receipt'); }
 function addInvLine(id){ openSheet('Add line', `<div class="row-2"><div class="field" style="flex:2"><label>Description</label><input id="il-label" class="input" placeholder="Travel, extra set…"></div><div class="field"><label>Amount</label><input id="il-amt" type="number" inputmode="decimal" class="input"></div></div><button class="btn" onclick="saveInvLine('${id}')">Add</button><div class="spacer"></div>`); }
-function saveInvLine(id){ const inv=store.invoices.find(x=>x.id===id); const label=val('il-label')||'Item'; inv.lines.push({label, amount:+val('il-amt')||0}); persist(); closeSheet(); renderView(); }
-function delInvLine(id,idx){ const inv=store.invoices.find(x=>x.id===id); if(inv.lines.length<=1){ toast('Keep at least one line','x'); return;} inv.lines.splice(idx,1); persist(); renderView(); }
+function saveInvLine(id){ const inv=store.invoices.find(x=>x.id===id); const label=val('il-label')||'Item'; inv.lines.push({label, amount:+val('il-amt')||0}); persist('invoices', id); closeSheet(); renderView(); }
+function delInvLine(id,idx){ const inv=store.invoices.find(x=>x.id===id); if(inv.lines.length<=1){ toast('Keep at least one line','x'); return;} inv.lines.splice(idx,1); persist('invoices', id); renderView(); }
 function invoiceMenu(id){ const inv=store.invoices.find(x=>x.id===id);
   openSheet('Invoice', `
     <div class="field"><label>Bill to (client)</label><input id="iv-client" class="input" value="${esc(inv.client)}"></div>
@@ -1173,8 +1174,8 @@ function invoiceMenu(id){ const inv=store.invoices.find(x=>x.id===id);
     <button class="btn" onclick="saveInvoiceMeta('${id}')">Save</button><div class="spacer"></div>
   `);
 }
-function saveInvoiceMeta(id){ const inv=store.invoices.find(x=>x.id===id); inv.client=val('iv-client')||inv.client; inv.clientAddr=val('iv-caddr'); inv.date=rawVal('iv-date')||inv.date; inv.terms=+val('iv-terms')||14; persist(); closeSheet(); renderView(); toast('Invoice updated','receipt'); }
-function confirmDeleteInvoice(id){ confirmSheet('Delete invoice?','The number won\'t be reused.','Delete',()=>{ store.invoices=store.invoices.filter(x=>x.id!==id); persist(); back(); toast('Invoice deleted','trash'); }, true); }
+function saveInvoiceMeta(id){ const inv=store.invoices.find(x=>x.id===id); inv.client=val('iv-client')||inv.client; inv.clientAddr=val('iv-caddr'); inv.date=rawVal('iv-date')||inv.date; inv.terms=+val('iv-terms')||14; persist('invoices', id); closeSheet(); renderView(); toast('Invoice updated','receipt'); }
+function confirmDeleteInvoice(id){ confirmSheet('Delete invoice?','The number won\'t be reused.','Delete',()=>{ store.invoices=store.invoices.filter(x=>x.id!==id); persist('invoices', id); back(); toast('Invoice deleted','trash'); }, true); }
 function openBilling(invId){
   const b=store.settings.billing;
   openSheet('Your billing details', `
@@ -1189,7 +1190,7 @@ function openBilling(invId){
 function saveBilling(invId){
   store.settings.billing={name:val('bl-name'),address:val('bl-addr'),taxId:val('bl-tax'),email:val('bl-email'),iban:val('bl-iban')};
   store.settings.invoicePrefix=val('bl-prefix')||'AHQ'; store.settings.invoiceTerms=+val('bl-terms')||14;
-  persist(); closeSheet();
+  persist('settings'); closeSheet();
   if(invId) openView('invoice', invId); else renderView();
   toast('Billing saved','check');
 }
@@ -1211,7 +1212,7 @@ function buildInvoiceText(inv){
 }
 function shareInvoice(id){
   const inv=store.invoices.find(x=>x.id===id); const text=buildInvoiceText(inv);
-  if(inv.status==='draft'){ inv.status='sent'; persist(); }
+  if(inv.status==='draft'){ inv.status='sent'; persist('invoices', inv.id); }
   if(navigator.share){ navigator.share({title:`Invoice ${inv.number}`, text}).then(()=>{renderView();toast('Shared','share');}).catch(()=>{ window.__daysheet=text; previewDaySheet(text); }); }
   else { previewDaySheet(text); renderView(); }
 }
@@ -1295,11 +1296,14 @@ function saveContact(id){
   const name=val('co-name'); if(!name){ toast('Add a name','x'); return; }
   const data={name, role:rawVal('co-role'), company:val('co-company'), phone:val('co-phone'), whatsapp:val('co-wa'), email:val('co-email'), notes:val('co-notes')};
   withButton($('#co-save'), ()=>{
+    let cid = id;
     if(id){ Object.assign(store.contacts.find(x=>x.id===id), data); }
-    else { store.contacts.push(Object.assign({id:uid('con'), created:nowMs()}, data)); }
-    persist(); closeSheet(); if(overlay&&overlay.type==='contacts') renderView(); else openView('contacts');
+    else { cid = uid('con'); store.contacts.push(Object.assign({id:cid, created:nowMs()}, data)); }
+    persist('contacts', cid);
+    if(typeof pushContactNow === 'function') pushContactNow(cid);
+    closeSheet(); if(overlay&&overlay.type==='contacts') renderView(); else openView('contacts');
   }, id?'Contact saved':'Contact added');
 }
-function delContact(id){ confirmSheet('Delete contact?','','Delete',()=>{ store.contacts=store.contacts.filter(x=>x.id!==id); persist(); closeSheet(); if(overlay&&overlay.type==='contacts') renderView(); }, true); }
+function delContact(id){ confirmSheet('Delete contact?','','Delete',()=>{ store.contacts=store.contacts.filter(x=>x.id!==id); persist('contacts', id); closeSheet(); if(overlay&&overlay.type==='contacts') renderView(); }, true); }
 /* ---------- Launch ---------- */
 boot();

@@ -176,9 +176,14 @@ async function attachPassToLogisticsItem(itemId, att){
   if(!it || !att) return false;
   (it.passes = it.passes || []).push(att);
   if(syncActive()) await ensurePassUploaded(att, it.showId || it.id, it.id);
-  persist();
+  const scopeId = it.showId || it.id;
+  if(it.kind === 'travel' || it.kind === 'stay' || it.kind === 'marker'){
+    if(typeof pushLogisticsNow === 'function') pushLogisticsNow(it.kind, it.id);
+    else persist(it.kind === 'stay' ? 'hotel_bookings' : (it.kind === 'marker' ? 'schedule_items' : 'journeys'), it.id);
+  } else {
+    persist('shows', scopeId);
+  }
   renderView();
-  queueSync();
   return true;
 }
 async function attachPassToShowFlight(showId, flightId, att){
@@ -187,9 +192,9 @@ async function attachPassToShowFlight(showId, flightId, att){
   if(!f || !att) return false;
   (f.passes = f.passes || []).push(att);
   if(syncActive()) await ensurePassUploaded(att, showId, flightId);
-  persist();
+  persist('shows', showId);
+  if(typeof pushShowNow === 'function') pushShowNow(showId);
   renderView();
-  queueSync();
   return true;
 }
 function openPassByRef(itemId, passId, flightId){
@@ -229,7 +234,11 @@ async function uploadPassForLogisticsItem(itemId, att){
   const it = store.events.find(x => x.id === itemId);
   if(!it || !att) return;
   const path = await ensurePassUploaded(att, it.showId || it.id, it.id);
-  if(path){ persist(); renderView(); }
+  if(path){
+    if(typeof pushLogisticsNow === 'function') pushLogisticsNow(it.kind || 'travel', it.id);
+    else persist(it.kind === 'stay' ? 'hotel_bookings' : 'journeys', it.id);
+    renderView();
+  }
 }
 
 function hostImg(att, showLegacyId, fileRole, parentLegacyId){
@@ -241,7 +250,14 @@ function hostImg(att, showLegacyId, fileRole, parentLegacyId){
     return;
   }
   uploadFileDataUrl(att.data, showLegacyId, fileRole || 'attachment', att.id, parentLegacyId)
-    .then(({ path, url }) => { att.data = url; att._storagePath = path; persist(); })
+    .then(({ path, url }) => {
+      att.data = url; att._storagePath = path;
+      if(fileRole === 'itinerary' || showLegacyId === 'itineraries' || showLegacyId === 'itinerary'){
+        persist('user_preferences');
+      } else {
+        persist('shows', showLegacyId || parentLegacyId);
+      }
+    })
     .catch(() => {});
 }
 
@@ -462,6 +478,87 @@ function persistNoteLocal(note){
   db.write(store);
 }
 
+/* Flush only currently dirty scopes immediately (day-to-day / offline catch-up). */
+async function flushDirtyNow(){
+  if(typeof syncActive === 'function' && !syncActive()) return false;
+  if(!currentOrgId) return false;
+  if(dbSyncInProgress){
+    if(typeof syncDirty !== 'undefined') syncDirty = true;
+    if(typeof scheduleSyncRetry === 'function') scheduleSyncRetry(300);
+    return false;
+  }
+  if(typeof syncTimer !== 'undefined') clearTimeout(syncTimer);
+  if(typeof syncDirty !== 'undefined') syncDirty = true;
+  await pushToSupabase(currentOrgId);
+  return true;
+}
+
+async function pushIdeaNow(idea){
+  if(!idea || !idea.id) return false;
+  if(typeof markDirty === 'function') markDirty('ideas', idea.id);
+  db.write(store);
+  return flushDirtyNow();
+}
+async function deleteIdeaNow(id){
+  if(!id) return false;
+  if(typeof markDirty === 'function') markDirty('ideas', id);
+  db.write(store);
+  if(typeof syncActive === 'function' && syncActive() && currentOrgId){
+    const sb = getSupabase();
+    if(sb){
+      const { error } = await sb.from(V2_TABLES.ideas).delete().eq('organisation_id', currentOrgId).eq('id', id);
+      if(error){
+        console.error('deleteIdeaNow', error);
+        if(typeof toast === 'function') toast('Idea delete not saved to cloud', 'x');
+        return false;
+      }
+      if(typeof v2RepoRemoveLocal === 'function') v2RepoRemoveLocal('ideas', id);
+      if(typeof subtractDirty === 'function' && store?._dirty){
+        const snap = Object.create(null);
+        snap.ideas = new Set([id]);
+        subtractDirty(store._dirty, snap);
+      }
+      if(typeof syncSetStatus === 'function') syncSetStatus('synced');
+      if(typeof syncMarkLastSync === 'function') syncMarkLastSync();
+      return true;
+    }
+  }
+  return flushDirtyNow();
+}
+async function pushShowNow(showId){
+  if(!showId) return false;
+  if(typeof markDirty === 'function') markDirty('shows', showId);
+  db.write(store);
+  return flushDirtyNow();
+}
+async function pushTourNow(tourId){
+  if(!tourId) return false;
+  if(typeof markDirty === 'function') markDirty('tours', tourId);
+  db.write(store);
+  return flushDirtyNow();
+}
+async function pushContactNow(contactId){
+  if(!contactId) return false;
+  if(typeof markDirty === 'function') markDirty('contacts', contactId);
+  db.write(store);
+  return flushDirtyNow();
+}
+async function pushInvoiceNow(invoiceId){
+  if(!invoiceId) return false;
+  if(typeof markDirty === 'function') markDirty('invoices', invoiceId);
+  db.write(store);
+  return flushDirtyNow();
+}
+async function pushLogisticsNow(kind, id){
+  if(!id) return false;
+  const table = kind === 'stay' ? 'hotel_bookings'
+    : kind === 'marker' ? 'schedule_items'
+    : 'journeys';
+  if(typeof markDirty === 'function') markDirty(table, id);
+  db.write(store);
+  return flushDirtyNow();
+}
+
 async function pushToSupabase(orgId){
   if(!orgId || !store) return;
   const sb = getSupabase();
@@ -480,8 +577,17 @@ async function pushToSupabase(orgId){
     do {
       if(typeof syncDirty !== 'undefined') syncDirty = false;
       let dirtySnap = (typeof cloneDirty === 'function') ? cloneDirty(store._dirty) : null;
+      const forceFull = !!store._forceFullSync;
       if(typeof isEmptyDirty === 'function' && isEmptyDirty(dirtySnap)){
-        dirtySnap = { '*': '*' }; /* safety net: something asked to sync with no scope */
+        if(forceFull){
+          dirtySnap = { '*': '*' };
+          store._forceFullSync = false;
+        } else {
+          /* Nothing dirty — skip full-tour rewrite. */
+          break;
+        }
+      } else if(forceFull && isFullDirty(dirtySnap)){
+        store._forceFullSync = false;
       }
       await pushToSupabaseV2(orgId, dirtySnap);
       if(typeof subtractDirty === 'function' && dirtySnap) subtractDirty(store._dirty, dirtySnap);
@@ -492,7 +598,8 @@ async function pushToSupabase(orgId){
     } while(
       loops < 5 && (
         (typeof syncDirty !== 'undefined' && syncDirty) ||
-        (typeof isEmptyDirty === 'function' && !isEmptyDirty(store._dirty))
+        (typeof isEmptyDirty === 'function' && !isEmptyDirty(store._dirty)) ||
+        !!store._forceFullSync
       )
     );
     syncSetStatus('synced');
@@ -551,6 +658,8 @@ async function bootstrapRemoteData(){
     if(store.tab == null) store.tab = 'home';
     store.organisationId = orgId;
     migrate();
+    if(typeof persistAll === 'function') persistAll();
+    else { markDirtyAll(); store._forceFullSync = true; }
     await pushToSupabase(orgId);
     markMigrated(orgId);
     if(isDevHardwireMode()) toast('Uploaded local tour to cloud', 'check');

@@ -73,7 +73,16 @@ let syncRetryBound = false;
 function bindSyncRetry(){
   if(syncRetryBound) return;
   syncRetryBound = true;
-  const kick = () => { if(syncDirty && syncActive()) scheduleSyncRetry(500); };
+  /* Reconnect / focus: flush the dirty set only — never force a full tour sync. */
+  const kick = () => {
+    if(!syncActive() || !currentOrgId) return;
+    const hasDirty = (typeof isEmptyDirty === 'function')
+      ? !isEmptyDirty(store && store._dirty)
+      : !!syncDirty;
+    if(!hasDirty && !syncDirty) return;
+    if(typeof flushDirtyNow === 'function') flushDirtyNow();
+    else scheduleSyncRetry(500);
+  };
   window.addEventListener('online', kick);
   window.addEventListener('focus', kick);
   document.addEventListener('visibilitychange', () => { if(!document.hidden) kick(); });
