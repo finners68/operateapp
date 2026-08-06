@@ -92,18 +92,7 @@ body{touch-action:manipulation;}
   background:var(--bg);
   border-bottom:1px solid var(--stroke);
   margin-bottom:2px;
-  isolation:isolate;
-  transform:translateZ(0);
-  box-shadow:0 12px 28px rgba(10,10,12,0.96);
 }
-.tab-page-sticky::before{
-  content:'';
-  position:absolute;
-  inset:0;
-  background:var(--bg);
-  z-index:-1;
-}
-.shows-mode-sticky-tools{padding:0 var(--pad-x) 12px;}
 .hub-bar{padding:0 var(--pad-x) 12px;}
 .hub-seg{max-width:420px;}
 .tab-page-body{padding-top:8px;}
