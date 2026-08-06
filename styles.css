@@ -321,6 +321,8 @@ body{touch-action:manipulation;}
 /* ---------- Forms ---------- */
 .field{margin-bottom:14px;}
 .field label{display:block;font-size:13px;font-weight:600;color:var(--text-2);margin:0 2px 7px;}
+.picker-field{cursor:pointer;}
+.picker-field .input{cursor:pointer;}
 .input,.textarea,select.input{width:100%;background:var(--card);border:1px solid var(--stroke);border-radius:14px;padding:13px 14px;font-size:16px;font-weight:500;color:var(--text);transition:border .15s, background .15s;}
 .input:focus,.textarea:focus{border-color:var(--accent);background:var(--card-2);}
 .textarea{resize:none;min-height:90px;line-height:1.45;}

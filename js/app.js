@@ -322,6 +322,18 @@ function closeSheet(instant){
 function val(id){ const e=document.getElementById(id); return e?e.value.trim():''; }
 function rawVal(id){ const e=document.getElementById(id); return e?e.value:''; }
 
+/* Tap anywhere on a date/time field row to open the native picker. */
+function openInputPicker(id){
+  const el = document.getElementById(id);
+  if(!el) return;
+  try{
+    if(typeof el.showPicker === 'function') el.showPicker();
+    else { el.focus(); el.click(); }
+  }catch(e){
+    el.focus();
+  }
+}
+
 /* Fullscreen image viewer */
 function openViewer(src){ $('#viewer-img').src=src; $('#viewer').classList.add('on'); }
 function closeViewer(){ $('#viewer').classList.remove('on'); $('#viewer-img').src=''; }

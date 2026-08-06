@@ -758,7 +758,10 @@ function sheetEvent(eid){
   const swatches = Object.entries(CATS).map(([k,v])=>`<div class="sw" style="background:${v}" data-cat="${k}" onclick="pickCat(this)"></div>`).join('');
   const editExtras = eid ? `
     <div class="row-2">
-      <div class="field"><label>End time</label><input id="ev-end" type="time" class="input" value="${e.endTime||''}"></div>
+      <div class="field picker-field" onclick="openInputPicker('ev-end')">
+        <label>End time</label>
+        <input id="ev-end" type="time" class="input" value="${e.endTime||''}" onclick="event.stopPropagation();openInputPicker('ev-end')">
+      </div>
       <div class="field"><label>Artist</label><input id="ev-artist" class="input" placeholder="${esc(store.settings.artistName||'Artist')}" value="${esc(e.artist||'')}"></div>
     </div>
     <div class="field"><label>Venue address</label><textarea id="ev-addr" class="textarea" placeholder="Full address for maps & day sheet">${esc(e.venueAddr||'')}</textarea></div>
