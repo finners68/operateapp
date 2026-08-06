@@ -230,6 +230,12 @@ function renderNav(){
 
 /* ---------- Master render ---------- */
 function render(opts={}){ renderNav(); renderView(opts); }
+function syncScreenChrome(){
+  const screen = $('#screen');
+  if(!screen) return;
+  /* Shows/Tours list: collapse the outer safe spacer so the sticky header sits flush with the top. */
+  screen.classList.toggle('flush-sticky-header', !overlay && store.tab === 'shows');
+}
 function renderView(opts={}){
   const screen = $('#screen');
   const scrollY = opts.resetScroll ? 0 : (screen?.scrollTop || 0);
@@ -250,7 +256,7 @@ function renderView(opts={}){
     else if(overlay.type==='settings') v.innerHTML = viewSettings();
     else if(overlay.type==='stats') v.innerHTML = viewStats();
     else if(overlay.type==='wrapped'){ v.innerHTML = viewWrapped(); if(typeof initWrapped==='function') setTimeout(initWrapped, 0); }
-    renderNav(); setFab();
+    renderNav(); setFab(); syncScreenChrome();
     if(screen) screen.scrollTop = scrollY;
     return;
   }
@@ -260,7 +266,7 @@ function renderView(opts={}){
   else if(tab==='calendar') v.innerHTML = viewCalendar();
   else if(tab==='trips') v.innerHTML = viewToursTab();
   else if(tab==='ideas' || tab==='notes'){ if(tab==='notes'){ store.tab='ideas'; contentMode='notes'; } v.innerHTML = viewContentTab(); }
-  renderNav(); setFab();
+  renderNav(); setFab(); syncScreenChrome();
   if(screen) screen.scrollTop = scrollY;
 }
 function syncSeg(segId, activeKey){
