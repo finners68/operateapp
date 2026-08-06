@@ -35,9 +35,21 @@ function showsModeSearchAndChips(){
     {k:'cancelled', l:'Cancelled'},
   ];
   return `
-    ${tabBlurb('Search by venue or city. Filter with the chips below.')}
     <div class="searchbar"><span class="ic">${ICON.search(18)}</span><input placeholder="Search venue or city" value="${esc(showSearch)}" oninput="showSearch=this.value;debouncedShowSearch()"></div>
-    <div class="chips" style="margin-top:10px">${chips.map(c=>`<button class="chip ${showFilter===c.k?'on':''}" onclick="setShowFilter('${c.k}')">${esc(c.l)}</button>`).join('')}</div>`;
+    <div class="chips shows-filter-chips">${chips.map(c=>`<button class="chip ${showFilter===c.k?'on':''}" onclick="setShowFilter('${c.k}')">${esc(c.l)}</button>`).join('')}</div>`;
+}
+function showsModeSegHtml(){
+  const isTours = showsMode==='tours';
+  return `<div class="seg shows-mode-seg-compact" id="shows-mode-seg">
+    <button type="button" data-v="shows" class="${isTours?'':'on'}" aria-label="Shows" onclick="setShowsMode('shows')">${ICON.music(15)}</button>
+    <button type="button" data-v="tours" class="${isTours?'on':''}" aria-label="Tours" onclick="setShowsMode('tours')">${ICON.trips(15)}</button>
+  </div>`;
+}
+function showsHeaderActionsHtml(){
+  return `<div class="shows-header-actions">${showsModeSegHtml()}${showsModeMeta().headBtn}</div>`;
+}
+function showsStickyToolsHtml(){
+  return showsMode==='tours' ? '' : showsModeSearchAndChips();
 }
 function showsListBody(){
   const all = sel.events();
@@ -56,16 +68,17 @@ function showsListBody(){
 }
 function showsModePanelInner(){
   return `
-    ${pageIntro('shows', 'Shows & tours in one place', 'Every show, and the tours they auto-group into. Switch views with the toggle above. Tap a row to open details.')}
-    ${showsMode==='tours'?'':showsModeSearchAndChips()}
+    ${pageIntro('shows', 'Shows & tours in one place', 'Every show, and the tours they auto-group into. Switch views with the toggle top-right. Tap a row to open details.')}
     <div class="section" style="margin-top:8px">${showsMode==='tours'?toursListBody():showsListBody()}</div>`;
 }
 function refreshShowsModeChrome(){
   const meta = showsModeMeta();
   const sub = document.getElementById('shows-mode-sub');
   const actions = document.getElementById('shows-mode-actions');
+  const tools = document.getElementById('shows-mode-sticky-tools');
   if(sub) sub.textContent = meta.sub;
-  if(actions) actions.innerHTML = meta.headBtn;
+  if(actions) actions.innerHTML = showsHeaderActionsHtml();
+  if(tools) tools.innerHTML = showsStickyToolsHtml();
   if(typeof syncSeg==='function') syncSeg('shows-mode-seg', showsMode);
 }
 function swapShowsModePanel(){
@@ -84,12 +97,9 @@ function viewShows(){
     <div class="tab-page-sticky">
       <div class="lg-header">
         <div><div class="lg-title">Shows / Tours</div><div class="lg-sub" id="shows-mode-sub">${esc(meta.sub)}</div></div>
-        <div id="shows-mode-actions">${meta.headBtn}</div>
+        <div id="shows-mode-actions">${showsHeaderActionsHtml()}</div>
       </div>
-      <div class="hub-bar"><div class="seg hub-seg" id="shows-mode-seg">
-        <button type="button" data-v="shows" class="${isTours?'':'on'}" onclick="setShowsMode('shows')">${ICON.music(15)} Shows</button>
-        <button type="button" data-v="tours" class="${isTours?'on':''}" onclick="setShowsMode('tours')">${ICON.trips(15)} Tours</button>
-      </div></div>
+      <div id="shows-mode-sticky-tools" class="shows-sticky-tools">${isTours?'':showsModeSearchAndChips()}</div>
     </div>
     <div class="screen-pad tab-page-body" id="shows-mode-panel">${showsModePanelInner()}<div class="spacer"></div></div>
   </div>`;
