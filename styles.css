@@ -98,6 +98,11 @@ body{touch-action:manipulation;}
 .shows-mode-seg-compact button{flex:none;width:36px;height:36px;padding:0;display:flex;align-items:center;justify-content:center;}
 .shows-sticky-tools{padding:0 var(--pad-x) 12px;}
 .shows-filter-chips{margin-top:8px;}
+#shows-mode-page{margin-top:calc(-1 * var(--safe-top));}
+#shows-mode-page .tab-page-sticky{
+  padding-top:var(--safe-top);
+  background:var(--bg);
+}
 .hub-bar{padding:0 var(--pad-x) 12px;}
 .hub-seg{max-width:420px;}
 .tab-page-body{padding-top:8px;}

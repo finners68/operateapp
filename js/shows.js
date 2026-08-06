@@ -19,6 +19,7 @@ function showsModeMeta(){
   const tourN = runs().length;
   const isTours = showsMode==='tours';
   return {
+    title: isTours ? 'Tours' : 'Shows',
     sub: (isTours?(tourN+' tour'+(tourN!==1?'s':'')):(upcomingN+' upcoming'))+' · tap to open',
     headBtn: `<button class="header-btn" onclick="sheetEvent()">${ICON.plus(22)}</button>`
   };
@@ -73,9 +74,11 @@ function showsModePanelInner(){
 }
 function refreshShowsModeChrome(){
   const meta = showsModeMeta();
+  const title = document.getElementById('shows-mode-title');
   const sub = document.getElementById('shows-mode-sub');
   const actions = document.getElementById('shows-mode-actions');
   const tools = document.getElementById('shows-mode-sticky-tools');
+  if(title) title.textContent = meta.title;
   if(sub) sub.textContent = meta.sub;
   if(actions) actions.innerHTML = showsHeaderActionsHtml();
   if(tools) tools.innerHTML = showsStickyToolsHtml();
@@ -96,7 +99,7 @@ function viewShows(){
   <div class="tab-page" id="shows-mode-page">
     <div class="tab-page-sticky">
       <div class="lg-header">
-        <div><div class="lg-title">Shows / Tours</div><div class="lg-sub" id="shows-mode-sub">${esc(meta.sub)}</div></div>
+        <div><div class="lg-title" id="shows-mode-title">${esc(meta.title)}</div><div class="lg-sub" id="shows-mode-sub">${esc(meta.sub)}</div></div>
         <div id="shows-mode-actions">${showsHeaderActionsHtml()}</div>
       </div>
       <div id="shows-mode-sticky-tools" class="shows-sticky-tools">${isTours?'':showsModeSearchAndChips()}</div>
