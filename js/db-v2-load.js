@@ -184,6 +184,7 @@ async function loadFromSupabaseV2(orgId, sb){
   }
 
   if(typeof migrate === 'function') migrate();
+  if(typeof normalizeNotesFolderIds === 'function') normalizeNotesFolderIds();
   db.write(store);
 }
 
@@ -204,4 +205,5 @@ async function rebuildViewFromLocalV2(){
   store.contacts = view.contacts;
   store.invoices = view.invoices;
   store.itineraries = view.itineraries;
+  if(typeof normalizeNotesFolderIds === 'function') normalizeNotesFolderIds();
 }

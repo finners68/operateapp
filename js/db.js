@@ -378,14 +378,20 @@ function noteFolderRowFromView(folder){
 
 function noteRowFromView(note){
   if(!note || !note.id) return null;
+  const folderId = note.folderId
+    || (typeof sel !== 'undefined' && sel.noteFolderByName ? sel.noteFolderByName(note.folder)?.id : null)
+    || null;
+  const folder = folderId
+    ? ((typeof sel !== 'undefined' && sel.noteFolder ? sel.noteFolder(folderId)?.name : null) || note.folder || null)
+    : null;
   return {
     id: note.id,
     organisation_id: currentOrgId,
     legacy_id: null,
     note_title: note.title || '',
     note_body: note.body || '',
-    folder_id: note.folderId || null,
-    folder_name: note.folder || null,
+    folder_id: folderId,
+    folder_name: folder,
     updated_at: note.updated ? new Date(note.updated).toISOString() : new Date().toISOString()
   };
 }
@@ -452,6 +458,13 @@ async function pushNoteNow(note){
 
   const run = (async () => {
     const latest = (store.notes || []).find(n => n.id === id) || note;
+    if(!latest.folderId && latest.folder && typeof sel !== 'undefined' && sel.noteFolderByName){
+      const f = sel.noteFolderByName(latest.folder);
+      if(f){
+        latest.folderId = f.id;
+        latest.folder = f.name || latest.folder;
+      }
+    }
     /* Ensure folder row exists in cloud before note FK upsert. */
     if(latest.folderId){
       const folder = (store.noteFolders || []).find(f => f.id === latest.folderId);

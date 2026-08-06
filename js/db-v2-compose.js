@@ -581,15 +581,26 @@ async function composeViewFromV2(v2, opts){
 
   const folderNameById = new Map(noteFolders.map(f => [f.id, f.name]));
 
-  const notes = (v2.notes || []).map(x => ({
-    id: x.id,
-    title: x.note_title,
-    body: x.note_body,
-    folderId: x.folder_id || null,
-    folder: x.folder_name || (x.folder_id ? (folderNameById.get(x.folder_id) || '') : '') || '',
-    updated: x.updated_at ? new Date(x.updated_at).getTime() : null,
-    created: x.created_at ? new Date(x.created_at).getTime() : null
-  }));
+  const notes = (v2.notes || []).map(x => {
+    let folderId = x.folder_id || null;
+    let folder = x.folder_name || '';
+    if(!folderId && folder){
+      const match = noteFolders.find(f => f.name.toLowerCase() === folder.trim().toLowerCase());
+      if(match) folderId = match.id;
+    }
+    if(folderId && !folder){
+      folder = folderNameById.get(folderId) || '';
+    }
+    return {
+      id: x.id,
+      title: x.note_title,
+      body: x.note_body,
+      folderId,
+      folder,
+      updated: x.updated_at ? new Date(x.updated_at).getTime() : null,
+      created: x.created_at ? new Date(x.created_at).getTime() : null
+    };
+  });
 
   const artists = (v2.artists || []).map(a => ({
     id: a.id,

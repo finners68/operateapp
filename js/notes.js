@@ -12,11 +12,8 @@ function notesSub(){
 function notesControls(){
   return `
     ${pageIntro('notes', 'Your notepad', 'Set lists, rider reminders, track IDs — anything text-based. Open a folder to browse its notes, or keep notes unfiled below.')}
-    ${tabBlurb('Search by title or body. Tap + for a new note, or create a folder to group them.')}
-    <div class="searchbar"><span class="ic">${ICON.search(18)}</span><input placeholder="Search notes" value="${esc(noteSearch)}" oninput="noteSearch=this.value;debouncedNotes()"></div>
-    <div style="display:flex;gap:8px;margin-top:10px">
-      <button type="button" class="btn secondary" style="flex:1" onclick="promptCreateNoteFolder()">${ICON.folder(16)} New folder</button>
-    </div>`;
+    ${tabBlurb('Search by title or body. Tap + to add a note or folder.')}
+    <div class="searchbar"><span class="ic">${ICON.search(18)}</span><input placeholder="Search notes" value="${esc(noteSearch)}" oninput="noteSearch=this.value;debouncedNotes()"></div>`;
 }
 
 function notesListBody(){
@@ -25,12 +22,23 @@ function notesListBody(){
   const unfiled = sel.unfiledNotes();
 
   if(q){
-    const list = sel.notes().filter(n =>
-      (n.title+' '+n.body+' '+(n.folder||'')).toLowerCase().includes(q)
+    const list = sel.unfiledNotes().filter(n =>
+      (n.title+' '+n.body).toLowerCase().includes(q)
     );
-    return list.length
-      ? `<div class="card flush stagger">${list.map(noteRowFull).join('')}</div>`
-      : `<div class="empty"><div class="ic">${ICON.note(28)}</div><b>No matches</b><span>Try another search term.</span></div>`;
+    const folderHits = folders.filter(f => (f.name || '').toLowerCase().includes(q));
+    const folderBlock = folderHits.length
+      ? `<div class="section" style="margin-bottom:12px"><div class="section-head"><div class="section-title" style="font-size:16px">Folders</div></div><div class="card flush">${folderHits.map(f => {
+          const count = sel.notesInFolder(f.id).length;
+          return `<div class="row" onclick="openView('noteFolder','${f.id}')">
+            <div class="ic" style="background:var(--card-2);color:var(--text-2)">${ICON.folder(17)}</div>
+            <div class="body"><b>${esc(f.name||'Folder')}</b><span>${count} note${count!==1?'s':''}</span></div>
+            <div class="trail">${ICON.chevR(15)}</div>
+          </div>`;
+        }).join('')}</div></div>`
+      : '';
+    return folderBlock + (list.length
+      ? `<div class="section"><div class="section-head"><div class="section-title" style="font-size:16px">Notes</div></div><div class="card flush stagger">${list.map(noteRowFull).join('')}</div></div>`
+      : (folderHits.length ? '' : `<div class="empty"><div class="ic">${ICON.note(28)}</div><b>No matches</b><span>Try another search term.</span></div>`));
   }
 
   const folderRows = folders.map(f => {
@@ -49,9 +57,8 @@ function notesListBody(){
       : '');
 
   if(!folders.length && !unfiled.length){
-    return `<div class="empty"><div class="ic">${ICON.note(28)}</div><b>No notes yet</b><span>Set notes, rider reminders, track IDs — tap + to create one, or make a folder first.</span>
-      <button class="btn secondary" style="margin-top:14px;max-width:220px" onclick="sheetNote()">${ICON.plus(18)} New note</button>
-      <button class="btn secondary" style="margin-top:8px;max-width:220px" onclick="promptCreateNoteFolder()">${ICON.folder(16)} New folder</button>
+    return `<div class="empty"><div class="ic">${ICON.note(28)}</div><b>No notes yet</b><span>Set notes, rider reminders, track IDs — tap + to add a note or folder.</span>
+      <button class="btn secondary" style="margin-top:14px;max-width:220px" onclick="sheetNoteAddChoice()">${ICON.plus(18)} Add</button>
     </div>`;
   }
 
@@ -75,10 +82,11 @@ function debouncedNotes(){
   }, 160);
 }
 
-function noteRowFull(n){
+function noteRowFull(n, opts={}){
   const preview = (n.body||'').split('\n').filter(Boolean)[0] || 'No additional text';
+  const showFolderTag = opts.showFolderTag !== false && !opts.inFolder && sel.noteBelongsToFolder(n);
   return `<div class="note-row" onclick="openView('note','${n.id}')">
-    <div style="display:flex;align-items:center;gap:8px"><b style="flex:1">${esc(n.title||'Untitled')}</b>${n.folder?`<span class="tag" style="background:var(--card-2);color:var(--text-3)">${esc(n.folder)}</span>`:''}</div>
+    <div style="display:flex;align-items:center;gap:8px"><b style="flex:1">${esc(n.title||'Untitled')}</b>${showFolderTag?`<span class="tag" style="background:var(--card-2);color:var(--text-3)">${esc(n.folder||'')}</span>`:''}</div>
     <span class="meta"><span class="dt">${timeAgo(n.updated)}</span> · ${esc(preview.slice(0,60))}</span>
   </div>`;
 }
@@ -132,7 +140,7 @@ function viewNoteFolder(folderId){
   return `
   <div class="detail-top"><div class="detail-bar">
     <button class="back-btn" onclick="back()">${ICON.chevL(20)} Notes</button>
-    <button class="header-btn" style="width:36px;height:36px" onclick="sheetNoteInFolder('${f.id}')">${ICON.plus(20)}</button>
+    <button class="header-btn" style="width:36px;height:36px" onclick="sheetNoteAddChoice('${f.id}')">${ICON.plus(20)}</button>
   </div></div>
   <div class="screen-pad fade-in">
     <div style="display:flex;align-items:center;gap:10px;margin:4px 2px 14px">
@@ -143,9 +151,9 @@ function viewNoteFolder(folderId){
       </div>
     </div>
     ${list.length
-      ? `<div class="card flush stagger">${list.map(noteRowFull).join('')}</div>`
+      ? `<div class="card flush stagger">${list.map(n => noteRowFull(n, { inFolder: true })).join('')}</div>`
       : `<div class="empty"><div class="ic">${ICON.note(28)}</div><b>Empty folder</b><span>Tap + to add a note here.</span>
-          <button class="btn secondary" style="margin-top:14px;max-width:220px" onclick="sheetNoteInFolder('${f.id}')">${ICON.plus(18)} New note</button>
+          <button class="btn secondary" style="margin-top:14px;max-width:220px" onclick="sheetNoteAddChoice('${f.id}')">${ICON.plus(18)} Add</button>
         </div>`}
   </div>`;
 }
@@ -178,6 +186,24 @@ function viewNote(id){
 /* ============================================================
    NOTE — create + live edit (instant cloud write when online)
    ============================================================ */
+function sheetNoteAddChoice(folderId){
+  const noteAction = folderId ? `sheetNote('${folderId}')` : 'sheetNote()';
+  openSheet('Add', `
+    <div class="card flush">
+      <div class="row" onclick="closeSheet();${noteAction}">
+        <div class="ic" style="background:var(--blue-soft);color:var(--blue)">${ICON.note(17)}</div>
+        <div class="body"><b>Note</b><span>${folderId ? 'New note in this folder' : 'New unfiled note'}</span></div>
+        ${ICON.chevR(15)}
+      </div>
+      <div class="row" onclick="closeSheet();promptCreateNoteFolder()">
+        <div class="ic" style="background:var(--card-2);color:var(--text-2)">${ICON.folder(17)}</div>
+        <div class="body"><b>Folder</b><span>Group notes together</span></div>
+        ${ICON.chevR(15)}
+      </div>
+    </div>
+  `);
+}
+
 function sheetNote(folderId){
   const folder = folderId ? sel.noteFolder(folderId) : null;
   const n = {
@@ -225,6 +251,20 @@ function assignNoteFolder(noteId, folderId){
   if(typeof persistNoteLocal === 'function') persistNoteLocal(n); else db.write(store);
   if(typeof pushNoteNow === 'function') pushNoteNow(n);
   if(typeof renderView === 'function') renderView();
+}
+
+function normalizeNotesFolderIds(){
+  if(!store?.notes?.length) return;
+  let changed = false;
+  store.notes.forEach(n => {
+    if(!n || n.folderId) return;
+    const f = sel.noteFolderByName(n.folder);
+    if(!f) return;
+    n.folderId = f.id;
+    n.folder = f.name || n.folder || '';
+    changed = true;
+  });
+  if(changed) db.write(store);
 }
 
 function sheetMoveNoteToFolder(noteId){

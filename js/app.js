@@ -277,9 +277,9 @@ function setFab(){
   let action = null;
   if(!overlay){
     if(store.tab==='shows' || store.tab==='calendar') action = 'sheetEvent()';
-    else if(store.tab==='ideas') action = (typeof contentMode!=='undefined' && contentMode==='notes') ? 'sheetNote()' : 'sheetIdea()';
+    else if(store.tab==='ideas') action = (typeof contentMode!=='undefined' && contentMode==='notes') ? 'sheetNoteAddChoice()' : 'sheetIdea()';
   } else if(overlay.type==='noteFolder' && overlay.id){
-    action = `sheetNoteInFolder('${overlay.id}')`;
+    action = `sheetNoteAddChoice('${overlay.id}')`;
   }
   if(action){ fab.style.display='flex'; fab.setAttribute('onclick', action); }
   else { fab.style.display='none'; fab.removeAttribute('onclick'); }

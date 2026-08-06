@@ -19,7 +19,7 @@ function contentModeMeta(){
   const isNotes = contentMode==='notes';
   const inFolder = !!(overlay && overlay.type === 'noteFolder' && overlay.id);
   const addAction = isNotes
-    ? (inFolder ? `sheetNoteInFolder('${overlay.id}')` : 'sheetNote()')
+    ? (inFolder ? `sheetNoteAddChoice('${overlay.id}')` : 'sheetNoteAddChoice()')
     : 'sheetIdea()';
   return {
     sub: isNotes ? notesSub() : ideasSub(),

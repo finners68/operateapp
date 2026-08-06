@@ -504,8 +504,26 @@ const sel = {
   notes: () => store.notes.slice().sort((a,b)=> b.updated-a.updated),
   noteFolders: () => (store.noteFolders || []).slice().sort((a,b)=> (a.sortOrder-b.sortOrder) || (a.name||'').localeCompare(b.name||'')),
   noteFolder: id => (store.noteFolders || []).find(f => f.id === id) || null,
-  notesInFolder: folderId => sel.notes().filter(n => folderId ? n.folderId === folderId : !n.folderId),
-  unfiledNotes: () => sel.notes().filter(n => !n.folderId),
+  noteFolderByName: name => {
+    const q = (name || '').trim().toLowerCase();
+    if(!q) return null;
+    return (store.noteFolders || []).find(f => (f.name || '').trim().toLowerCase() === q) || null;
+  },
+  noteBelongsToFolder: n => {
+    if(!n) return false;
+    if(n.folderId) return true;
+    return !!sel.noteFolderByName(n.folder);
+  },
+  noteResolvedFolderId: n => {
+    if(!n) return null;
+    if(n.folderId) return n.folderId;
+    return sel.noteFolderByName(n.folder)?.id || null;
+  },
+  notesInFolder: folderId => sel.notes().filter(n => {
+    if(!folderId) return !sel.noteBelongsToFolder(n);
+    return sel.noteResolvedFolderId(n) === folderId;
+  }),
+  unfiledNotes: () => sel.notes().filter(n => !sel.noteBelongsToFolder(n)),
   eventChecklistProgress: e => {
     const items = e.checklist||[]; if(!items.length) return {done:0,total:0,pct:0};
     const done = items.filter(i=>i.done).length;
