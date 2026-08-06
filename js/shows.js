@@ -778,10 +778,19 @@ function sheetEvent(eid){
       <div class="field"><label>City</label><input id="ev-city" class="input" placeholder="Amsterdam" value="${esc(e?e.city:'')}"></div>
       <div class="field"><label>Country</label><input id="ev-country" class="input" placeholder="Netherlands" value="${esc(e?e.country:'')}"></div>
     </div>
-    <div class="field"><label>Date</label><input id="ev-date" type="date" class="input" value="${defDate}"></div>
+    <div class="field picker-field" onclick="openInputPicker('ev-date')">
+      <label>Date</label>
+      <input id="ev-date" type="date" class="input" value="${defDate}" onclick="event.stopPropagation();openInputPicker('ev-date')">
+    </div>
     <div class="row-2">
-      <div class="field"><label>Set time</label><input id="ev-set" type="time" class="input" value="${e?e.setTime:'23:00'}"></div>
-      <div class="field"><label>Arrival</label><input id="ev-arr" type="time" class="input" value="${e?e.arrival:''}"></div>
+      <div class="field picker-field" onclick="openInputPicker('ev-set')">
+        <label>Set time</label>
+        <input id="ev-set" type="time" class="input" value="${e?e.setTime:'23:00'}" onclick="event.stopPropagation();openInputPicker('ev-set')">
+      </div>
+      <div class="field picker-field" onclick="openInputPicker('ev-arr')">
+        <label>Arrival</label>
+        <input id="ev-arr" type="time" class="input" value="${e?e.arrival:''}" onclick="event.stopPropagation();openInputPicker('ev-arr')">
+      </div>
     </div>
     <div class="field"><label>Status</label>
       <div class="seg" id="ev-status">
