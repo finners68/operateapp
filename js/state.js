@@ -955,7 +955,9 @@ function seed(){
   s.invoices = [];
   s.packing = s.settings.packingTemplate.map(x=>({id:uid('pk'),label:x,done:false}));
   assignLogistics();
-  persistAll();
+  /* Local only — never full-sync seed into a cloud org (that duplicates every show). */
+  store = s;
+  db.write(store);
 }
 /* Attach each flight/hotel/driver to the show it belongs to (nearest show, preferring the upcoming one). */
 function assignLogistics(){

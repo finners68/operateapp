@@ -13,15 +13,15 @@ function _mergeDirtyById(cloudRows, prevRows, dirtyIds, patchFn){
   const byId = new Map((cloudRows || []).map(r => [r.id, r]));
   prevRows.forEach(local => {
     if(!local || !local.id) return;
-    const keep = dirtyIds == null || dirtyIds.has(local.id);
-    if(!keep) return;
     const cloud = byId.get(local.id);
-    const localTs = local.updated || local.updatedAt || 0;
-    const cloudTs = cloud ? (cloud.updated || cloud.updatedAt || 0) : 0;
-    if(!cloud || localTs >= cloudTs || dirtyIds == null || dirtyIds.has(local.id)){
-      byId.set(local.id, local);
-      if(typeof patchFn === 'function') patchFn(local);
+    if(dirtyIds == null){
+      /* Full dirty: only override existing cloud ids — never append extras. */
+      if(!cloud) return;
+    } else if(!dirtyIds.has(local.id)){
+      return;
     }
+    byId.set(local.id, local);
+    if(typeof patchFn === 'function') patchFn(local);
   });
   return [...byId.values()];
 }
@@ -108,26 +108,29 @@ async function loadFromSupabaseV2(orgId, sb){
     store.trips = _mergeDirtyById(store.trips, prevTrips, prevDirtyTours);
   }
 
-  /* Shows + logistics events: prefer dirty locals */
+  /* Shows + logistics: keep in-progress dirty locals without inventing duplicates.
+     Scoped dirty (Set of ids): keep those locals even if not in cloud yet (new rows).
+     Full dirty ('*'): only override matching ids — never re-add old local rows with
+     different UUIDs (that was doubling shows/venues on every reload+flush). */
   if(prevEvents.length){
     const byId = new Map((store.events || []).map(e => [e.id, e]));
-    const eventIsDirty = (ev) => {
-      if(!ev || !ev.id) return false;
+    const dirtySetFor = (ev) => {
+      if(!ev || !ev.id) return { full: false, set: new Set() };
       const kind = ev.kind || 'show';
-      if(kind === 'show') return prevDirtyShows == null || prevDirtyShows.has(ev.id);
-      if(kind === 'travel') return prevDirtyJourneys == null || prevDirtyJourneys.has(ev.id);
-      if(kind === 'stay') return prevDirtyHotels == null || prevDirtyHotels.has(ev.id);
-      if(kind === 'marker') return prevDirtyMarkers == null || prevDirtyMarkers.has(ev.id);
-      return prevDirtyShows == null || prevDirtyShows.has(ev.id);
+      if(kind === 'travel') return { full: prevDirtyJourneys == null, set: prevDirtyJourneys || new Set() };
+      if(kind === 'stay') return { full: prevDirtyHotels == null, set: prevDirtyHotels || new Set() };
+      if(kind === 'marker') return { full: prevDirtyMarkers == null, set: prevDirtyMarkers || new Set() };
+      return { full: prevDirtyShows == null, set: prevDirtyShows || new Set() };
     };
     prevEvents.forEach(local => {
-      if(!eventIsDirty(local)) return;
+      const { full, set } = dirtySetFor(local);
       const cloud = byId.get(local.id);
-      const localTs = local.updated || 0;
-      const cloudTs = cloud ? (cloud.updated || 0) : 0;
-      if(!cloud || localTs >= cloudTs || eventIsDirty(local)){
-        byId.set(local.id, local);
+      if(full){
+        if(cloud) byId.set(local.id, local);
+        return;
       }
+      if(!set.has(local.id)) return;
+      byId.set(local.id, local);
     });
     store.events = [...byId.values()];
   }

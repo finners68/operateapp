@@ -641,12 +641,15 @@ async function bootstrapRemoteData(){
   if(typeof clearLegacyLocalStore === 'function') clearLegacyLocalStore();
   const local = db.read();
   const sb = getSupabase();
-  let cloudEmpty = true;
+  /* Default false: if the count check fails, load cloud instead of uploading a
+     fresh local copy (which was creating duplicate shows/venues). */
+  let cloudEmpty = false;
   if(sb){
     const { count, error } = await sb.from(V2_TABLES.shows)
       .select('*', { count: 'exact', head: true })
       .eq('organisation_id', orgId);
     if(!error) cloudEmpty = !count;
+    else console.warn('bootstrap show count failed — preferring cloud load', error);
   }
   /* Prefer cloud. Only seed-push when cloud is empty and local V2 cache has events. */
   const localIsV2 = !!(local && local.v2);

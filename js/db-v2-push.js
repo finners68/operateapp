@@ -203,11 +203,26 @@ async function v2EnsureContact(sb, orgId, c, cache){
   if(!c || !c.name) return null;
   const key = (c.email || c.phone || c.name).toLowerCase();
   if(cache.has(key)) return cache.get(key);
-  const cid = v2EnsureId(c);
+  const list = store?.v2?.contacts || [];
+  let existing = null;
+  if(c.id && isUuid(c.id)) existing = list.find(x => x.id === c.id) || null;
+  if(!existing && c.email){
+    const em = String(c.email).toLowerCase();
+    existing = list.find(x => (x.email_address || '').toLowerCase() === em) || null;
+  }
+  if(!existing && c.phone){
+    existing = list.find(x => x.phone_number === c.phone) || null;
+  }
+  if(!existing){
+    const nm = String(c.name).toLowerCase();
+    existing = list.find(x => (x.display_name || '').toLowerCase() === nm) || null;
+  }
+  const cid = existing?.id || (c.id && isUuid(c.id) ? c.id : newUuid());
+  c.id = cid;
   const row = {
     id: cid,
     organisation_id: orgId,
-    legacy_id: null,
+    legacy_id: existing?.legacy_id || null,
     display_name: c.name,
     email_address: c.email || null,
     phone_number: c.phone || null,
@@ -217,6 +232,24 @@ async function v2EnsureContact(sb, orgId, c, cache){
   const data = await v2UpsertOneByLegacy(sb, 'contacts', orgId, row);
   cache.set(key, data.id);
   return data.id;
+}
+
+/* Reuse the show's current venue row. Minting a new venue UUID on every
+   save was creating duplicate venue rows and leaving old ones behind. */
+function v2ResolveVenueIdForShow(s){
+  if(!s) return newUuid();
+  const existingShow = (store?.v2?.shows || []).find(sh => sh.id === s.id);
+  if(existingShow?.venue_id) return existingShow.venue_id;
+  const name = String(s.venue || '').trim().toLowerCase();
+  const city = String(s.city || '').trim().toLowerCase();
+  if(name){
+    const match = (store?.v2?.venues || []).find(v =>
+      String(v.venue_name || '').trim().toLowerCase() === name &&
+      String(v.city || '').trim().toLowerCase() === city
+    );
+    if(match?.id) return match.id;
+  }
+  return newUuid();
 }
 
 async function v2UpsertPk(sb, table, row, onConflict){
@@ -429,15 +462,13 @@ async function pushToSupabaseV2(orgId, dirtyIn){
     const venueRows = [];
     for(const s of shows){
       if(!s.venue && !s.city) continue;
-      const existing = (store.v2?.venues || []).find(v =>
-        (store.v2.shows || []).some(sh => sh.id === s.id && sh.venue_id === v.id)
-      );
-      const vid = existing?.id || newUuid();
+      const vid = v2ResolveVenueIdForShow(s);
       venueIdByShow[s.id] = vid;
+      const existingVenue = (store.v2?.venues || []).find(v => v.id === vid);
       venueRows.push({
         id: vid,
         organisation_id: orgId,
-        legacy_id: null,
+        legacy_id: existingVenue?.legacy_id || null,
         venue_name: s.venue || 'Venue',
         address_line_1: s.venueAddr || null,
         city: s.city || null,
@@ -446,13 +477,18 @@ async function pushToSupabaseV2(orgId, dirtyIn){
     }
     if(venueRows.length) await v2UpsertById(sb, 'venues', orgId, venueRows);
 
-    const showRows = shows.map(s => ({
-      id: v2EnsureId(s),
+    const showRows = shows.map(s => {
+      /* Never remint a show id that already exists in the cloud cache. */
+      const cached = (store.v2?.shows || []).find(sh => sh.id === s.id);
+      if(cached?.id) s.id = cached.id;
+      else v2EnsureId(s);
+      return {
+      id: s.id,
       organisation_id: orgId,
-      legacy_id: null,
+      legacy_id: cached?.legacy_id || null,
       tour_id: (s.tripId && isUuid(s.tripId)) ? s.tripId : null,
       primary_artist_id: s.artist ? defaultArtistId : null,
-      venue_id: venueIdByShow[s.id] || null,
+      venue_id: venueIdByShow[s.id] || cached?.venue_id || null,
       show_date: s.date,
       show_status: V2_SHOW_STATUS_FROM_STORE[s.status] || 'confirmed',
       color_key: s.color || null,
@@ -462,7 +498,8 @@ async function pushToSupabaseV2(orgId, dirtyIn){
       internal_notes: s.notes || null,
       content_plan: s.content || null,
       is_set_done: !!s.setDone
-    }));
+    };
+    });
     if(showRows.length) await v2UpsertById(sb, 'shows', orgId, showRows);
   }
 
