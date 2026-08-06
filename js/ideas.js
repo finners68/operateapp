@@ -28,7 +28,10 @@ function contentModeMeta(){
 }
 function contentModePanelInner(){
   const isNotes = contentMode==='notes';
-  return `${isNotes?notesControls():ideasControls()}<div class="section" style="margin-top:8px">${isNotes?notesListBody():ideasListBody()}</div>`;
+  if(isNotes){
+    return `${notesControls()}<div id="notes-list-body" style="margin-top:8px">${notesListBody()}</div>`;
+  }
+  return `${ideasControls()}<div class="section" style="margin-top:8px">${ideasListBody()}</div>`;
 }
 function refreshContentModeChrome(){
   const meta = contentModeMeta();
