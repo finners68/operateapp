@@ -305,8 +305,9 @@ function checkRow(i, onclick){
 function ideaCard(i){
   const t = IDEA_TYPES[i.type]||IDEA_TYPES.other;
   const link = ideaLinkLabel(i);
-  return `<div class="idea ${i.done?'is-done':''}" data-idea="${i.id}" style="background:linear-gradient(160deg, ${t.color}22, var(--card));border-color:${t.color}33" onclick="toggleIdeaSelect(event,'${i.id}')">
-    <button class="idea-sel-btn" onclick="toggleIdeaSelect(event,'${i.id}')" aria-label="Select idea">${ICON.check(15)}</button>
+  const selected = typeof selectedIdeaId !== 'undefined' && selectedIdeaId === i.id;
+  return `<div class="idea ${i.done?'is-done':''}${selected?' sel':''}" data-idea="${i.id}" style="background:linear-gradient(160deg, ${t.color}22, var(--card));border-color:${t.color}33" onclick="toggleIdeaSelect(event,'${i.id}')">
+    <button type="button" class="idea-sel-btn" onclick="toggleIdeaDoneFromCard(event,'${i.id}')" aria-label="${i.done?'Mark as to use':'Mark as done'}">${ICON.check(15)}</button>
     <div class="type" style="color:${t.color}">${ICON[t.icon](13)} ${t.label}</div>
     <div class="ttl">${esc(i.title)}</div>
     <div class="foot"><span class="prio" style="background:${PRIO[i.prio]}"></span>${i.prio}${link?'':''}</div>

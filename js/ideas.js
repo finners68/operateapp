@@ -111,6 +111,7 @@ function setIdeaFilter(k){ ideaFilter=k; haptic(); renderView(); }
 /* Tap a card to select it in place — no navigation. A floating bar with
    Edit / Done / Delete appears; tap the same card (or ✕) to deselect. */
 function toggleIdeaSelect(ev, id){
+  if(ev && ev.target && ev.target.closest && ev.target.closest('.idea-sel-btn')) return;
   if(ev) ev.stopPropagation();
   if(selectedIdeaId===id){ deselectIdea(); return; }
   selectedIdeaId = id;
@@ -282,12 +283,37 @@ function saveIdea(iid){
   }, iid?'Idea updated':'Idea saved');
 }
 function editIdea(iid){ back(); setTimeout(()=>sheetIdea(iid),60); }
+function toggleIdeaDoneFromCard(ev, iid){
+  if(ev){
+    ev.stopPropagation();
+    ev.preventDefault();
+  }
+  toggleIdeaDone(iid);
+}
 function toggleIdeaDone(iid){
   const i=store.ideas.find(x=>x.id===iid);
+  if(!i) return;
   i.done=!i.done;
   persist('ideas', iid);
   if(typeof pushIdeaNow === 'function') pushIdeaNow(i);
-  renderView();
+
+  const hideAfterToggle = (ideaFilter === 'active' && i.done) || (ideaFilter === 'done' && !i.done);
+  if(hideAfterToggle){
+    const keepSel = selectedIdeaId;
+    renderView();
+    if(keepSel === iid){
+      const card = document.querySelector(`.idea[data-idea="${iid}"]`);
+      if(card){
+        card.classList.add('sel');
+        showIdeaActionBar(iid);
+      } else deselectIdea();
+    }
+  } else {
+    const card = document.querySelector(`.idea[data-idea="${iid}"]`);
+    if(card) card.classList.toggle('is-done', !!i.done);
+    if(selectedIdeaId === iid) showIdeaActionBar(iid);
+  }
+
   toast(i.done?'Marked done':'Back in the list', i.done?'check':'arrowUp');
 }
 function saveIdeaNote(iid,v){
