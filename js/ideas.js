@@ -214,7 +214,7 @@ function ideaShowSelectOptionsHtml(q, selectedId){
   const query = (q || '').toLowerCase().trim();
   if(query){
     list = list.filter(e =>
-      `${e.venue||''} ${e.city||''} ${e.country||''} ${e.date||''} ${fmtDate(e.date)}`.toLowerCase().includes(query)
+      `${e.venue||''} ${e.city||''} ${e.country||''} ${e.date||''} ${fmtDate(e.date)} ${fmtDayDate(e.date)}`.toLowerCase().includes(query)
     );
   }
   if(!list.length){
@@ -228,7 +228,7 @@ function ideaShowSelectOptionsHtml(q, selectedId){
       const show = esc(e.venue || 'Untitled show');
       const location = esc([e.city, e.country].filter(Boolean).join(', ') || '—');
       const when = esc(fmtDayDate(e.date) || '—');
-      const label = `${show}  ${location}  ${when}`;
+      const label = `${show} · ${location} · ${when}`;
       html += `<option value="${e.id}"${selectedId===e.id?' selected':''}>${label}</option>`;
     });
     html += `</optgroup>`;
