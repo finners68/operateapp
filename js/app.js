@@ -296,6 +296,7 @@ function setFab(){
 let sheetEl = null;
 function openSheet(title, bodyHTML, opts={}){
   closeSheet(true);
+  const app = $('#app');
   const scrim = $('#scrim');
   const s = document.createElement('div');
   s.className = 'sheet'+(opts.full?' full':'');
@@ -311,19 +312,32 @@ function openSheet(title, bodyHTML, opts={}){
          <button class="header-btn" onclick="closeSheet()" style="width:32px;height:32px">${ICON.x(18)}</button>
        </div>`;
   s.innerHTML = head + `<div class="sheet-body">${bodyHTML}</div>`;
-  $('#app').appendChild(s);
+  app.appendChild(s);
   sheetEl = s;
+  app.classList.add('sheet-open');
   scrim.classList.add('on');
   scrim.onclick = ()=>closeSheet();
   requestAnimationFrame(()=>requestAnimationFrame(()=>s.classList.add('on')));
 }
 function closeSheet(instant){
+  const app = $('#app');
   const scrim = $('#scrim');
-  if(!sheetEl){ scrim.classList.remove('on'); return; }
+  if(!sheetEl){
+    scrim.classList.remove('on');
+    if(app) app.classList.remove('sheet-open');
+    return;
+  }
   const s = sheetEl; sheetEl=null; scrim.classList.remove('on');
-  if(instant){ s.remove(); return; }
+  if(instant){
+    s.remove();
+    if(app) app.classList.remove('sheet-open');
+    return;
+  }
   s.classList.remove('on');
-  setTimeout(()=>s.remove(), 340);
+  setTimeout(()=>{
+    s.remove();
+    if(!sheetEl && app) app.classList.remove('sheet-open');
+  }, 280);
 }
 function val(id){ const e=document.getElementById(id); return e?e.value.trim():''; }
 function rawVal(id){ const e=document.getElementById(id); return e?e.value:''; }

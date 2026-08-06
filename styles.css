@@ -310,14 +310,22 @@ body{touch-action:manipulation;}
 .nav-item.active .ic{transform:translateY(-2px);filter:drop-shadow(0 3px 9px rgba(139,125,255,.45));}
 
 /* ---------- Sheets / modals ---------- */
-#scrim{position:absolute;inset:0;background:rgba(0,0,0,0.55);backdrop-filter:blur(2px);opacity:0;pointer-events:none;transition:opacity .28s;z-index:90;}
+#scrim{position:absolute;inset:0;background:rgba(0,0,0,0.62);opacity:0;pointer-events:none;transition:opacity .22s;z-index:90;}
 #scrim.on{opacity:1;pointer-events:auto;}
 .sheet{position:absolute;left:0;right:0;bottom:0;background:var(--bg-elev);border-top-left-radius:26px;border-top-right-radius:26px;
-  border-top:1px solid var(--stroke-strong);z-index:100;transform:translateY(102%);transition:transform .34s cubic-bezier(.2,.85,.25,1);
-  max-height:94dvh;display:flex;flex-direction:column;padding-bottom:var(--safe-bottom);box-shadow:0 -24px 64px rgba(0,0,0,0.55), var(--hairline);}
-.sheet.on{transform:translateY(0);}
-.sheet.full{top:0;border-radius:0;max-height:none;transform:translateY(100%);}
-.sheet.full.on{transform:translateY(0);}
+  border-top:1px solid var(--stroke-strong);z-index:100;transform:translate3d(0,102%,0);transition:transform .26s cubic-bezier(.22,.9,.28,1);
+  max-height:94dvh;display:flex;flex-direction:column;padding-bottom:var(--safe-bottom);box-shadow:0 -16px 40px rgba(0,0,0,0.45);will-change:transform;backface-visibility:hidden;}
+.sheet.on{transform:translate3d(0,0,0);}
+.sheet.full{top:0;border-radius:0;max-height:none;transform:translate3d(0,100%,0);}
+.sheet.full.on{transform:translate3d(0,0,0);}
+/* While a sheet is open, drop expensive blurs behind it so the slide-up stays smooth. */
+#app.sheet-open #nav{
+  backdrop-filter:none;
+  -webkit-backdrop-filter:none;
+  background:#101014;
+}
+#app.sheet-open #screen{overflow:hidden;}
+#app.sheet-open .fab{visibility:hidden;}
 .grabber{width:38px;height:5px;border-radius:3px;background:var(--stroke-strong);margin:9px auto 3px;flex-shrink:0;}
 .sheet-head{display:flex;align-items:center;justify-content:space-between;padding:6px 18px 12px;flex-shrink:0;}
 .sheet-head.bordered{border-bottom:1px solid var(--stroke);}

@@ -763,7 +763,7 @@ function sheetEvent(eid){
   const defDate = e?e.date:`${today.getFullYear()}-${pad(today.getMonth()+1)}-${pad(today.getDate())}`;
   const initCat = e?e.color:'purple';
   const initC = CATS[initCat]||CATS.purple;
-  const swatches = Object.entries(CATS).map(([k,v])=>`<div class="sw" style="background:${v}" data-cat="${k}" onclick="pickCat(this)"></div>`).join('');
+  const swatches = Object.entries(CATS).map(([k,v])=>`<div class="sw${k===initCat?' on':''}" style="background:${v}" data-cat="${k}" onclick="pickCat(this)"></div>`).join('');
   const editExtras = eid ? `
     <div class="row-2">
       <div class="field picker-field" onclick="openInputPicker('ev-end')">
@@ -812,12 +812,11 @@ function sheetEvent(eid){
     <button class="btn" id="ev-save" onclick="saveEvent('${eid||''}')">${eid?'Save changes':'Add show'}</button>
     <div class="spacer"></div>
   `);
-  setTimeout(()=>{
-    const cat = e?e.color:'purple';
-    const el = document.querySelector(`#ev-cat .sw[data-cat="${cat}"]`);
-    if(el) el.classList.add('on');
-    applyEventSheetColor(cat);
-  },40);
+  /* Set tone after the sheet starts opening — avoid style thrash mid-slide. */
+  if(sheetEl){
+    sheetEl.style.setProperty('--sheet-tone', initC);
+    sheetEl.classList.add('sheet-toned');
+  }
 }
 function applyEventSheetColor(cat){
   const c = CATS[cat]||CATS.purple;
