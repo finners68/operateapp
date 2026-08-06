@@ -57,15 +57,19 @@ function showsListBody(){
 function showsModePanelInner(){
   return `
     ${pageIntro('shows', 'Shows & tours in one place', 'Every show, and the tours they auto-group into. Switch views with the toggle above. Tap a row to open details.')}
-    ${showsMode==='tours'?'':showsModeSearchAndChips()}
     <div class="section" style="margin-top:8px">${showsMode==='tours'?toursListBody():showsListBody()}</div>`;
+}
+function showsStickyToolsHtml(){
+  return showsMode==='tours' ? '' : showsModeSearchAndChips();
 }
 function refreshShowsModeChrome(){
   const meta = showsModeMeta();
   const sub = document.getElementById('shows-mode-sub');
   const actions = document.getElementById('shows-mode-actions');
+  const tools = document.getElementById('shows-mode-sticky-tools');
   if(sub) sub.textContent = meta.sub;
   if(actions) actions.innerHTML = meta.headBtn;
+  if(tools) tools.innerHTML = showsStickyToolsHtml();
   if(typeof syncSeg==='function') syncSeg('shows-mode-seg', showsMode);
 }
 function swapShowsModePanel(){
@@ -90,6 +94,7 @@ function viewShows(){
         <button type="button" data-v="shows" class="${isTours?'':'on'}" onclick="setShowsMode('shows')">${ICON.music(15)} Shows</button>
         <button type="button" data-v="tours" class="${isTours?'on':''}" onclick="setShowsMode('tours')">${ICON.trips(15)} Tours</button>
       </div></div>
+      <div id="shows-mode-sticky-tools" class="shows-mode-sticky-tools">${isTours?'':showsModeSearchAndChips()}</div>
     </div>
     <div class="screen-pad tab-page-body" id="shows-mode-panel">${showsModePanelInner()}<div class="spacer"></div></div>
   </div>`;
