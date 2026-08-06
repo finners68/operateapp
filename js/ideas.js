@@ -204,30 +204,12 @@ function viewIdea(id){
   </div>`;
 }
 
-/* Searchable show picker — month headers + date on each row. */
+/* Show picker for linking ideas — search + dropdown grouped by month. */
 let ideaShowPickSearch = '';
 let ideaShowPickCtx = null;
 let ideaShowPickT;
 
-function ideaShowPickRow(e, opts={}){
-  const col = CATS[e.color]||CATS.purple;
-  const d = parseDT(e.date);
-  const selected = opts.selectedId === e.id;
-  const dateIc = d
-    ? `<div class="ic show-date-ic" style="background:${col}22;color:${col}" aria-label="${esc(fmtDate(e.date))}"><span class="show-date-day">${d.getDate()}</span><span class="show-date-mon">${MON[d.getMonth()]}</span></div>`
-    : `<div class="ic show-date-ic" style="background:${col}22;color:${col}">—</div>`;
-  const meta = [e.city, e.country].filter(Boolean).map(x=>esc(x)).join(', ');
-  const onclick = opts.pickFn === 'selectIdeaSheetShow'
-    ? `selectIdeaSheetShow('${e.id}')`
-    : `pickIdeaShow('${opts.iid||''}','${e.id}')`;
-  return `<div class="row show-row${selected?' sel':''}" data-event="${e.id}" onclick="${onclick}">
-    ${dateIc}
-    <div class="body"><b>${esc(e.venue||'Untitled show')}</b><span>${meta||'—'}</span></div>
-    <div class="trail"><span style="font-size:12px;font-weight:600">${esc(fmtDate(e.date))}</span>${ICON.chevR(15)}</div>
-  </div>`;
-}
-
-function ideaShowPickerListHtml(q, opts={}){
+function ideaShowSelectOptionsHtml(q, selectedId){
   let list = sel.events().slice().sort((a,b)=>(a.date||'').localeCompare(b.date||''));
   const query = (q || '').toLowerCase().trim();
   if(query){
@@ -235,19 +217,32 @@ function ideaShowPickerListHtml(q, opts={}){
       `${e.venue||''} ${e.city||''} ${e.country||''} ${e.date||''} ${fmtDate(e.date)}`.toLowerCase().includes(query)
     );
   }
-  if(!list.length) return `<div class="hint">${query ? 'No matching shows.' : 'No shows yet.'}</div>`;
+  if(!list.length){
+    return `<option value="">${query ? 'No matching shows' : 'No shows yet'}</option>`;
+  }
   const groups = groupShowsByMonth(list);
-  return groups.map(g =>
-    `<div class="shows-month">${esc(g.label)} · ${g.items.length}</div><div class="card flush" style="margin-bottom:10px">${g.items.map(e => ideaShowPickRow(e, opts)).join('')}</div>`
-  ).join('');
+  let html = `<option value="">Not linked</option>`;
+  groups.forEach(g => {
+    html += `<optgroup label="${esc(g.label)}">`;
+    g.items.forEach(e => {
+      const label = `${esc(e.venue||'Untitled show')} · ${esc(fmtDate(e.date))}${e.city ? ' · '+esc(e.city) : ''}`;
+      html += `<option value="${e.id}"${selectedId===e.id?' selected':''}>${label}</option>`;
+    });
+    html += `</optgroup>`;
+  });
+  return html;
 }
 
 function openIdeaShowPicker(iid){
   ideaShowPickSearch = '';
   ideaShowPickCtx = { iid };
+  const i = store.ideas.find(x=>x.id===iid);
   openSheet('Link to a show', `
     <div class="searchbar"><span class="ic">${ICON.search(18)}</span><input id="idea-show-pick-search" placeholder="Search venue or city" value="" oninput="ideaShowPickSearch=this.value;debouncedIdeaShowPick()"></div>
-    <div id="idea-show-pick-list">${ideaShowPickerListHtml('', { iid, pickFn:'pickIdeaShow' })}</div>
+    <div class="field" style="margin-top:10px"><label>Show</label>
+      <select id="idea-show-pick-select" class="input">${ideaShowSelectOptionsHtml('', i?.eventId||null)}</select>
+    </div>
+    <button class="btn" onclick="confirmIdeaShowPick()">Link show</button>
     <div class="spacer"></div>
   `);
   setTimeout(()=>{ const el=document.getElementById('idea-show-pick-search'); if(el) el.focus(); }, 320);
@@ -260,42 +255,40 @@ function debouncedIdeaShowPick(){
 
 function refreshIdeaShowPicker(){
   const ctx = ideaShowPickCtx;
-  const list = document.getElementById('idea-show-pick-list');
-  if(!list || !ctx) return;
-  const el = document.getElementById('idea-show-pick-search');
-  const pos = el ? el.selectionStart : 0;
-  list.innerHTML = ideaShowPickerListHtml(ideaShowPickSearch, { iid: ctx.iid, pickFn:'pickIdeaShow' });
-  if(el){ el.focus(); try{ el.setSelectionRange(pos,pos); }catch(e){} }
+  const selEl = document.getElementById('idea-show-pick-select');
+  if(!selEl || !ctx) return;
+  const searchEl = document.getElementById('idea-show-pick-search');
+  const pos = searchEl ? searchEl.selectionStart : 0;
+  const selected = selEl.value || null;
+  selEl.innerHTML = ideaShowSelectOptionsHtml(ideaShowPickSearch, selected);
+  if(searchEl){ searchEl.focus(); try{ searchEl.setSelectionRange(pos,pos); }catch(e){} }
+}
+
+function confirmIdeaShowPick(){
+  const ctx = ideaShowPickCtx;
+  const eventId = document.getElementById('idea-show-pick-select')?.value || null;
+  if(!ctx || !eventId){ toast('Choose a show','x'); return; }
+  pickIdeaShow(ctx.iid, eventId);
 }
 
 function pickIdeaShow(iid, eventId){
   doAttachIdea(iid, 'event', eventId);
 }
 
-function debouncedIdeaSheetShowLink(){
+function debouncedIdeaEventSelect(){
   clearTimeout(ideaShowPickT);
-  ideaShowPickT = setTimeout(refreshIdeaSheetShowLink, 160);
+  ideaShowPickT = setTimeout(refreshIdeaEventSelect, 160);
 }
 
-function refreshIdeaSheetShowLink(){
-  const list = document.getElementById('id-event-list');
-  if(!list) return;
-  const el = document.getElementById('id-event-search');
-  const pos = el ? el.selectionStart : 0;
-  const selected = document.getElementById('id-event')?.value || null;
-  list.innerHTML = ideaShowPickerListHtml(el?.value || '', { selectedId: selected, pickFn:'selectIdeaSheetShow' });
-  if(el){ el.focus(); try{ el.setSelectionRange(pos,pos); }catch(e){} }
-}
-
-function selectIdeaSheetShow(eventId){
-  const hidden = document.getElementById('id-event');
-  if(hidden) hidden.value = eventId || '';
-  document.querySelectorAll('#id-event-list .row.sel').forEach(r => r.classList.remove('sel'));
-  if(eventId){
-    const row = document.querySelector(`#id-event-list .row[data-event="${eventId}"]`);
-    if(row) row.classList.add('sel');
-  }
-  haptic();
+function refreshIdeaEventSelect(){
+  const selEl = document.getElementById('id-event');
+  if(!selEl) return;
+  const searchEl = document.getElementById('id-event-search');
+  const pos = searchEl ? searchEl.selectionStart : 0;
+  const selected = selEl.value || null;
+  const q = searchEl?.value || '';
+  selEl.innerHTML = ideaShowSelectOptionsHtml(q, selected);
+  if(searchEl){ searchEl.focus(); try{ searchEl.setSelectionRange(pos,pos); }catch(e){} }
 }
 
 function attachIdeaTo(iid, kind){
@@ -341,10 +334,8 @@ function sheetIdea(iid){
     </div>
     <div class="field"><label>Details</label><textarea id="id-note" class="textarea" style="min-height:64px" placeholder="Script, references, notes…">${esc(i?(i.note||''):'')}</textarea></div>
     <div class="field"><label>Link to a show</label>
-      <input type="hidden" id="id-event" value="${i&&i.eventId?esc(i.eventId):''}">
-      <div class="searchbar"><span class="ic">${ICON.search(18)}</span><input id="id-event-search" placeholder="Search venue or city" value="" oninput="debouncedIdeaSheetShowLink()"></div>
-      <div id="id-event-list" style="max-height:240px;overflow:auto;margin-top:8px">${ideaShowPickerListHtml('', { selectedId: i&&i.eventId?i.eventId:null, pickFn:'selectIdeaSheetShow' })}</div>
-      ${i&&i.eventId?`<button type="button" class="btn secondary" style="margin-top:8px" onclick="selectIdeaSheetShow(null)">Clear link</button>`:''}
+      <div class="searchbar"><span class="ic">${ICON.search(18)}</span><input id="id-event-search" placeholder="Search venue or city" value="" oninput="debouncedIdeaEventSelect()"></div>
+      <select id="id-event" class="input">${ideaShowSelectOptionsHtml('', i&&i.eventId?i.eventId:null)}</select>
     </div>
     <button class="btn" id="id-save" onclick="saveIdea('${iid||''}')">${iid?'Save':'Add idea'}</button>
     <div class="spacer"></div>

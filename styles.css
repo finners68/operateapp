@@ -799,8 +799,7 @@ img{-webkit-touch-callout:none;}
 #idea-actionbar button:active{background:rgba(255,255,255,.09);}
 #idea-actionbar button.danger{color:#ff453a;}
 #idea-actionbar button.close{min-width:40px;color:var(--text-3);border-left:1px solid var(--stroke);margin-left:2px;}
-#idea-show-pick-list .row.sel,
-#id-event-list .row.sel{box-shadow:inset 0 0 0 2px var(--accent);background:rgba(255,255,255,.03);}
+.shows-month{font-size:12px;font-weight:750;color:var(--text-3);text-transform:uppercase;letter-spacing:.05em;margin:16px 4px 8px;}
 .show-row .show-row-edit{width:34px;height:34px;flex-shrink:0;align-self:center;color:var(--text-3);}
 .show-row .show-row-edit:active{color:var(--accent-2);}
 .show-date-ic{flex-direction:column;gap:0;line-height:1;font-variant-numeric:tabular-nums;padding:4px 2px;}
