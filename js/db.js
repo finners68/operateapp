@@ -577,17 +577,14 @@ async function pushToSupabase(orgId){
     do {
       if(typeof syncDirty !== 'undefined') syncDirty = false;
       let dirtySnap = (typeof cloneDirty === 'function') ? cloneDirty(store._dirty) : null;
-      const forceFull = !!store._forceFullSync;
-      if(typeof isEmptyDirty === 'function' && isEmptyDirty(dirtySnap)){
-        if(forceFull){
-          dirtySnap = { '*': '*' };
-          store._forceFullSync = false;
-        } else {
-          /* Nothing dirty — skip full-tour rewrite. */
-          break;
-        }
-      } else if(forceFull && isFullDirty(dirtySnap)){
+      /* Full sync is explicit only. Clear the flag immediately so a scoped
+         push cannot loop into a second whole-tour rewrite (that was
+         duplicating venues/shows whenever anything was added). */
+      if(store._forceFullSync){
+        dirtySnap = { '*': '*' };
         store._forceFullSync = false;
+      } else if(typeof isEmptyDirty === 'function' && isEmptyDirty(dirtySnap)){
+        break;
       }
       await pushToSupabaseV2(orgId, dirtySnap);
       if(typeof subtractDirty === 'function' && dirtySnap) subtractDirty(store._dirty, dirtySnap);
@@ -598,8 +595,7 @@ async function pushToSupabase(orgId){
     } while(
       loops < 5 && (
         (typeof syncDirty !== 'undefined' && syncDirty) ||
-        (typeof isEmptyDirty === 'function' && !isEmptyDirty(store._dirty)) ||
-        !!store._forceFullSync
+        (typeof isEmptyDirty === 'function' && !isEmptyDirty(store._dirty))
       )
     );
     syncSetStatus('synced');

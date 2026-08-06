@@ -60,6 +60,7 @@ async function loadFromSupabaseV2(orgId, sb){
 
   store = emptyOperateState();
   store.organisationId = orgId;
+  store._forceFullSync = false;
   store.v2 = v2;
   store._seq = v2.organisation_settings?.store_sequence || 1;
   store.activeTripId = prevActiveTrip || null;

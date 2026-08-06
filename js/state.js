@@ -114,7 +114,16 @@ const db = {
   read(){
     try{
       const raw = localStorage.getItem(DB_KEY);
-      if(raw) return JSON.parse(raw);
+      if(!raw) return null;
+      const state = JSON.parse(raw);
+      if(state){
+        /* Never revive a stuck full-sync flag from disk — that made every
+           later add rewrite the whole tour and mint duplicate rows. */
+        delete state._forceFullSync;
+        if(typeof reviveDirty === 'function') state._dirty = reviveDirty(state._dirty);
+        else state._dirty = Object.create(null);
+      }
+      return state;
     }catch(e){}
     return null;
   },
@@ -124,7 +133,11 @@ const db = {
     try{ if(typeof stashBlobs==='function') stashBlobs(state); }catch(e){}
     // Strip base64 ONLY from attachments we've copied to IndexedDB (this._idb).
     // `this` in a replacer is the object that owns the key, so siblings are visible.
-    const replacer = function(k,v){ return (k==='data' && this && this._idb && typeof v==='string' && v.startsWith('data:')) ? undefined : v; };
+    const replacer = function(k,v){
+      if(k === '_forceFullSync') return undefined;
+      if(k === '_dirty') return (typeof serializeDirty === 'function') ? serializeDirty(v) : v;
+      return (k==='data' && this && this._idb && typeof v==='string' && v.startsWith('data:')) ? undefined : v;
+    };
     try{ localStorage.setItem(DB_KEY, JSON.stringify(state, replacer)); }
     catch(e){ try{ localStorage.setItem(DB_KEY, JSON.stringify(state, replacer)); }catch(e2){ toast('Storage full','x'); } }
   },

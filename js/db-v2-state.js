@@ -192,6 +192,28 @@ function filterByDirtyIds(rows, dirty, table, idKey){
   return (rows || []).filter(r => r && ids.has(r[key]));
 }
 
+/* JSON cannot store Set — persist dirty ids as arrays and revive on read. */
+function serializeDirty(dirty){
+  const out = Object.create(null);
+  if(!dirty) return out;
+  Object.keys(dirty).forEach(k => {
+    const d = dirty[k];
+    if(d === '*') out[k] = '*';
+    else if(d instanceof Set) out[k] = Array.from(d);
+  });
+  return out;
+}
+function reviveDirty(raw){
+  const out = Object.create(null);
+  if(!raw || typeof raw !== 'object') return out;
+  Object.keys(raw).forEach(k => {
+    const d = raw[k];
+    if(d === '*') out[k] = '*';
+    else if(Array.isArray(d)) out[k] = new Set(d.filter(Boolean));
+  });
+  return out;
+}
+
 function isUuid(v){
   /* Accept any UUID-shaped id. A strict RFC variant check rejected many
      already-stored journey ids, so each push minted a new row and duplicates exploded. */
