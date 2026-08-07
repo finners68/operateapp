@@ -64,9 +64,13 @@ function scheduleSyncRetry(delay){
   else { syncRetryDelay = delay; }
   clearTimeout(syncRetryTimer);
   syncRetryTimer = setTimeout(() => {
-    if(syncDirty && syncActive() && currentOrgId && !dbSyncInProgress && !dbRemoteLoading){
-      pushToSupabase(currentOrgId);
+    if(!syncDirty || !syncActive() || !currentOrgId) return;
+    if(dbSyncInProgress || dbRemoteLoading){
+      /* Still busy — keep trying so a key-contact save during reload is not lost. */
+      scheduleSyncRetry(Math.max(300, syncRetryDelay));
+      return;
     }
+    pushToSupabase(currentOrgId);
   }, syncRetryDelay);
 }
 let syncRetryBound = false;

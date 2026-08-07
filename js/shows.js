@@ -1381,10 +1381,18 @@ function saveEventContact(eid,cid){
   withButton($('#ct-save'), ()=>{
     if(cid){ const c=e.contacts.find(x=>x.id===cid); if(c) Object.assign(c,data); }
     else e.contacts.push({id:uid('ct'),...data});
-    persist('shows', eid); closeSheet(); renderView();
+    persist('shows', eid);
+    if(typeof pushShowNow === 'function') pushShowNow(eid);
+    closeSheet(); renderView();
   }, 'Contact saved');
 }
-function delEventContact(eid,cid){ const e=sel.event(eid); e.contacts=(e.contacts||[]).filter(x=>x.id!==cid); persist('shows', eid); closeSheet(); renderView(); toast('Contact removed','trash'); }
+function delEventContact(eid,cid){
+  const e=sel.event(eid);
+  e.contacts=(e.contacts||[]).filter(x=>x.id!==cid);
+  persist('shows', eid);
+  if(typeof pushShowNow === 'function') pushShowNow(eid);
+  closeSheet(); renderView(); toast('Contact removed','trash');
+}
 function sheetShowChecklist(eid){
   const e = sel.event(eid);
   if(!e) return;

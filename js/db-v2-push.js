@@ -364,7 +364,21 @@ async function pushToSupabaseV2(orgId, dirtyIn){
 
   const showsAll = eventsSnap.filter(e => (e.kind || 'show') === 'show');
   const logisticsAll = eventsSnap.filter(e => ['travel','stay','marker'].includes(e.kind));
-  const shows = needShows ? filterByDirtyIds(showsAll, dirty, 'shows') : [];
+  /* Freeze nested contact fields so a concurrent cloud reload cannot empty
+     s.contacts on the live store object before we upload them. */
+  const shows = needShows
+    ? filterByDirtyIds(showsAll, dirty, 'shows').map(s => {
+        const copy = Object.assign({}, s);
+        copy.contacts = Array.isArray(s.contacts)
+          ? s.contacts.map(c => (c && typeof c === 'object') ? Object.assign({}, c) : c)
+          : [];
+        if(s.promoter && typeof s.promoter === 'object') copy.promoter = Object.assign({}, s.promoter);
+        if(Array.isArray(s.drivers)){
+          copy.drivers = s.drivers.map(d => (d && typeof d === 'object') ? Object.assign({}, d) : d);
+        }
+        return copy;
+      })
+    : [];
   const logistics = (() => {
     if(!needLogistics) return [];
     if(full) return logisticsAll;
@@ -721,13 +735,8 @@ async function pushToSupabaseV2(orgId, dirtyIn){
     }
 
     /* Show contacts: primary Artist Liaison (e.promoter) + key contacts (e.contacts).
-       Replace-all for this show so adds/edits/deletes sync; drivers stay on journey_contacts. */
+       Build rows first, then replace-all — never delete before we know inserts work. */
     {
-      await sb.from('show_contacts').delete().eq('organisation_id', orgId).eq('show_id', sid);
-      if(store?.v2?.show_contacts){
-        store.v2.show_contacts = store.v2.show_contacts.filter(sc => sc.show_id !== sid);
-      }
-
       const scRows = [];
       let scSort = 0;
       const scSeen = new Set();
@@ -765,6 +774,13 @@ async function pushToSupabaseV2(orgId, dirtyIn){
           contact_notes: mapped.notes,
           sort_order: scSort++
         });
+      }
+
+      const { error: scDelErr } = await sb.from('show_contacts')
+        .delete().eq('organisation_id', orgId).eq('show_id', sid);
+      v2Throw(scDelErr, 'show_contacts delete');
+      if(store?.v2?.show_contacts){
+        store.v2.show_contacts = store.v2.show_contacts.filter(sc => sc.show_id !== sid);
       }
 
       if(scRows.length){

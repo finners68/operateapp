@@ -30,6 +30,8 @@ function storeSnapshot(){
     add(e.id); add(e.date); add(e.start); add(e.end); add(e.setTime); add(e.endTime);
     add(e.title); add(e.venue); add(e.venueAddr); add(e.venueAddr2); add(e.venueRegion); add(e.venuePostcode); add(e.city); add(e.info); add(e.from); add(e.to);
     add(e.setDone?1:0); add(e.done?1:0); add(e.notes);
+    if(e.promoter){ add(e.promoter.name); add(e.promoter.phone); add(e.promoter.whatsapp); }
+    (e.contacts||[]).forEach(c=>{ add(c.id); add(c.name); add(c.role); add(c.phone); add(c.whatsapp); });
     (e.drivers||[]).forEach(d=>{ add(d.journey); add(d.time); add(d.phone); add(d.name); add(d.noGround?1:0); });
     (e.flights||[]).forEach(f=>{ add(f.id); add(f.from); add(f.to); add(f.dep); add(f.code); });
     if(e.hotel){ add(e.hotel.name); add(e.hotel.postcode); add(e.hotel.address); }
@@ -581,7 +583,9 @@ function persistNoteFolderLocal(folder){
 async function flushDirtyNow(){
   if(typeof syncActive === 'function' && !syncActive()) return false;
   if(!currentOrgId) return false;
-  if(dbSyncInProgress){
+  /* Never push on top of a cloud reload — that raced and re-uploaded empty
+     key-contact lists after load replaced store.events mid-edit. */
+  if(dbRemoteLoading || dbSyncInProgress){
     if(typeof syncDirty !== 'undefined') syncDirty = true;
     if(typeof scheduleSyncRetry === 'function') scheduleSyncRetry(300);
     return false;
@@ -664,8 +668,9 @@ async function pushToSupabase(orgId){
   if(!sb) return;
   /* If a push is already running, mark dirty so the in-flight push loops
      once more — never start a second overlapping push. */
-  if(dbSyncInProgress){
+  if(dbSyncInProgress || dbRemoteLoading){
     if(typeof syncDirty !== 'undefined') syncDirty = true;
+    if(typeof scheduleSyncRetry === 'function') scheduleSyncRetry(300);
     return;
   }
   if(typeof syncTimer !== 'undefined') clearTimeout(syncTimer);
@@ -727,6 +732,16 @@ async function loadFromSupabase(orgId){
     await loadFromSupabaseV2(orgId, sb);
   }finally{
     dbRemoteLoading = false;
+    /* Edits saved during the reload are kept in _dirty — push them now that
+       we are no longer blocked by dbRemoteLoading. */
+    const hasDirty = (typeof isEmptyDirty === 'function')
+      ? !isEmptyDirty(store && store._dirty)
+      : false;
+    if(hasDirty && typeof syncActive === 'function' && syncActive()){
+      if(typeof syncDirty !== 'undefined') syncDirty = true;
+      if(typeof flushDirtyNow === 'function') flushDirtyNow();
+      else if(typeof scheduleSyncRetry === 'function') scheduleSyncRetry(200);
+    }
   }
 }
 

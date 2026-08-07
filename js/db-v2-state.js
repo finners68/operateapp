@@ -197,6 +197,39 @@ function cloneDirty(dirty){
   return out;
 }
 
+/* Union two dirty snapshots (edits during cloud load must not be dropped). */
+function mergeDirty(a, b){
+  const out = cloneDirty(a);
+  if(!b) return out;
+  if(b['*'] === '*' || out['*'] === '*'){
+    out['*'] = '*';
+    return out;
+  }
+  Object.keys(b).forEach(table => {
+    if(table === '_epochs') return;
+    const d = b[table];
+    if(d === '*'){
+      out[table] = '*';
+      return;
+    }
+    if(!(d instanceof Set)) return;
+    if(out[table] === '*') return;
+    if(!(out[table] instanceof Set)) out[table] = new Set();
+    d.forEach(id => out[table].add(id));
+  });
+  const epochs = Object.create(null);
+  const collect = (snap) => {
+    if(!snap || !snap._epochs) return;
+    Object.keys(snap._epochs).forEach(k => {
+      epochs[k] = Math.max(epochs[k] || 0, snap._epochs[k] || 0);
+    });
+  };
+  collect(a);
+  collect(b);
+  out._epochs = epochs;
+  return out;
+}
+
 /* Remove snapshot entries from live dirty; keep ids re-marked after the snapshot. */
 function subtractDirty(live, snapshot){
   if(!live || !snapshot) return;

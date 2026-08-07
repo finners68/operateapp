@@ -52,6 +52,17 @@ async function loadFromSupabaseV2(orgId, sb){
   const keepDirtySnap = (typeof cloneDirty === 'function') ? cloneDirty(store?._dirty) : null;
 
   const v2 = await v2RepoFetchOrg(sb, orgId);
+  /* Edits that landed while we were fetching must still win over cloud. */
+  const midDirtyShows = _dirtyIdSet('shows');
+  const midDirtyJourneys = _dirtyIdSet('journeys');
+  const midDirtyHotels = _dirtyIdSet('hotel_bookings');
+  const midDirtyMarkers = _dirtyIdSet('schedule_items');
+  const midDirtyTours = _dirtyIdSet('tours');
+  const midDirtyNotes = _dirtyIdSet('notes');
+  const midDirtyNoteFolders = _dirtyIdSet('note_folders');
+  const midDirtyIdeas = _dirtyIdSet('ideas');
+  const midDirtyContacts = _dirtyIdSet('contacts');
+  const midDirtySnap = (typeof cloneDirty === 'function') ? cloneDirty(store?._dirty) : null;
   const view = await composeViewFromV2(v2, { prevEvents });
 
   if(view.settings.homeHeader && !view.settings.homeHeader.startsWith('data:') && !view.settings.homeHeader.startsWith('http')){
@@ -81,9 +92,25 @@ async function loadFromSupabaseV2(orgId, sb){
   store.packing = prevPacking;
   store.reminders = prevReminders;
 
+  const unionDirty = (a, b) => {
+    if(a == null || b == null) return null; /* null = keep all */
+    const out = new Set(a || []);
+    (b || []).forEach(id => out.add(id));
+    return out;
+  };
+  const dirtyShows = unionDirty(prevDirtyShows, midDirtyShows);
+  const dirtyJourneys = unionDirty(prevDirtyJourneys, midDirtyJourneys);
+  const dirtyHotels = unionDirty(prevDirtyHotels, midDirtyHotels);
+  const dirtyMarkers = unionDirty(prevDirtyMarkers, midDirtyMarkers);
+  const dirtyTours = unionDirty(prevDirtyTours, midDirtyTours);
+  const dirtyNotes = unionDirty(prevDirtyNotes, midDirtyNotes);
+  const dirtyNoteFolders = unionDirty(prevDirtyNoteFolders, midDirtyNoteFolders);
+  const dirtyIdeas = unionDirty(prevDirtyIdeas, midDirtyIdeas);
+  const dirtyContacts = unionDirty(prevDirtyContacts, midDirtyContacts);
+
   /* Note folders */
   if(prevNoteFolders.length){
-    store.noteFolders = _mergeDirtyById(store.noteFolders, prevNoteFolders, prevDirtyNoteFolders, (local) => {
+    store.noteFolders = _mergeDirtyById(store.noteFolders, prevNoteFolders, dirtyNoteFolders, (local) => {
       if(typeof v2RepoPatchLocal === 'function'){
         v2RepoPatchLocal('note_folders', {
           id: local.id,
@@ -97,7 +124,7 @@ async function loadFromSupabaseV2(orgId, sb){
 
   /* Notes */
   if(prevNotes.length){
-    store.notes = _mergeDirtyById(store.notes, prevNotes, prevDirtyNotes, (local) => {
+    store.notes = _mergeDirtyById(store.notes, prevNotes, dirtyNotes, (local) => {
       if(typeof v2RepoPatchLocal === 'function'){
         v2RepoPatchLocal('notes', {
           id: local.id,
@@ -114,17 +141,17 @@ async function loadFromSupabaseV2(orgId, sb){
 
   /* Ideas */
   if(prevIdeas.length){
-    store.ideas = _mergeDirtyById(store.ideas, prevIdeas, prevDirtyIdeas);
+    store.ideas = _mergeDirtyById(store.ideas, prevIdeas, dirtyIdeas);
   }
 
   /* Contacts */
   if(prevContacts.length){
-    store.contacts = _mergeDirtyById(store.contacts, prevContacts, prevDirtyContacts);
+    store.contacts = _mergeDirtyById(store.contacts, prevContacts, dirtyContacts);
   }
 
   /* Trips / tours */
   if(prevTrips.length){
-    store.trips = _mergeDirtyById(store.trips, prevTrips, prevDirtyTours);
+    store.trips = _mergeDirtyById(store.trips, prevTrips, dirtyTours);
   }
 
   /* Shows + logistics: keep in-progress dirty locals without inventing duplicates.
@@ -136,10 +163,10 @@ async function loadFromSupabaseV2(orgId, sb){
     const dirtySetFor = (ev) => {
       if(!ev || !ev.id) return { full: false, set: new Set() };
       const kind = ev.kind || 'show';
-      if(kind === 'travel') return { full: prevDirtyJourneys == null, set: prevDirtyJourneys || new Set() };
-      if(kind === 'stay') return { full: prevDirtyHotels == null, set: prevDirtyHotels || new Set() };
-      if(kind === 'marker') return { full: prevDirtyMarkers == null, set: prevDirtyMarkers || new Set() };
-      return { full: prevDirtyShows == null, set: prevDirtyShows || new Set() };
+      if(kind === 'travel') return { full: dirtyJourneys == null, set: dirtyJourneys || new Set() };
+      if(kind === 'stay') return { full: dirtyHotels == null, set: dirtyHotels || new Set() };
+      if(kind === 'marker') return { full: dirtyMarkers == null, set: dirtyMarkers || new Set() };
+      return { full: dirtyShows == null, set: dirtyShows || new Set() };
     };
     prevEvents.forEach(local => {
       const { full, set } = dirtySetFor(local);
@@ -172,15 +199,22 @@ async function loadFromSupabaseV2(orgId, sb){
   clearDirty();
   store._forceFullSync = false;
   /* Restore scoped dirty only. Never restore a full-tour dirty snap after
-     cloud load — that re-uploaded every local row and duplicated the tour. */
-  if(
-    keepDirtySnap &&
-    typeof isEmptyDirty === 'function' &&
-    !isEmptyDirty(keepDirtySnap) &&
-    typeof isFullDirty === 'function' &&
-    !isFullDirty(keepDirtySnap)
-  ){
-    store._dirty = keepDirtySnap;
+     cloud load — that re-uploaded every local row and duplicated the tour.
+     Union start-of-load + mid-load dirty so a key-contact save during fetch
+     is still pushed after reload. */
+  {
+    let restore = keepDirtySnap;
+    if(typeof mergeDirty === 'function') restore = mergeDirty(keepDirtySnap, midDirtySnap);
+    else if(midDirtySnap && (!keepDirtySnap || isEmptyDirty(keepDirtySnap))) restore = midDirtySnap;
+    if(
+      restore &&
+      typeof isEmptyDirty === 'function' &&
+      !isEmptyDirty(restore) &&
+      typeof isFullDirty === 'function' &&
+      !isFullDirty(restore)
+    ){
+      store._dirty = restore;
+    }
   }
 
   if(typeof migrate === 'function') migrate();
