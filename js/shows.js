@@ -356,7 +356,7 @@ function countAdvanceFields(a){
   if(!a) return 0;
   let n = 0;
   if(a.stage) n++;
-  if((a.schedule||[]).some(s=>s.time||s.label)) n++;
+  if((a.schedule||[]).some(s=>s.time||s.label||s.title)) n++;
   ['access','soundcheck','curfew','dressingRoom','guestlist','catering','parking','wifi','navAddr','remarks'].forEach(k=>{ if(a[k]) n++; });
   return n;
 }
@@ -568,8 +568,8 @@ function venueSubsection(e){
 }
 function advanceSubsection(e){
   const a = e.advance||{};
-  const sched = (a.schedule||[]).filter(s=>(s.time||s.label));
-  const schedHTML = sched.length?`<div class="ro-list">${sched.map(s=>`<div class="ro-row"><div class="ro-lab">${esc(s.label||'')}</div><div class="ro-time">${esc(s.time||'')}</div></div>`).join('')}</div>`:'';
+  const sched = (a.schedule||[]).filter(s=>(s.time||s.label||s.title));
+  const schedHTML = sched.length?`<div class="ro-list">${sched.map(s=>`<div class="ro-row"><div class="ro-lab">${esc(s.label||s.title||'')}</div><div class="ro-time">${esc(s.time||'')}</div></div>`).join('')}</div>`:'';
   const navExtra = a.navAddr?`<button class="header-btn" style="width:34px;height:34px;align-self:center" onclick="openMaps('${jsAttr(a.navAddr)}')">${ICON.map(16)}</button>`:'';
   const hasAny = countAdvanceFields(a) > 0;
   const editBtn = `<button type="button" class="add" onclick="sheetAdvance('${e.id}')">${hasAny?'Edit':'Add'}</button>`;
@@ -1197,12 +1197,18 @@ function savePromoter(eid){
 }
 /* ---- Advancing: rich, ABOSS-depth show-day info. Every field hidden unless filled. ---- */
 function advRow(icon,k,v,extra){ if(!v) return ''; return `<div class="info-line"><div class="ic">${icon}</div>${fieldTx(k, `<span style="white-space:pre-wrap">${esc(v)}</span>`)}${extra||''}</div>`; }
+function roTimeFieldHtml(time, id){
+  const tid = id || ('ro-t-' + Math.random().toString(36).slice(2, 8));
+  return `<div class="field picker-field" style="flex:0 0 34%" onclick="openInputPicker('${tid}')">
+      <input id="${tid}" class="input ro-t" type="time" value="${esc(time||'')}" onclick="event.stopPropagation();openInputPicker('${tid}')">
+    </div>`;
+}
 function sheetAdvance(eid){
   const e=sel.event(eid); const a=e.advance||{};
   const sched=(a.schedule&&a.schedule.length?a.schedule:[{time:'',label:''}]);
-  const roInputs = sched.map((s,i)=>`<div class="row-2 ro-edit" data-i="${i}">
-      <div class="field" style="flex:0 0 34%"><input class="input ro-t" type="time" value="${esc(s.time||'')}"></div>
-      <div class="field"><input class="input ro-l" value="${esc(s.label||'')}" placeholder="Soundcheck / Set / Curfew"></div>
+  const roInputs = sched.map((s,i)=>`<div class="row-2 ro-edit" data-i="${i}" data-id="${esc(s.id||'')}">
+      ${roTimeFieldHtml(s.time, 'ro-t-'+i)}
+      <div class="field"><input class="input ro-l" value="${esc(s.label||s.title||'')}" placeholder="Soundcheck / Set / Curfew"></div>
     </div>`).join('');
   openSheet('Advancing', `
     <div class="field"><label>Stage / area</label><input id="ad-stage" class="input" value="${esc(a.stage||'')}" placeholder="Temple stage"></div>
@@ -1230,15 +1236,29 @@ function sheetAdvance(eid){
 }
 function addRoRow(){
   const wrap=$('#ad-ro'); if(!wrap) return;
-  const div=document.createElement('div'); div.className='row-2 ro-edit';
-  div.innerHTML=`<div class="field" style="flex:0 0 34%"><input class="input ro-t" type="time"></div><div class="field"><input class="input ro-l" placeholder="Soundcheck / Set / Curfew"></div>`;
+  const div=document.createElement('div');
+  div.className='row-2 ro-edit';
+  div.innerHTML=`${roTimeFieldHtml('')}
+    <div class="field"><input class="input ro-l" placeholder="Soundcheck / Set / Curfew"></div>`;
   wrap.appendChild(div);
+  if(typeof enhanceDateTimeFields === 'function') enhanceDateTimeFields(div);
 }
 function saveAdvance(eid){
   const e=sel.event(eid);
-  const schedule=[...document.querySelectorAll('#ad-ro .ro-edit')].map(r=>({time:(r.querySelector('.ro-t')||{}).value||'',label:(r.querySelector('.ro-l')||{}).value||''})).filter(s=>s.time||s.label);
+  const schedule=[...document.querySelectorAll('#ad-ro .ro-edit')].map(r=>{
+    let id = r.getAttribute('data-id') || '';
+    if(!id || (typeof isUuid === 'function' && !isUuid(id))){
+      id = (typeof newUuid === 'function') ? newUuid() : uid('ro');
+    }
+    return {
+      id,
+      time:(r.querySelector('.ro-t')||{}).value||'',
+      label:(r.querySelector('.ro-l')||{}).value||''
+    };
+  }).filter(s=>s.time||s.label);
   withButton($('#ad-save'), ()=>{
     e.advance={stage:val('ad-stage'),schedule,access:val('ad-access'),soundcheck:val('ad-sc'),curfew:val('ad-curfew'),dressingRoom:val('ad-dr'),guestlist:val('ad-gl'),catering:val('ad-cat'),parking:val('ad-park'),wifi:val('ad-wifi'),navAddr:val('ad-nav'),remarks:val('ad-rem')};
+    if(typeof markDirty === 'function') markDirty('schedule_items', '*');
     persist('shows', eid); closeSheet(); renderView();
   }, 'Details saved');
 }
@@ -1294,7 +1314,10 @@ function sheetShowTimeline(eid){
 function sheetShowTimelineStep(eid){
   openSheet('Add timeline step', `
     <div class="row-2">
-      <div class="field" style="flex:0 0 40%"><label>Time</label><input id="est-time" type="time" class="input"></div>
+      <div class="field picker-field" style="flex:0 0 40%" onclick="openInputPicker('est-time')">
+        <label>Time</label>
+        <input id="est-time" type="time" class="input" onclick="event.stopPropagation();openInputPicker('est-time')">
+      </div>
       <div class="field"><label>What</label><input id="est-title" class="input" placeholder="Soundcheck"></div>
     </div>
     <div class="field"><label>Detail (optional)</label><input id="est-sub" class="input" placeholder="Venue, note…"></div>
@@ -1328,7 +1351,10 @@ function delShowTimelineStep(eid,sid){
 function sheetTimelineStep(tid){
   openSheet('Add timeline step', `
     <div class="row-2">
-      <div class="field" style="flex:0 0 40%"><label>Time</label><input id="ts-time" type="time" class="input"></div>
+      <div class="field picker-field" style="flex:0 0 40%" onclick="openInputPicker('ts-time')">
+        <label>Time</label>
+        <input id="ts-time" type="time" class="input" onclick="event.stopPropagation();openInputPicker('ts-time')">
+      </div>
       <div class="field"><label>What</label><input id="ts-title" class="input" placeholder="Soundcheck"></div>
     </div>
     <div class="field"><label>Detail (optional)</label><input id="ts-sub" class="input" placeholder="Venue, note…"></div>

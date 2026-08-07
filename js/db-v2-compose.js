@@ -196,12 +196,15 @@ async function composeViewFromV2(v2, opts){
       remarks: a.general_remarks || ''
     } : {};
     const schedule = (showSched || [])
-      .filter(s => ['soundcheck', 'doors', 'set', 'curfew', 'deadline', 'venue_arrival'].includes(s.schedule_item_type))
+      .filter(s => (s.legacy_id || '').startsWith('advance_schedule:'))
+      .slice()
+      .sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0)
+        || String(a.scheduled_time || '').localeCompare(String(b.scheduled_time || '')))
       .map(s => ({
         id: s.id,
         time: s.scheduled_time ? String(s.scheduled_time).slice(0, 5) : '',
+        label: s.item_title || '',
         title: s.item_title || '',
-        sub: s.item_notes || '',
         done: s.is_done
       }));
     if(schedule.length) adv.schedule = schedule;
@@ -314,7 +317,8 @@ async function composeViewFromV2(v2, opts){
       });
 
     const timeline = (schedByShow[s.id] || [])
-      .filter(t => t.schedule_item_type === 'custom' || (t.legacy_id || '').startsWith('show_timeline:'))
+      .filter(t => !(t.legacy_id || '').startsWith('advance_schedule:')
+        && (t.schedule_item_type === 'custom' || (t.legacy_id || '').startsWith('show_timeline:')))
       .map(t => ({
         id: t.id,
         time: t.scheduled_time ? String(t.scheduled_time).slice(0, 5) : '',

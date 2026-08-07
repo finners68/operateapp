@@ -22,6 +22,15 @@ function v2CountryCode(v){
   if(typeof countryISO === 'function') return countryISO(v);
   return null;
 }
+function v2AdvanceScheduleType(label){
+  const k = String(label || '').toLowerCase();
+  if(/sound\s*check|soundcheck/.test(k)) return 'soundcheck';
+  if(/\bdoors?\b/.test(k)) return 'doors';
+  if(/\bcurfew\b/.test(k)) return 'curfew';
+  if(/\barriv/.test(k)) return 'venue_arrival';
+  if(/\bset\b|performance|headline|dj set/.test(k)) return 'set';
+  return 'custom';
+}
 
 function v2EnsureId(obj){
   if(!obj) return null;
@@ -645,6 +654,37 @@ async function pushToSupabaseV2(orgId, dirtyIn){
         navigation_address: a.navAddr || null,
         general_remarks: a.remarks || null
       }, 'show_id');
+
+      /* Running order rows live in schedule_items (tagged advance_schedule:…). */
+      const roBatch = (a.schedule || []).map((item, i) => {
+        if(!item.id || !isUuid(item.id)) item.id = newUuid();
+        const leg = 'advance_schedule:' + item.id;
+        const id = v2IdForLegacy('schedule_items', leg, item.id);
+        item.id = id;
+        const label = (item.label || item.title || '').trim();
+        return {
+          id,
+          organisation_id: orgId,
+          legacy_id: leg,
+          show_id: sid,
+          schedule_item_type: v2AdvanceScheduleType(label),
+          item_title: label || 'Schedule item',
+          scheduled_date: s.date || null,
+          scheduled_time: item.time || null,
+          is_done: !!item.done,
+          sort_order: i
+        };
+      });
+      if(roBatch.length) await v2UpsertById(sb, 'schedule_items', orgId, roBatch);
+      const keepRo = new Set(roBatch.map(r => r.id));
+      const staleRo = (store.v2?.schedule_items || []).filter(row =>
+        row.show_id === sid && (row.legacy_id || '').startsWith('advance_schedule:') && !keepRo.has(row.id)
+      );
+      for(const old of staleRo){
+        const { error } = await sb.from('schedule_items').delete().eq('organisation_id', orgId).eq('id', old.id);
+        v2Throw(error, 'schedule_items advance delete');
+        if(typeof v2RepoRemoveLocal === 'function') v2RepoRemoveLocal('schedule_items', old.id);
+      }
     }
 
     if(canFinance && s.finance){
