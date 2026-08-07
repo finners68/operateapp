@@ -180,9 +180,9 @@ async function composeViewFromV2(v2, opts){
     s.schedule_item_type === 'calendar_marker' || (s.legacy_id || '').startsWith('logistics_marker:')
   );
 
-  function advanceToStore(a, showSched){
-    if(!a && !showSched?.length) return null;
-    const adv = a ? {
+  function advanceToStore(a){
+    if(!a) return null;
+    const adv = {
       stage: a.stage_name || '',
       access: a.access_notes || '',
       soundcheck: a.soundcheck_notes || '',
@@ -194,19 +194,17 @@ async function composeViewFromV2(v2, opts){
       wifi: a.wifi_notes || '',
       navAddr: a.navigation_address || '',
       remarks: a.general_remarks || ''
-    } : {};
-    const schedule = (showSched || [])
-      .filter(s => (s.legacy_id || '').startsWith('advance_schedule:'))
-      .slice()
-      .sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0)
-        || String(a.scheduled_time || '').localeCompare(String(b.scheduled_time || '')))
+    };
+    const fromCol = Array.isArray(a.running_order) ? a.running_order : [];
+    const schedule = fromCol
       .map(s => ({
         id: s.id,
-        time: s.scheduled_time ? String(s.scheduled_time).slice(0, 5) : '',
-        label: s.item_title || '',
-        title: s.item_title || '',
-        done: s.is_done
-      }));
+        time: s.time ? String(s.time).slice(0, 5) : '',
+        label: s.label || s.title || '',
+        title: s.label || s.title || '',
+        done: !!s.done
+      }))
+      .filter(s => s.time || s.label);
     if(schedule.length) adv.schedule = schedule;
     return Object.keys(adv).length ? adv : null;
   }
@@ -340,7 +338,7 @@ async function composeViewFromV2(v2, opts){
       hotel: embeddedHotelByShow[s.id] || null,
       drivers, driver: drivers.find(d => !d.noGround) || null,
       promoter, finance: financeToStore(s.id, orgSettings),
-      advance: advanceToStore(advanceByShow[s.id], schedByShow[s.id]),
+      advance: advanceToStore(advanceByShow[s.id]),
       contacts: showContactList,
       flights: fl, attachments,
       checklist: (chkByShow[s.id] || []).map(c => ({

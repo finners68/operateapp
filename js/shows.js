@@ -1258,7 +1258,6 @@ function saveAdvance(eid){
   }).filter(s=>s.time||s.label);
   withButton($('#ad-save'), ()=>{
     e.advance={stage:val('ad-stage'),schedule,access:val('ad-access'),soundcheck:val('ad-sc'),curfew:val('ad-curfew'),dressingRoom:val('ad-dr'),guestlist:val('ad-gl'),catering:val('ad-cat'),parking:val('ad-park'),wifi:val('ad-wifi'),navAddr:val('ad-nav'),remarks:val('ad-rem')};
-    if(typeof markDirty === 'function') markDirty('schedule_items', '*');
     persist('shows', eid); closeSheet(); renderView();
   }, 'Details saved');
 }

@@ -435,6 +435,7 @@ CREATE TABLE public.show_advances (
     wifi_notes text,
     navigation_address text,
     general_remarks text,
+    running_order jsonb NOT NULL DEFAULT '[]'::jsonb,
     created_at timestamptz NOT NULL DEFAULT now(),
     updated_at timestamptz NOT NULL DEFAULT now(),
     CONSTRAINT show_advances_show_fk

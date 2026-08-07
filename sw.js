@@ -1,5 +1,5 @@
 /* Operate service worker — app-shell offline cache */
-const VERSION = 'operate-v79';
+const VERSION = 'operate-v80';
 const SHELL = [
   './',
   './index.html',
