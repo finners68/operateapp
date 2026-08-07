@@ -1,6 +1,8 @@
 /* Debounced push + Realtime pull */
 let syncTimer = null;
 let reloadTimer = null;
+let localRebuildTimer = null;
+let fullReconcileTimer = null;
 let realtimeChannel = null;
 let syncStatus = 'off';
 let syncLastSync = 0;
@@ -104,29 +106,103 @@ function editingInline(){
   const el = document.activeElement;
   return !!(el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable));
 }
+function uiBusyForQuietSync(){
+  return !!(
+    (typeof sheetEl !== 'undefined' && sheetEl) ||
+    (typeof dtPickerEl !== 'undefined' && dtPickerEl) ||
+    editingInline()
+  );
+}
+function captureQuietUi(){
+  const screen = document.getElementById('screen');
+  return { scrollY: screen ? screen.scrollTop : 0 };
+}
+/* Update on-screen data without resetting tab/detail/scroll when avoidable. */
+function renderAfterQuietSync(ui){
+  if(typeof applySavedNavToStore === 'function') applySavedNavToStore();
+  if(typeof renderView === 'function'){
+    renderView({ quiet: true, scrollY: ui ? ui.scrollY : undefined });
+  } else if(typeof renderNav === 'function'){
+    renderNav();
+  }
+}
+function hasPendingDirtySync(){
+  if(typeof isEmptyDirty === 'function') return !isEmptyDirty(store && store._dirty);
+  return !!syncDirty;
+}
+
+/* Full network pull — used on focus and when a local rebuild is unsafe. */
 function scheduleRemoteReload(){
-  if(dbRemoteLoading || dbSyncInProgress || sheetEl || editingInline()) return;
   if(Date.now() - lastPushAt < PUSH_ECHO_MS) return;
   clearTimeout(reloadTimer);
   reloadTimer = setTimeout(async () => {
-    if(!currentOrgId || sheetEl || dbSyncInProgress || editingInline()) { scheduleRemoteReload(); return; }
+    if(!currentOrgId) return;
+    if(dbRemoteLoading || dbSyncInProgress || uiBusyForQuietSync()){
+      scheduleRemoteReload();
+      return;
+    }
     if(Date.now() - lastPushAt < PUSH_ECHO_MS) return;
+    const ui = captureQuietUi();
     const before = storeSnapshot();
-    dbRemoteLoading = true;
     try{
       await loadFromSupabase(currentOrgId);
-      if(!sheetEl && storeSnapshot() !== before){
-        renderNav();
-        renderView();
+      if(uiBusyForQuietSync()){
+        if(typeof applySavedNavToStore === 'function') applySavedNavToStore();
+        return;
       }
+      if(storeSnapshot() !== before) renderAfterQuietSync(ui);
+      else if(typeof applySavedNavToStore === 'function') applySavedNavToStore();
       syncSetStatus('synced');
       syncMarkLastSync();
     }catch(e){
       syncSetStatus('error');
+    }
+  }, 1400);
+}
+
+/* Realtime: patch is already applied — rebuild from memory first (no store replace,
+   so the current tab/detail cannot jump). Fall back to full pull if dirty or rebuild fails.
+   A slower full reconcile catches any patch drift. */
+function scheduleLocalRealtimeRefresh(){
+  if(dbRemoteLoading || dbSyncInProgress){ scheduleRemoteReload(); return; }
+  if(Date.now() - lastPushAt < PUSH_ECHO_MS) return;
+  clearTimeout(localRebuildTimer);
+  localRebuildTimer = setTimeout(async () => {
+    if(!currentOrgId || dbRemoteLoading || dbSyncInProgress || uiBusyForQuietSync()){
+      scheduleRemoteReload();
+      return;
+    }
+    if(Date.now() - lastPushAt < PUSH_ECHO_MS) return;
+    if(hasPendingDirtySync() || !store?.v2 || typeof rebuildViewFromLocalV2 !== 'function'){
+      scheduleRemoteReload();
+      return;
+    }
+    const ui = captureQuietUi();
+    const before = storeSnapshot();
+    dbRemoteLoading = true;
+    try{
+      await rebuildViewFromLocalV2();
+      if(typeof db !== 'undefined' && typeof db.write === 'function') db.write(store);
+      if(uiBusyForQuietSync()) return;
+      if(storeSnapshot() !== before) renderAfterQuietSync(ui);
+      syncSetStatus('synced');
+      syncMarkLastSync();
+      scheduleFullReconcile();
+    }catch(e){
+      scheduleRemoteReload();
     }finally{
       dbRemoteLoading = false;
+      /* A save during rebuild is still dirty — push once the quiet path is done. */
+      if(hasPendingDirtySync() && typeof scheduleSyncRetry === 'function') scheduleSyncRetry(200);
     }
-  }, 1200);
+  }, 450);
+}
+
+function scheduleFullReconcile(){
+  clearTimeout(fullReconcileTimer);
+  fullReconcileTimer = setTimeout(() => {
+    if(syncActive() && currentOrgId) scheduleRemoteReload();
+  }, 15000);
 }
 
 function bindFocusReload(){
@@ -143,7 +219,7 @@ function startRealtime(orgId){
   const sb = getSupabase();
   if(!sb || !orgId) return;
 
-  /* V2 entity tables — reload recomposes UUID-native view projections. */
+  /* V2 entity tables — patch locally, then quiet-rebuild (full pull on focus). */
   const tables = [
     'shows', 'journeys', 'schedule_items', 'checklist_items', 'tours',
     'organisation_settings', 'files', 'travel_tickets', 'show_files',
@@ -157,13 +233,12 @@ function startRealtime(orgId){
       event: '*', schema: 'public', table,
       filter: `organisation_id=eq.${orgId}`
     }, (payload) => {
-      /* Prefer full reload for correctness; patch local v2 row when possible. */
       try{
         const row = payload.new || payload.old;
         if(payload.eventType === 'DELETE' && row?.id) v2RepoRemoveLocal(table, row.id);
         else if(row?.id) v2RepoPatchLocal(table, row);
       }catch(e){}
-      scheduleRemoteReload();
+      scheduleLocalRealtimeRefresh();
     });
   });
   realtimeChannel.subscribe();
@@ -173,8 +248,10 @@ function startRealtime(orgId){
 
 async function syncPullNow(){
   if(!currentOrgId) return;
+  const ui = captureQuietUi();
   await loadFromSupabase(currentOrgId);
-  render();
+  if(typeof applySavedNavToStore === 'function') applySavedNavToStore();
+  renderAfterQuietSync(ui);
   syncSetStatus('synced');
   syncMarkLastSync();
   toast('Updated from cloud', 'check');
@@ -185,5 +262,7 @@ function syncTeardown(){
   currentOrgId = null;
   clearTimeout(syncTimer);
   clearTimeout(reloadTimer);
+  clearTimeout(localRebuildTimer);
+  clearTimeout(fullReconcileTimer);
   syncSetStatus('off');
 }

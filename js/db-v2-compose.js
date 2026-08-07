@@ -508,7 +508,8 @@ async function composeViewFromV2(v2, opts){
     });
   }
 
-  events.sort((a, b) => (a.date || '').localeCompare(b.date || ''));
+  /* Stable order so quiet sync snapshots do not flip when dates tie. */
+  events.sort((a, b) => (a.date || '').localeCompare(b.date || '') || String(a.id || '').localeCompare(String(b.id || '')));
   if(typeof dedupeEventsById === 'function') events = dedupeEventsById(events);
   if(typeof applyLocalPassMerge === 'function') applyLocalPassMerge(prevEvents, events);
 

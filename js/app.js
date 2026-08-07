@@ -178,6 +178,15 @@ function saveNavState(){
     localStorage.setItem(NAV_KEY, JSON.stringify({tab:store.tab, overlay, navStack, scrollY:screen?screen.scrollTop:0, showsMode:(typeof showsMode!=='undefined'?showsMode:'shows'), contentMode:(typeof contentMode!=='undefined'?contentMode:'ideas')})); }catch(e){}
 }
 function loadNavState(){ try{ return JSON.parse(localStorage.getItem(NAV_KEY)||'null'); }catch(e){ return null; } }
+/* Cloud reloads replace `store`. Re-apply the tab/modes the user navigated to
+   (saved by go/openView/back) so a mid-fetch section change is not overwritten. */
+function applySavedNavToStore(){
+  const ns = loadNavState(); if(!ns || !store) return;
+  if(ns.tab) store.tab = ns.tab;
+  if(store.tab === 'notes'){ store.tab = 'ideas'; if(typeof contentMode !== 'undefined') contentMode = 'notes'; }
+  if(ns.showsMode && typeof showsMode !== 'undefined') showsMode = ns.showsMode;
+  if(ns.contentMode && typeof contentMode !== 'undefined') contentMode = ns.contentMode;
+}
 function restoreNavState(){
   const ns=loadNavState(); if(!ns) return;
   if(ns.tab) store.tab=ns.tab;
@@ -240,36 +249,50 @@ function syncScreenChrome(){
 }
 function renderView(opts={}){
   const screen = $('#screen');
-  const scrollY = opts.resetScroll ? 0 : (screen?.scrollTop || 0);
+  const scrollY = opts.resetScroll ? 0 : (opts.scrollY != null ? opts.scrollY : (screen?.scrollTop || 0));
   const v = $('#view');
+  let html = '';
+  let afterPaint = null;
   if(overlay){
-    if(overlay.type==='event') v.innerHTML = viewEvent(overlay.id);
-    else if(overlay.type==='trip') v.innerHTML = viewTrip(overlay.id);
-    else if(overlay.type==='note') v.innerHTML = viewNote(overlay.id);
-    else if(overlay.type==='noteFolder') v.innerHTML = viewNoteFolder(overlay.id);
-    else if(overlay.type==='idea') v.innerHTML = viewIdea(overlay.id);
-    else if(overlay.type==='finance') v.innerHTML = viewFinance();
-    else if(overlay.type==='search') v.innerHTML = viewSearch();
-    else if(overlay.type==='contacts') v.innerHTML = viewContacts();
-    else if(overlay.type==='itinerary') v.innerHTML = viewItinerary();
-    else if(overlay.type==='pastshows') v.innerHTML = viewPastShows();
-    else if(overlay.type==='invoices') v.innerHTML = viewInvoices();
-    else if(overlay.type==='invoice') v.innerHTML = viewInvoice(overlay.id);
-    else if(overlay.type==='settings') v.innerHTML = viewSettings();
-    else if(overlay.type==='stats') v.innerHTML = viewStats();
-    else if(overlay.type==='wrapped'){ v.innerHTML = viewWrapped(); if(typeof initWrapped==='function') setTimeout(initWrapped, 0); }
-    renderNav(); setFab(); syncScreenChrome();
-    if(screen) screen.scrollTop = scrollY;
-    return;
+    if(overlay.type==='event') html = viewEvent(overlay.id);
+    else if(overlay.type==='trip') html = viewTrip(overlay.id);
+    else if(overlay.type==='note') html = viewNote(overlay.id);
+    else if(overlay.type==='noteFolder') html = viewNoteFolder(overlay.id);
+    else if(overlay.type==='idea') html = viewIdea(overlay.id);
+    else if(overlay.type==='finance') html = viewFinance();
+    else if(overlay.type==='search') html = viewSearch();
+    else if(overlay.type==='contacts') html = viewContacts();
+    else if(overlay.type==='itinerary') html = viewItinerary();
+    else if(overlay.type==='pastshows') html = viewPastShows();
+    else if(overlay.type==='invoices') html = viewInvoices();
+    else if(overlay.type==='invoice') html = viewInvoice(overlay.id);
+    else if(overlay.type==='settings') html = viewSettings();
+    else if(overlay.type==='stats') html = viewStats();
+    else if(overlay.type==='wrapped'){
+      html = viewWrapped();
+      afterPaint = ()=>{ if(typeof initWrapped==='function') setTimeout(initWrapped, 0); };
+    }
+  } else {
+    const tab = store.tab;
+    if(tab==='home') html = viewHome();
+    else if(tab==='shows') html = viewShows();
+    else if(tab==='calendar') html = viewCalendar();
+    else if(tab==='trips') html = viewToursTab();
+    else if(tab==='ideas' || tab==='notes'){
+      if(tab==='notes'){ store.tab='ideas'; contentMode='notes'; }
+      html = viewContentTab();
+    }
   }
-  const tab = store.tab;
-  if(tab==='home') v.innerHTML = viewHome();
-  else if(tab==='shows') v.innerHTML = viewShows();
-  else if(tab==='calendar') v.innerHTML = viewCalendar();
-  else if(tab==='trips') v.innerHTML = viewToursTab();
-  else if(tab==='ideas' || tab==='notes'){ if(tab==='notes'){ store.tab='ideas'; contentMode='notes'; } v.innerHTML = viewContentTab(); }
+  /* Quiet syncs: skip DOM rewrite when the screen would look identical — avoids a visible flash. */
+  if(opts.quiet && v && v.innerHTML === html){
+    if(screen) screen.scrollTop = scrollY;
+    return false;
+  }
+  if(v) v.innerHTML = html;
+  if(afterPaint) afterPaint();
   renderNav(); setFab(); syncScreenChrome();
   if(screen) screen.scrollTop = scrollY;
+  return true;
 }
 function syncSeg(segId, activeKey){
   const seg = document.getElementById(segId);

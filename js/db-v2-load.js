@@ -79,6 +79,8 @@ async function loadFromSupabaseV2(orgId, sb){
   store.activeTripId = prevActiveTrip || null;
   store.activeShowId = prevActiveShow || null;
   store.tab = prevTab || v2.user_preferences?.last_open_tab || 'home';
+  /* Prefer the tab the user navigated to while this fetch was in flight. */
+  if(typeof applySavedNavToStore === 'function') applySavedNavToStore();
   store.settings = view.settings;
   store.artists = view.artists.length ? view.artists : store.artists;
   store.events = view.events;
