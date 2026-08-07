@@ -132,6 +132,7 @@ function initKeyboard(){
     const tag = document.activeElement?.tagName;
     if(tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
     if(document.getElementById('viewer')?.classList.contains('on')){ closeViewer(); return; }
+    if(dtPickerEl){ closeDateTimePicker(); return; }
     if(sheetEl) closeSheet();
     else if(overlay) back();
   });
@@ -314,6 +315,7 @@ function openSheet(title, bodyHTML, opts={}){
   s.innerHTML = head + `<div class="sheet-body">${bodyHTML}</div>`;
   app.appendChild(s);
   sheetEl = s;
+  enhanceDateTimeFields(s);
   app.classList.add('sheet-open');
   scrim.classList.add('on');
   scrim.onclick = ()=>closeSheet();
@@ -322,6 +324,7 @@ function openSheet(title, bodyHTML, opts={}){
 function closeSheet(instant){
   const app = $('#app');
   const scrim = $('#scrim');
+  closeDateTimePicker(true);
   if(!sheetEl){
     scrim.classList.remove('on');
     if(app) app.classList.remove('sheet-open');
@@ -342,16 +345,323 @@ function closeSheet(instant){
 function val(id){ const e=document.getElementById(id); return e?e.value.trim():''; }
 function rawVal(id){ const e=document.getElementById(id); return e?e.value:''; }
 
-/* Tap anywhere on a date/time field row to open the native picker. */
+/* Tap a date/time field to open Operate's styled picker (not the system one). */
 function openInputPicker(id){
   const el = document.getElementById(id);
   if(!el) return;
-  try{
-    if(typeof el.showPicker === 'function') el.showPicker();
-    else { el.focus(); el.click(); }
-  }catch(e){
-    el.focus();
+  const kind = (el.dataset.picker || el.type || '').toLowerCase();
+  if(kind === 'date') openDatePicker(id);
+  else if(kind === 'time') openTimePicker(id);
+  else {
+    try{
+      if(typeof el.showPicker === 'function') el.showPicker();
+      else { el.focus(); el.click(); }
+    }catch(e){ el.focus(); }
   }
+}
+
+/* ---------- Custom date / time pickers (match app chrome) ---------- */
+let dtPickerEl = null;
+let dtPickerState = null;
+
+function pickerLabelFor(input){
+  const field = input && input.closest('.field');
+  const lab = field && field.querySelector('label');
+  return (lab && lab.textContent.trim()) || (input && input.type === 'date' ? 'Date' : 'Time');
+}
+function closeDateTimePicker(instant){
+  if(!dtPickerEl) return;
+  const el = dtPickerEl;
+  dtPickerEl = null;
+  dtPickerState = null;
+  el.classList.remove('on');
+  if(instant){ el.remove(); return; }
+  setTimeout(()=>el.remove(), 260);
+}
+function mountDateTimePicker(html){
+  closeDateTimePicker(true);
+  const wrap = document.createElement('div');
+  wrap.className = 'dt-picker';
+  wrap.innerHTML = `<div class="dt-picker-scrim" onclick="closeDateTimePicker()"></div><div class="dt-picker-panel">${html}</div>`;
+  $('#app').appendChild(wrap);
+  dtPickerEl = wrap;
+  requestAnimationFrame(()=>requestAnimationFrame(()=>wrap.classList.add('on')));
+  return wrap;
+}
+function enhanceDateTimeFields(root){
+  if(!root) return;
+  root.querySelectorAll('input[type="date"], input[type="time"]').forEach(inp => {
+    if(inp.dataset.dtReady) return;
+    inp.dataset.dtReady = '1';
+    if(!inp.id) inp.id = 'dtf_' + Math.random().toString(36).slice(2, 9);
+    inp.setAttribute('readonly', 'readonly');
+    inp.classList.add('dt-field');
+    const open = (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      try{ inp.blur(); }catch(_){}
+      openInputPicker(inp.id);
+    };
+    inp.addEventListener('click', open);
+    inp.addEventListener('mousedown', open);
+    inp.addEventListener('focus', (e) => {
+      e.preventDefault();
+      try{ inp.blur(); }catch(_){}
+      openInputPicker(inp.id);
+    });
+  });
+}
+function openDatePicker(inputId){
+  const input = document.getElementById(inputId);
+  if(!input) return;
+  haptic();
+  const raw = (input.value || '').trim();
+  const base = parseDT(raw) || new Date();
+  dtPickerState = {
+    mode: 'date',
+    inputId,
+    y: base.getFullYear(),
+    m: base.getMonth(),
+    selected: raw || `${base.getFullYear()}-${pad(base.getMonth()+1)}-${pad(base.getDate())}`
+  };
+  renderDatePickerBody();
+}
+function renderDatePickerBody(){
+  if(!dtPickerState || dtPickerState.mode !== 'date') return;
+  const {y, m, selected, inputId} = dtPickerState;
+  const input = document.getElementById(inputId);
+  const title = pickerLabelFor(input);
+  const now = new Date();
+  const todayStr = `${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())}`;
+  const first = new Date(y, m, 1);
+  const startDow = first.getDay();
+  const daysInMonth = new Date(y, m+1, 0).getDate();
+  const prevDays = new Date(y, m, 0).getDate();
+  let cells = '';
+  for(let i=0;i<startDow;i++){
+    const d = prevDays - startDow + i + 1;
+    cells += `<button type="button" class="dt-day other" disabled>${d}</button>`;
+  }
+  for(let d=1;d<=daysInMonth;d++){
+    const ds = `${y}-${pad(m+1)}-${pad(d)}`;
+    cells += `<button type="button" class="dt-day${ds===todayStr?' today':''}${ds===selected?' sel':''}" onclick="dtPickDay('${ds}')">${d}</button>`;
+  }
+  const total = startDow + daysInMonth;
+  for(let i=total;i%7!==0;i++){
+    cells += `<button type="button" class="dt-day other" disabled>${i-total+1}</button>`;
+  }
+  const selLabel = selected ? fmtDateLong(selected) : 'Choose a date';
+  const html = `
+    <div class="dt-picker-head">
+      <button type="button" class="header-btn" style="width:32px;height:32px" onclick="closeDateTimePicker()">${ICON.x(18)}</button>
+      <div class="dt-picker-title">${esc(title)}</div>
+      <button type="button" class="link-btn" onclick="dtConfirmDate()">Done</button>
+    </div>
+    <div class="dt-picker-hero">
+      <div class="dt-picker-hero-label">Selected</div>
+      <div class="dt-picker-hero-value" id="dt-date-hero">${esc(selLabel)}</div>
+    </div>
+    <div class="dt-cal-card">
+      <div class="dt-cal-head">
+        <button type="button" class="dt-cal-nav" onclick="dtMoveMonth(-1)" aria-label="Previous month">${ICON.chevL(18)}</button>
+        <div class="dt-cal-month">${MONTHS[m]} ${y}</div>
+        <button type="button" class="dt-cal-nav" onclick="dtMoveMonth(1)" aria-label="Next month">${ICON.chevR(18)}</button>
+      </div>
+      <div class="dt-cal-dows">${DOW.map(d=>`<div>${d[0]}</div>`).join('')}</div>
+      <div class="dt-cal-grid">${cells}</div>
+    </div>
+    <div class="dt-quick">
+      <button type="button" class="chip ${selected===todayStr?'on':''}" onclick="dtPickDay('${todayStr}')">Today</button>
+      <button type="button" class="chip" onclick="dtJumpToday()">This month</button>
+    </div>
+    <button type="button" class="btn" style="margin-top:14px" onclick="dtConfirmDate()">Use date</button>
+  `;
+  if(dtPickerEl){
+    const panel = dtPickerEl.querySelector('.dt-picker-panel');
+    if(panel) panel.innerHTML = html;
+  } else {
+    mountDateTimePicker(html);
+  }
+}
+function dtMoveMonth(delta){
+  if(!dtPickerState || dtPickerState.mode !== 'date') return;
+  haptic();
+  let {y, m} = dtPickerState;
+  m += delta;
+  if(m < 0){ m = 11; y -= 1; }
+  if(m > 11){ m = 0; y += 1; }
+  dtPickerState.y = y;
+  dtPickerState.m = m;
+  renderDatePickerBody();
+}
+function dtJumpToday(){
+  if(!dtPickerState || dtPickerState.mode !== 'date') return;
+  const now = new Date();
+  dtPickerState.y = now.getFullYear();
+  dtPickerState.m = now.getMonth();
+  haptic();
+  renderDatePickerBody();
+}
+function dtPickDay(ds){
+  if(!dtPickerState || dtPickerState.mode !== 'date') return;
+  dtPickerState.selected = ds;
+  const d = parseDT(ds);
+  if(d){ dtPickerState.y = d.getFullYear(); dtPickerState.m = d.getMonth(); }
+  haptic();
+  renderDatePickerBody();
+}
+function dtConfirmDate(){
+  if(!dtPickerState || dtPickerState.mode !== 'date') return;
+  const input = document.getElementById(dtPickerState.inputId);
+  if(input && dtPickerState.selected){
+    input.value = dtPickerState.selected;
+    input.dispatchEvent(new Event('input', {bubbles:true}));
+    input.dispatchEvent(new Event('change', {bubbles:true}));
+  }
+  haptic();
+  closeDateTimePicker();
+}
+function openTimePicker(inputId){
+  const input = document.getElementById(inputId);
+  if(!input) return;
+  haptic();
+  const raw = (input.value || '').trim();
+  let hh = 23, mm = 0;
+  if(/^\d{1,2}:\d{2}/.test(raw)){
+    const parts = raw.split(':');
+    hh = Math.min(23, Math.max(0, parseInt(parts[0], 10) || 0));
+    mm = Math.min(59, Math.max(0, parseInt(parts[1], 10) || 0));
+  }
+  mm = Math.round(mm / 5) * 5;
+  if(mm === 60){ mm = 0; hh = (hh + 1) % 24; }
+  dtPickerState = { mode: 'time', inputId, hh, mm, allowClear: !(raw && inputId === 'ev-set') };
+  renderTimePickerBody();
+  requestAnimationFrame(()=>dtScrollWheels(false));
+}
+function renderTimePickerBody(){
+  if(!dtPickerState || dtPickerState.mode !== 'time') return;
+  const {hh, mm, inputId, allowClear} = dtPickerState;
+  const input = document.getElementById(inputId);
+  const title = pickerLabelFor(input);
+  const hours = Array.from({length:24}, (_,i)=>i);
+  const mins = Array.from({length:12}, (_,i)=>i*5);
+  const html = `
+    <div class="dt-picker-head">
+      <button type="button" class="header-btn" style="width:32px;height:32px" onclick="closeDateTimePicker()">${ICON.x(18)}</button>
+      <div class="dt-picker-title">${esc(title)}</div>
+      <button type="button" class="link-btn" onclick="dtConfirmTime()">Done</button>
+    </div>
+    <div class="dt-picker-hero">
+      <div class="dt-picker-hero-label">Selected</div>
+      <div class="dt-picker-hero-value mono" id="dt-time-hero">${pad(hh)}:${pad(mm)}</div>
+    </div>
+    <div class="dt-wheels" aria-label="Time wheels">
+      <div class="dt-wheel-fade"></div>
+      <div class="dt-wheel-center"></div>
+      <div class="dt-wheel" id="dt-wheel-h" onscroll="dtWheelScroll('h')">
+        <div class="dt-wheel-pad"></div>
+        ${hours.map(h=>`<button type="button" class="dt-wheel-item${h===hh?' on':''}" data-v="${h}" onclick="dtSetHour(${h})">${pad(h)}</button>`).join('')}
+        <div class="dt-wheel-pad"></div>
+      </div>
+      <div class="dt-wheel-colon">:</div>
+      <div class="dt-wheel" id="dt-wheel-m" onscroll="dtWheelScroll('m')">
+        <div class="dt-wheel-pad"></div>
+        ${mins.map(m=>`<button type="button" class="dt-wheel-item${m===mm?' on':''}" data-v="${m}" onclick="dtSetMinute(${m})">${pad(m)}</button>`).join('')}
+        <div class="dt-wheel-pad"></div>
+      </div>
+    </div>
+    <div class="dt-quick">
+      ${[['21:00',21,0],['22:00',22,0],['23:00',23,0],['00:00',0,0],['01:00',1,0]].map(([l,h,m])=>
+        `<button type="button" class="chip ${hh===h&&mm===m?'on':''}" onclick="dtSetTime(${h},${m})">${l}</button>`
+      ).join('')}
+    </div>
+    ${allowClear?`<button type="button" class="btn secondary" style="margin-top:12px" onclick="dtClearTime()">Clear time</button>`:''}
+    <button type="button" class="btn" style="margin-top:10px" onclick="dtConfirmTime()">Use time</button>
+  `;
+  if(dtPickerEl){
+    const panel = dtPickerEl.querySelector('.dt-picker-panel');
+    if(panel) panel.innerHTML = html;
+  } else {
+    mountDateTimePicker(html);
+  }
+}
+function dtScrollWheels(smooth){
+  if(!dtPickerState || dtPickerState.mode !== 'time') return;
+  const hWheel = document.getElementById('dt-wheel-h');
+  const mWheel = document.getElementById('dt-wheel-m');
+  const itemH = 44;
+  if(hWheel) hWheel.scrollTo({ top: dtPickerState.hh * itemH, behavior: smooth ? 'smooth' : 'auto' });
+  if(mWheel) mWheel.scrollTo({ top: (dtPickerState.mm / 5) * itemH, behavior: smooth ? 'smooth' : 'auto' });
+}
+let dtWheelT = null;
+function dtWheelScroll(which){
+  clearTimeout(dtWheelT);
+  dtWheelT = setTimeout(()=>{
+    if(!dtPickerState || dtPickerState.mode !== 'time') return;
+    const wheel = document.getElementById(which === 'h' ? 'dt-wheel-h' : 'dt-wheel-m');
+    if(!wheel) return;
+    const itemH = 44;
+    const idx = Math.round(wheel.scrollTop / itemH);
+    if(which === 'h'){
+      dtPickerState.hh = Math.min(23, Math.max(0, idx));
+    } else {
+      dtPickerState.mm = Math.min(55, Math.max(0, idx * 5));
+    }
+    const hero = document.getElementById('dt-time-hero');
+    if(hero) hero.textContent = `${pad(dtPickerState.hh)}:${pad(dtPickerState.mm)}`;
+    wheel.querySelectorAll('.dt-wheel-item').forEach(btn => {
+      const v = +btn.dataset.v;
+      btn.classList.toggle('on', which === 'h' ? v === dtPickerState.hh : v === dtPickerState.mm);
+    });
+  }, 80);
+}
+function dtSetHour(h){
+  if(!dtPickerState || dtPickerState.mode !== 'time') return;
+  dtPickerState.hh = h;
+  haptic();
+  const hero = document.getElementById('dt-time-hero');
+  if(hero) hero.textContent = `${pad(dtPickerState.hh)}:${pad(dtPickerState.mm)}`;
+  document.querySelectorAll('#dt-wheel-h .dt-wheel-item').forEach(btn => btn.classList.toggle('on', +btn.dataset.v === h));
+  dtScrollWheels(true);
+}
+function dtSetMinute(m){
+  if(!dtPickerState || dtPickerState.mode !== 'time') return;
+  dtPickerState.mm = m;
+  haptic();
+  const hero = document.getElementById('dt-time-hero');
+  if(hero) hero.textContent = `${pad(dtPickerState.hh)}:${pad(dtPickerState.mm)}`;
+  document.querySelectorAll('#dt-wheel-m .dt-wheel-item').forEach(btn => btn.classList.toggle('on', +btn.dataset.v === m));
+  dtScrollWheels(true);
+}
+function dtSetTime(h, m){
+  if(!dtPickerState || dtPickerState.mode !== 'time') return;
+  dtPickerState.hh = h;
+  dtPickerState.mm = m;
+  haptic();
+  renderTimePickerBody();
+  requestAnimationFrame(()=>dtScrollWheels(true));
+}
+function dtClearTime(){
+  if(!dtPickerState || dtPickerState.mode !== 'time') return;
+  const input = document.getElementById(dtPickerState.inputId);
+  if(input){
+    input.value = '';
+    input.dispatchEvent(new Event('input', {bubbles:true}));
+    input.dispatchEvent(new Event('change', {bubbles:true}));
+  }
+  haptic();
+  closeDateTimePicker();
+}
+function dtConfirmTime(){
+  if(!dtPickerState || dtPickerState.mode !== 'time') return;
+  const input = document.getElementById(dtPickerState.inputId);
+  if(input){
+    input.value = `${pad(dtPickerState.hh)}:${pad(dtPickerState.mm)}`;
+    input.dispatchEvent(new Event('input', {bubbles:true}));
+    input.dispatchEvent(new Event('change', {bubbles:true}));
+  }
+  haptic();
+  closeDateTimePicker();
 }
 
 /* Fullscreen image viewer */
