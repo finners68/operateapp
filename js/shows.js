@@ -559,7 +559,7 @@ function travelGroupBody(e){
 }
 function venueSubsection(e){
   const body = `<div class="card flush">
-    <div class="info-line" onclick="sheetVenueAddr('${e.id}')"><div class="ic">${ICON.pin(17)}</div>${fieldTx('Address', `<span class="addr-trunc">${esc(e.venueAddr || (e.city?cleanVenue(e.venue)+' · '+e.city+(e.country?', '+e.country:''):cleanVenue(e.venue)) || 'Tap to add')}</span>`)}
+    <div class="info-line" onclick="sheetVenueAddr('${e.id}')"><div class="ic">${ICON.pin(17)}</div>${fieldTx('Address', `<span class="addr-trunc">${esc(formatVenueAddress(e) || (e.city?cleanVenue(e.venue)+' · '+e.city+(e.country?', '+e.country:''):cleanVenue(e.venue)) || 'Tap to add')}</span>`)}
       <button class="header-btn" style="width:34px;height:34px;align-self:center" onclick="event.stopPropagation();openMaps('${jsAttr(venueMapQuery(e))}')">${ICON.map(17)}</button></div>
     ${e.promoter?`<div class="info-line"><div class="ic">${ICON.user(17)}</div>${fieldTx('Artist Liaison', esc(e.promoter.name))}
       ${(e.promoter.phone||e.promoter.whatsapp)?`<button class="btn secondary" style="width:auto;flex:0 0 auto;padding:9px 15px;font-size:13.5px;align-self:center;box-shadow:none" onclick="contactPromoter('${e.id}')">${ICON.chat(15)} Contact</button>`:`<button class="header-btn" style="width:34px;height:34px;align-self:center" onclick="sheetPromoter('${e.id}')">${ICON.edit(15)}</button>`}</div>`:`<div class="info-line" onclick="sheetPromoter('${e.id}')"><div class="ic">${ICON.plus(17)}</div><div class="tx"><div class="v" style="color:var(--accent-2)">Add artist liaison</div></div></div>`}
@@ -772,7 +772,6 @@ function sheetEvent(eid){
       </div>
       <div class="field"><label>Artist</label><input id="ev-artist" class="input" placeholder="${esc(store.settings.artistName||'Artist')}" value="${esc(e.artist||'')}"></div>
     </div>
-    <div class="field"><label>Venue address</label><textarea id="ev-addr" class="textarea" placeholder="Full address for maps & day sheet">${esc(e.venueAddr||'')}</textarea></div>
     <div class="field"><label>Internal notes</label><textarea id="ev-notes" class="textarea" placeholder="Team-only notes">${esc(e.notes||'')}</textarea></div>
   ` : '';
   openSheet(eid?'Edit show':'New show', `
@@ -782,8 +781,14 @@ function sheetEvent(eid){
       <div id="ev-preview-venue" style="font-size:20px;font-weight:800;margin-top:4px">${esc(e?e.venue:'Venue name')}</div>
     </div>
     <div class="field"><label>Venue</label><input id="ev-venue" class="input" placeholder="e.g. Shelter" value="${esc(e?e.venue:'')}" oninput="updateEventPreviewVenue()"></div>
+    <div class="field"><label>Address</label><input id="ev-addr" class="input" placeholder="Street and number" value="${esc(e?e.venueAddr||'':'')}"></div>
+    <div class="field"><label>Address line 2</label><input id="ev-addr2" class="input" placeholder="Building, floor, unit (optional)" value="${esc(e?e.venueAddr2||'':'')}"></div>
     <div class="row-2">
       <div class="field"><label>City</label><input id="ev-city" class="input" placeholder="Amsterdam" value="${esc(e?e.city:'')}"></div>
+      <div class="field"><label>Region</label><input id="ev-region" class="input" placeholder="North Holland" value="${esc(e?e.venueRegion||'':'')}"></div>
+    </div>
+    <div class="row-2">
+      <div class="field"><label>Postcode</label><input id="ev-postcode" class="input" placeholder="1012 AB" value="${esc(e?e.venuePostcode||'':'')}"></div>
       <div class="field"><label>Country</label><input id="ev-country" class="input" placeholder="Netherlands" value="${esc(e?e.country:'')}"></div>
     </div>
     <div class="field picker-field" onclick="openInputPicker('ev-date')">
@@ -853,14 +858,18 @@ function saveEvent(eid){
   const venue = val('ev-venue');
   if(!venue){ toast('Add a venue name','x'); return; }
   const data = {
-    venue, city:val('ev-city'), country:val('ev-country'), date:val('ev-date')||rawVal('ev-date'),
+    venue,
+    venueAddr: val('ev-addr'),
+    venueAddr2: val('ev-addr2'),
+    venueRegion: val('ev-region'),
+    venuePostcode: val('ev-postcode'),
+    city:val('ev-city'), country:val('ev-country'), date:val('ev-date')||rawVal('ev-date'),
     setTime:rawVal('ev-set'), arrival:rawVal('ev-arr'), status:getSeg('ev-status')||'confirmed',
     content:val('ev-content'), color:getCat('ev-cat'),
   };
   if(eid){
     Object.assign(data, {
       endTime: rawVal('ev-end'),
-      venueAddr: val('ev-addr'),
       notes: val('ev-notes'),
       artist: val('ev-artist') || store.settings.artistName,
     });
@@ -871,7 +880,7 @@ function saveEvent(eid){
   if(eid){ Object.assign(sel.event(eid), data); }
   else {
     const ev = Object.assign({id:uid('evt'), artist:store.settings.artistName, tripId:null,
-      venueAddr:'', hotel:null, flights:[], driver:null, promoter:null, notes:'',
+      hotel:null, flights:[], driver:null, promoter:null, notes:'',
       checklist:[], timeline:[], attachments:[],
       finance:{fee:0, currency:store.settings.baseCurrency, dealType:'Guarantee', expenses:[], perDiem:0, commission:0, paid:false}}, data);
     store.events.push(ev);
@@ -1142,14 +1151,32 @@ function sheetVenueAddr(eid){
   const e=sel.event(eid); if(!e) return;
   openSheet('Venue', `
     <div class="field"><label>Venue name</label><input id="va-venue" class="input" value="${esc(e.venue||'')}" placeholder="Venue name"></div>
-    <div class="field"><label>Address</label><textarea id="va-addr" class="textarea" placeholder="Full address">${esc(e.venueAddr||'')}</textarea></div>
+    <div class="field"><label>Address</label><input id="va-addr" class="input" value="${esc(e.venueAddr||'')}" placeholder="Street and number"></div>
+    <div class="field"><label>Address line 2</label><input id="va-addr2" class="input" value="${esc(e.venueAddr2||'')}" placeholder="Building, floor, unit (optional)"></div>
+    <div class="row-2">
+      <div class="field"><label>City</label><input id="va-city" class="input" value="${esc(e.city||'')}" placeholder="Amsterdam"></div>
+      <div class="field"><label>Region</label><input id="va-region" class="input" value="${esc(e.venueRegion||'')}" placeholder="North Holland"></div>
+    </div>
+    <div class="row-2">
+      <div class="field"><label>Postcode</label><input id="va-postcode" class="input" value="${esc(e.venuePostcode||'')}" placeholder="1012 AB"></div>
+      <div class="field"><label>Country</label><input id="va-country" class="input" value="${esc(e.country||'')}" placeholder="Netherlands"></div>
+    </div>
     <button class="btn" id="va-save" onclick="saveVenueAddr('${eid}')">Save</button>
     <div class="spacer"></div>
   `);
 }
 function saveVenueAddr(eid){
   const e=sel.event(eid); if(!e) return;
-  withButton($('#va-save'), ()=>{ e.venue=val('va-venue')||e.venue; e.venueAddr=val('va-addr'); persist('shows', eid); closeSheet(); renderView(); }, 'Saved');
+  withButton($('#va-save'), ()=>{
+    e.venue=val('va-venue')||e.venue;
+    e.venueAddr=val('va-addr');
+    e.venueAddr2=val('va-addr2');
+    e.venueRegion=val('va-region');
+    e.venuePostcode=val('va-postcode');
+    e.city=val('va-city');
+    e.country=val('va-country');
+    persist('shows', eid); closeSheet(); renderView();
+  }, 'Saved');
 }
 function sheetPromoter(eid){
   const e=sel.event(eid); const p=e.promoter||{};
@@ -1410,7 +1437,8 @@ function buildDaySheet(e){
   L.push('');
   L.push('📍 VENUE');
   L.push(`  ${e.venue||''}`);
-  if(e.venueAddr) L.push(`  ${e.venueAddr}`);
+  [e.venueAddr, e.venueAddr2, [e.city, e.venueRegion].filter(Boolean).join(', '), e.venuePostcode, e.country]
+    .filter(Boolean).forEach(line => L.push(`  ${line}`));
   if(e.hotel){ L.push(''); L.push('🏨 HOTEL'); L.push(`  ${e.hotel.name||''}`); if(e.hotel.address||e.hotel.postcode)L.push(`  ${[e.hotel.address, e.hotel.postcode].filter(Boolean).join(', ')}`); if(e.hotel.conf)L.push(`  Conf: ${e.hotel.conf}`); if(e.hotel.checkin)L.push(`  ${fmtDate(e.hotel.checkin)} → ${e.hotel.checkout?fmtDate(e.hotel.checkout):''}`); }
   const contacts=[];
   orderedDrivers(e).forEach(({d})=>{

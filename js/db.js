@@ -28,7 +28,7 @@ function storeSnapshot(){
   add((v2.shows||[]).length); add((v2.journeys||[]).length); add((v2.tours||[]).length);
   (store.events||[]).forEach(e=>{
     add(e.id); add(e.date); add(e.start); add(e.end); add(e.setTime); add(e.endTime);
-    add(e.title); add(e.venue); add(e.venueAddr); add(e.city); add(e.info); add(e.from); add(e.to);
+    add(e.title); add(e.venue); add(e.venueAddr); add(e.venueAddr2); add(e.venueRegion); add(e.venuePostcode); add(e.city); add(e.info); add(e.from); add(e.to);
     add(e.setDone?1:0); add(e.done?1:0); add(e.notes);
     (e.drivers||[]).forEach(d=>{ add(d.journey); add(d.time); add(d.phone); add(d.name); add(d.noGround?1:0); });
     (e.flights||[]).forEach(f=>{ add(f.id); add(f.from); add(f.to); add(f.dep); add(f.code); });

@@ -439,6 +439,24 @@ function fmtDateLong(dstr){
   const d = parseDT(dstr); if(!d) return '';
   return `${DOW[d.getDay()]}, ${d.getDate()} ${MONTHS[d.getMonth()]} ${d.getFullYear()}`;
 }
+/* Full venue address from split fields (line1, line2, city, region, postcode, country). */
+function formatVenueAddress(e, opts={}){
+  if(!e) return '';
+  const parts = opts.withVenue
+    ? [cleanVenue(e.venue), e.venueAddr, e.venueAddr2, e.city, e.venueRegion, e.venuePostcode, e.country]
+    : [e.venueAddr, e.venueAddr2, e.city, e.venueRegion, e.venuePostcode, e.country];
+  const seen = new Set();
+  return parts
+    .map(x => (x || '').toString().trim())
+    .filter(x => {
+      if(!x) return false;
+      const k = x.toLowerCase();
+      if(seen.has(k)) return false;
+      seen.add(k);
+      return true;
+    })
+    .join(', ');
+}
 function relDay(dstr){
   const d = parseDT(dstr); if(!d) return '';
   const today = new Date(); today.setHours(0,0,0,0);
@@ -823,7 +841,7 @@ function seed(){
     s.events.push({ id:uid('evt'), kind:'show', artist:'You', tripId:null,
       status: color==='orange'?'hold':'confirmed', color:(color==='orange'?'orange':'green'),
       venue, city, country:'', date, setTime:start||'', endTime:end||'', arrival:'',
-      venueAddr:'', hotel:null, flights:[], driver:null, promoter:null, notes:'', content:'',
+      venueAddr:'', venueAddr2:'', venueRegion:'', venuePostcode:'', hotel:null, flights:[], driver:null, promoter:null, notes:'', content:'',
       checklist:[], timeline:[], attachments:[],
       finance:{fee:ef.fee, currency:ef.currency, dealType:'Guarantee', expenses:[], perDiem:0, commission:10, paid:false, estimated:true} });
   }

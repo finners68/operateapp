@@ -38,7 +38,7 @@ function viewTripMode(run){
 
     <div class="section">
       <div class="act-grid">
-        <button class="act" onclick="openMaps('${jsAttr(nextShow?(nextShow.venue+' '+(nextShow.venueAddr||nextShow.city)):run.title)}')"><div class="ic" style="background:var(--blue-soft);color:var(--blue)">${ICON.map(20)}</div><span>Venue</span></button>
+        <button class="act" onclick="openMaps('${jsAttr(nextShow?(formatVenueAddress(nextShow,{withVenue:true})||(nextShow.venue+' '+(nextShow.city||''))):run.title)}')"><div class="ic" style="background:var(--blue-soft);color:var(--blue)">${ICON.map(20)}</div><span>Venue</span></button>
         <button class="act" onclick="openView('event','${nextShow?nextShow.id:''}')"><div class="ic" style="background:var(--accent-soft);color:var(--accent-2)">${ICON.music(20)}</div><span>Show</span></button>
         <button class="act" onclick="go('calendar')"><div class="ic" style="background:var(--card-2);color:var(--text-2)">${ICON.calendar(20)}</div><span>Calendar</span></button>
         <button class="act" onclick="openView('contacts')"><div class="ic" style="background:var(--orange-soft);color:var(--orange)">${ICON.user(20)}</div><span>Contacts</span></button>
@@ -147,7 +147,11 @@ function venueMapQuery(sh){
     const alt = store.events.find(e=>(e.kind||'show')==='show' && e.id!==sh.id && e.date===sh.date && cleanVenue(e.venue));
     if(alt){ name = cleanVenue(alt.venue); city = city || alt.city; country = country || alt.country; }
   }
-  const parts = name ? [name, city, country] : [sh.venueAddr, city, country];
+  if(typeof formatVenueAddress === 'function'){
+    const full = formatVenueAddress({ ...sh, venue: name || sh.venue, city, country }, { withVenue: !!name });
+    if(full) return full;
+  }
+  const parts = name ? [name, city, country] : [sh.venueAddr, sh.venueAddr2, city, sh.venueRegion, sh.venuePostcode, country];
   const seen = new Set();
   return parts
     .map(x=>(x||'').trim())
@@ -265,7 +269,7 @@ function stepPills(s){
     if(sh) pills.push(`<div class="pill" onclick="event.stopPropagation();openView('event','${sh.id}')"><div class="ic">${ICON.bed(16)}</div><div class="tx"><b>Details</b><span>Full show</span></div></div>`);
   } else if(s.kind==='set'){
     if(sh){
-      if(mq) pills.push(mapPill('Venue', sh.venueAddr?esc(sh.venueAddr.slice(0,22)):'Open in Maps'));
+      if(mq){ const addrLabel=formatVenueAddress(sh)||sh.venueAddr||''; pills.push(mapPill('Venue', addrLabel?esc(addrLabel.slice(0,22)):'Open in Maps')); }
       if(sh.promoter&&(sh.promoter.phone||sh.promoter.whatsapp)) pills.push(`<div class="pill" onclick="event.stopPropagation();contactPromoter('${sh.id}')"><div class="ic">${ICON.user(16)}</div><div class="tx"><b>Liaison</b><span>WhatsApp</span></div></div>`);
       const dl=showDrivers(sh); const dn=dl.filter(d=>!d.noGround).length; const ng=dl.some(d=>d.noGround);
       if(dl.length) pills.push(`<div class="pill" onclick="event.stopPropagation();showTransport('${sh.id}')"><div class="ic">${ICON.car(16)}</div><div class="tx"><b>Transport</b><span>${dn?dn+' driver'+(dn>1?'s':'')+(ng?' · Uber':''):'Uber/taxi'}</span></div></div>`);

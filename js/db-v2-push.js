@@ -18,7 +18,9 @@ function v2Iata(v){
 }
 function v2CountryCode(v){
   const s = String(v || '').trim().toUpperCase();
-  return /^[A-Z]{2}$/.test(s) ? s : null;
+  if(/^[A-Z]{2}$/.test(s)) return s;
+  if(typeof countryISO === 'function') return countryISO(v);
+  return null;
 }
 
 function v2EnsureId(obj){
@@ -512,7 +514,10 @@ async function pushToSupabaseV2(orgId, dirtyIn){
         legacy_id: existingVenue?.legacy_id || null,
         venue_name: s.venue || 'Venue',
         address_line_1: s.venueAddr || null,
+        address_line_2: s.venueAddr2 || null,
         city: s.city || null,
+        region: s.venueRegion || null,
+        postal_code: s.venuePostcode || null,
         country_code: v2CountryCode(s.country)
       });
     }

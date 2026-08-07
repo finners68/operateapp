@@ -17,7 +17,10 @@ function showDisplay(show, venue, artist){
     setTime: show.set_start_time ? String(show.set_start_time).slice(0, 5) : '',
     endTime: show.set_end_time ? String(show.set_end_time).slice(0, 5) : '',
     arrival: show.venue_arrival_time ? String(show.venue_arrival_time).slice(0, 5) : '',
-    venueAddr: [venue?.address_line_1, venue?.address_line_2].filter(Boolean).join(', '),
+    venueAddr: venue?.address_line_1 || '',
+    venueAddr2: venue?.address_line_2 || '',
+    venueRegion: venue?.region || '',
+    venuePostcode: venue?.postal_code || '',
     notes: show.internal_notes || '',
     content: show.content_plan || '',
     setDone: !!show.is_set_done
