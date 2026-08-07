@@ -1183,8 +1183,8 @@ function sheetPromoter(eid){
   openSheet('Artist Liaison', `
     <div class="field"><label>Name</label><input id="pr-name" class="input" value="${esc(p.name||'')}" placeholder="Lena"></div>
     <div class="field"><label>Phone</label><input id="pr-phone" type="tel" class="input" value="${esc(p.phone||'')}" placeholder="+31 6 99887766"></div>
-    <div class="field"><label>WhatsApp (if different)</label><input id="pr-wa" type="tel" class="input" value="${esc(p.whatsapp||'')}" placeholder="+31 6 99887766"></div>
-    <div class="hint" style="padding:2px 2px 8px">Contact opens WhatsApp using the phone number unless a separate WhatsApp number is set.</div>
+    <div class="field"><label>WhatsApp (if different)</label><input id="pr-wa" type="tel" class="input" value="${esc(p.whatsapp&&p.whatsapp!==p.phone?p.whatsapp:'')}" placeholder="Same as phone if left blank"></div>
+    <div class="hint" style="padding:2px 2px 8px">Leave WhatsApp blank to use the phone number for both.</div>
     <button class="btn" id="pr-save" onclick="savePromoter('${eid}')">Save contact</button>
     ${(e.promoter&&passEditable())?`<button class="btn danger" style="margin-top:10px" onclick="removePromoter('${eid}')">${ICON.trash(16)} Remove contact</button>`:''}
     <div class="spacer"></div>
@@ -1193,7 +1193,12 @@ function sheetPromoter(eid){
 function savePromoter(eid){
   const e=sel.event(eid); const name=val('pr-name');
   if(!name){ toast('Add a name','x'); return; }
-  withButton($('#pr-save'), ()=>{ e.promoter={name,phone:val('pr-phone'),whatsapp:val('pr-wa')}; persist('shows', eid); closeSheet(); renderView(); }, 'Promoter saved');
+  withButton($('#pr-save'), ()=>{
+    const phone = val('pr-phone');
+    const whatsapp = val('pr-wa') || phone;
+    e.promoter = { name, phone, whatsapp };
+    persist('shows', eid); closeSheet(); renderView();
+  }, 'Promoter saved');
 }
 /* ---- Advancing: rich, ABOSS-depth show-day info. Every field hidden unless filled. ---- */
 function advRow(icon,k,v,extra){ if(!v) return ''; return `<div class="info-line"><div class="ic">${icon}</div>${fieldTx(k, `<span style="white-space:pre-wrap">${esc(v)}</span>`)}${extra||''}</div>`; }

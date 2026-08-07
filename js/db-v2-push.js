@@ -227,7 +227,7 @@ async function v2EnsureContact(sb, orgId, c, cache){
     display_name: c.name,
     email_address: c.email || null,
     phone_number: c.phone || null,
-    whatsapp_number: c.whatsapp || null,
+    whatsapp_number: c.whatsapp || c.phone || null,
     contact_notes: c.notes || null
   };
   const data = await v2UpsertOneByLegacy(sb, 'contacts', orgId, row);
