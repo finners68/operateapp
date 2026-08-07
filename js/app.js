@@ -546,16 +546,13 @@ function renderTimePickerBody(){
   const hours = Array.from({length:24}, (_,i)=>i);
   const mins = Array.from({length:12}, (_,i)=>i*5);
   const html = `
-    <div class="dt-picker-head">
-      <button type="button" class="header-btn" style="width:32px;height:32px" onclick="closeDateTimePicker()">${ICON.x(18)}</button>
+    <div class="dt-picker-head dt-picker-head-compact">
+      <button type="button" class="dt-icon-btn" onclick="closeDateTimePicker()" aria-label="Close">${ICON.x(16)}</button>
       <div class="dt-picker-title">${esc(title)}</div>
-      <button type="button" class="link-btn" onclick="dtConfirmTime()">Done</button>
+      <button type="button" class="link-btn dt-done" onclick="dtConfirmTime()">Done</button>
     </div>
-    <div class="dt-picker-hero">
-      <div class="dt-picker-hero-label">Selected</div>
-      <div class="dt-picker-hero-value mono" id="dt-time-hero">${pad(hh)}:${pad(mm)}</div>
-    </div>
-    <div class="dt-wheels" aria-label="Time wheels">
+    <div class="dt-time-readout mono" id="dt-time-hero">${pad(hh)}:${pad(mm)}</div>
+    <div class="dt-wheels dt-wheels-compact" aria-label="Time wheels">
       <div class="dt-wheel-fade"></div>
       <div class="dt-wheel-center"></div>
       <div class="dt-wheel" id="dt-wheel-h" onscroll="dtWheelScroll('h')">
@@ -570,26 +567,30 @@ function renderTimePickerBody(){
         <div class="dt-wheel-pad"></div>
       </div>
     </div>
-    <div class="dt-quick">
-      ${[['21:00',21,0],['22:00',22,0],['23:00',23,0],['00:00',0,0],['01:00',1,0]].map(([l,h,m])=>
-        `<button type="button" class="chip ${hh===h&&mm===m?'on':''}" onclick="dtSetTime(${h},${m})">${l}</button>`
+    <div class="dt-quick dt-quick-compact">
+      ${[['21:00',21,0],['22:00',22,0],['23:00',23,0],['00:00',0,0]].map(([l,h,m])=>
+        `<button type="button" class="dt-chip ${hh===h&&mm===m?'on':''}" onclick="dtSetTime(${h},${m})">${l}</button>`
       ).join('')}
+      ${allowClear?`<button type="button" class="dt-chip muted" onclick="dtClearTime()">Clear</button>`:''}
     </div>
-    ${allowClear?`<button type="button" class="btn secondary" style="margin-top:12px" onclick="dtClearTime()">Clear time</button>`:''}
-    <button type="button" class="btn" style="margin-top:10px" onclick="dtConfirmTime()">Use time</button>
   `;
   if(dtPickerEl){
     const panel = dtPickerEl.querySelector('.dt-picker-panel');
-    if(panel) panel.innerHTML = html;
+    if(panel){
+      panel.classList.add('dt-picker-panel-time');
+      panel.innerHTML = html;
+    }
   } else {
-    mountDateTimePicker(html);
+    const wrap = mountDateTimePicker(html);
+    const panel = wrap && wrap.querySelector('.dt-picker-panel');
+    if(panel) panel.classList.add('dt-picker-panel-time');
   }
 }
 function dtScrollWheels(smooth){
   if(!dtPickerState || dtPickerState.mode !== 'time') return;
   const hWheel = document.getElementById('dt-wheel-h');
   const mWheel = document.getElementById('dt-wheel-m');
-  const itemH = 44;
+  const itemH = 36;
   if(hWheel) hWheel.scrollTo({ top: dtPickerState.hh * itemH, behavior: smooth ? 'smooth' : 'auto' });
   if(mWheel) mWheel.scrollTo({ top: (dtPickerState.mm / 5) * itemH, behavior: smooth ? 'smooth' : 'auto' });
 }
@@ -600,7 +601,7 @@ function dtWheelScroll(which){
     if(!dtPickerState || dtPickerState.mode !== 'time') return;
     const wheel = document.getElementById(which === 'h' ? 'dt-wheel-h' : 'dt-wheel-m');
     if(!wheel) return;
-    const itemH = 44;
+    const itemH = 36;
     const idx = Math.round(wheel.scrollTop / itemH);
     if(which === 'h'){
       dtPickerState.hh = Math.min(23, Math.max(0, idx));
