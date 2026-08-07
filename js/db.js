@@ -246,13 +246,24 @@ async function attachPassToShowFlight(showId, flightId, att, passengerId){
   const f = e && e.flights && e.flights.find(x => x.id === flightId);
   if(!f || !att) return false;
   if(typeof ensureFlightPassengers === 'function') ensureFlightPassengers(f);
+  const draft = (typeof flightSheetPaxDraft === 'function' && passengerId)
+    ? (flightSheetPaxDraft(passengerId) || { name: '', seat: '' })
+    : { name: '', seat: '' };
   let pax = (f.passengers || []).find(p => p.id === passengerId);
-  if(!pax){
+  if(!pax && passengerId){
+    /* Edit-sheet "Add person" creates a row before Save. Create that passenger
+       now so the pass attaches under them — not under passenger #1. */
+    pax = { id: passengerId, name: draft.name || '', seat: draft.seat || '', passes: [] };
+    (f.passengers = f.passengers || []).push(pax);
+  } else if(!pax){
     if(!(f.passengers || []).length){
-      f.passengers = [{ id: passengerId || uid('pax'), name: '', seat: f.seat || '', passes: [] }];
+      f.passengers = [{ id: uid('pax'), name: '', seat: f.seat || '', passes: [] }];
       f.seat = '';
     }
     pax = f.passengers[0];
+  } else {
+    if(draft.name) pax.name = draft.name;
+    if(draft.seat) pax.seat = draft.seat;
   }
   (pax.passes = pax.passes || []).push(att);
   att._passengerId = pax.id;
@@ -262,6 +273,9 @@ async function attachPassToShowFlight(showId, flightId, att, passengerId){
   persist('shows', showId);
   if(typeof pushShowNow === 'function') pushShowNow(showId);
   renderView();
+  if(typeof refreshFlightSheetPaxPasses === 'function'){
+    refreshFlightSheetPaxPasses(showId, flightId, pax.id);
+  }
   return true;
 }
 function openPassByRef(itemId, passId, flightId){

@@ -1065,6 +1065,43 @@ function addFlightPaxRow(eid, fid){
   list.insertAdjacentHTML('beforeend', flightSheetPaxRow(pax, list.children.length, eid, fid||''));
   haptic();
 }
+/* Read name/seat typed in the open flight sheet for a passenger row that may
+   not have been saved yet. */
+function flightSheetPaxDraft(passengerId){
+  if(!passengerId) return { name: '', seat: '' };
+  const row = [...document.querySelectorAll('#fl-pax-list .fl-pax-row')]
+    .find(r => r.getAttribute('data-pax-id') === passengerId);
+  if(!row) return { name: '', seat: '' };
+  return {
+    name: (row.querySelector('.fl-pax-name')?.value || '').trim(),
+    seat: (row.querySelector('.fl-pax-seat')?.value || '').trim()
+  };
+}
+/* After a pass upload, update thumbs in the open sheet without rebuilding it
+   (so other unsaved fields stay intact). */
+function refreshFlightSheetPaxPasses(eid, fid, passengerId){
+  if(!eid || !fid || !passengerId) return;
+  const e = sel.event(eid);
+  const f = e && (e.flights || []).find(x => x.id === fid);
+  const pax = f && (f.passengers || []).find(p => p.id === passengerId);
+  if(!pax) return;
+  const row = [...document.querySelectorAll('#fl-pax-list .fl-pax-row')]
+    .find(r => r.getAttribute('data-pax-id') === passengerId);
+  if(!row) return;
+  const html = (pax.passes && pax.passes.length)
+    ? `<div class="thumb-row fl-pax-passes" style="margin-top:8px">${pax.passes.map(p=>passThumb(eid, p, passEditable()?`delFlightPass('${eid}','${fid}','${p.id}','${passengerId}')`:null, fid)).join('')}</div>`
+    : '';
+  const existing = row.querySelector('.thumb-row');
+  if(existing){
+    if(html) existing.outerHTML = html;
+    else existing.remove();
+    return;
+  }
+  if(!html) return;
+  const upload = row.querySelector('label.btn');
+  if(upload) upload.insertAdjacentHTML('afterend', html);
+  else row.insertAdjacentHTML('beforeend', html);
+}
 function collectFlightPaxFromSheet(eid, fid, existing){
   const prevById = Object.create(null);
   (existing || []).forEach(p => { if(p && p.id) prevById[p.id] = p; });
