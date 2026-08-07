@@ -280,6 +280,18 @@ function v2ResolveVenueIdForShow(s){
 async function v2UpsertPk(sb, table, row, onConflict){
   const { data, error } = await sb.from(table).upsert(row, { onConflict }).select('*').maybeSingle();
   v2Throw(error, table + ' upsert');
+  /* show_advances / show_financials use show_id as PK — patch local by that key. */
+  if(data && store?.v2){
+    const pk = onConflict || 'id';
+    if(pk === 'id' && typeof v2RepoPatchLocal === 'function'){
+      v2RepoPatchLocal(table, data);
+    } else if(store.v2[table] && Array.isArray(store.v2[table]) && data[pk]){
+      const list = store.v2[table];
+      const i = list.findIndex(r => r && r[pk] === data[pk]);
+      if(i >= 0) list[i] = Object.assign({}, list[i], data);
+      else list.push(data);
+    }
+  }
   return data;
 }
 

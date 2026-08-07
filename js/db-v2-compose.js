@@ -195,7 +195,11 @@ async function composeViewFromV2(v2, opts){
       navAddr: a.navigation_address || '',
       remarks: a.general_remarks || ''
     };
-    const fromCol = Array.isArray(a.running_order) ? a.running_order : [];
+    let fromCol = a.running_order;
+    if(typeof fromCol === 'string'){
+      try{ fromCol = JSON.parse(fromCol); }catch(e){ fromCol = []; }
+    }
+    if(!Array.isArray(fromCol)) fromCol = [];
     const schedule = fromCol
       .map(s => ({
         id: s.id,
@@ -205,7 +209,7 @@ async function composeViewFromV2(v2, opts){
         done: !!s.done
       }))
       .filter(s => s.time || s.label);
-    if(schedule.length) adv.schedule = schedule;
+    adv.schedule = schedule;
     return Object.keys(adv).length ? adv : null;
   }
 

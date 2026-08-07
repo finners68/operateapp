@@ -1245,19 +1245,42 @@ function addRoRow(){
 }
 function saveAdvance(eid){
   const e=sel.event(eid);
+  if(!e){ toast('Show not found','x'); return; }
   const schedule=[...document.querySelectorAll('#ad-ro .ro-edit')].map(r=>{
     let id = r.getAttribute('data-id') || '';
     if(!id || (typeof isUuid === 'function' && !isUuid(id))){
       id = (typeof newUuid === 'function') ? newUuid() : uid('ro');
     }
-    return {
-      id,
-      time:(r.querySelector('.ro-t')||{}).value||'',
-      label:(r.querySelector('.ro-l')||{}).value||''
-    };
+    const timeEl = r.querySelector('.ro-t');
+    const time = ((timeEl && timeEl.value) || '').toString().trim().slice(0, 5);
+    const label = ((r.querySelector('.ro-l')||{}).value || '').toString().trim();
+    return { id, time, label };
   }).filter(s=>s.time||s.label);
   withButton($('#ad-save'), ()=>{
     e.advance={stage:val('ad-stage'),schedule,access:val('ad-access'),soundcheck:val('ad-sc'),curfew:val('ad-curfew'),dressingRoom:val('ad-dr'),guestlist:val('ad-gl'),catering:val('ad-cat'),parking:val('ad-park'),wifi:val('ad-wifi'),navAddr:val('ad-nav'),remarks:val('ad-rem')};
+    /* Keep v2 mirror in sync so a mid-push reload cannot drop the new order. */
+    if(store?.v2 && Array.isArray(store.v2.show_advances) && isUuid && isUuid(e.id)){
+      const row = {
+        show_id: e.id,
+        organisation_id: store.organisationId || currentOrgId || null,
+        stage_name: e.advance.stage || null,
+        access_notes: e.advance.access || null,
+        soundcheck_notes: e.advance.soundcheck || null,
+        curfew_notes: e.advance.curfew || null,
+        dressing_room_notes: e.advance.dressingRoom || null,
+        guestlist_notes: e.advance.guestlist || null,
+        catering_notes: e.advance.catering || null,
+        parking_notes: e.advance.parking || null,
+        wifi_notes: e.advance.wifi || null,
+        navigation_address: e.advance.navAddr || null,
+        general_remarks: e.advance.remarks || null,
+        running_order: schedule
+      };
+      const list = store.v2.show_advances;
+      const i = list.findIndex(r => r && r.show_id === e.id);
+      if(i >= 0) list[i] = Object.assign({}, list[i], row);
+      else list.push(row);
+    }
     persist('shows', eid); closeSheet(); renderView();
   }, 'Details saved');
 }

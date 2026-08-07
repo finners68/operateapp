@@ -92,25 +92,50 @@ function clearLegacyLocalStore(){
   try{ localStorage.removeItem(DB_KEY_LEGACY + '.prelogistics'); }catch(e){}
 }
 
+function _dirtyEpochKey(table, id){
+  return String(table) + ':' + String(id == null ? '*' : id);
+}
+function _bumpDirtyEpoch(table, id){
+  if(!store) return 0;
+  if(!store._dirtyEpoch) store._dirtyEpoch = Object.create(null);
+  const key = _dirtyEpochKey(table, id);
+  store._dirtyEpoch[key] = (store._dirtyEpoch[key] || 0) + 1;
+  return store._dirtyEpoch[key];
+}
+function _dirtyEpoch(table, id){
+  if(!store || !store._dirtyEpoch) return 0;
+  return store._dirtyEpoch[_dirtyEpochKey(table, id)] || 0;
+}
+
 function markDirty(table, id){
   if(!store) return;
   if(!store._dirty) store._dirty = Object.create(null);
   if(id == null || id === '*'){
     store._dirty[table] = '*';
+    _bumpDirtyEpoch(table, '*');
     return;
   }
-  if(store._dirty[table] === '*') return;
+  if(store._dirty[table] === '*'){
+    _bumpDirtyEpoch(table, id);
+    return;
+  }
   if(!(store._dirty[table] instanceof Set)) store._dirty[table] = new Set();
   store._dirty[table].add(id);
+  _bumpDirtyEpoch(table, id);
 }
 
 function markDirtyAll(){
   if(!store) return;
   store._dirty = { '*': '*' };
+  store._dirtyEpoch = Object.create(null);
+  _bumpDirtyEpoch('*', '*');
 }
 
 function clearDirty(){
-  if(store) store._dirty = Object.create(null);
+  if(store){
+    store._dirty = Object.create(null);
+    store._dirtyEpoch = Object.create(null);
+  }
 }
 
 function isDirty(table, id){
@@ -156,33 +181,51 @@ function dirtyIds(dirty, table){
 function cloneDirty(dirty){
   const out = Object.create(null);
   if(!dirty) return out;
+  const epochs = Object.create(null);
   Object.keys(dirty).forEach(k => {
+    if(k === '_epochs') return;
     const d = dirty[k];
-    if(d === '*') out[k] = '*';
-    else if(d instanceof Set) out[k] = new Set(d);
+    if(d === '*'){
+      out[k] = '*';
+      epochs[_dirtyEpochKey(k, '*')] = _dirtyEpoch(k, '*');
+    } else if(d instanceof Set){
+      out[k] = new Set(d);
+      d.forEach(id => { epochs[_dirtyEpochKey(k, id)] = _dirtyEpoch(k, id); });
+    }
   });
+  out._epochs = epochs;
   return out;
 }
 
-/* Remove snapshot entries from live dirty; keep newer ids marked after snapshot. */
+/* Remove snapshot entries from live dirty; keep ids re-marked after the snapshot. */
 function subtractDirty(live, snapshot){
   if(!live || !snapshot) return;
+  const snapEpochs = snapshot._epochs || Object.create(null);
   if(snapshot['*'] === '*'){
+    const snapEp = snapEpochs[_dirtyEpochKey('*', '*')] || 0;
+    if(_dirtyEpoch('*', '*') > snapEp) return;
     if(live['*'] === '*') delete live['*'];
     return;
   }
   Object.keys(snapshot).forEach(table => {
+    if(table === '_epochs') return;
     const snap = snapshot[table];
     const cur = live[table];
     if(cur == null) return;
     if(snap === '*'){
+      const snapEp = snapEpochs[_dirtyEpochKey(table, '*')] || 0;
+      if(_dirtyEpoch(table, '*') > snapEp) return;
       delete live[table];
       return;
     }
     if(!(snap instanceof Set)) return;
     if(cur === '*') return; /* live was widened to full table — keep it */
     if(!(cur instanceof Set)) return;
-    snap.forEach(id => cur.delete(id));
+    snap.forEach(id => {
+      const snapEp = snapEpochs[_dirtyEpochKey(table, id)] || 0;
+      if(_dirtyEpoch(table, id) > snapEp) return; /* re-dirtied during push — keep */
+      cur.delete(id);
+    });
     if(!cur.size) delete live[table];
   });
 }
