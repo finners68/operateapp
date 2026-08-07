@@ -558,11 +558,22 @@ function travelGroupBody(e){
   return flightsSubsection(e)+hotelSubsection(e)+driverSubsection(e)+transfersSubsection(e);
 }
 function venueSubsection(e){
+  const addr = formatVenueAddress(e);
+  const addrDisplay = addr || (e.city ? [e.city, e.country].filter(Boolean).join(', ') : '') || 'Tap to add';
+  const mapQ = venueMapQuery(e);
   const body = `<div class="card flush">
-    <div class="info-line" onclick="sheetVenueAddr('${e.id}')"><div class="ic">${ICON.pin(17)}</div>${fieldTx('Address', `<span class="addr-trunc">${esc(formatVenueAddress(e) || (e.city?cleanVenue(e.venue)+' · '+e.city+(e.country?', '+e.country:''):cleanVenue(e.venue)) || 'Tap to add')}</span>`)}
-      <button class="header-btn" style="width:34px;height:34px;align-self:center" onclick="event.stopPropagation();openMaps('${jsAttr(venueMapQuery(e))}')">${ICON.map(17)}</button></div>
-    ${e.promoter?`<div class="info-line"><div class="ic">${ICON.user(17)}</div>${fieldTx('Artist Liaison', esc(e.promoter.name))}
-      ${(e.promoter.phone||e.promoter.whatsapp)?`<button class="btn secondary" style="width:auto;flex:0 0 auto;padding:9px 15px;font-size:13.5px;align-self:center;box-shadow:none" onclick="contactPromoter('${e.id}')">${ICON.chat(15)} Contact</button>`:`<button class="header-btn" style="width:34px;height:34px;align-self:center" onclick="sheetPromoter('${e.id}')">${ICON.edit(15)}</button>`}</div>`:`<div class="info-line" onclick="sheetPromoter('${e.id}')"><div class="ic">${ICON.plus(17)}</div><div class="tx"><div class="v" style="color:var(--accent-2)">Add artist liaison</div></div></div>`}
+    <div class="info-line">
+      <div class="ic">${ICON.pin(17)}</div>
+      ${fieldTx('Address', `<span class="addr-trunc">${esc(addrDisplay)}</span>`)}
+      ${mapQ?`<button type="button" class="header-btn" style="width:34px;height:34px;align-self:center" onclick="openMaps('${jsAttr(mapQ)}')" title="Open in Maps">${ICON.map(17)}</button>`:''}
+      <button type="button" class="header-btn" style="width:34px;height:34px;align-self:center" onclick="sheetVenueAddr('${e.id}')" title="Edit venue">${ICON.edit(15)}</button>
+    </div>
+    ${e.promoter?`<div class="info-line">
+      <div class="ic">${ICON.user(17)}</div>
+      ${fieldTx('Artist Liaison', esc(e.promoter.name||'Liaison'))}
+      ${(e.promoter.phone||e.promoter.whatsapp)?`<button type="button" class="btn secondary" style="width:auto;flex:0 0 auto;padding:9px 15px;font-size:13.5px;align-self:center;box-shadow:none" onclick="contactPromoter('${e.id}')">${ICON.chat(15)} Contact</button>`:''}
+      <button type="button" class="header-btn" style="width:34px;height:34px;align-self:center" onclick="sheetPromoter('${e.id}')" title="Edit liaison">${ICON.edit(15)}</button>
+    </div>`:`<div class="info-line" onclick="sheetPromoter('${e.id}')"><div class="ic">${ICON.plus(17)}</div><div class="tx"><div class="v" style="color:var(--accent-2)">Add artist liaison</div></div></div>`}
   </div>`;
   return showSubsection('Venue & liaison', '', body);
 }

@@ -38,7 +38,7 @@ function viewTripMode(run){
 
     <div class="section">
       <div class="act-grid">
-        <button class="act" onclick="openMaps('${jsAttr(nextShow?(formatVenueAddress(nextShow,{withVenue:true})||(nextShow.venue+' '+(nextShow.city||''))):run.title)}')"><div class="ic" style="background:var(--blue-soft);color:var(--blue)">${ICON.map(20)}</div><span>Venue</span></button>
+        <button class="act" onclick="openMaps('${jsAttr(nextShow?(venueMapQuery(nextShow)||formatVenueAddress(nextShow)||([nextShow.city,nextShow.country].filter(Boolean).join(', '))):run.title)}')"><div class="ic" style="background:var(--blue-soft);color:var(--blue)">${ICON.map(20)}</div><span>Venue</span></button>
         <button class="act" onclick="openView('event','${nextShow?nextShow.id:''}')"><div class="ic" style="background:var(--accent-soft);color:var(--accent-2)">${ICON.music(20)}</div><span>Show</span></button>
         <button class="act" onclick="go('calendar')"><div class="ic" style="background:var(--card-2);color:var(--text-2)">${ICON.calendar(20)}</div><span>Calendar</span></button>
         <button class="act" onclick="openView('contacts')"><div class="ic" style="background:var(--orange-soft);color:var(--orange)">${ICON.user(20)}</div><span>Contacts</span></button>
@@ -139,19 +139,12 @@ function resolvePlace(token, sh, city, role, legDate){
    address only when there's no venue name. */
 function venueMapQuery(sh){
   if(!sh) return '';
-  let name = cleanVenue(sh.venue);
-  let city = sh.city, country = sh.country;
-  // If this show has no venue name, borrow it from another show on the same day
-  // (a transfer's "Venue" is wherever you're playing that date).
-  if(!name && sh.date && typeof store!=='undefined' && store.events){
-    const alt = store.events.find(e=>(e.kind||'show')==='show' && e.id!==sh.id && e.date===sh.date && cleanVenue(e.venue));
-    if(alt){ name = cleanVenue(alt.venue); city = city || alt.city; country = country || alt.country; }
-  }
+  /* Maps should use the street address only — not the venue/club name. */
   if(typeof formatVenueAddress === 'function'){
-    const full = formatVenueAddress({ ...sh, venue: name || sh.venue, city, country }, { withVenue: !!name });
-    if(full) return full;
+    const addr = formatVenueAddress(sh);
+    if(addr) return addr;
   }
-  const parts = name ? [name, city, country] : [sh.venueAddr, sh.venueAddr2, city, sh.venueRegion, sh.venuePostcode, country];
+  const parts = [sh.venueAddr, sh.venueAddr2, sh.city, sh.venueRegion, sh.venuePostcode, sh.country];
   const seen = new Set();
   return parts
     .map(x=>(x||'').trim())
