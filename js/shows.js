@@ -778,7 +778,7 @@ function flightLine(eid,f){
     <div class="ic">${ICON.plane(17)}</div>
     ${detailTx(esc(f.code||'Flight'), esc(route), meta)}
     <button type="button" class="add" style="align-self:center" onclick="sheetFlight('${eid}','${f.id}')">Edit</button>
-    <button class="del" style="opacity:.5;align-self:center" onclick="delFlight('${eid}','${f.id}')">${ICON.x(15)}</button>
+    <button type="button" class="header-btn" style="width:34px;height:34px;align-self:center;color:var(--red)" title="Remove flight" onclick="confirmRemoveFlight('${eid}','${f.id}')">${ICON.trash(15)}</button>
   </div>${paxBlock}`;
 }
 function flightPaxLine(eid,f,pax){
@@ -790,6 +790,7 @@ function flightPaxLine(eid,f,pax){
       <div class="ic">${ICON.users(15)}</div>
       ${detailTx(title, seat)}
       <label class="header-btn" style="width:34px;height:34px;align-self:center" title="Boarding pass">${ICON.ticket(16)}<input type="file" accept="${PASS_FILE_ACCEPT}" style="display:none" onchange="uploadPass('${eid}','${f.id}',this,'${pax.id}')"></label>
+      <button type="button" class="header-btn" style="width:34px;height:34px;align-self:center;color:var(--red)" title="Remove person" onclick="confirmRemoveFlightPassenger('${eid}','${f.id}','${pax.id}')">${ICON.trash(15)}</button>
     </div>
     ${passes.length?`<div style="padding:0 16px 10px 52px"><div class="thumb-row">${passes.map(p=>passThumb(eid, p, passEditable()?`delFlightPass('${eid}','${f.id}','${p.id}','${pax.id}')`:null, f.id)).join('')}</div></div>`
       :`<div style="padding:0 16px 10px 52px;color:var(--text-3);font-size:12px">No boarding pass yet</div>`}
@@ -1036,7 +1037,7 @@ function sheetFlight(eid, fid){
       <div class="hint" style="padding:8px 2px 0">Same flight for everyone — each person has their own seat and boarding pass.</div>
     </div>
     <button class="btn" id="fl-save" onclick="saveFlight('${eid}','${fid||''}')">${editing?'Save flight':'Add flight'}</button>
-    ${(editing&&passEditable())?`<button class="btn danger" style="margin-top:10px" onclick="delFlight('${eid}','${f.id}');closeSheet()">${ICON.trash(16)} Remove flight</button>`:''}
+    ${editing?`<button type="button" class="btn danger" style="margin-top:10px" onclick="confirmRemoveFlight('${eid}','${f.id}')">${ICON.trash(16)} Remove flight</button>`:''}
     <div class="spacer"></div>
   `);
 }
@@ -1055,7 +1056,7 @@ function flightSheetPaxRow(pax, idx, eid, fid){
     </div>
     ${upload}
     ${passThumbs}
-    <button type="button" class="del" style="opacity:.55;margin-top:8px" onclick="this.closest('.fl-pax-row').remove()">${ICON.x(14)} Remove person</button>
+    <button type="button" class="btn secondary" style="margin-top:8px" onclick="removeFlightPaxFromSheet(this,'${eid}','${fid||''}','${pid}')">${ICON.trash(14)} Remove person</button>
   </div>`;
 }
 function addFlightPaxRow(eid, fid){
@@ -1151,7 +1152,72 @@ function saveFlight(eid, fid){
     renderView();
   }, existing ? 'Flight saved' : 'Flight added');
 }
-function delFlight(eid,fid){ const e=sel.event(eid); e.flights=e.flights.filter(f=>f.id!==fid); persist('shows', eid); if(typeof pushShowNow==='function') pushShowNow(eid); renderView(); toast('Flight removed','trash'); }
+function delFlight(eid,fid){
+  const e=sel.event(eid); if(!e) return;
+  e.flights=(e.flights||[]).filter(f=>f.id!==fid);
+  persist('shows', eid);
+  if(typeof pushShowNow==='function') pushShowNow(eid);
+  renderView();
+  toast('Flight removed','trash');
+}
+function confirmRemoveFlight(eid, fid){
+  const e=sel.event(eid);
+  const f=e && (e.flights||[]).find(x=>x.id===fid);
+  const label=(f && f.code) || 'this flight';
+  confirmSheet(
+    'Remove flight?',
+    `Remove ${label} from this show, including passengers and boarding passes.`,
+    'Remove flight',
+    ()=>{ delFlight(eid, fid); },
+    true
+  );
+}
+function delFlightPassenger(eid, fid, paxId){
+  const e=sel.event(eid); if(!e || !fid || !paxId) return;
+  const f=(e.flights||[]).find(x=>x.id===fid); if(!f) return;
+  if(typeof ensureFlightPassengers==='function') ensureFlightPassengers(f);
+  f.passengers=(f.passengers||[]).filter(p=>p.id!==paxId);
+  f.seat='';
+  f.passes=[];
+  persist('shows', eid);
+  if(typeof pushShowNow==='function') pushShowNow(eid);
+  renderView();
+  toast('Person removed','trash');
+}
+function confirmRemoveFlightPassenger(eid, fid, paxId){
+  const e=sel.event(eid);
+  const f=e && (e.flights||[]).find(x=>x.id===fid);
+  const p=f && (f.passengers||[]).find(x=>x.id===paxId);
+  const name=(p && p.name) || 'this person';
+  confirmSheet(
+    'Remove person?',
+    `${name} will be removed from this flight, including their boarding pass.`,
+    'Remove person',
+    ()=>{ delFlightPassenger(eid, fid, paxId); },
+    true
+  );
+}
+/* Remove a passenger row in the open flight sheet. If the flight is already
+   saved, drop them from the show immediately so it sticks even before Save. */
+function removeFlightPaxFromSheet(btn, eid, fid, paxId){
+  const row=btn && btn.closest('.fl-pax-row');
+  if(row) row.remove();
+  if(fid && paxId){
+    const e=sel.event(eid);
+    const f=e && (e.flights||[]).find(x=>x.id===fid);
+    if(f){
+      if(typeof ensureFlightPassengers==='function') ensureFlightPassengers(f);
+      f.passengers=(f.passengers||[]).filter(p=>p.id!==paxId);
+      f.seat='';
+      f.passes=[];
+      persist('shows', eid);
+      if(typeof pushShowNow==='function') pushShowNow(eid);
+      toast('Person removed','trash');
+      return;
+    }
+  }
+  haptic();
+}
 /* Tapping the Driver quick-link opens a chooser — Call or WhatsApp — instead of dialling immediately. */
 function contactDriver(eid){
   const e=sel.event(eid); const d=(e&&e.driver)||{};
