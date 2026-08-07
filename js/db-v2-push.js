@@ -235,6 +235,29 @@ async function v2EnsureContact(sb, orgId, c, cache){
   return data.id;
 }
 
+/* Map UI / free-text key-contact roles onto show_contacts.contact_role.
+   Custom "Other" labels are stored as role=other + contact_notes. */
+const V2_SHOW_CONTACT_ROLE_MAP = {
+  artist_liaison: 'artist_liaison',
+  'artist liaison': 'artist_liaison',
+  promoter: 'promoter',
+  production: 'production',
+  venue_manager: 'venue_manager',
+  'venue manager': 'venue_manager',
+  driver: 'driver',
+  emergency: 'emergency',
+  other: 'other'
+};
+function v2MapShowContactRole(role){
+  const raw = role == null ? '' : String(role).trim();
+  if(!raw) return { role: 'other', notes: null };
+  const underscored = raw.toLowerCase().replace(/\s+/g, '_');
+  const spaced = raw.toLowerCase().replace(/_/g, ' ').replace(/\s+/g, ' ');
+  const mapped = V2_SHOW_CONTACT_ROLE_MAP[underscored] || V2_SHOW_CONTACT_ROLE_MAP[spaced];
+  if(mapped) return { role: mapped, notes: null };
+  return { role: 'other', notes: raw };
+}
+
 /* If local state still has duplicate copies of a show, collapse onto the
    existing cloud row (same date + venue) instead of inserting another. */
 function v2ResolveShowId(s){
@@ -697,20 +720,59 @@ async function pushToSupabaseV2(orgId, dirtyIn){
       }
     }
 
-    if(s.promoter && s.promoter.name){
-      const cid = await v2EnsureContact(sb, orgId, s.promoter, contactCache);
-      if(cid){
-        await sb.from('show_contacts').delete().eq('organisation_id', orgId)
-          .eq('show_id', sid).eq('contact_role', 'artist_liaison');
-        const { error } = await sb.from('show_contacts').insert({
+    /* Show contacts: primary Artist Liaison (e.promoter) + key contacts (e.contacts).
+       Replace-all for this show so adds/edits/deletes sync; drivers stay on journey_contacts. */
+    {
+      await sb.from('show_contacts').delete().eq('organisation_id', orgId).eq('show_id', sid);
+      if(store?.v2?.show_contacts){
+        store.v2.show_contacts = store.v2.show_contacts.filter(sc => sc.show_id !== sid);
+      }
+
+      const scRows = [];
+      let scSort = 0;
+      const scSeen = new Set();
+
+      if(s.promoter && s.promoter.name){
+        const cid = await v2EnsureContact(sb, orgId, s.promoter, contactCache);
+        if(cid){
+          scSeen.add(cid + '|artist_liaison');
+          scRows.push({
+            organisation_id: orgId,
+            show_id: sid,
+            contact_id: cid,
+            contact_role: 'artist_liaison',
+            is_primary: true,
+            contact_notes: null,
+            sort_order: scSort++
+          });
+        }
+      }
+
+      for(const ct of (s.contacts || [])){
+        if(!ct || !ct.name) continue;
+        const mapped = v2MapShowContactRole(ct.role);
+        const cid = await v2EnsureContact(sb, orgId, ct, contactCache);
+        if(!cid) continue;
+        const dedupe = cid + '|' + mapped.role;
+        if(scSeen.has(dedupe)) continue;
+        scSeen.add(dedupe);
+        scRows.push({
           organisation_id: orgId,
           show_id: sid,
           contact_id: cid,
-          contact_role: 'artist_liaison',
-          is_primary: true,
-          sort_order: 0
+          contact_role: mapped.role,
+          is_primary: false,
+          contact_notes: mapped.notes,
+          sort_order: scSort++
         });
-        v2Throw(error, 'show_contacts promoter');
+      }
+
+      if(scRows.length){
+        const { data: scData, error: scErr } = await sb.from('show_contacts').insert(scRows).select('*');
+        v2Throw(scErr, 'show_contacts');
+        if(scData && typeof v2RepoPatchLocal === 'function'){
+          scData.forEach(r => { if(r) v2RepoPatchLocal('show_contacts', r); });
+        }
       }
     }
 

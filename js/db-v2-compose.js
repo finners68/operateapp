@@ -289,15 +289,22 @@ async function composeViewFromV2(v2, opts){
       attachments.push(att);
     }
 
-    const scList = showContactsByShow[s.id] || [];
-    const promoterSc = scList.find(x => x.contact_role === 'artist_liaison');
+    const scList = (showContactsByShow[s.id] || [])
+      .slice()
+      .sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0));
+    /* Primary artist_liaison is the dedicated Artist Liaison field; other
+       show_contacts (including driver-role key contacts and custom Other) go
+       into e.contacts. Journey drivers still come from journey_contacts. */
+    const promoterSc = scList.find(x => x.contact_role === 'artist_liaison' && x.is_primary)
+      || scList.find(x => x.contact_role === 'artist_liaison');
     const promoter = promoterSc ? v2ContactView(contactById[promoterSc.contact_id]) : null;
     const showContactList = scList
-      .filter(x => x.contact_role !== 'artist_liaison' && x.contact_role !== 'driver')
+      .filter(x => !promoterSc || x.id !== promoterSc.id)
       .map(x => {
         const c = v2ContactView(contactById[x.contact_id]);
         if(!c) return null;
-        c.role = x.contact_role;
+        if(x.contact_role === 'other' && x.contact_notes) c.role = x.contact_notes;
+        else c.role = x.contact_role || 'other';
         return c;
       }).filter(Boolean);
 
