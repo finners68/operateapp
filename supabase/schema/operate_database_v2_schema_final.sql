@@ -761,6 +761,7 @@ CREATE TABLE public.journeys (
     is_live_status boolean NOT NULL DEFAULT false,
     is_done boolean NOT NULL DEFAULT false,
     journey_notes text,
+    passengers jsonb NOT NULL DEFAULT '[]'::jsonb,
     sort_order integer NOT NULL DEFAULT 0,
 
     created_at timestamptz NOT NULL DEFAULT now(),

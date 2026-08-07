@@ -81,7 +81,7 @@ function v2FindTravelTicket(journeyId, fileId){
   return (store?.v2?.travel_tickets || []).find(t => t.journey_id === journeyId && t.file_id === fileId) || null;
 }
 
-async function v2UpsertTravelTicket(sb, orgId, pass, journeyId, fileId){
+async function v2UpsertTravelTicket(sb, orgId, pass, journeyId, fileId, pax){
   const existing = v2FindTravelTicket(journeyId, fileId);
   const row = {
     id: existing?.id || (pass._ticketId && isUuid(pass._ticketId) ? pass._ticketId : newUuid()),
@@ -90,6 +90,9 @@ async function v2UpsertTravelTicket(sb, orgId, pass, journeyId, fileId){
     journey_id: journeyId,
     file_id: fileId,
     ticket_type: 'boarding_pass',
+    passenger_name: (pax && pax.name) || pass._passengerName || null,
+    seat_number: (pax && pax.seat) || pass._passengerSeat || null,
+    ticket_reference: (pax && pax.id) || pass._passengerId || null,
     sort_order: 0
   };
   const data = await v2UpsertOneByLegacy(sb, 'travel_tickets', orgId, row);
@@ -882,11 +885,16 @@ async function pushToSupabaseV2(orgId, dirtyIn){
     }
 
     for(const [i, f] of (s.flights || []).entries()){
+      if(typeof ensureFlightPassengers === 'function') ensureFlightPassengers(f);
       const flightTimes = v2NormalizeJourneyTimes(
         v2CombineDateTime(s.date, f.dep),
         v2CombineDateTime(s.date, f.arr)
       );
       const flightLegacy = 'show_flight:' + f.id;
+      const paxMeta = (f.passengers || []).map(p => {
+        if(!p.id) p.id = newUuid();
+        return { id: p.id, name: p.name || '', seat: p.seat || '' };
+      });
       const jRow = await v2UpsertOneByLegacy(sb, 'journeys', orgId, {
         id: v2IdForLegacy('journeys', flightLegacy, f.id),
         organisation_id: orgId,
@@ -900,15 +908,29 @@ async function pushToSupabaseV2(orgId, dirtyIn){
         arrival_location_code: f.to || null,
         departure_at: flightTimes.departure_at,
         arrival_at: flightTimes.arrival_at,
-        journey_notes: f.seat ? 'Legacy seat: ' + f.seat : null,
+        journey_notes: null,
+        passengers: paxMeta,
         sort_order: i
       });
 
-      for(const pp of (f.passes || [])){
-        const path = await ensurePassUploaded(pp, s.id, f.id);
-        if(!path || !jRow) continue;
-        const fileId = await v2UpsertFile(sb, orgId, pp, path, mimeFromPassKind(pp.kind));
-        await v2UpsertTravelTicket(sb, orgId, pp, jRow.id, fileId);
+      for(const pax of (f.passengers || [])){
+        for(const pp of (pax.passes || [])){
+          const path = await ensurePassUploaded(pp, s.id, f.id);
+          if(!path || !jRow) continue;
+          const fileId = await v2UpsertFile(sb, orgId, pp, path, mimeFromPassKind(pp.kind));
+          await v2UpsertTravelTicket(sb, orgId, pp, jRow.id, fileId, pax);
+        }
+      }
+      /* Legacy top-level passes (pre-passenger model) attach to first passenger. */
+      const legacyPasses = f.passes || [];
+      if(legacyPasses.length && jRow){
+        const fallbackPax = (f.passengers && f.passengers[0]) || { id: null, name: '', seat: f.seat || '' };
+        for(const pp of legacyPasses){
+          const path = await ensurePassUploaded(pp, s.id, f.id);
+          if(!path) continue;
+          const fileId = await v2UpsertFile(sb, orgId, pp, path, mimeFromPassKind(pp.kind));
+          await v2UpsertTravelTicket(sb, orgId, pp, jRow.id, fileId, fallbackPax);
+        }
       }
     }
 
@@ -1228,7 +1250,14 @@ async function pushToSupabaseV2(orgId, dirtyIn){
     const localFileIds = new Set();
     showsAll.forEach(s => {
       (s.attachments || []).forEach(a => { if(a.id) localFileIds.add(a.id); });
-      (s.flights || []).forEach(f => (f.passes || []).forEach(p => { if(p.id) localFileIds.add(p.id); }));
+      (s.flights || []).forEach(f => {
+        if(typeof flightAllPasses === 'function'){
+          flightAllPasses(f).forEach(p => { if(p.id) localFileIds.add(p.id); });
+        } else {
+          (f.passes || []).forEach(p => { if(p.id) localFileIds.add(p.id); });
+          (f.passengers || []).forEach(pax => (pax.passes || []).forEach(p => { if(p.id) localFileIds.add(p.id); }));
+        }
+      });
     });
     logisticsAll.forEach(l => (l.passes || []).forEach(p => { if(p.id) localFileIds.add(p.id); }));
 

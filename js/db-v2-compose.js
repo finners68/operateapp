@@ -231,24 +231,92 @@ async function composeViewFromV2(v2, opts){
     };
   }
 
+  async function passFromTicket(t){
+    const f = fileById[t.file_id];
+    if(!f) return null;
+    const p = {
+      id: f.id,
+      name: f.file_title || f.original_filename || '',
+      kind: mimeToKind(f.mime_type),
+      _storagePath: f.storage_path,
+      data: f.storage_path,
+      _ticketId: t.id,
+      _passengerId: t.ticket_reference || null
+    };
+    if(typeof resolveAttachment === 'function') await resolveAttachment(p);
+    return p;
+  }
+
   async function passesFromJourney(j){
     const list = ticketsByJourney[j.id] || [];
     const out = [];
     for(const t of list){
-      const f = fileById[t.file_id];
-      if(!f) continue;
-      const p = {
-        id: f.id,
-        name: f.file_title || f.original_filename || '',
-        kind: mimeToKind(f.mime_type),
-        _storagePath: f.storage_path,
-        data: f.storage_path,
-        _ticketId: t.id
-      };
-      if(typeof resolveAttachment === 'function') await resolveAttachment(p);
-      out.push(p);
+      const p = await passFromTicket(t);
+      if(p) out.push(p);
     }
     return out;
+  }
+
+  /* Shared flight details + per-person seat/name; passes hang off each passenger
+     via travel_tickets.ticket_reference. Legacy single-seat / unscoped passes
+     become one default passenger so nothing is lost on reload. */
+  async function passengersFromJourney(j){
+    const tickets = ticketsByJourney[j.id] || [];
+    const meta = Array.isArray(j.passengers) ? j.passengers : [];
+    const byRef = Object.create(null);
+    const unassigned = [];
+    for(const t of tickets){
+      const pass = await passFromTicket(t);
+      if(!pass) continue;
+      const ref = (t.ticket_reference || '').trim();
+      if(ref) (byRef[ref] = byRef[ref] || []).push(pass);
+      else unassigned.push({
+        pass,
+        name: t.passenger_name || '',
+        seat: t.seat_number || ''
+      });
+    }
+
+    let pax = meta.map(m => ({
+      id: m.id || newUuid(),
+      name: m.name || '',
+      seat: m.seat || '',
+      passes: byRef[m.id] || []
+    }));
+
+    if(!pax.length){
+      const legacySeat = (j.journey_notes || '').replace(/^Legacy seat:\s*/i, '') || '';
+      if(unassigned.length){
+        const named = unassigned.some(u => u.name || u.seat);
+        if(named && unassigned.length > 1){
+          pax = unassigned.map(u => ({
+            id: newUuid(),
+            name: u.name || '',
+            seat: u.seat || legacySeat || '',
+            passes: [u.pass]
+          }));
+        } else {
+          pax = [{
+            id: newUuid(),
+            name: unassigned[0].name || '',
+            seat: unassigned[0].seat || legacySeat || '',
+            passes: unassigned.map(u => u.pass)
+          }];
+        }
+      } else if(legacySeat){
+        pax = [{ id: newUuid(), name: '', seat: legacySeat, passes: [] }];
+      }
+    } else if(unassigned.length){
+      pax[0].passes = [...(pax[0].passes || []), ...unassigned.map(u => u.pass)];
+    }
+    return pax;
+  }
+
+  function flightDateTimeLocal(ts){
+    if(!ts) return '';
+    const d = v2DateFromTs(ts);
+    const t = v2TimeFromTs(ts);
+    return d && t ? `${d} ${t}` : (t || '');
   }
 
   let events = [];
@@ -262,17 +330,18 @@ async function composeViewFromV2(v2, opts){
 
     const fl = [];
     for(const j of fj.flights.sort((a,b) => (a.sort_order||0) - (b.sort_order||0))){
-      const dep = j.departure_at ? new Date(j.departure_at) : null;
-      const arr = j.arrival_at ? new Date(j.arrival_at) : null;
+      const passengers = await passengersFromJourney(j);
+      const allPasses = passengers.flatMap(p => p.passes || []);
       fl.push({
         id: j.id,
         code: j.flight_number || j.journey_title || '',
         from: j.departure_location_code || j.departure_airport_iata || j.departure_location_name || '',
         to: j.arrival_location_code || j.arrival_airport_iata || j.arrival_location_name || '',
-        dep: dep ? `${String(dep.getUTCHours()).padStart(2,'0')}:${String(dep.getUTCMinutes()).padStart(2,'0')}` : '',
-        arr: arr ? `${String(arr.getUTCHours()).padStart(2,'0')}:${String(arr.getUTCMinutes()).padStart(2,'0')}` : '',
-        seat: (j.journey_notes || '').replace(/^Legacy seat: /, '') || '',
-        passes: await passesFromJourney(j)
+        dep: flightDateTimeLocal(j.departure_at),
+        arr: flightDateTimeLocal(j.arrival_at),
+        seat: '',
+        passengers,
+        passes: allPasses
       });
     }
 

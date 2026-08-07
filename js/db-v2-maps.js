@@ -75,6 +75,17 @@ function v2ParseTs(dateStr, timeStr){
 }
 
 function v2CombineDateTime(dateStr, timeVal){
+  /* Flight dep/arr may already be "YYYY-MM-DD HH:MM". Prefer that over
+     combining with the show date so other-day flights keep their real day. */
+  if(typeof timeVal === 'string'){
+    const raw = timeVal.trim();
+    if(/^\d{4}-\d{2}-\d{2}/.test(raw)){
+      const parts = raw.replace('T', ' ').split(/\s+/);
+      const d = parts[0].slice(0, 10);
+      const t = (parts[1] || '00:00').slice(0, 8);
+      return v2ParseTs(d, t.length >= 5 ? t : '00:00');
+    }
+  }
   if(!dateStr) return null;
   if(!timeVal) return `${dateStr}T00:00:00.000Z`;
   const t = typeof timeVal === 'string' ? timeVal : v2TimeFromTs(timeVal);

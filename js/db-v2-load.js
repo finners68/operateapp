@@ -187,7 +187,12 @@ async function loadFromSupabaseV2(orgId, sb){
     (e.attachments || []).forEach(a => a.id && knownIds.push(a.id));
     (e.flights || []).forEach(f => {
       if(f.id) knownIds.push(f.id);
-      (f.passes || []).forEach(p => p.id && knownIds.push(p.id));
+      if(typeof flightAllPasses === 'function'){
+        flightAllPasses(f).forEach(p => p.id && knownIds.push(p.id));
+      } else {
+        (f.passes || []).forEach(p => p.id && knownIds.push(p.id));
+        (f.passengers || []).forEach(pax => (pax.passes || []).forEach(p => p.id && knownIds.push(p.id)));
+      }
     });
     (e.passes || []).forEach(p => p.id && knownIds.push(p.id));
   });

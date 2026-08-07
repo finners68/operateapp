@@ -289,13 +289,23 @@ function tlActions(s){
   return btns.join('');
 }
 function viewItemPass(itemId, passId){
-  if(passId) openPassByRef(itemId, passId);
-  else {
-    const it=store.events.find(x=>x.id===itemId);
-    const p=(it&&it.passes||[])[0];
-    if(!p){toast('No pass','x');return;}
-    openPassByRef(itemId, p.id);
+  if(passId){ openPassByRef(itemId, passId); return; }
+  const it=store.events.find(x=>x.id===itemId);
+  if(it && (it.passes||[]).length){
+    openPassByRef(itemId, it.passes[0].id);
+    return;
   }
+  /* Embedded show flights live on the show, not as logistics rows. */
+  for(const e of (store.events||[])){
+    if((e.kind||'show')!=='show' || !e.flights) continue;
+    const f=e.flights.find(x=>x.id===itemId);
+    if(!f) continue;
+    const passes=typeof flightAllPasses==='function'?flightAllPasses(f):(f.passes||[]);
+    if(!passes.length){ toast('No pass','x'); return; }
+    openPassByRef(e.id, passes[0].id, f.id);
+    return;
+  }
+  toast('No pass','x');
 }
 function uploadItemPass(itemId, input){
   toast('Uploading pass…','ticket');

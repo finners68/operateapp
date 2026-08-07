@@ -943,8 +943,25 @@ function delItinerary(id){
 }
 function uploadAttachment(eid,input){ toast('Uploading…','image'); readFile(input, att=>{ const e=sel.event(eid); (e.attachments=e.attachments||[]).push(att); persist('shows', eid); renderView(); toast('Attached','check'); hostImg(att, eid, 'attachment'); }); }
 function delAttachment(eid,aid){ const e=sel.event(eid); e.attachments=e.attachments.filter(a=>a.id!==aid); persist('shows', eid); renderView(); toast('Removed','trash'); }
-function uploadPass(eid,fid,input){ toast('Uploading pass…','ticket'); readFile(input, att=>{ attachPassToShowFlight(eid, fid, att).then(ok=>{ if(ok) toast('Boarding pass added','check'); else toast('Could not attach pass','x'); }); }); }
-function delFlightPass(eid,fid,pid){ const e=sel.event(eid); const f=e&&e.flights&&e.flights.find(x=>x.id===fid); if(f&&f.passes){ f.passes=f.passes.filter(p=>p.id!==pid); } persist('shows', eid); renderView(); toast('Boarding pass removed','trash'); }
+function uploadPass(eid,fid,input,passengerId){ toast('Uploading pass…','ticket'); readFile(input, att=>{ attachPassToShowFlight(eid, fid, att, passengerId).then(ok=>{ if(ok) toast('Boarding pass added','check'); else toast('Could not attach pass','x'); }); }); }
+function delFlightPass(eid,fid,pid,passengerId){
+  const e=sel.event(eid);
+  const f=e&&e.flights&&e.flights.find(x=>x.id===fid);
+  if(!f) return;
+  if(typeof ensureFlightPassengers==='function') ensureFlightPassengers(f);
+  if(passengerId){
+    const pax=(f.passengers||[]).find(p=>p.id===passengerId);
+    if(pax&&pax.passes) pax.passes=pax.passes.filter(p=>p.id!==pid);
+  } else {
+    (f.passengers||[]).forEach(pax=>{ if(pax.passes) pax.passes=pax.passes.filter(p=>p.id!==pid); });
+    if(f.passes) f.passes=f.passes.filter(p=>p.id!==pid);
+  }
+  f.passes = typeof flightAllPasses==='function' ? flightAllPasses(f) : (f.passes||[]);
+  persist('shows', eid);
+  if(typeof pushShowNow==='function') pushShowNow(eid);
+  renderView();
+  toast('Boarding pass removed','trash');
+}
 function delItemPass(itemId, passId){
   const it=store.events.find(x=>x.id===itemId);
   if(!it || !it.passes) return;
@@ -964,7 +981,7 @@ function eventMenu(eid){
     <div class="edit-section-grid">
       <button type="button" class="edit-section-btn" onclick="closeSheet(); sheetEvent('${eid}')">${ICON.edit(16)}<span><b>Show basics</b><small>Venue, date, times, status</small></span></button>
       <button type="button" class="edit-section-btn" onclick="closeSheet(); sheetHotel('${eid}')">${ICON.bed(16)}<span><b>Hotel</b><small>Stay & confirmation</small></span></button>
-      <button type="button" class="edit-section-btn" onclick="closeSheet(); sheetFlight('${eid}')">${ICON.plane(16)}<span><b>Flights</b><small>Routes & boarding passes</small></span></button>
+      <button type="button" class="edit-section-btn" onclick="closeSheet(); sheetFlight('${eid}')">${ICON.plane(16)}<span><b>Flights</b><small>People, seats & boarding passes</small></span></button>
       <button type="button" class="edit-section-btn" onclick="closeSheet(); sheetFlightInfo('${eid}')">${ICON.planeUp(16)}<span><b>Flight info</b><small>Number, gate, terminal</small></span></button>
       <button type="button" class="edit-section-btn" onclick="closeSheet(); sheetDriver('${eid}')">${ICON.car(16)}<span><b>Driver</b><small>Ground transport</small></span></button>
       <button type="button" class="edit-section-btn" onclick="closeSheet(); sheetVenueAddr('${eid}')">${ICON.pin(16)}<span><b>Venue & address</b><small>Location & maps</small></span></button>

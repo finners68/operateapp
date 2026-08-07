@@ -151,6 +151,62 @@ const uid = (_p) => {
   return newUuid();
 };
 
+/* Show flights: shared route details + a passengers[] list (name, seat, passes).
+   Old single-seat / single-pass flights migrate into one default passenger. */
+function ensureFlightPassengers(f){
+  if(!f) return [];
+  if(!Array.isArray(f.passengers)) f.passengers = [];
+  const topPasses = Array.isArray(f.passes) ? f.passes : [];
+  if(f.passengers.length){
+    if(topPasses.length){
+      const first = f.passengers[0];
+      first.passes = (typeof mergePassesById === 'function')
+        ? mergePassesById(first.passes || [], topPasses)
+        : [...(first.passes || []), ...topPasses];
+      f.passes = [];
+    }
+    if(f.seat && !f.passengers.some(p => p && p.seat)){
+      if(!f.passengers[0].seat) f.passengers[0].seat = f.seat;
+      f.seat = '';
+    }
+    f.passengers.forEach(p => { if(p && !Array.isArray(p.passes)) p.passes = []; });
+    return f.passengers;
+  }
+  if(f.seat || topPasses.length){
+    f.passengers = [{ id: uid('pax'), name: '', seat: f.seat || '', passes: topPasses.slice() }];
+    f.seat = '';
+    f.passes = [];
+  }
+  return f.passengers;
+}
+function flightPassengers(f){
+  return ensureFlightPassengers(f);
+}
+function flightAllPasses(f){
+  if(!f) return [];
+  const fromPax = flightPassengers(f).flatMap(p => (p && p.passes) || []);
+  if(fromPax.length) return fromPax;
+  return Array.isArray(f.passes) ? f.passes : [];
+}
+function flightPassengerSummary(f){
+  return flightPassengers(f).map(p => {
+    const bits = [p.name, p.seat ? ('Seat ' + p.seat) : ''].filter(Boolean);
+    return bits.join(' · ');
+  }).filter(Boolean).join(' · ');
+}
+function flightParseDep(dep, fallbackDate){
+  const raw = String(dep || '').trim();
+  if(!raw) return { date: fallbackDate || '', time: '' };
+  const parts = raw.split(/\s+/);
+  if(/^\d{4}-\d{2}-\d{2}/.test(parts[0])){
+    return { date: parts[0].slice(0, 10), time: (parts[1] || '').slice(0, 5) };
+  }
+  if(/^\d{1,2}:\d{2}/.test(parts[0])){
+    return { date: fallbackDate || '', time: parts[0].slice(0, 5) };
+  }
+  return { date: fallbackDate || '', time: '' };
+}
+
 /* persist(scope, id) = day-to-day scoped dirty; online flush is immediate.
    persistAll() = intentional full tour sync (bootstrap / recovery only).
    Bare persist() with no scope still full-syncs but logs a warning — migrate callers. */
@@ -663,11 +719,14 @@ function runTimeline(run){
   run.shows.forEach(s=>{
     if(!hasPlane.has(s.id) && Array.isArray(s.flights)){
       s.flights.forEach(f=>{
-        const parts=String(f.dep||'').trim().split(' ');
-        rows.push({id:'shflt_'+f.id, kind:'travel', icon:'plane', date:parts[0]||s.date, time:parts[1]||'',
+        if(typeof ensureFlightPassengers==='function') ensureFlightPassengers(f);
+        const parts=String(f.dep||'').trim().split(/\s+/);
+        const paxSub = typeof flightPassengerSummary==='function' ? flightPassengerSummary(f) : (f.seat?'Seat '+f.seat:'');
+        const passes = typeof flightAllPasses==='function' ? flightAllPasses(f) : (f.passes||[]);
+        rows.push({id:'shflt_'+f.id, kind:'travel', icon:'plane', date:parts[0]&&/^\d{4}-\d{2}-\d{2}/.test(parts[0])?parts[0]:(s.date), time:parts[1]||(parts[0]&&parts[0].includes(':')&&!parts[0].includes('-')?parts[0]:'')||'',
           title:(f.from&&f.to)?f.from+' → '+f.to:(f.code||'Flight'),
-          sub:[f.code, f.seat?'Seat '+f.seat:''].filter(Boolean).join(' · '),
-          done:!!f.done, embedded:true, ref:Object.assign({kind:'travel', icon:'plane', showId:s.id, to:f.to, from:f.from, embedded:true}, f)});
+          sub:[f.code, paxSub].filter(Boolean).join(' · '),
+          done:!!f.done, embedded:true, ref:Object.assign({kind:'travel', icon:'plane', showId:s.id, to:f.to, from:f.from, embedded:true, passes}, f)});
       });
     }
     if(!hasStay.has(s.id) && s.hotel && (s.hotel.name||s.hotel.address)){

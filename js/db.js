@@ -76,7 +76,15 @@ function findPassByRef(itemId, passId, flightId){
   if(flightId){
     const e = sel.event(itemId);
     const f = e && e.flights && e.flights.find(x => x.id === flightId);
-    return f && (f.passes || []).find(x => x.id === passId);
+    if(!f) return null;
+    if(typeof ensureFlightPassengers === 'function') ensureFlightPassengers(f);
+    const direct = (f.passes || []).find(x => x.id === passId);
+    if(direct) return direct;
+    for(const pax of (f.passengers || [])){
+      const hit = (pax.passes || []).find(x => x.id === passId);
+      if(hit) return hit;
+    }
+    return null;
   }
   const it = store.events.find(x => x.id === itemId);
   return it && (it.passes || []).find(x => x.id === passId);
@@ -134,7 +142,10 @@ function eachBlobAtt(state, fn){
   (state && state.events || []).forEach(e=>{
     (e.attachments||[]).forEach(fn);
     (e.passes||[]).forEach(fn);
-    (e.flights||[]).forEach(f=>(f.passes||[]).forEach(fn));
+    (e.flights||[]).forEach(f=>{
+      (f.passes||[]).forEach(fn);
+      (f.passengers||[]).forEach(pax=>(pax.passes||[]).forEach(fn));
+    });
   });
   (state && state.itineraries || []).forEach(it=>(it.imgs||[]).forEach(fn));
 }
@@ -191,7 +202,24 @@ function applyLocalPassMerge(prevEvents, nextEvents){
       const prevFl = new Map(prev.flights.map(f => [f.id, f]));
       e.flights.forEach(f => {
         const pf = prevFl.get(f.id);
-        if(pf) f.passes = mergePassesKeepLocal(f.passes || [], pf.passes || []);
+        if(!pf) return;
+        if(typeof ensureFlightPassengers === 'function'){
+          ensureFlightPassengers(pf);
+          ensureFlightPassengers(f);
+        }
+        f.passes = mergePassesKeepLocal(f.passes || [], pf.passes || []);
+        const prevPax = new Map((pf.passengers || []).map(p => [p.id, p]));
+        (f.passengers || []).forEach(pax => {
+          const pp = prevPax.get(pax.id);
+          if(pp) pax.passes = mergePassesKeepLocal(pax.passes || [], pp.passes || []);
+        });
+        (pf.passengers || []).forEach(pp => {
+          if(!(f.passengers || []).some(p => p.id === pp.id) && (pp.passes || []).length){
+            (f.passengers = f.passengers || []).push(Object.assign({}, pp, {
+              passes: mergePassesKeepLocal([], pp.passes || [])
+            }));
+          }
+        });
       });
     }
   });
@@ -212,11 +240,22 @@ async function attachPassToLogisticsItem(itemId, att){
   renderView();
   return true;
 }
-async function attachPassToShowFlight(showId, flightId, att){
+async function attachPassToShowFlight(showId, flightId, att, passengerId){
   const e = sel.event(showId);
   const f = e && e.flights && e.flights.find(x => x.id === flightId);
   if(!f || !att) return false;
-  (f.passes = f.passes || []).push(att);
+  if(typeof ensureFlightPassengers === 'function') ensureFlightPassengers(f);
+  let pax = (f.passengers || []).find(p => p.id === passengerId);
+  if(!pax){
+    if(!(f.passengers || []).length){
+      f.passengers = [{ id: passengerId || uid('pax'), name: '', seat: f.seat || '', passes: [] }];
+      f.seat = '';
+    }
+    pax = f.passengers[0];
+  }
+  (pax.passes = pax.passes || []).push(att);
+  att._passengerId = pax.id;
+  f.passes = typeof flightAllPasses === 'function' ? flightAllPasses(f) : (f.passes || []);
   if(syncActive()) await ensurePassUploaded(att, showId, flightId);
   persist('shows', showId);
   if(typeof pushShowNow === 'function') pushShowNow(showId);

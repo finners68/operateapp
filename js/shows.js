@@ -153,7 +153,10 @@ function viewHome(){
     const setMs = setStartMs(e.date, e.setTime);
     const cF = flightMs? countdown(flightMs):null;
     const cS = setMs? countdown(setMs):null;
-    const flightPass = (e.flights||[]).map(f=>(f.passes&&f.passes.length)?{f, p:f.passes[0]}:null).filter(Boolean)[0];
+    const flightPass = (e.flights||[]).map(f=>{
+      const passes = typeof flightAllPasses==='function' ? flightAllPasses(f) : (f.passes||[]);
+      return passes.length ? {f, p:passes[0]} : null;
+    }).filter(Boolean)[0];
     const hasContacts = !!(e.promoter&&(e.promoter.phone||e.promoter.whatsapp)) || showDrivers(e).some(d=>!d.noGround&&(d.phone||d.whatsapp)) || (e.contacts||[]).some(c=>c.phone||c.whatsapp);
     const hasTransport = showDrivers(e).length>0;
     const liaisonReach = e.promoter&&(e.promoter.phone||e.promoter.whatsapp);
@@ -749,20 +752,35 @@ function viewEvent(id){
   </div>`;
 }
 function flightLine(eid,f){
-  const depTime = f.dep ? (f.dep.split(' ')[1] || f.dep) : '';
-  const arrTime = f.arr ? (f.arr.split(' ')[1] || f.arr) : '';
+  if(typeof ensureFlightPassengers==='function') ensureFlightPassengers(f);
+  const parsed = typeof flightParseDep==='function' ? flightParseDep(f.dep,'') : {time:(f.dep||'').split(' ').pop()};
+  const depTime = parsed.time || (f.dep ? (String(f.dep).split(' ')[1] || (String(f.dep).includes(':')&&!String(f.dep).includes('-')?f.dep:'')) : '');
+  const arrTime = f.arr ? (String(f.arr).split(' ')[1] || (String(f.arr).includes(':')&&!String(f.arr).includes('-')?f.arr:'')) : '';
   const route = `${f.from||'?'} → ${f.to||'?'}`;
+  const paxSummary = typeof flightPassengerSummary==='function' ? flightPassengerSummary(f) : (f.seat?'Seat '+f.seat:'');
   const meta = [
     depTime ? 'Dep '+esc(depTime) : '',
     arrTime ? 'Arr '+esc(arrTime) : '',
-    f.seat ? 'Seat '+esc(f.seat) : ''
+    paxSummary ? esc(paxSummary) : ''
   ].filter(Boolean).join(' · ');
+  const pax = (typeof flightPassengers==='function' ? flightPassengers(f) : (f.passengers||[]));
+  const paxBlock = pax.length ? pax.map(p=>flightPaxLine(eid,f,p)).join('') : '';
   return `<div class="info-line info-line-stacked">
     <div class="ic">${ICON.plane(17)}</div>
     ${detailTx(esc(f.code||'Flight'), esc(route), meta)}
-    <label class="header-btn" style="width:34px;height:34px;align-self:center">${ICON.ticket(16)}<input type="file" accept="${PASS_FILE_ACCEPT}" style="display:none" onchange="uploadPass('${eid}','${f.id}',this)"></label>
+    <button type="button" class="add" style="align-self:center" onclick="sheetFlight('${eid}','${f.id}')">Edit</button>
     <button class="del" style="opacity:.5;align-self:center" onclick="delFlight('${eid}','${f.id}')">${ICON.x(15)}</button>
-  </div>${f.passes&&f.passes.length?`<div style="padding:0 16px 12px"><div class="thumb-row">${f.passes.map(p=>passThumb(eid, p, passEditable()?`delFlightPass('${eid}','${f.id}','${p.id}')`:null, f.id)).join('')}</div></div>`:''}`;
+  </div>${paxBlock}`;
+}
+function flightPaxLine(eid,f,pax){
+  const title = esc(pax.name||'Passenger');
+  const seat = pax.seat ? ('Seat '+esc(pax.seat)) : 'No seat yet';
+  const passes = pax.passes||[];
+  return `<div class="info-line" style="padding-left:52px">
+    <div class="ic">${ICON.users(15)}</div>
+    ${detailTx(title, seat)}
+    <label class="header-btn" style="width:34px;height:34px;align-self:center" title="Boarding pass">${ICON.ticket(16)}<input type="file" accept="${PASS_FILE_ACCEPT}" style="display:none" onchange="uploadPass('${eid}','${f.id}',this,'${pax.id}')"></label>
+  </div>${passes.length?`<div style="padding:0 16px 12px 52px"><div class="thumb-row">${passes.map(p=>passThumb(eid, p, passEditable()?`delFlightPass('${eid}','${f.id}','${p.id}','${pax.id}')`:null, f.id)).join('')}</div></div>`:''}`;
 }
 function attachThumb(eid,a){
   const inner = a.kind==='image'?`<img src="${a.data}">`:`<div class="pdf">${ICON.file(26)}<span>${esc(a.name||'File')}</span></div>`;
@@ -934,40 +952,118 @@ function saveHotel(eid){
   const e=sel.event(eid);
   withButton($('#ho-save'), ()=>{ e.hotel={name:val('ho-name'),address:val('ho-addr'),postcode:val('ho-post'),checkin:rawVal('ho-in'),checkout:rawVal('ho-out'),conf:val('ho-conf'),notes:val('ho-notes')}; persist('shows', eid); closeSheet(); renderView(); }, 'Hotel saved');
 }
-function sheetFlight(eid){
+function sheetFlight(eid, fid){
   const e=sel.event(eid);
+  const f = fid ? ((e.flights||[]).find(x=>x.id===fid) || null) : null;
+  if(f && typeof ensureFlightPassengers==='function') ensureFlightPassengers(f);
+  const editing = !!f;
   const today = new Date();
-  const defDate = (e && e.date) || `${today.getFullYear()}-${pad(today.getMonth()+1)}-${pad(today.getDate())}`;
-  openSheet('Add flight', `
-    <div class="field"><label>Flight number</label><input id="fl-code" class="input" placeholder="KL1008"></div>
+  const fallbackDate = (e && e.date) || `${today.getFullYear()}-${pad(today.getMonth()+1)}-${pad(today.getDate())}`;
+  const parsed = typeof flightParseDep==='function' ? flightParseDep(f&&f.dep, fallbackDate) : {date:fallbackDate, time:''};
+  const paxList = editing
+    ? (flightPassengers(f).length ? flightPassengers(f) : [{id:uid('pax'), name:'', seat:'', passes:[]}])
+    : [{id:uid('pax'), name:'', seat:'', passes:[]}];
+  openSheet(editing?'Edit flight':'Add flight', `
+    <div class="field"><label>Flight number</label><input id="fl-code" class="input" value="${esc(f&&f.code||'')}" placeholder="KL1008"></div>
     <div class="row-2">
-      <div class="field"><label>From</label><input id="fl-from" class="input" placeholder="LHR"></div>
-      <div class="field"><label>To</label><input id="fl-to" class="input" placeholder="AMS"></div>
+      <div class="field"><label>From</label><input id="fl-from" class="input" value="${esc(f&&f.from||'')}" placeholder="LHR"></div>
+      <div class="field"><label>To</label><input id="fl-to" class="input" value="${esc(f&&f.to||'')}" placeholder="AMS"></div>
     </div>
     <div class="row-2">
       <div class="field picker-field" onclick="openInputPicker('fl-dep-date')">
         <label>Date</label>
-        <input id="fl-dep-date" type="date" class="input" value="${defDate}" onclick="event.stopPropagation();openInputPicker('fl-dep-date')">
+        <input id="fl-dep-date" type="date" class="input" value="${esc(parsed.date||fallbackDate)}" onclick="event.stopPropagation();openInputPicker('fl-dep-date')">
       </div>
       <div class="field picker-field" onclick="openInputPicker('fl-dep-time')">
         <label>Departs</label>
-        <input id="fl-dep-time" type="time" class="input" onclick="event.stopPropagation();openInputPicker('fl-dep-time')">
+        <input id="fl-dep-time" type="time" class="input" value="${esc(parsed.time||'')}" onclick="event.stopPropagation();openInputPicker('fl-dep-time')">
       </div>
     </div>
-    <div class="field"><label>Seat</label><input id="fl-seat" class="input" placeholder="4A"></div>
-    <button class="btn" id="fl-save" onclick="saveFlight('${eid}')">Add flight</button>
+    <div class="field"><label>Passengers</label>
+      <div id="fl-pax-list">${paxList.map((p,i)=>flightSheetPaxRow(p,i,eid,f&&f.id)).join('')}</div>
+      <button type="button" class="btn secondary" style="margin-top:8px" onclick="addFlightPaxRow('${eid}','${f&&f.id||''}')">${ICON.plus(15)} Add person</button>
+      <div class="hint" style="padding:8px 2px 0">Same flight for everyone — each person has their own seat and boarding pass.</div>
+    </div>
+    <button class="btn" id="fl-save" onclick="saveFlight('${eid}','${fid||''}')">${editing?'Save flight':'Add flight'}</button>
+    ${(editing&&passEditable())?`<button class="btn danger" style="margin-top:10px" onclick="delFlight('${eid}','${f.id}');closeSheet()">${ICON.trash(16)} Remove flight</button>`:''}
     <div class="spacer"></div>
   `);
 }
-function saveFlight(eid){
+function flightSheetPaxRow(pax, idx, eid, fid){
+  const pid = pax.id || uid('pax');
+  const passThumbs = (pax.passes&&pax.passes.length&&fid)
+    ? `<div class="thumb-row" style="margin-top:8px">${pax.passes.map(p=>passThumb(eid, p, passEditable()?`delFlightPass('${eid}','${fid}','${p.id}','${pid}')`:null, fid)).join('')}</div>`
+    : '';
+  const upload = fid
+    ? `<label class="btn secondary" style="margin-top:8px;display:inline-flex">${ICON.ticket(15)} Boarding pass<input type="file" accept="${PASS_FILE_ACCEPT}" style="display:none" onchange="uploadPass('${eid}','${fid}',this,'${pid}')"></label>`
+    : `<div class="hint" style="padding:6px 2px 0">Save the flight first to attach boarding passes.</div>`;
+  return `<div class="fl-pax-row" data-pax-id="${esc(pid)}" style="border:1px solid var(--stroke);border-radius:12px;padding:12px;margin-bottom:8px">
+    <div class="row-2">
+      <div class="field" style="margin:0"><label>Name</label><input class="input fl-pax-name" value="${esc(pax.name||'')}" placeholder="Passenger name"></div>
+      <div class="field" style="margin:0"><label>Seat</label><input class="input fl-pax-seat" value="${esc(pax.seat||'')}" placeholder="4A"></div>
+    </div>
+    ${upload}
+    ${passThumbs}
+    <button type="button" class="del" style="opacity:.55;margin-top:8px" onclick="this.closest('.fl-pax-row').remove()">${ICON.x(14)} Remove person</button>
+  </div>`;
+}
+function addFlightPaxRow(eid, fid){
+  const list = document.getElementById('fl-pax-list');
+  if(!list) return;
+  const pax = { id: uid('pax'), name: '', seat: '', passes: [] };
+  list.insertAdjacentHTML('beforeend', flightSheetPaxRow(pax, list.children.length, eid, fid||''));
+  haptic();
+}
+function collectFlightPaxFromSheet(eid, fid, existing){
+  const prevById = Object.create(null);
+  (existing || []).forEach(p => { if(p && p.id) prevById[p.id] = p; });
+  const rows = [...document.querySelectorAll('#fl-pax-list .fl-pax-row')];
+  const out = [];
+  rows.forEach(row => {
+    const id = row.getAttribute('data-pax-id') || uid('pax');
+    const name = (row.querySelector('.fl-pax-name')?.value || '').trim();
+    const seat = (row.querySelector('.fl-pax-seat')?.value || '').trim();
+    const prev = prevById[id];
+    const passes = (prev && prev.passes) ? prev.passes.slice() : [];
+    if(!name && !seat && !passes.length) return;
+    out.push({ id, name, seat, passes });
+  });
+  return out;
+}
+function saveFlight(eid, fid){
   const e=sel.event(eid); const code=val('fl-code');
   if(!code){ toast('Add a flight number','x'); return; }
   const d = rawVal('fl-dep-date');
   const t = rawVal('fl-dep-time');
   const dep = (d && t) ? `${d} ${t}` : (d || t || '');
-  withButton($('#fl-save'), ()=>{ e.flights.push({id:uid('fl'),code,from:val('fl-from').toUpperCase(),to:val('fl-to').toUpperCase(),dep,arr:'',seat:val('fl-seat'),passes:[]}); persist('shows', eid); closeSheet(); renderView(); }, 'Flight added');
+  const existing = fid ? (e.flights||[]).find(x=>x.id===fid) : null;
+  if(existing && typeof ensureFlightPassengers==='function') ensureFlightPassengers(existing);
+  const passengers = collectFlightPaxFromSheet(eid, fid, existing && existing.passengers);
+  withButton($('#fl-save'), ()=>{
+    const payload = {
+      id: existing ? existing.id : uid('fl'),
+      code,
+      from: val('fl-from').toUpperCase(),
+      to: val('fl-to').toUpperCase(),
+      dep,
+      arr: existing ? (existing.arr||'') : '',
+      seat: '',
+      passengers: passengers.length ? passengers : [],
+      passes: [],
+      done: existing ? !!existing.done : false
+    };
+    if(existing){
+      Object.assign(existing, payload);
+    } else {
+      (e.flights = e.flights || []).push(payload);
+    }
+    persist('shows', eid);
+    if(typeof pushShowNow === 'function') pushShowNow(eid);
+    closeSheet();
+    renderView();
+  }, existing ? 'Flight saved' : 'Flight added');
 }
-function delFlight(eid,fid){ const e=sel.event(eid); e.flights=e.flights.filter(f=>f.id!==fid); persist('shows', eid); renderView(); toast('Flight removed','trash'); }
+function delFlight(eid,fid){ const e=sel.event(eid); e.flights=e.flights.filter(f=>f.id!==fid); persist('shows', eid); if(typeof pushShowNow==='function') pushShowNow(eid); renderView(); toast('Flight removed','trash'); }
 /* Tapping the Driver quick-link opens a chooser — Call or WhatsApp — instead of dialling immediately. */
 function contactDriver(eid){
   const e=sel.event(eid); const d=(e&&e.driver)||{};
@@ -1579,7 +1675,10 @@ function buildDaySheet(e){
   L.push('');
   L.push('⏱ SCHEDULE');
   if(e.arrival) L.push(`  Arrival: ${e.arrival}`);
-  if(e.flights&&e.flights.length) e.flights.forEach(f=>L.push(`  Flight ${f.code}: ${f.from} ${f.dep?f.dep.split(' ')[1]:''} → ${f.to} ${f.arr?f.arr.split(' ')[1]:''}${f.seat?' (seat '+f.seat+')':''}`));
+  if(e.flights&&e.flights.length) e.flights.forEach(f=>{
+    const pax = typeof flightPassengerSummary==='function' ? flightPassengerSummary(f) : (f.seat?'seat '+f.seat:'');
+    L.push(`  Flight ${f.code}: ${f.from} ${f.dep?String(f.dep).split(' ').pop():''} → ${f.to} ${f.arr?String(f.arr).split(' ').pop():''}${pax?' ('+pax+')':''}`);
+  });
   (e.timeline||[]).forEach(s=>L.push(`  ${s.time||''} ${s.title}`));
   if(e.setTime) L.push(`  Set time: ${e.setTime}`);
   L.push('');
