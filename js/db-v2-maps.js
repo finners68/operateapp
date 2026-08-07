@@ -126,6 +126,13 @@ function v2StoragePathJourney(orgId, journeyLegacyId, fileLegacyId, ext){
   return `${orgId}/journeys/${journeyLegacyId}/tickets/${fileLegacyId}.${ext}`;
 }
 
+/* Dedicated folder for boarding passes (images, PDFs, .pkpass).
+   Parent is the journey/item id or show-flight id. Org-first prefix keeps
+   existing storage RLS (first path segment = organisation_id). */
+function v2StoragePathBoardingPass(orgId, parentLegacyId, fileLegacyId, ext){
+  return `${orgId}/boarding-passes/${parentLegacyId || 'general'}/${fileLegacyId}.${ext}`;
+}
+
 function v2StoragePathOrg(orgId, fileLegacyId, ext){
   return `${orgId}/organisation/${fileLegacyId}.${ext}`;
 }

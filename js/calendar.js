@@ -8,11 +8,12 @@ function passThumb(itemId, pass, delAction, flightId){
   const open = flightId
     ? `openPassByRef('${itemId}','${pass.id}','${flightId}')`
     : `openPassByRef('${itemId}','${pass.id}')`;
-  if(pass.kind==='image'){
+  if(pass.kind==='image' && !(typeof isPkPass==='function' && isPkPass(pass))){
     const src = esc(pass.data || '');
     return `<div class="thumb" onclick="${open}"><img src="${src}" alt="">${del}</div>`;
   }
-  return `<div class="thumb" onclick="${open}"><div class="pdf">${ICON.file(26)}<span>${esc(pass.name||'Pass')}</span></div>${del}</div>`;
+  const label = (typeof isPkPass==='function' && isPkPass(pass)) ? (pass.name||'Wallet pass') : (pass.name||'Pass');
+  return `<div class="thumb" onclick="${open}"><div class="pdf">${ICON.ticket(26)}<span>${esc(label)}</span></div>${del}</div>`;
 }
 
 /* ============================================================
@@ -205,7 +206,7 @@ function logColor(l){
 }
 /* Labeled quick-access widgets (logo + text) */
 function jbtn(icon,label,onclick,cls){ return `<button class="jbtn ${cls||''}" onclick="event.stopPropagation();${onclick}">${icon}<span>${esc(label)}</span></button>`; }
-function jbtnFile(icon,label,itemId,cls){ return `<label class="jbtn ${cls||''}">${icon}<span>${esc(label)}</span><input type="file" accept="image/*,application/pdf" style="display:none" onchange="uploadItemPass('${itemId}',this)"></label>`; }
+function jbtnFile(icon,label,itemId,cls){ return `<label class="jbtn ${cls||''}">${icon}<span>${esc(label)}</span><input type="file" accept="${PASS_FILE_ACCEPT}" style="display:none" onchange="uploadItemPass('${itemId}',this)"></label>`; }
 function isDriverItem(l){ return l && l.kind==='travel' && ((l.icon||'plane')==='car' || /driver|uber|taxi/i.test(l.title||'')); }
 function itemButtons(l){
   const emb = !!l.embedded; // synthesized from a show's embedded flight/hotel/driver — manage on the show page
@@ -269,7 +270,7 @@ function showQuickLinks(e){
   const hotelItem = items.find(x=>x.kind==='stay');
   const drivers = items.filter(x=>x.kind==='travel' && isDriverItem(x));
   const tile=(icon,color,label,onclick)=>`<button class="act" onclick="${onclick}"><div class="ic" style="background:${color}22;color:${color}">${icon}</div><span>${label}</span></button>`;
-  const tileFile=(icon,color,label,itemId)=>`<label class="act"><div class="ic" style="background:${color}22;color:${color}">${icon}</div><span>${label}</span><input type="file" accept="image/*,application/pdf" style="display:none" onchange="uploadItemPass('${itemId}',this)"></label>`;
+  const tileFile=(icon,color,label,itemId)=>`<label class="act"><div class="ic" style="background:${color}22;color:${color}">${icon}</div><span>${label}</span><input type="file" accept="${PASS_FILE_ACCEPT}" style="display:none" onchange="uploadItemPass('${itemId}',this)"></label>`;
   const tiles=[];
   tiles.push(tile(ICON.map(20),'var(--blue)','Venue',`openMaps('${jsAttr(venueMapQuery(e)||formatVenueAddress(e)||([e.city,e.country].filter(Boolean).join(', ')))}')`));
   if(flights.length){ const wp=flights.find(f=>f.passes&&f.passes.length);
@@ -308,17 +309,29 @@ function addLogisticFor(showId){
         <div class="field"><label>To</label><input id="al-to" class="input" placeholder="ZTH"></div>
       </div>
       <div class="row-2">
-        <div class="field"><label>Departure</label><input id="al-start" type="time" class="input"></div>
-        <div class="field"><label>Arrival</label><input id="al-end" type="time" class="input"></div>
+        <div class="field picker-field" onclick="openInputPicker('al-start')">
+          <label>Departure</label>
+          <input id="al-start" type="time" class="input" onclick="event.stopPropagation();openInputPicker('al-start')">
+        </div>
+        <div class="field picker-field" onclick="openInputPicker('al-end')">
+          <label>Arrival</label>
+          <input id="al-end" type="time" class="input" onclick="event.stopPropagation();openInputPicker('al-end')">
+        </div>
       </div>
       <div class="field" id="al-driver-name-wrap" style="display:none"><label>Driver / company name</label><input id="al-driver-name" class="input" placeholder="e.g. Marco · Uber"></div>
     </div>
     <div id="al-stay-fields" style="display:none">
       <div class="field"><label>Hotel name</label><input id="al-place" class="input" placeholder="e.g. Hilton"></div>
       <div class="field"><label>Address</label><input id="al-addr" class="input" placeholder="Street, city"></div>
-      <div class="field"><label>Check-in time</label><input id="al-checkin" type="time" class="input"></div>
+      <div class="field picker-field" onclick="openInputPicker('al-checkin')">
+        <label>Check-in time</label>
+        <input id="al-checkin" type="time" class="input" onclick="event.stopPropagation();openInputPicker('al-checkin')">
+      </div>
     </div>
-    <div class="field"><label>Date</label><input id="al-date" type="date" class="input" value="${e?e.date:''}"></div>
+    <div class="field picker-field" onclick="openInputPicker('al-date')">
+      <label>Date</label>
+      <input id="al-date" type="date" class="input" value="${e?e.date:''}" onclick="event.stopPropagation();openInputPicker('al-date')">
+    </div>
     <button class="btn" onclick="saveLogisticFor('${showId}')">Add</button><div class="spacer"></div>
   `);
   setTimeout(toggleLogisticAddFields, 30);
@@ -359,7 +372,10 @@ function openItem(id){
   const label = e.kind==='travel'?'Travel':e.kind==='stay'?'Stay':'Note';
   const iconOpts = ['plane','car','ferry','walk','bed'];
   openSheet(label, `
-    <div class="field"><label>Date</label><input id="it-date" type="date" class="input" value="${e.date}"></div>
+    <div class="field picker-field" onclick="openInputPicker('it-date')">
+      <label>Date</label>
+      <input id="it-date" type="date" class="input" value="${e.date}" onclick="event.stopPropagation();openInputPicker('it-date')">
+    </div>
     ${e.kind==='travel'?`
       <div class="field"><label>Travel mode</label><div class="seg" id="it-icon">${iconOpts.slice(0,4).map(ic=>`<button type="button" data-v="${ic}" class="${(e.icon||'plane')===ic?'on':''}" onclick="segPick(this)">${ic==='plane'?'Flight':ic==='car'?'Driver':ic==='ferry'?'Ferry':'Walk'}</button>`).join('')}</div></div>
       <div class="field"><label>Flight number (optional)</label><input id="it-code" class="input" value="${esc(e.flightNo||'')}" placeholder="KL1008"></div>
@@ -368,7 +384,16 @@ function openItem(id){
         <div class="field"><label>From</label><input id="it-from" class="input" value="${esc(e.from||'')}" placeholder="AMS"></div>
         <div class="field"><label>To</label><input id="it-to" class="input" value="${esc(e.to||'')}" placeholder="ZTH"></div>
       </div>
-      <div class="row-2"><div class="field"><label>Departure</label><input id="it-start" type="time" class="input" value="${e.start||''}"></div><div class="field"><label>Arrival</label><input id="it-end" type="time" class="input" value="${e.end||''}"></div></div>
+      <div class="row-2">
+        <div class="field picker-field" onclick="openInputPicker('it-start')">
+          <label>Departure</label>
+          <input id="it-start" type="time" class="input" value="${e.start||''}" onclick="event.stopPropagation();openInputPicker('it-start')">
+        </div>
+        <div class="field picker-field" onclick="openInputPicker('it-end')">
+          <label>Arrival</label>
+          <input id="it-end" type="time" class="input" value="${e.end||''}" onclick="event.stopPropagation();openInputPicker('it-end')">
+        </div>
+      </div>
       ${isDriverItem(e)?`<div class="field"><label>Driver phone</label><input id="it-phone" type="tel" class="input" value="${esc(e.phone||'')}" placeholder="+34 600 000 000"></div>
       <div class="field"><label>WhatsApp (if different)</label><input id="it-wa" type="tel" class="input" value="${esc(e.whatsapp||'')}"></div>`:''}`:''}
     ${e.kind==='stay'?`<div class="field"><label>Hotel name</label><input id="it-place" class="input" value="${esc(e.place||'')}" placeholder="Hilton"></div>

@@ -244,7 +244,7 @@ function stepPills(s){
       const it=s.ref; const has=it&&it.passes&&it.passes.length;
       if(mq) pills.push(mapPill('Maps','Open in Maps'));
       if(has) pills.push(`<div class="pill" onclick="event.stopPropagation();viewItemPass('${it.id}')"><div class="ic">${ICON.ticket(16)}</div><div class="tx"><b>Boarding pass</b><span>View</span></div></div>`);
-      else pills.push(`<label class="pill"><div class="ic">${ICON.ticket(16)}</div><div class="tx"><b>Boarding pass</b><span>Upload</span></div><input type="file" accept="image/*,application/pdf" style="display:none" onchange="uploadItemPass('${it.id}',this)"></label>`);
+      else pills.push(`<label class="pill"><div class="ic">${ICON.ticket(16)}</div><div class="tx"><b>Boarding pass</b><span>Upload</span></div><input type="file" accept="${PASS_FILE_ACCEPT}" style="display:none" onchange="uploadItemPass('${it.id}',this)"></label>`);
     } else {
       const it=s.ref;
       // Fall back to the show's saved driver contact when the leg itself has none
@@ -279,7 +279,7 @@ function tlActions(s){
   const isFlight=s.kind==='travel'&&(s.icon||'plane')==='plane';
   if(isFlight){ const it=s.ref; const has=it&&it.passes&&it.passes.length;
     if(has) btns.push(`<button class="tl-btn" onclick="event.stopPropagation();viewItemPass('${it.id}')">${ICON.ticket(15)}</button>`);
-    else btns.push(`<label class="tl-btn">${ICON.ticket(15)}<input type="file" accept="image/*,application/pdf" style="display:none" onchange="uploadItemPass('${it.id}',this)"></label>`); }
+    else btns.push(`<label class="tl-btn">${ICON.ticket(15)}<input type="file" accept="${PASS_FILE_ACCEPT}" style="display:none" onchange="uploadItemPass('${it.id}',this)"></label>`); }
   if(s.embedded && s.kind==='travel' && s.ref && s.ref.icon==='car'){ const d=s.ref;
     if(d.noGround) btns.push(`<button class="tl-btn" onclick="event.stopPropagation();openExternal('https://m.uber.com/','uber://')">${ICON.car(15)}</button>`);
     else { const w=d.whatsapp||d.phone; if(w) btns.push(`<button class="tl-btn" onclick="event.stopPropagation();whatsapp('${jsAttr(w)}')">${ICON.chat(15)}</button>`); } }

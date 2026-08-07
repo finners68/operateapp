@@ -2171,6 +2171,15 @@ VALUES (
 )
 ON CONFLICT (id) DO NOTHING;
 
+-- Storage path conventions (bucket: operate-documents-v2):
+--   {orgId}/boarding-passes/{journeyOrFlightId}/{fileId}.{ext}  -- boarding passes
+--   {orgId}/shows/{showId}/documents/{fileId}.{ext}             -- show attachments
+--   {orgId}/journeys/{journeyId}/tickets/{fileId}.{ext}         -- legacy journey tickets
+--   {orgId}/organisation/{fileId}.{ext}                         -- org / itinerary files
+-- RLS uses only the first path segment (organisation id), so new folders
+-- under an org remain readable/writable for org members. Older pass paths
+-- (journeys/.../tickets, legacy show-files, flat {org}/{show}/{file}) still work.
+
 CREATE OR REPLACE FUNCTION public.v2_storage_path_organisation_id(
     p_storage_path text
 )

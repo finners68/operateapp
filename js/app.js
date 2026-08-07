@@ -752,12 +752,23 @@ function compressImage(dataUrl, cb){
     img.src=dataUrl;
   }catch(e){ cb(dataUrl); }
 }
+function fileKindFromFile(f){
+  const name = ((f && f.name) || '').toLowerCase();
+  const type = ((f && f.type) || '').toLowerCase();
+  if(type.startsWith('image/')) return 'image';
+  if(type === 'application/vnd.apple.pkpass' || name.endsWith('.pkpass')) return 'pkpass';
+  return 'pdf';
+}
 function readFile(input, cb){
   const f = input.files&&input.files[0]; if(!f) return;
   if(f.size > 12*1024*1024){ toast('File too large (12MB max)','x'); input.value=''; return; }
-  const kind = f.type.startsWith('image/')?'image':'pdf';
+  const kind = fileKindFromFile(f);
   const r = new FileReader();
-  r.onload = ()=>{ if(kind==='image'){ compressImage(r.result, d=>cb({id:uid('att'),kind,name:f.name,data:d})); } else cb({id:uid('att'), kind, name:f.name, data:r.result}); };
+  r.onload = ()=>{
+    const base = { id:uid('att'), kind, name:f.name, mime: f.type || (typeof mimeFromPassKind==='function'?mimeFromPassKind(kind):'') };
+    if(kind==='image'){ compressImage(r.result, d=>cb(Object.assign(base,{data:d}))); }
+    else cb(Object.assign(base,{data:r.result}));
+  };
   r.onerror = ()=>toast('Upload failed','x');
   r.readAsDataURL(f);
   input.value='';
@@ -771,9 +782,13 @@ function readFiles(input, cb){
   const out=[]; let done=0;
   const finish=()=>{ if(++done===files.length) cb(out); };
   files.forEach(f=>{
-    const kind=f.type.startsWith('image/')?'image':'pdf';
+    const kind=fileKindFromFile(f);
     const r=new FileReader();
-    r.onload=()=>{ if(kind==='image'){ compressImage(r.result, d=>{ out.push({id:uid('att'),kind,name:f.name,data:d}); finish(); }); } else { out.push({id:uid('att'),kind,name:f.name,data:r.result}); finish(); } };
+    r.onload=()=>{
+      const base={id:uid('att'),kind,name:f.name,mime:f.type||(typeof mimeFromPassKind==='function'?mimeFromPassKind(kind):'')};
+      if(kind==='image'){ compressImage(r.result, d=>{ out.push(Object.assign(base,{data:d})); finish(); }); }
+      else { out.push(Object.assign(base,{data:r.result})); finish(); }
+    };
     r.onerror=()=>finish();
     r.readAsDataURL(f);
   });

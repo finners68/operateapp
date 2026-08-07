@@ -2,6 +2,8 @@
 const ORG_KEY = 'operate_org_id';
 const MIGRATION_PREFIX = 'operate_supabase_migrated:';
 const BUCKET = STORAGE_BUCKET;
+/* Boarding pass uploads: photos, PDFs, and real Apple Wallet .pkpass files. */
+const PASS_FILE_ACCEPT = 'image/*,application/pdf,.pkpass,application/vnd.apple.pkpass';
 
 let currentOrgId = null;
 let dbRemoteLoading = false;
@@ -51,11 +53,33 @@ function dedupeEventsById(events){
   });
 }
 
-function mimeToKind(m){ return (m||'').startsWith('image/') ? 'image' : 'pdf'; }
+function mimeToKind(m){
+  m = (m || '').toLowerCase();
+  if(m.startsWith('image/')) return 'image';
+  if(m === 'application/vnd.apple.pkpass' || m.includes('pkpass')) return 'pkpass';
+  return 'pdf';
+}
 function mimeFromPassKind(kind){
   if(kind === 'pdf') return 'application/pdf';
   if(kind === 'image') return 'image/jpeg';
+  if(kind === 'pkpass') return 'application/vnd.apple.pkpass';
   return kind || 'application/octet-stream';
+}
+function isPkPass(p){
+  if(!p) return false;
+  if(p.kind === 'pkpass') return true;
+  const mime = (p.mime || '').toLowerCase();
+  if(mime === 'application/vnd.apple.pkpass' || mime.includes('pkpass')) return true;
+  return ((p.name || '').toLowerCase()).endsWith('.pkpass');
+}
+function findPassByRef(itemId, passId, flightId){
+  if(flightId){
+    const e = sel.event(itemId);
+    const f = e && e.flights && e.flights.find(x => x.id === flightId);
+    return f && (f.passes || []).find(x => x.id === passId);
+  }
+  const it = store.events.find(x => x.id === itemId);
+  return it && (it.passes || []).find(x => x.id === passId);
 }
 function passStoragePath(p){
   if(!p) return null;
@@ -200,24 +224,114 @@ async function attachPassToShowFlight(showId, flightId, att){
   return true;
 }
 function openPassByRef(itemId, passId, flightId){
-  let p;
-  if(flightId){
-    const e = sel.event(itemId);
-    const f = e && e.flights && e.flights.find(x => x.id === flightId);
-    p = f && (f.passes || []).find(x => x.id === passId);
-  } else {
-    const it = store.events.find(x => x.id === itemId);
-    p = it && (it.passes || []).find(x => x.id === passId);
-  }
+  const p = findPassByRef(itemId, passId, flightId);
   if(!p){ toast('Pass not found','x'); return; }
-  if(p.kind === 'image'){
-    if(!passHasDisplayData(p)){ toast('Pass not found','x'); return; }
-    if((p._storagePath || p._idb) && (!p.data || (!p.data.startsWith('data:') && !p.data.startsWith('http')))){
-      resolveAttachment(p).then(() => p.data ? openViewer(p.data) : toast('Pass not found','x'));
-      return;
+  sheetBoardingPass(itemId, passId, flightId || '');
+}
+async function sheetBoardingPass(itemId, passId, flightId){
+  const p = findPassByRef(itemId, passId, flightId);
+  if(!p){ toast('Pass not found','x'); return; }
+  if(passHasDisplayData(p)) await resolveAttachment(p);
+  const pk = isPkPass(p);
+  const isImg = p.kind === 'image' && !pk;
+  const name = esc(p.name || (pk ? 'Apple Wallet pass' : 'Boarding pass'));
+  const args = `'${itemId}','${passId}','${flightId || ''}'`;
+  const preview = isImg && p.data
+    ? `<div class="thumb" style="width:100%;height:180px;margin-bottom:12px" onclick="viewPassImage(${args})"><img src="${esc(p.data)}" alt=""></div>`
+    : `<div class="hint" style="text-align:left;padding:0 2px 12px">${ICON.ticket(18)} ${name}</div>`;
+  openSheet('Boarding pass', `
+    ${preview}
+    ${isImg && p.data ? `<button class="btn" onclick="viewPassImage(${args})">${ICON.image(16)} View</button>` : ''}
+    ${pk ? `<button class="btn" style="margin-top:10px" onclick="addPassToAppleWallet(${args})">${ICON.wallet(16)} Add to Apple Wallet</button>
+      <div class="hint" style="text-align:left;padding:8px 2px 0">This is a real .pkpass file. On iPhone, opening it lets Apple Wallet add the pass.</div>` : ''}
+    <button class="btn secondary" style="margin-top:10px" onclick="downloadPassFile(${args})">${ICON.file(16)} Download / Open</button>
+    ${navigator.share ? `<button class="btn secondary" style="margin-top:10px" onclick="sharePassFile(${args})">${ICON.share(16)} Share</button>` : ''}
+    ${!pk ? `<div class="hint" style="text-align:left;padding:12px 2px 0">Photos and PDFs can’t be added to Apple Wallet from Operate. Wallet needs a special signed .pkpass file from the airline (not the same as Apple Pay for payments).</div>` : ''}
+    <div class="spacer"></div>
+  `);
+}
+async function viewPassImage(itemId, passId, flightId){
+  const p = findPassByRef(itemId, passId, flightId);
+  if(!p){ toast('Pass not found','x'); return; }
+  await resolveAttachment(p);
+  if(p.data) openViewer(p.data);
+  else toast('Pass not found','x');
+}
+async function passFileBlob(p){
+  await resolveAttachment(p);
+  if(!p || !p.data) return null;
+  const mime = p.mime || mimeFromPassKind(p.kind) || 'application/octet-stream';
+  if(p.data.startsWith('data:')){
+    const res = await fetch(p.data);
+    let blob = await res.blob();
+    if(isPkPass(p) && blob.type !== 'application/vnd.apple.pkpass'){
+      blob = new Blob([blob], { type: 'application/vnd.apple.pkpass' });
+    } else if(!blob.type || blob.type === 'application/octet-stream'){
+      blob = new Blob([blob], { type: mime });
     }
-    openViewer(p.data);
-  } else toast('PDF pass saved on device','file');
+    return blob;
+  }
+  if(p.data.startsWith('http')){
+    try{
+      const res = await fetch(p.data);
+      let blob = await res.blob();
+      if(isPkPass(p) && blob.type !== 'application/vnd.apple.pkpass'){
+        blob = new Blob([blob], { type: 'application/vnd.apple.pkpass' });
+      }
+      return blob;
+    }catch(e){ return null; }
+  }
+  return null;
+}
+async function downloadPassFile(itemId, passId, flightId){
+  const p = findPassByRef(itemId, passId, flightId);
+  if(!p){ toast('Pass not found','x'); return; }
+  const blob = await passFileBlob(p);
+  if(!blob){
+    await resolveAttachment(p);
+    if(p.data && p.data.startsWith('http')){ window.open(p.data, '_blank', 'noopener'); return; }
+    toast('Could not open pass','x'); return;
+  }
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = p.name || (isPkPass(p) ? 'boarding-pass.pkpass' : 'boarding-pass');
+  a.rel = 'noopener';
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(()=>URL.revokeObjectURL(url), 1500);
+  toast('Opening pass','file');
+}
+async function sharePassFile(itemId, passId, flightId){
+  const p = findPassByRef(itemId, passId, flightId);
+  if(!p){ toast('Pass not found','x'); return; }
+  const blob = await passFileBlob(p);
+  if(!blob || !navigator.share){ downloadPassFile(itemId, passId, flightId); return; }
+  const file = new File([blob], p.name || (isPkPass(p) ? 'boarding-pass.pkpass' : 'boarding-pass'), { type: blob.type || mimeFromPassKind(p.kind) });
+  try{
+    if(navigator.canShare && !navigator.canShare({ files:[file] })){ downloadPassFile(itemId, passId, flightId); return; }
+    await navigator.share({ files:[file], title: p.name || 'Boarding pass' });
+  }catch(e){ if(e && e.name !== 'AbortError') downloadPassFile(itemId, passId, flightId); }
+}
+async function addPassToAppleWallet(itemId, passId, flightId){
+  const p = findPassByRef(itemId, passId, flightId);
+  if(!p || !isPkPass(p)){
+    toast('Only .pkpass files can go in Apple Wallet','x');
+    return;
+  }
+  await resolveAttachment(p);
+  /* iOS opens real .pkpass URLs into Add to Wallet. Prefer the hosted file URL
+     (correct content-type from upload); fall back to a typed blob URL. */
+  if(p.data && p.data.startsWith('http')){
+    window.location.href = p.data;
+    return;
+  }
+  const blob = await passFileBlob(p);
+  if(!blob){ toast('Could not open pass','x'); return; }
+  const url = URL.createObjectURL(new Blob([blob], { type: 'application/vnd.apple.pkpass' }));
+  window.location.href = url;
+  setTimeout(()=>URL.revokeObjectURL(url), 10000);
 }
 async function ensurePassUploaded(att, showLegacyId, parentLegacyId){
   if(!att) return null;
@@ -226,9 +340,13 @@ async function ensurePassUploaded(att, showLegacyId, parentLegacyId){
   if(!att.data || !att.data.startsWith('data:')) return null;
   if(!isSupabaseConfigured() || !currentOrgId) return null;
   try{
-    const up = await uploadFileDataUrl(att.data, showLegacyId || parentLegacyId, 'pass', att.id, parentLegacyId);
+    const up = await uploadFileDataUrl(att.data, showLegacyId || parentLegacyId, 'pass', att.id, parentLegacyId, {
+      kind: att.kind,
+      mime: att.mime || mimeFromPassKind(att.kind)
+    });
     att._storagePath = up.path;
     att.data = up.url;
+    if(up.mime) att.mime = up.mime;
     return up.path;
   }catch(e){ return null; }
 }
@@ -284,26 +402,38 @@ async function resolveAttachment(att){
   return att;
 }
 
-async function uploadFileDataUrl(dataUrl, showLegacyId, fileRole, legacyId, parentLegacyId){
+async function uploadFileDataUrl(dataUrl, showLegacyId, fileRole, legacyId, parentLegacyId, opts){
   const sb = getSupabase();
   if(!sb || !currentOrgId) throw new Error('no_client');
-  const blob = await (await fetch(dataUrl)).blob();
-  const ext = (blob.type && blob.type.includes('pdf')) ? 'pdf'
-    : ((blob.type && blob.type.split('/')[1]) || 'jpg');
+  let blob = await (await fetch(dataUrl)).blob();
+  const forcedMime = opts && opts.mime;
+  const kindHint = opts && opts.kind;
+  if(forcedMime && blob.type !== forcedMime){
+    blob = new Blob([blob], { type: forcedMime });
+  } else if(kindHint === 'pkpass' || (blob.type||'').includes('pkpass')){
+    blob = new Blob([blob], { type: 'application/vnd.apple.pkpass' });
+  }
+  const type = (blob.type || '').toLowerCase();
+  const ext = type.includes('pkpass') ? 'pkpass'
+    : (type.includes('pdf') ? 'pdf'
+    : ((type.split('/')[1]) || 'jpg'));
   let path;
-  if(fileRole === 'pass' && parentLegacyId){
-    path = v2StoragePathJourney(currentOrgId, parentLegacyId, legacyId, ext);
+  if(fileRole === 'pass'){
+    /* New uploads go under {org}/boarding-passes/{parent}/...
+       Existing files keep their old stored paths and still resolve. */
+    path = v2StoragePathBoardingPass(currentOrgId, parentLegacyId || showLegacyId, legacyId, ext);
   } else if(showLegacyId === 'itineraries'){
     path = v2StoragePathOrg(currentOrgId, legacyId, ext);
   } else {
     path = v2StoragePathShow(currentOrgId, showLegacyId || 'general', legacyId, ext);
   }
+  const contentType = blob.type || mimeFromPassKind(kindHint) || 'application/octet-stream';
   const { error } = await sb.storage.from(BUCKET).upload(path, blob, {
-    upsert: true, contentType: blob.type || 'application/octet-stream'
+    upsert: true, contentType
   });
   if(error) throw error;
   const url = await signedUrlForPath(path);
-  return { path, url, mime: blob.type || 'application/octet-stream' };
+  return { path, url, mime: contentType };
 }
 
 async function ensureOrgForUser(){

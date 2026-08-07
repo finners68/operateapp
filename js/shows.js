@@ -756,7 +756,7 @@ function flightLine(eid,f){
   return `<div class="info-line info-line-stacked">
     <div class="ic">${ICON.plane(17)}</div>
     ${detailTx(esc(f.code||'Flight'), esc(route), meta)}
-    <label class="header-btn" style="width:34px;height:34px;align-self:center">${ICON.ticket(16)}<input type="file" accept="image/*,application/pdf" style="display:none" onchange="uploadPass('${eid}','${f.id}',this)"></label>
+    <label class="header-btn" style="width:34px;height:34px;align-self:center">${ICON.ticket(16)}<input type="file" accept="${PASS_FILE_ACCEPT}" style="display:none" onchange="uploadPass('${eid}','${f.id}',this)"></label>
     <button class="del" style="opacity:.5;align-self:center" onclick="delFlight('${eid}','${f.id}')">${ICON.x(15)}</button>
   </div>${f.passes&&f.passes.length?`<div style="padding:0 16px 12px"><div class="thumb-row">${f.passes.map(p=>passThumb(eid, p, passEditable()?`delFlightPass('${eid}','${f.id}','${p.id}')`:null, f.id)).join('')}</div></div>`:''}`;
 }
@@ -931,6 +931,9 @@ function saveHotel(eid){
   withButton($('#ho-save'), ()=>{ e.hotel={name:val('ho-name'),address:val('ho-addr'),postcode:val('ho-post'),checkin:rawVal('ho-in'),checkout:rawVal('ho-out'),conf:val('ho-conf'),notes:val('ho-notes')}; persist('shows', eid); closeSheet(); renderView(); }, 'Hotel saved');
 }
 function sheetFlight(eid){
+  const e=sel.event(eid);
+  const today = new Date();
+  const defDate = (e && e.date) || `${today.getFullYear()}-${pad(today.getMonth()+1)}-${pad(today.getDate())}`;
   openSheet('Add flight', `
     <div class="field"><label>Flight number</label><input id="fl-code" class="input" placeholder="KL1008"></div>
     <div class="row-2">
@@ -938,9 +941,16 @@ function sheetFlight(eid){
       <div class="field"><label>To</label><input id="fl-to" class="input" placeholder="AMS"></div>
     </div>
     <div class="row-2">
-      <div class="field"><label>Departs</label><input id="fl-dep" type="datetime-local" class="input"></div>
-      <div class="field"><label>Seat</label><input id="fl-seat" class="input" placeholder="4A"></div>
+      <div class="field picker-field" onclick="openInputPicker('fl-dep-date')">
+        <label>Date</label>
+        <input id="fl-dep-date" type="date" class="input" value="${defDate}" onclick="event.stopPropagation();openInputPicker('fl-dep-date')">
+      </div>
+      <div class="field picker-field" onclick="openInputPicker('fl-dep-time')">
+        <label>Departs</label>
+        <input id="fl-dep-time" type="time" class="input" onclick="event.stopPropagation();openInputPicker('fl-dep-time')">
+      </div>
     </div>
+    <div class="field"><label>Seat</label><input id="fl-seat" class="input" placeholder="4A"></div>
     <button class="btn" id="fl-save" onclick="saveFlight('${eid}')">Add flight</button>
     <div class="spacer"></div>
   `);
@@ -948,8 +958,9 @@ function sheetFlight(eid){
 function saveFlight(eid){
   const e=sel.event(eid); const code=val('fl-code');
   if(!code){ toast('Add a flight number','x'); return; }
-  const depRaw = rawVal('fl-dep'); // yyyy-mm-ddThh:mm
-  const dep = depRaw? depRaw.replace('T',' ') : '';
+  const d = rawVal('fl-dep-date');
+  const t = rawVal('fl-dep-time');
+  const dep = (d && t) ? `${d} ${t}` : (d || t || '');
   withButton($('#fl-save'), ()=>{ e.flights.push({id:uid('fl'),code,from:val('fl-from').toUpperCase(),to:val('fl-to').toUpperCase(),dep,arr:'',seat:val('fl-seat'),passes:[]}); persist('shows', eid); closeSheet(); renderView(); }, 'Flight added');
 }
 function delFlight(eid,fid){ const e=sel.event(eid); e.flights=e.flights.filter(f=>f.id!==fid); persist('shows', eid); renderView(); toast('Flight removed','trash'); }
