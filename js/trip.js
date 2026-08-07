@@ -565,7 +565,7 @@ function tourContacts(run){
     const show = cleanVenue(s.venue)||s.city||'Show';
     if(s.promoter && (s.promoter.phone||s.promoter.whatsapp)) out.push({show, label:'Artist Liaison', name:s.promoter.name||'', phone:s.promoter.phone||'', whatsapp:s.promoter.whatsapp||''});
     showDrivers(s).forEach(d=>{ if(d.noGround) return; if(d.phone||d.whatsapp) out.push({show, label:(d.journey||'Driver')+(d.time?' · '+d.time:''), name:d.name||'', phone:d.phone||'', whatsapp:d.whatsapp||''}); });
-    (s.contacts||[]).forEach(c=>{ if(c.phone||c.whatsapp) out.push({show, label:c.role||'Contact', name:c.name||'', phone:c.phone||'', whatsapp:c.whatsapp||''}); });
+    (s.contacts||[]).forEach(c=>{ if(c.phone||c.whatsapp) out.push({show, label:showContactRoleLabel(c.role)||'Contact', name:c.name||'', phone:c.phone||'', whatsapp:c.whatsapp||''}); });
   });
   return out;
 }

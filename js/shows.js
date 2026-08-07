@@ -603,7 +603,7 @@ function contactsSubsection(e){
   }
   const body = `<div class="card flush">${cs.map(ct=>`<div class="info-line info-line-stacked">
     <div class="ic">${ICON.user(17)}</div>
-    <div class="tx" style="flex:1;min-width:0" onclick="sheetEventContact('${e.id}','${ct.id}')">${detailParts(esc(ct.name||'Contact'), ct.role?esc(ct.role):'', ct.phone?esc(ct.phone):'')}</div>
+    <div class="tx" style="flex:1;min-width:0" onclick="sheetEventContact('${e.id}','${ct.id}')">${detailParts(esc(ct.name||'Contact'), ct.role?esc(showContactRoleLabel(ct.role)):'', ct.phone?esc(ct.phone):'')}</div>
     ${ct.phone?`<button class="header-btn" style="width:34px;height:34px;align-self:center" onclick="callNumber('${jsAttr(ct.phone)}')">${ICON.phone(15)}</button>`:''}
     ${(ct.whatsapp||ct.phone)?`<button class="header-btn" style="width:34px;height:34px;align-self:center" onclick="whatsapp('${jsAttr(ct.whatsapp||ct.phone)}')">${ICON.chat(15)}</button>`:''}
   </div>`).join('')}</div>`;
@@ -1300,11 +1300,64 @@ function saveAdvance(eid){
     persist('shows', eid); closeSheet(); renderView();
   }, 'Details saved');
 }
+/* Key-contact roles — values match show_contacts.contact_role where possible. */
+const SHOW_CONTACT_ROLES = [
+  { value: 'artist_liaison', label: 'Artist Liaison' },
+  { value: 'promoter', label: 'Promoter' },
+  { value: 'production', label: 'Production' },
+  { value: 'venue_manager', label: 'Venue Manager' },
+  { value: 'driver', label: 'Driver' },
+  { value: 'emergency', label: 'Emergency' }
+];
+function showContactRoleLabel(role){
+  if(!role) return '';
+  const r = String(role).trim();
+  const hit = SHOW_CONTACT_ROLES.find(x =>
+    x.value === r ||
+    x.label.toLowerCase() === r.toLowerCase() ||
+    x.value.replace(/_/g, ' ') === r.toLowerCase()
+  );
+  return hit ? hit.label : r;
+}
+function matchShowContactRole(role){
+  if(!role || !String(role).trim()) return { mode: 'empty' };
+  const r = String(role).trim();
+  if(r === 'other') return { mode: 'other', custom: '' };
+  const hit = SHOW_CONTACT_ROLES.find(x =>
+    x.value === r ||
+    x.label.toLowerCase() === r.toLowerCase() ||
+    x.value.replace(/_/g, ' ') === r.toLowerCase()
+  );
+  if(hit) return { mode: 'preset', value: hit.value };
+  return { mode: 'other', custom: r };
+}
+function toggleEventContactRoleOther(){
+  const pick = document.getElementById('ct-role');
+  const wrap = document.getElementById('ct-role-other-wrap');
+  if(!pick || !wrap) return;
+  wrap.style.display = pick.value === '__other__' ? '' : 'none';
+}
 function sheetEventContact(eid,cid){
   const e=sel.event(eid); const c=(e.contacts||[]).find(x=>x.id===cid)||{};
+  const matched = matchShowContactRole(c.role);
+  const selected = matched.mode === 'preset' ? matched.value
+    : matched.mode === 'other' ? '__other__'
+    : '';
+  const otherVal = matched.mode === 'other' ? (matched.custom || '') : '';
+  const otherHidden = selected === '__other__' ? '' : 'display:none';
+  const roleOpts = [
+    `<option value="" ${selected===''?'selected':''}>Select role…</option>`,
+    ...SHOW_CONTACT_ROLES.map(r =>
+      `<option value="${esc(r.value)}" ${selected===r.value?'selected':''}>${esc(r.label)}</option>`
+    ),
+    `<option value="__other__" ${selected==='__other__'?'selected':''}>Other</option>`
+  ].join('');
   openSheet(cid?'Edit contact':'Add contact', `
     <div class="field"><label>Name</label><input id="ct-name" class="input" value="${esc(c.name||'')}" placeholder="Alex"></div>
-    <div class="field"><label>Role</label><input id="ct-role" class="input" value="${esc(c.role||'')}" placeholder="Artist liaison / Stage manager"></div>
+    <div class="field"><label>Role</label>
+      <select id="ct-role" class="input" onchange="toggleEventContactRoleOther()">${roleOpts}</select>
+    </div>
+    <div class="field" id="ct-role-other-wrap" style="${otherHidden}"><label>Custom role</label><input id="ct-role-other" class="input" value="${esc(otherVal)}" placeholder="e.g. Stage manager"></div>
     <div class="field"><label>Phone</label><input id="ct-phone" type="tel" class="input" value="${esc(c.phone||'')}" placeholder="+44 7…"></div>
     <div class="field"><label>WhatsApp (if different)</label><input id="ct-wa" type="tel" class="input" value="${esc(c.whatsapp||'')}"></div>
     <button class="btn" id="ct-save" onclick="saveEventContact('${eid}','${cid||''}')">Save contact</button>
@@ -1312,11 +1365,19 @@ function sheetEventContact(eid,cid){
     <div class="spacer"></div>
   `);
 }
+function resolveEventContactRole(){
+  const pick = rawVal('ct-role');
+  if(pick === '__other__') return val('ct-role-other');
+  return pick || '';
+}
 function saveEventContact(eid,cid){
   const e=sel.event(eid); const name=val('ct-name');
   if(!name){ toast('Add a name','x'); return; }
+  if(rawVal('ct-role') === '__other__' && !val('ct-role-other')){
+    toast('Enter a custom role','x'); return;
+  }
   if(!e.contacts) e.contacts=[];
-  const data={role:val('ct-role'),name,phone:val('ct-phone'),whatsapp:val('ct-wa')};
+  const data={role:resolveEventContactRole(),name,phone:val('ct-phone'),whatsapp:val('ct-wa')};
   withButton($('#ct-save'), ()=>{
     if(cid){ const c=e.contacts.find(x=>x.id===cid); if(c) Object.assign(c,data); }
     else e.contacts.push({id:uid('ct'),...data});
