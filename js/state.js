@@ -158,11 +158,20 @@ function ensureFlightPassengers(f){
   if(!Array.isArray(f.passengers)) f.passengers = [];
   const topPasses = Array.isArray(f.passes) ? f.passes : [];
   if(f.passengers.length){
+    /* Only migrate truly orphan top-level passes. Never re-pool passes that
+       already sit on a passenger — that made every pass appear under person 1. */
     if(topPasses.length){
-      const first = f.passengers[0];
-      first.passes = (typeof mergePassesById === 'function')
-        ? mergePassesById(first.passes || [], topPasses)
-        : [...(first.passes || []), ...topPasses];
+      const claimed = new Set();
+      f.passengers.forEach(p => (p && p.passes || []).forEach(pass => {
+        if(pass && pass.id) claimed.add(pass.id);
+      }));
+      const orphans = topPasses.filter(p => p && p.id && !claimed.has(p.id));
+      if(orphans.length){
+        const first = f.passengers[0];
+        first.passes = (typeof mergePassesById === 'function')
+          ? mergePassesById(first.passes || [], orphans)
+          : [...(first.passes || []), ...orphans];
+      }
       f.passes = [];
     }
     if(f.seat && !f.passengers.some(p => p && p.seat)){
@@ -513,6 +522,29 @@ function formatVenueAddress(e, opts={}){
     })
     .join(', ');
 }
+/* Full hotel address from split fields (same shape as venue). Falls back to a
+   single legacy address string when granular parts were never filled in. */
+function formatHotelAddress(h, opts={}){
+  if(!h) return '';
+  const parts = opts.withName
+    ? [h.name, h.address, h.address2, h.city, h.region, h.postcode, h.country]
+    : [h.address, h.address2, h.city, h.region, h.postcode, h.country];
+  const seen = new Set();
+  return parts
+    .map(x => (x || '').toString().trim())
+    .filter(x => {
+      if(!x) return false;
+      const k = x.toLowerCase();
+      if(seen.has(k)) return false;
+      seen.add(k);
+      return true;
+    })
+    .join(', ');
+}
+function hotelBookingRef(h){
+  if(!h) return '';
+  return (h.conf || h.bookingRef || '').toString().trim();
+}
 function relDay(dstr){
   const d = parseDT(dstr); if(!d) return '';
   const today = new Date(); today.setHours(0,0,0,0);
@@ -729,10 +761,13 @@ function runTimeline(run){
           done:!!f.done, embedded:true, ref:Object.assign({kind:'travel', icon:'plane', showId:s.id, to:f.to, from:f.from, embedded:true, passes}, f)});
       });
     }
-    if(!hasStay.has(s.id) && s.hotel && (s.hotel.name||s.hotel.address)){
+    if(!hasStay.has(s.id) && s.hotel && (s.hotel.name||s.hotel.address||s.hotel.city)){
+      const hSub = typeof formatHotelAddress === 'function'
+        ? formatHotelAddress(s.hotel)
+        : [s.hotel.address, s.hotel.postcode].filter(Boolean).join(', ');
       rows.push({id:'shhotel_'+s.id, kind:'stay', icon:'bed', date:s.hotel.checkin||s.date, time:'',
-        title:s.hotel.name||'Hotel', sub:[s.hotel.address, s.hotel.postcode].filter(Boolean).join(', '),
-        done:!!s.hotel.done, embedded:true, ref:{kind:'stay', icon:'bed', showId:s.id, place:s.hotel.name, addr:s.hotel.address, embedded:true}});
+        title:s.hotel.name||'Hotel', sub:hSub,
+        done:!!s.hotel.done, embedded:true, ref:{kind:'stay', icon:'bed', showId:s.id, place:s.hotel.name, addr:hSub || s.hotel.address, embedded:true}});
     }
     if(!hasCar.has(s.id)){
       showDrivers(s).forEach(d=>{ if(!d.time) return;

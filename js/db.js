@@ -207,7 +207,6 @@ function applyLocalPassMerge(prevEvents, nextEvents){
           ensureFlightPassengers(pf);
           ensureFlightPassengers(f);
         }
-        f.passes = mergePassesKeepLocal(f.passes || [], pf.passes || []);
         const prevPax = new Map((pf.passengers || []).map(p => [p.id, p]));
         (f.passengers || []).forEach(pax => {
           const pp = prevPax.get(pax.id);
@@ -220,6 +219,8 @@ function applyLocalPassMerge(prevEvents, nextEvents){
             }));
           }
         });
+        /* After passenger merge, do not keep a pooled top-level copy. */
+        f.passes = [];
       });
     }
   });
@@ -255,7 +256,8 @@ async function attachPassToShowFlight(showId, flightId, att, passengerId){
   }
   (pax.passes = pax.passes || []).push(att);
   att._passengerId = pax.id;
-  f.passes = typeof flightAllPasses === 'function' ? flightAllPasses(f) : (f.passes || []);
+  /* Keep flight-level passes empty when passengers own the passes. */
+  f.passes = [];
   if(syncActive()) await ensurePassUploaded(att, showId, flightId);
   persist('shows', showId);
   if(typeof pushShowNow === 'function') pushShowNow(showId);

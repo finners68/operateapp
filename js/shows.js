@@ -428,7 +428,7 @@ function flightsSubsection(e){
    most prominent business there, not the hotel. Detected by country, or by a
    UK-style postcode (letters first, e.g. "M1 1AE"). */
 function isUKShow(e){
-  const c = (e && e.country || '').trim().toLowerCase();
+  const c = (e && (e.hotel && e.hotel.country || e.country) || '').trim().toLowerCase();
   if(/\b(uk|gb|england|scotland|wales|northern ireland|great britain|united kingdom|britain)\b/.test(c)) return true;
   const p = (e && e.hotel && e.hotel.postcode || '').trim();
   return /^[A-Za-z]{1,2}\d/.test(p);
@@ -456,10 +456,13 @@ function hotelMapQuery(e){
   const name = hotelBestName(e);
   if(!h && !name) return '';
   const post = (h && h.postcode || '').trim();
-  const addr = (h && h.address || '').trim();
   if(post && isUKShow(e)) return post;
-  const parts = name ? [name, e&&e.city, e&&e.country]
-    : (addr ? [addr, e&&e.city, e&&e.country] : [e&&e.city, e&&e.country]);
+  const addr = typeof formatHotelAddress === 'function' ? formatHotelAddress(h) : '';
+  const parts = name
+    ? [name, (h && h.city) || (e && e.city), (h && h.country) || (e && e.country)]
+    : (addr
+      ? [addr]
+      : [(h && h.city) || (e && e.city), (h && h.country) || (e && e.country)]);
   const seen = new Set();
   return parts
     .map(x=>(x||'').trim())
@@ -472,11 +475,17 @@ function hotelSubsection(e){
   if(legs.length) body += showSourceLabel('From journey')+`<div class="card flush">${legs.map(journeyRow).join('')}</div>`;
   if(e.hotel){
     if(legs.length) body += showSourceLabel('Added to show');
+    const addr = typeof formatHotelAddress === 'function'
+      ? formatHotelAddress(e.hotel)
+      : [e.hotel.address, e.hotel.postcode].filter(Boolean).join(', ');
+    const conf = typeof hotelBookingRef === 'function' ? hotelBookingRef(e.hotel) : (e.hotel.conf || e.hotel.bookingRef || '');
     body += `<div class="card flush">
-      <div class="info-line info-line-stacked"><div class="ic">${ICON.bed(17)}</div>${detailTx(esc(e.hotel.name||'Hotel'), esc([e.hotel.address, e.hotel.postcode].filter(Boolean).join(', ')))}
+      <div class="info-line info-line-stacked"><div class="ic">${ICON.bed(17)}</div>${detailTx(esc(e.hotel.name||'Hotel'), esc(addr || 'Tap to add address'))}
         <button class="header-btn" style="width:34px;height:34px;align-self:center" onclick="openMaps('${jsAttr(hotelMapQuery(e))}')">${ICON.map(16)}</button></div>
       <div class="info-line"><div class="ic">${ICON.clock(17)}</div>${fieldTx('Check in / out', `${e.hotel.checkin?fmtDate(e.hotel.checkin):'—'} → ${e.hotel.checkout?fmtDate(e.hotel.checkout):'—'}`)}</div>
-      ${e.hotel.conf?`<div class="info-line" onclick="copyText('${jsAttr(e.hotel.conf)}')"><div class="ic">${ICON.ticket(17)}</div>${fieldTx('Confirmation', esc(e.hotel.conf))}<button class="header-btn" style="width:34px;height:34px;align-self:center">${ICON.copy(16)}</button></div>`:''}
+      ${conf?`<div class="info-line" onclick="copyText('${jsAttr(conf)}')"><div class="ic">${ICON.ticket(17)}</div>${fieldTx('Confirmation', esc(conf))}<button class="header-btn" style="width:34px;height:34px;align-self:center">${ICON.copy(16)}</button></div>`:''}
+      ${e.hotel.phone?`<div class="info-line" onclick="callNumber('${jsAttr(e.hotel.phone)}')"><div class="ic">${ICON.phone(17)}</div>${fieldTx('Phone', esc(e.hotel.phone))}<button class="header-btn" style="width:34px;height:34px;align-self:center">${ICON.phone(16)}</button></div>`:''}
+      ${e.hotel.email?`<div class="info-line" onclick="copyText('${jsAttr(e.hotel.email)}')"><div class="ic">${ICON.chat(17)}</div>${fieldTx('Email', esc(e.hotel.email))}<button class="header-btn" style="width:34px;height:34px;align-self:center">${ICON.copy(16)}</button></div>`:''}
       ${e.hotel.notes?`<div class="info-line"><div class="ic">${ICON.note(17)}</div>${fieldTx('Room notes', esc(e.hotel.notes))}</div>`:''}
     </div>`;
   }
@@ -757,13 +766,13 @@ function flightLine(eid,f){
   const depTime = parsed.time || (f.dep ? (String(f.dep).split(' ')[1] || (String(f.dep).includes(':')&&!String(f.dep).includes('-')?f.dep:'')) : '');
   const arrTime = f.arr ? (String(f.arr).split(' ')[1] || (String(f.arr).includes(':')&&!String(f.arr).includes('-')?f.arr:'')) : '';
   const route = `${f.from||'?'} → ${f.to||'?'}`;
-  const paxSummary = typeof flightPassengerSummary==='function' ? flightPassengerSummary(f) : (f.seat?'Seat '+f.seat:'');
+  const pax = (typeof flightPassengers==='function' ? flightPassengers(f) : (f.passengers||[]));
   const meta = [
     depTime ? 'Dep '+esc(depTime) : '',
     arrTime ? 'Arr '+esc(arrTime) : '',
-    paxSummary ? esc(paxSummary) : ''
+    pax.length ? (pax.length+' passenger'+(pax.length===1?'':'s')) : ''
   ].filter(Boolean).join(' · ');
-  const pax = (typeof flightPassengers==='function' ? flightPassengers(f) : (f.passengers||[]));
+  /* Boarding passes render under each passenger — never as one pooled group. */
   const paxBlock = pax.length ? pax.map(p=>flightPaxLine(eid,f,p)).join('') : '';
   return `<div class="info-line info-line-stacked">
     <div class="ic">${ICON.plane(17)}</div>
@@ -776,11 +785,15 @@ function flightPaxLine(eid,f,pax){
   const title = esc(pax.name||'Passenger');
   const seat = pax.seat ? ('Seat '+esc(pax.seat)) : 'No seat yet';
   const passes = pax.passes||[];
-  return `<div class="info-line" style="padding-left:52px">
-    <div class="ic">${ICON.users(15)}</div>
-    ${detailTx(title, seat)}
-    <label class="header-btn" style="width:34px;height:34px;align-self:center" title="Boarding pass">${ICON.ticket(16)}<input type="file" accept="${PASS_FILE_ACCEPT}" style="display:none" onchange="uploadPass('${eid}','${f.id}',this,'${pax.id}')"></label>
-  </div>${passes.length?`<div style="padding:0 16px 12px 52px"><div class="thumb-row">${passes.map(p=>passThumb(eid, p, passEditable()?`delFlightPass('${eid}','${f.id}','${p.id}','${pax.id}')`:null, f.id)).join('')}</div></div>`:''}`;
+  return `<div class="flight-pax" style="padding:0 0 4px">
+    <div class="info-line" style="padding-left:52px">
+      <div class="ic">${ICON.users(15)}</div>
+      ${detailTx(title, seat)}
+      <label class="header-btn" style="width:34px;height:34px;align-self:center" title="Boarding pass">${ICON.ticket(16)}<input type="file" accept="${PASS_FILE_ACCEPT}" style="display:none" onchange="uploadPass('${eid}','${f.id}',this,'${pax.id}')"></label>
+    </div>
+    ${passes.length?`<div style="padding:0 16px 10px 52px"><div class="thumb-row">${passes.map(p=>passThumb(eid, p, passEditable()?`delFlightPass('${eid}','${f.id}','${p.id}','${pax.id}')`:null, f.id)).join('')}</div></div>`
+      :`<div style="padding:0 16px 10px 52px;color:var(--text-3);font-size:12px">No boarding pass yet</div>`}
+  </div>`;
 }
 function attachThumb(eid,a){
   const inner = a.kind==='image'?`<img src="${a.data}">`:`<div class="pdf">${ICON.file(26)}<span>${esc(a.name||'File')}</span></div>`;
@@ -933,15 +946,29 @@ function offerAssign(eid){ /* shows auto-group into tours — nothing to assign 
    ============================================================ */
 function sheetHotel(eid){
   const e=sel.event(eid); const h=e.hotel||{};
+  const conf = typeof hotelBookingRef === 'function' ? hotelBookingRef(h) : (h.conf || h.bookingRef || '');
   openSheet('Hotel', `
     <div class="field"><label>Hotel name</label><input id="ho-name" class="input" value="${esc(h.name||'')}" placeholder="Kimpton De Witt"></div>
-    <div class="field"><label>Address</label><input id="ho-addr" class="input" value="${esc(h.address||'')}" placeholder="Street, city"></div>
-    <div class="field"><label>Postcode / ZIP</label><input id="ho-post" class="input" value="${esc(h.postcode||'')}" placeholder="Optional — makes Maps exact">${e.city||e.country?`<div class="hint" style="padding:6px 2px 0">No postcode? Maps still uses the hotel name${e.city?' in '+esc(e.city):''}${e.country?', '+esc(e.country):''}.</div>`:''}</div>
+    <div class="field"><label>Address</label><input id="ho-addr" class="input" value="${esc(h.address||'')}" placeholder="Street and number"></div>
+    <div class="field"><label>Address line 2</label><input id="ho-addr2" class="input" value="${esc(h.address2||'')}" placeholder="Building, floor, unit (optional)"></div>
+    <div class="row-2">
+      <div class="field"><label>City</label><input id="ho-city" class="input" value="${esc(h.city||'')}" placeholder="${esc(e.city||'Amsterdam')}"></div>
+      <div class="field"><label>Region</label><input id="ho-region" class="input" value="${esc(h.region||'')}" placeholder="North Holland"></div>
+    </div>
+    <div class="row-2">
+      <div class="field"><label>Postcode</label><input id="ho-post" class="input" value="${esc(h.postcode||'')}" placeholder="1012 AB"></div>
+      <div class="field"><label>Country</label><input id="ho-country" class="input" value="${esc(h.country||e.country||'')}" placeholder="Netherlands"></div>
+    </div>
+    ${e.city||e.country?`<div class="hint" style="padding:0 2px 8px">No postcode? Maps still uses the hotel name${e.city?' in '+esc(e.city):''}${e.country?', '+esc(e.country):''}.</div>`:''}
+    <div class="row-2">
+      <div class="field"><label>Phone</label><input id="ho-phone" type="tel" class="input" value="${esc(h.phone||'')}" placeholder="+31 20 123 4567"></div>
+      <div class="field"><label>Email</label><input id="ho-email" type="email" class="input" value="${esc(h.email||'')}" placeholder="reservations@hotel.com"></div>
+    </div>
     <div class="row-2">
       <div class="field"><label>Check in</label><input id="ho-in" type="date" class="input" value="${h.checkin||e.date||''}"></div>
       <div class="field"><label>Check out</label><input id="ho-out" type="date" class="input" value="${h.checkout||''}"></div>
     </div>
-    <div class="field"><label>Confirmation #</label><input id="ho-conf" class="input" value="${esc(h.conf||'')}" placeholder="Booking reference"></div>
+    <div class="field"><label>Confirmation #</label><input id="ho-conf" class="input" value="${esc(conf)}" placeholder="Booking reference"></div>
     <div class="field"><label>Room notes</label><textarea id="ho-notes" class="textarea" placeholder="Late checkout, floor, etc.">${esc(h.notes||'')}</textarea></div>
     <button class="btn" id="ho-save" onclick="saveHotel('${eid}')">Save hotel</button>
     ${(e.hotel&&passEditable())?`<button class="btn danger" style="margin-top:10px" onclick="removeHotel('${eid}')">${ICON.trash(16)} Remove hotel</button>`:''}
@@ -950,7 +977,31 @@ function sheetHotel(eid){
 }
 function saveHotel(eid){
   const e=sel.event(eid);
-  withButton($('#ho-save'), ()=>{ e.hotel={name:val('ho-name'),address:val('ho-addr'),postcode:val('ho-post'),checkin:rawVal('ho-in'),checkout:rawVal('ho-out'),conf:val('ho-conf'),notes:val('ho-notes')}; persist('shows', eid); closeSheet(); renderView(); }, 'Hotel saved');
+  withButton($('#ho-save'), ()=>{
+    const prev = e.hotel || {};
+    const conf = val('ho-conf');
+    e.hotel = {
+      ...prev,
+      name: val('ho-name'),
+      address: val('ho-addr'),
+      address2: val('ho-addr2'),
+      city: val('ho-city'),
+      region: val('ho-region'),
+      postcode: val('ho-post'),
+      country: val('ho-country'),
+      phone: val('ho-phone'),
+      email: val('ho-email'),
+      checkin: rawVal('ho-in'),
+      checkout: rawVal('ho-out'),
+      conf,
+      bookingRef: conf,
+      notes: val('ho-notes')
+    };
+    persist('shows', eid);
+    if(typeof pushShowNow === 'function') pushShowNow(eid);
+    closeSheet();
+    renderView();
+  }, 'Hotel saved');
 }
 function sheetFlight(eid, fid){
   const e=sel.event(eid);
@@ -1686,7 +1737,19 @@ function buildDaySheet(e){
   L.push(`  ${e.venue||''}`);
   [e.venueAddr, e.venueAddr2, [e.city, e.venueRegion].filter(Boolean).join(', '), e.venuePostcode, e.country]
     .filter(Boolean).forEach(line => L.push(`  ${line}`));
-  if(e.hotel){ L.push(''); L.push('🏨 HOTEL'); L.push(`  ${e.hotel.name||''}`); if(e.hotel.address||e.hotel.postcode)L.push(`  ${[e.hotel.address, e.hotel.postcode].filter(Boolean).join(', ')}`); if(e.hotel.conf)L.push(`  Conf: ${e.hotel.conf}`); if(e.hotel.checkin)L.push(`  ${fmtDate(e.hotel.checkin)} → ${e.hotel.checkout?fmtDate(e.hotel.checkout):''}`); }
+  if(e.hotel){
+    L.push(''); L.push('🏨 HOTEL'); L.push(`  ${e.hotel.name||''}`);
+    const hAddr = typeof formatHotelAddress === 'function'
+      ? formatHotelAddress(e.hotel)
+      : [e.hotel.address, e.hotel.address2, e.hotel.city, e.hotel.region, e.hotel.postcode, e.hotel.country].filter(Boolean).join(', ');
+    if(hAddr) L.push(`  ${hAddr}`);
+    if(e.hotel.phone) L.push(`  Tel: ${e.hotel.phone}`);
+    if(e.hotel.email) L.push(`  Email: ${e.hotel.email}`);
+    const hConf = typeof hotelBookingRef === 'function' ? hotelBookingRef(e.hotel) : (e.hotel.conf || e.hotel.bookingRef || '');
+    if(hConf) L.push(`  Conf: ${hConf}`);
+    if(e.hotel.notes) L.push(`  Notes: ${e.hotel.notes}`);
+    if(e.hotel.checkin) L.push(`  ${fmtDate(e.hotel.checkin)} → ${e.hotel.checkout?fmtDate(e.hotel.checkout):''}`);
+  }
   const contacts=[];
   orderedDrivers(e).forEach(({d})=>{
     const tag = `${d.journey?' ('+d.journey+')':''}${d.time?' '+d.time:''}`;

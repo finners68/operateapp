@@ -823,18 +823,25 @@ async function pushToSupabaseV2(orgId, dirtyIn){
       }
     }
 
-    if(s.hotel && (s.hotel.name || s.hotel.address)){
+    if(s.hotel && (s.hotel.name || s.hotel.address || s.hotel.city)){
       const h = s.hotel;
       const hotelLegacy = 'hotel:' + sid;
+      const bookingRef = (h.bookingRef || h.conf || '').trim() || null;
+      const roomNotes = (h.notes || '').trim() || null;
       const hotelRow = await v2UpsertOneByLegacy(sb, 'hotels', orgId, {
         id: v2IdForLegacy('hotels', hotelLegacy, h._hotelId),
         organisation_id: orgId,
         legacy_id: hotelLegacy,
         hotel_name: h.name || 'Hotel',
         address_line_1: h.address || null,
+        address_line_2: h.address2 || null,
+        city: h.city || null,
+        region: h.region || null,
         postal_code: h.postcode || null,
+        country_code: v2CountryCode(h.country),
         phone_number: h.phone || null,
-        email_address: h.email || null
+        email_address: h.email || null,
+        hotel_notes: roomNotes
       });
       if(hotelRow){
         h._hotelId = hotelRow.id;
@@ -849,7 +856,8 @@ async function pushToSupabaseV2(orgId, dirtyIn){
           tour_id: s.tripId && tourUuidMap[s.tripId] ? tourUuidMap[s.tripId] : null,
           check_in_date: checkIn,
           check_out_date: checkOut >= checkIn ? checkOut : checkIn,
-          booking_reference: h.bookingRef || null,
+          booking_reference: bookingRef,
+          room_notes: roomNotes,
           is_done: !!h.done
         });
         if(bk){
@@ -921,8 +929,13 @@ async function pushToSupabaseV2(orgId, dirtyIn){
           await v2UpsertTravelTicket(sb, orgId, pp, jRow.id, fileId, pax);
         }
       }
-      /* Legacy top-level passes (pre-passenger model) attach to first passenger. */
-      const legacyPasses = f.passes || [];
+      /* Legacy top-level passes (pre-passenger model) attach to first passenger.
+         Skip any pass already owned by a passenger so we never double-upload. */
+      const claimedPassIds = new Set();
+      (f.passengers || []).forEach(pax => (pax.passes || []).forEach(pp => {
+        if(pp && pp.id) claimedPassIds.add(pp.id);
+      }));
+      const legacyPasses = (f.passes || []).filter(pp => pp && pp.id && !claimedPassIds.has(pp.id));
       if(legacyPasses.length && jRow){
         const fallbackPax = (f.passengers && f.passengers[0]) || { id: null, name: '', seat: f.seat || '' };
         for(const pp of legacyPasses){

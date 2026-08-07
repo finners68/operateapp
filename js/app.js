@@ -956,7 +956,7 @@ function delFlightPass(eid,fid,pid,passengerId){
     (f.passengers||[]).forEach(pax=>{ if(pax.passes) pax.passes=pax.passes.filter(p=>p.id!==pid); });
     if(f.passes) f.passes=f.passes.filter(p=>p.id!==pid);
   }
-  f.passes = typeof flightAllPasses==='function' ? flightAllPasses(f) : (f.passes||[]);
+  f.passes = [];
   persist('shows', eid);
   if(typeof pushShowNow==='function') pushShowNow(eid);
   renderView();
@@ -969,7 +969,7 @@ function delItemPass(itemId, passId){
   else it.passes=[];
   persist('shows', itemId || eid); renderView(); toast('Boarding pass removed','trash');
 }
-function removeHotel(eid){ const e=sel.event(eid); if(e){ e.hotel=null; } persist('shows', eid); closeSheet(); renderView(); toast('Hotel removed','trash'); }
+function removeHotel(eid){ const e=sel.event(eid); if(e){ e.hotel=null; } persist('shows', eid); if(typeof pushShowNow==='function') pushShowNow(eid); closeSheet(); renderView(); toast('Hotel removed','trash'); }
 function removeDriver(eid, idx){ const e=sel.event(eid); if(e){ const list=showDrivers(e); if(idx!=null) list.splice(idx,1); e.driver=list.find(d=>!d.noGround)||null; } persist('shows', eid); closeSheet(); renderView(); toast('Removed','trash'); }
 function removePromoter(eid){ const e=sel.event(eid); if(e){ e.promoter=null; } persist('shows', eid); closeSheet(); renderView(); toast('Contact removed','trash'); }
 /* ============================================================

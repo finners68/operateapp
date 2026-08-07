@@ -128,14 +128,21 @@ async function composeViewFromV2(v2, opts){
     if(kind === 'show_hotel'){
       const showUuid = links[0]?.show_id;
       if(showUuid){
+        const bookingRef = b.booking_reference || '';
         embeddedHotelByShow[showUuid] = {
           name: h?.hotel_name || '',
           address: h?.address_line_1 || '',
+          address2: h?.address_line_2 || '',
+          city: h?.city || '',
+          region: h?.region || '',
           postcode: h?.postal_code || '',
+          country: h?.country_code || '',
           checkin: b.check_in_date,
           checkout: b.check_out_date,
           done: b.is_done,
-          bookingRef: b.booking_reference || '',
+          bookingRef,
+          conf: bookingRef,
+          notes: b.room_notes || b.booking_notes || h?.hotel_notes || '',
           phone: h?.phone_number || '',
           email: h?.email_address || '',
           _bookingId: b.id,
@@ -331,7 +338,6 @@ async function composeViewFromV2(v2, opts){
     const fl = [];
     for(const j of fj.flights.sort((a,b) => (a.sort_order||0) - (b.sort_order||0))){
       const passengers = await passengersFromJourney(j);
-      const allPasses = passengers.flatMap(p => p.passes || []);
       fl.push({
         id: j.id,
         code: j.flight_number || j.journey_title || '',
@@ -341,7 +347,9 @@ async function composeViewFromV2(v2, opts){
         arr: flightDateTimeLocal(j.arrival_at),
         seat: '',
         passengers,
-        passes: allPasses
+        /* Passes live on each passenger — keep top-level empty so reload
+           does not re-pool every pass under the first person. */
+        passes: []
       });
     }
 
