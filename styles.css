@@ -98,17 +98,20 @@ body{touch-action:manipulation;}
 .shows-mode-seg-compact button{flex:none;width:36px;height:36px;padding:0;display:flex;align-items:center;justify-content:center;}
 .shows-sticky-tools{padding:0 var(--pad-x) 12px;}
 .shows-filter-chips{margin-top:8px;}
-/* Shows/Tours sticky header owns the top safe area so list rows cannot scroll through a gap above it. */
+/* Sticky headers own the top safe area so list/detail content cannot scroll through a gap above them. */
 #screen.flush-sticky-header > .top-safe{height:0;overflow:hidden;}
-#screen.flush-sticky-header .tab-page-sticky{
+#screen.flush-sticky-header .tab-page-sticky,
+#screen.flush-sticky-header .detail-top{
   position:sticky;
   top:0;
-  z-index:12;
   padding-top:var(--safe-top);
   background:var(--bg);
   isolation:isolate;
 }
-#screen.flush-sticky-header .tab-page-sticky::before{
+#screen.flush-sticky-header .tab-page-sticky{z-index:12;}
+#screen.flush-sticky-header .detail-top{z-index:20;}
+#screen.flush-sticky-header .tab-page-sticky::before,
+#screen.flush-sticky-header .detail-top::before{
   content:'';
   position:absolute;
   left:0;right:0;

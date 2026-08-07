@@ -200,11 +200,13 @@ function viewHome(){
     </div>
     <div class="home-hero-text"><div class="hero-hello">${greeting}${nameBit}</div><div class="hero-home">Home</div></div>
   </div>` : `
-  <div class="lg-header">
-    <div><div class="lg-title">Home</div><div class="lg-sub">${greeting}${nameBit} · your tour dashboard</div></div>
-    <div style="display:flex;gap:9px">
-      <button class="header-btn" onclick="openSearch()">${ICON.search(20)}</button>
-      <button class="header-btn" onclick="openView('settings')">${ICON.settings(20)}</button>
+  <div class="tab-page-sticky">
+    <div class="lg-header">
+      <div><div class="lg-title">Home</div><div class="lg-sub">${greeting}${nameBit} · your tour dashboard</div></div>
+      <div style="display:flex;gap:9px">
+        <button class="header-btn" onclick="openSearch()">${ICON.search(20)}</button>
+        <button class="header-btn" onclick="openView('settings')">${ICON.settings(20)}</button>
+      </div>
     </div>
   </div>`;
   const st = computeStats();
@@ -235,8 +237,9 @@ function viewHome(){
   ].filter(Boolean).join('');
 
   return `
+  <div class="tab-page">
   ${header}
-  <div class="screen-pad home-screen stagger"${photo?' style="margin-top:12px"':''}>
+  <div class="screen-pad home-screen tab-page-body stagger"${photo?' style="margin-top:12px"':''}>
     <section class="home-focus">${hero}</section>
     ${run?`<div class="tourmode-wrap">${activeTripBanner(run)}</div>`:''}
 
@@ -268,6 +271,7 @@ function viewHome(){
     </div>
 
     <div class="spacer"></div>
+  </div>
   </div>`;
 }
 function homePanel(title, linkHTML, bodyHTML){

@@ -234,8 +234,9 @@ function render(opts={}){ renderNav(); renderView(opts); }
 function syncScreenChrome(){
   const screen = $('#screen');
   if(!screen) return;
-  /* Shows/Tours list: collapse the outer safe spacer so the sticky header sits flush with the top. */
-  screen.classList.toggle('flush-sticky-header', !overlay && store.tab === 'shows');
+  /* Any tab/detail sticky header that owns the top safe area: collapse the outer spacer. */
+  const ownsTop = !!document.querySelector('#view .tab-page-sticky, #view .detail-top');
+  screen.classList.toggle('flush-sticky-header', ownsTop);
 }
 function renderView(opts={}){
   const screen = $('#screen');

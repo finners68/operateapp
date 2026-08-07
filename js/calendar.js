@@ -79,29 +79,33 @@ function viewCalendar(){
     : 'Tap + to add a show · swipe the calendar to change month';
 
   return `
-  <div class="lg-header">
-    <div><div class="lg-title">Calendar</div><div class="lg-sub">${calSub}</div></div>
-    <div style="display:flex;gap:9px;align-items:center">
-      <button class="header-btn" style="width:auto;padding:0 12px;gap:4px;border-radius:20px" onclick="toggleCalGrid()">${ICON.calendar(17)} ${(calGridOpen?ICON.chevUp:ICON.chevDown)(15)}</button>
-      <button class="header-btn" onclick="sheetEvent()">${ICON.plus(22)}</button>
-    </div>
-  </div>
-  <div class="screen-pad">
-    ${pageIntro('calendar', 'Your master schedule', 'Coloured blocks are shows. Tap a day to see that day\'s list. Add or edit shows in the Shows tab — flights, hotels and checklists live inside each show.')}
-    <div class="desktop-cal-split ${calGridOpen?'':'cal-grid-collapsed'}">
-      <div class="desktop-cal-grid-col">
-        ${calGridCard}
-        ${calCollapsedStrip}
-      </div>
-      <div class="desktop-cal-agenda-col">
-        ${(()=>{ const n=store.events.filter(showPassed).length; return n?`<div class="past-link" onclick="openView('pastshows')">${ICON.archive(13)} Past shows · ${n}${ICON.chevR(13)}</div>`:''; })()}
-        <div class="section" style="margin-top:8px">
-          <div class="section-head"><div class="section-title">${calSel?relDay(calSel):MONTHS[m]+' Agenda'}</div>${calSel?`<div class="section-link" onclick="clearCalSel()">Show whole month</div>`:''}</div>
-          ${monthAgenda(y,m,todayStr)}
+  <div class="tab-page">
+    <div class="tab-page-sticky">
+      <div class="lg-header">
+        <div><div class="lg-title">Calendar</div><div class="lg-sub">${calSub}</div></div>
+        <div style="display:flex;gap:9px;align-items:center">
+          <button class="header-btn" style="width:auto;padding:0 12px;gap:4px;border-radius:20px" onclick="toggleCalGrid()">${ICON.calendar(17)} ${(calGridOpen?ICON.chevUp:ICON.chevDown)(15)}</button>
+          <button class="header-btn" onclick="sheetEvent()">${ICON.plus(22)}</button>
         </div>
       </div>
     </div>
-    <div class="spacer"></div>
+    <div class="screen-pad tab-page-body">
+      ${pageIntro('calendar', 'Your master schedule', 'Coloured blocks are shows. Tap a day to see that day\'s list. Add or edit shows in the Shows tab — flights, hotels and checklists live inside each show.')}
+      <div class="desktop-cal-split ${calGridOpen?'':'cal-grid-collapsed'}">
+        <div class="desktop-cal-grid-col">
+          ${calGridCard}
+          ${calCollapsedStrip}
+        </div>
+        <div class="desktop-cal-agenda-col">
+          ${(()=>{ const n=store.events.filter(showPassed).length; return n?`<div class="past-link" onclick="openView('pastshows')">${ICON.archive(13)} Past shows · ${n}${ICON.chevR(13)}</div>`:''; })()}
+          <div class="section" style="margin-top:8px">
+            <div class="section-head"><div class="section-title">${calSel?relDay(calSel):MONTHS[m]+' Agenda'}</div>${calSel?`<div class="section-link" onclick="clearCalSel()">Show whole month</div>`:''}</div>
+            ${monthAgenda(y,m,todayStr)}
+          </div>
+        </div>
+      </div>
+      <div class="spacer"></div>
+    </div>
   </div>`;
 }
 let calGridOpen = true;

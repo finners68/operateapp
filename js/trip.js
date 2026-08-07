@@ -487,18 +487,26 @@ function viewTrip(id){
 function viewToursTab(){
   const all = runs();
   if(!all.length) return `
-  <div class="lg-header"><div><div class="lg-title">Tour Mode</div><div class="lg-sub">Your live tour dashboard</div></div></div>
-  <div class="screen-pad"><div class="empty"><div class="ic">${ICON.trips(28)}</div><b>No tours yet</b><span>Add shows on nearby dates — they group into a tour automatically and appear here as your live dashboard.</span><button class="btn secondary" style="margin-top:14px;max-width:240px" onclick="go('shows')">${ICON.music(18)} Go to Shows</button></div></div>`;
+  <div class="tab-page">
+    <div class="tab-page-sticky">
+      <div class="lg-header"><div><div class="lg-title">Tour Mode</div><div class="lg-sub">Your live tour dashboard</div></div></div>
+    </div>
+    <div class="screen-pad tab-page-body"><div class="empty"><div class="ic">${ICON.trips(28)}</div><b>No tours yet</b><span>Add shows on nearby dates — they group into a tour automatically and appear here as your live dashboard.</span><button class="btn secondary" style="margin-top:14px;max-width:240px" onclick="go('shows')">${ICON.music(18)} Go to Shows</button></div></div>
+  </div>`;
   const today = new Date(); today.setHours(0,0,0,0);
   const r = activeRun() || all.find(x=>parseDT(x.end)>=today) || all[all.length-1];
   const active = activeRun() && activeRun().key===r.key;
   const upcoming = all.filter(x=>parseDT(x.end)>=today);
   return `
-  <div class="lg-header">
-    <div><div class="lg-title">Tour Mode</div><div class="lg-sub">${active?'Live now':(parseDT(r.end)>=today?'Next tour':'Latest tour')}${upcoming.length>1?' · '+upcoming.length+' upcoming':''}</div></div>
-    <button class="header-btn" onclick="goToursList()" title="All tours">${ICON.trips(20)}</button>
-  </div>
-  <div class="screen-pad stagger">${tripBody(r)}</div>`;
+  <div class="tab-page">
+    <div class="tab-page-sticky">
+      <div class="lg-header">
+        <div><div class="lg-title">Tour Mode</div><div class="lg-sub">${active?'Live now':(parseDT(r.end)>=today?'Next tour':'Latest tour')}${upcoming.length>1?' · '+upcoming.length+' upcoming':''}</div></div>
+        <button class="header-btn" onclick="goToursList()" title="All tours">${ICON.trips(20)}</button>
+      </div>
+    </div>
+    <div class="screen-pad tab-page-body stagger">${tripBody(r)}</div>
+  </div>`;
 }
 /* The tours list body — reused inside the Shows/Tours toggle. */
 function toursListBody(){
