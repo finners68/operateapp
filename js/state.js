@@ -282,7 +282,8 @@ function fieldTx(label, value){
   return `<div class="tx"><div class="k">${label}</div><div class="v">${value}</div></div>`;
 }
 function showGroup(id, title, iconHTML, summary, bodyHTML, defOpen){
-  const open = isOpen(id, defOpen !== false);
+  /* Show groups start collapsed; expand on tap. Pass defOpen=true to force open. */
+  const open = isOpen(id, defOpen === true);
   const chev = ICON.chevDown ? ICON.chevDown(20) : ICON.chevR(20);
   return `<section class="show-group ${open?'open':''}" id="fold-${id}">
     <div class="show-group-head" onclick="toggleFold('${id}')" role="button" aria-expanded="${open?'true':'false'}">
@@ -294,7 +295,8 @@ function showGroup(id, title, iconHTML, summary, bodyHTML, defOpen){
   </section>`;
 }
 function showSubsection(id, title, addBtnHTML, bodyHTML, defOpen){
-  const open = isOpen(id, defOpen !== false);
+  /* Subsections start collapsed; expand on tap. */
+  const open = isOpen(id, defOpen === true);
   const chev = ICON.chevDown ? ICON.chevDown(16) : ICON.chevR(16);
   return `<div class="show-subsection ${open?'open':''}" id="fold-${id}">
     <div class="show-subsection-head" onclick="toggleFold('${id}')" role="button" aria-expanded="${open?'true':'false'}">
@@ -821,9 +823,18 @@ function acct(){ return ACCOUNT_TYPES[store.settings.accountType]||ACCOUNT_TYPES
 /* ---------- Collapsible state ---------- */
 let folds = {}; // id -> open(bool)
 function isOpen(id, def){ return folds[id]===undefined ? !!def : folds[id]; }
+/* Clear remembered open/closed state for a show so sections start collapsed
+   each time you open that show. Quiet sync remounts keep the user's expands. */
+function resetShowFolds(showId){
+  if(!showId) return;
+  const prefixes = ['sg-'+showId+'-', 'ss-'+showId+'-'];
+  Object.keys(folds).forEach(k => {
+    if(prefixes.some(p => k.startsWith(p))) delete folds[k];
+  });
+}
 function toggleFold(id){
   const el = document.getElementById('fold-'+id);
-  const currentlyOpen = el ? el.classList.contains('open') : !!isOpen(id, true);
+  const currentlyOpen = el ? el.classList.contains('open') : !!isOpen(id, false);
   folds[id] = !currentlyOpen;
   if(el){
     el.classList.toggle('open', folds[id]);

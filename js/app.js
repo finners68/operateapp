@@ -204,7 +204,9 @@ function go(tab){ navStack=[]; overlay=null; store.tab=tab; if(tab==='ideas') id
 function openView(type, id){
   if(type==='finance' && financeLockActive()){ requireUnlock('finance', ()=>openView('finance', id)); return; }
   if(overlay) navStack.push(overlay);   // remember where we came from
-  overlay={type, id}; haptic(); saveNavState(); renderView({ resetScroll: true });
+  overlay={type, id};
+  if(type==='event' && id && typeof resetShowFolds==='function') resetShowFolds(id);
+  haptic(); saveNavState(); renderView({ resetScroll: true });
 }
 function back(){
   overlay = navStack.length ? navStack.pop() : null;   // step back one screen, not all the way out
