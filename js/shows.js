@@ -421,7 +421,7 @@ function flightsSubsection(e){
     if(legs.length) body += showSourceLabel('From journey')+`<div class="card flush">${legs.map(journeyRow).join('')}</div>`;
     if(manual) body += showSourceLabel('Added to show')+`<div class="card flush">${e.flights.map(f=>flightLine(e.id,f)).join('')}</div>`;
   }
-  return showSubsection('Flights', `<button type="button" class="add" onclick="sheetFlight('${e.id}')">Add</button>`, body);
+  return showSubsection('ss-'+e.id+'-flights', 'Flights', `<button type="button" class="add" onclick="sheetFlight('${e.id}')">Add</button>`, body);
 }
 /* A UK show — UK postcodes are granular (a postcode ≈ a building) so they land
    exactly; postcodes elsewhere cover a wide area and Maps resolves them to the
@@ -490,7 +490,7 @@ function hotelSubsection(e){
     </div>`;
   }
   if(!body) body = `<div class="card tap" onclick="sheetHotel('${e.id}')" style="text-align:center;color:var(--text-3);padding:20px">${ICON.bed(22)}<div style="margin-top:6px;font-weight:600">Add hotel details</div></div>`;
-  return showSubsection('Hotel', `<button type="button" class="add" onclick="sheetHotel('${e.id}')">${e.hotel?'Edit':'Add'}</button>`, body);
+  return showSubsection('ss-'+e.id+'-hotel', 'Hotel', `<button type="button" class="add" onclick="sheetHotel('${e.id}')">${e.hotel?'Edit':'Add'}</button>`, body);
 }
 /* Chronological rank for a driver by its journey: arrival → set → departure.
    Blank / custom journeys sort after the known ones, keeping their add order. */
@@ -562,13 +562,13 @@ function driverSubsection(e){
   }
   if(!body) body = `<div class="card tap" onclick="sheetDriver('${e.id}')" style="text-align:center;color:var(--text-3);padding:20px">${ICON.car(22)}<div style="margin-top:6px;font-weight:600">Add driver or Uber/taxi</div></div>`;
   const title = (drivers.length>1 || drivers.some(d=>d.noGround)) ? 'Transport' : 'Driver';
-  return showSubsection(title, `<button type="button" class="add" onclick="sheetDriver('${e.id}')">Add</button>`, body);
+  return showSubsection('ss-'+e.id+'-driver', title, `<button type="button" class="add" onclick="sheetDriver('${e.id}')">Add</button>`, body);
 }
 function transfersSubsection(e){
   const legs = showLegs(e.id).filter(x=>x.kind==='travel' && (x.icon||'plane')!=='plane' && !isDriverItem(x)).sort(legSort);
   if(!legs.length) return '';
   const body = showSourceLabel('From journey')+`<div class="card flush">${legs.map(journeyRow).join('')}</div>`;
-  return showSubsection('Transfers', `<button type="button" class="add" onclick="addLogisticFor('${e.id}')">Add</button>`, body);
+  return showSubsection('ss-'+e.id+'-transfers', 'Transfers', `<button type="button" class="add" onclick="addLogisticFor('${e.id}')">Add</button>`, body);
 }
 function travelGroupBody(e){
   return flightsSubsection(e)+hotelSubsection(e)+driverSubsection(e)+transfersSubsection(e);
@@ -591,7 +591,7 @@ function venueSubsection(e){
       <button type="button" class="header-btn" style="width:34px;height:34px;align-self:center" onclick="sheetPromoter('${e.id}')" title="Edit liaison">${ICON.edit(15)}</button>
     </div>`:`<div class="info-line" onclick="sheetPromoter('${e.id}')"><div class="ic">${ICON.plus(17)}</div><div class="tx"><div class="v" style="color:var(--accent-2)">Add artist liaison</div></div></div>`}
   </div>`;
-  return showSubsection('Venue & liaison', '', body);
+  return showSubsection('ss-'+e.id+'-venue', 'Venue & liaison', '', body);
 }
 function advanceSubsection(e){
   const a = e.advance||{};
@@ -601,7 +601,7 @@ function advanceSubsection(e){
   const hasAny = countAdvanceFields(a) > 0;
   const editBtn = `<button type="button" class="add" onclick="sheetAdvance('${e.id}')">${hasAny?'Edit':'Add'}</button>`;
   if(!hasAny){
-    return showSubsection('Advancing', editBtn, `<div class="card tap" onclick="sheetAdvance('${e.id}')" style="text-align:center;color:var(--text-3);padding:18px;font-weight:600">${ICON.checkList(20)} Add show-day details</div>`);
+    return showSubsection('ss-'+e.id+'-advancing', 'Advancing', editBtn, `<div class="card tap" onclick="sheetAdvance('${e.id}')" style="text-align:center;color:var(--text-3);padding:18px;font-weight:600">${ICON.checkList(20)} Add show-day details</div>`);
   }
   const scheduleRows = [advRow(ICON.pin(17),'Stage / area',a.stage), schedHTML?`<div class="info-line" style="align-items:flex-start"><div class="ic">${ICON.clock(17)}</div><div class="tx" style="width:100%"><div class="k">Running order</div>${schedHTML}</div></div>`:''].filter(Boolean).join('');
   const accessRows = [advRow(ICON.planeUp(17),'Access / arrival',a.access), advRow(ICON.music(17),'Sound check',a.soundcheck), advRow(ICON.clock(17),'Curfew',a.curfew), advRow(ICON.pin(17),'Navigation address',a.navAddr,navExtra)].filter(Boolean).join('');
@@ -609,13 +609,13 @@ function advanceSubsection(e){
   const otherRows = advRow(ICON.note(17),'Remarks',a.remarks);
   const mini = (title, rows)=> rows ? `<div class="show-adv-mini"><div class="show-adv-mini-head">${esc(title)}</div><div class="card flush">${rows}</div></div>` : '';
   const body = mini('Schedule', scheduleRows)+mini('Access', accessRows)+mini('Backstage', backstageRows)+mini('Other', otherRows);
-  return showSubsection('Advancing', editBtn, body);
+  return showSubsection('ss-'+e.id+'-advancing', 'Advancing', editBtn, body);
 }
 function contactsSubsection(e){
   const cs = e.contacts||[];
   const addBtn = `<button type="button" class="add" onclick="sheetEventContact('${e.id}')">Add</button>`;
   if(!cs.length){
-    return showSubsection('Key contacts', addBtn, `<div class="card tap" onclick="sheetEventContact('${e.id}')" style="text-align:center;color:var(--text-3);padding:18px;font-weight:600">${ICON.users(20)} Add a key contact</div>`);
+    return showSubsection('ss-'+e.id+'-contacts', 'Key contacts', addBtn, `<div class="card tap" onclick="sheetEventContact('${e.id}')" style="text-align:center;color:var(--text-3);padding:18px;font-weight:600">${ICON.users(20)} Add a key contact</div>`);
   }
   const body = `<div class="card flush">${cs.map(ct=>`<div class="info-line info-line-stacked">
     <div class="ic">${ICON.user(17)}</div>
@@ -623,7 +623,7 @@ function contactsSubsection(e){
     ${ct.phone?`<button class="header-btn" style="width:34px;height:34px;align-self:center" onclick="callNumber('${jsAttr(ct.phone)}')">${ICON.phone(15)}</button>`:''}
     ${(ct.whatsapp||ct.phone)?`<button class="header-btn" style="width:34px;height:34px;align-self:center" onclick="whatsapp('${jsAttr(ct.whatsapp||ct.phone)}')">${ICON.chat(15)}</button>`:''}
   </div>`).join('')}</div>`;
-  return showSubsection('Key contacts', addBtn, body);
+  return showSubsection('ss-'+e.id+'-contacts', 'Key contacts', addBtn, body);
 }
 function venueGroupBody(e){
   return venueSubsection(e)+advanceSubsection(e)+contactsSubsection(e);
@@ -635,7 +635,7 @@ function contentSubsection(e){
   if(e.content) body += `<div class="card show-brief" style="background:linear-gradient(150deg,var(--accent-soft),var(--card));margin:10px"><div class="show-brief-k">${ICON.camera(14)} Brief</div><div class="show-brief-v">${esc(e.content)}</div></div>`;
   if(linked.length) body += `<div class="card flush">${linked.map(i=>{const t=IDEA_TYPES[i.type]||IDEA_TYPES.other;return `<div class="row" onclick="openView('idea','${i.id}')"><div class="ic" style="background:${t.color}22;color:${t.color}">${ICON[t.icon](16)}</div><div class="body"><b>${esc(i.title)}</b><span>${t.label}${i.done?' · done':''}</span></div>${ICON.chevR(15)}</div>`;}).join('')}</div>`;
   if(!body) body = `<div class="card tap" onclick="sheetEvent('${e.id}')" style="text-align:center;color:var(--text-3);padding:18px;font-weight:600;margin:10px">${ICON.camera(20)} Set what to film / capture</div>`;
-  return showSubsection('Content to capture', addBtn, body);
+  return showSubsection('ss-'+e.id+'-content', 'Content to capture', addBtn, body);
 }
 function checklistSubsection(e){
   const cp = sel.eventChecklistProgress(e);
@@ -644,18 +644,18 @@ function checklistSubsection(e){
   const body = e.checklist&&e.checklist.length
     ? `<div class="card flush">${e.checklist.map(i=>`<div class="check ${i.done?'done':''}"><div class="box" onclick="toggleEventCheck('${e.id}','${i.id}')">${ICON.check(15)}</div><div class="lbl" onclick="toggleEventCheck('${e.id}','${i.id}')">${esc(i.label)}</div><button class="del" onclick="delEventCheck('${e.id}','${i.id}')">${ICON.x(16)}</button></div>`).join('')}</div>`
     : `<div class="card tap" onclick="addEventCheckPrompt('${e.id}')" style="text-align:center;color:var(--text-3);padding:18px;font-weight:600">${ICON.checkList(20)} Add a checklist item</div>`;
-  return showSubsection(title, addBtn, body);
+  return showSubsection('ss-'+e.id+'-checklist', title, addBtn, body);
 }
 function attachmentsSubsection(e){
   const body = `<div class="thumb-row">
     ${(e.attachments||[]).map(a=>attachThumb(e.id,a)).join('')}
     <label class="thumb thumb-add">${ICON.plus(22)}<span>Add</span><input type="file" accept="image/*,application/pdf" style="display:none" onchange="uploadAttachment('${e.id}',this)"></label>
   </div>`;
-  return showSubsection('Attachments', '', body);
+  return showSubsection('ss-'+e.id+'-attachments', 'Attachments', '', body);
 }
 function notesSubsection(e){
   const body = `<div class="card" style="margin:10px"><textarea class="textarea" placeholder="Anything to remember about this show…" onblur="saveEventNotes('${e.id}',this.value)">${esc(e.notes||'')}</textarea></div>`;
-  return showSubsection('Internal notes', '', body);
+  return showSubsection('ss-'+e.id+'-notes', 'Internal notes', '', body);
 }
 function prepGroupBody(e){
   return contentSubsection(e)+checklistSubsection(e)+attachmentsSubsection(e)+notesSubsection(e);
@@ -740,10 +740,10 @@ function viewEvent(id){
     </div>
 
     <div class="show-groups">
-      ${showGroup('Travel', ICON.plane(20), travelGroupSummary(e), travelGroupBody(e))}
-      ${showGroup('Venue & show day', ICON.pin(20), venueGroupSummary(e), venueGroupBody(e))}
-      ${showGroup('Deal', ICON.coins(20), dealGroupSummary(e), moneyGroupBody(e))}
-      ${showGroup('Prep', ICON.checkList(20), prepGroupSummary(e), prepGroupBody(e))}
+      ${showGroup('sg-'+e.id+'-travel', 'Travel', ICON.plane(20), travelGroupSummary(e), travelGroupBody(e))}
+      ${showGroup('sg-'+e.id+'-venue', 'Venue & show day', ICON.pin(20), venueGroupSummary(e), venueGroupBody(e))}
+      ${showGroup('sg-'+e.id+'-deal', 'Deal', ICON.coins(20), dealGroupSummary(e), moneyGroupBody(e))}
+      ${showGroup('sg-'+e.id+'-prep', 'Prep', ICON.checkList(20), prepGroupSummary(e), prepGroupBody(e))}
     </div>
 
     <div class="show-detail-foot">
@@ -1760,7 +1760,7 @@ function saveEmergency(tid){
    MONEY — event block, editor, overview
    ============================================================ */
 function moneyBlock(e){
-  return showGroup('Deal', ICON.coins(20), dealGroupSummary(e), moneyGroupBody(e));
+  return showGroup('sg-'+e.id+'-deal', 'Deal', ICON.coins(20), dealGroupSummary(e), moneyGroupBody(e));
 }
 function sheetFinance(eid){
   const e=sel.event(eid); const f=e.finance||{};

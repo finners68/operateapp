@@ -281,19 +281,30 @@ function detailTx(title, primary, meta){
 function fieldTx(label, value){
   return `<div class="tx"><div class="k">${label}</div><div class="v">${value}</div></div>`;
 }
-function showGroup(title, iconHTML, summary, bodyHTML){
-  return `<section class="show-group">
-    <div class="show-group-head">
+function showGroup(id, title, iconHTML, summary, bodyHTML, defOpen){
+  const open = isOpen(id, defOpen !== false);
+  const chev = ICON.chevDown ? ICON.chevDown(20) : ICON.chevR(20);
+  return `<section class="show-group ${open?'open':''}" id="fold-${id}">
+    <div class="show-group-head" onclick="toggleFold('${id}')" role="button" aria-expanded="${open?'true':'false'}">
       <div class="show-group-ic">${iconHTML}</div>
       <div class="show-group-titles"><b>${esc(title)}</b>${summary?`<span>${esc(summary)}</span>`:''}</div>
+      <span class="fold-chev show-group-chev">${chev}</span>
     </div>
-    <div class="show-group-body">${bodyHTML}</div>
+    <div class="fold-body show-group-fold"><div class="show-group-body">${bodyHTML}</div></div>
   </section>`;
 }
-function showSubsection(title, addBtnHTML, bodyHTML){
-  return `<div class="show-subsection">
-    <div class="show-subsection-head"><span>${esc(title)}</span>${addBtnHTML||''}</div>
-    <div class="show-subsection-body">${bodyHTML}</div>
+function showSubsection(id, title, addBtnHTML, bodyHTML, defOpen){
+  const open = isOpen(id, defOpen !== false);
+  const chev = ICON.chevDown ? ICON.chevDown(16) : ICON.chevR(16);
+  return `<div class="show-subsection ${open?'open':''}" id="fold-${id}">
+    <div class="show-subsection-head" onclick="toggleFold('${id}')" role="button" aria-expanded="${open?'true':'false'}">
+      <span>${esc(title)}</span>
+      <div class="show-subsection-actions" onclick="event.stopPropagation()">
+        ${addBtnHTML||''}
+        <span class="fold-chev show-subsection-chev" onclick="event.stopPropagation();toggleFold('${id}')">${chev}</span>
+      </div>
+    </div>
+    <div class="fold-body show-subsection-fold"><div class="show-subsection-body">${bodyHTML}</div></div>
   </div>`;
 }
 function showSourceLabel(text){
@@ -810,8 +821,17 @@ function acct(){ return ACCOUNT_TYPES[store.settings.accountType]||ACCOUNT_TYPES
 /* ---------- Collapsible state ---------- */
 let folds = {}; // id -> open(bool)
 function isOpen(id, def){ return folds[id]===undefined ? !!def : folds[id]; }
-function toggleFold(id){ folds[id] = !folds[id]; haptic();
-  const el=document.getElementById('fold-'+id); if(el){ el.classList.toggle('open'); } }
+function toggleFold(id){
+  const el = document.getElementById('fold-'+id);
+  const currentlyOpen = el ? el.classList.contains('open') : !!isOpen(id, true);
+  folds[id] = !currentlyOpen;
+  if(el){
+    el.classList.toggle('open', folds[id]);
+    const head = el.querySelector('[aria-expanded]');
+    if(head) head.setAttribute('aria-expanded', folds[id] ? 'true' : 'false');
+  }
+  haptic();
+}
 function foldSection(id, iconHTML, title, sub, bodyHTML, defOpen, cls){
   const open = isOpen(id, defOpen);
   return `<div class="fold ${open?'open':''} ${cls||''}" id="fold-${id}">
