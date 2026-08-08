@@ -58,7 +58,7 @@ function viewTripMode(run){
     <div class="section">
       ${foldSection('tm-pack', ICON.checkList(17), 'Packing & checklist', pk.filter(i=>i.done).length+'/'+pk.length+' packed',
         `<div style="padding:0 16px 4px"><div class="progress" style="margin:12px 0 4px"><i style="width:${pk.length?Math.round(pk.filter(i=>i.done).length/pk.length*100):0}%"></i></div></div>
-         <div class="fold-scroll">${pk.map(i=>`<div class="check ${i.done?'done':''}"><div class="box" onclick="togglePack('${i.id}')">${ICON.check(15)}</div><div class="lbl">${esc(i.label)}</div><button class="del" onclick="delPack('${i.id}')">${ICON.x(16)}</button></div>`).join('')||'<div class="hint">No items</div>'}</div>`
+         <div class="fold-scroll">${pk.map(i=>`<div class="check ${i.done?'done':''}"><div class="box" onclick="togglePack('${i.id}')">${ICON.check(15)}</div><div class="lbl">${esc(i.label)}</div><button class="del" onclick="delPack('${i.id}')">${ICON.x(16)}</button></div>`).join('')||'<div class="hint">No items</div>'}</div>
          <div class="fold-pad"><button class="btn secondary" style="padding:11px" onclick="addPackPrompt()">${ICON.plus(15)} Add item</button></div>`, false)}
     </div>
 
@@ -518,7 +518,7 @@ function tripBody(r){
     <div class="section">
       ${foldSection('trip-pack', ICON.checkList(17), 'Packing & checklist', pk.filter(i=>i.done).length+'/'+pk.length+' packed',
         `<div style="padding:0 16px 4px"><div class="progress" style="margin:12px 0 4px"><i style="width:${pk.length?Math.round(pk.filter(i=>i.done).length/pk.length*100):0}%"></i></div></div>
-         <div class="fold-scroll">${pk.map(i=>`<div class="check ${i.done?'done':''}"><div class="box" onclick="togglePack('${i.id}')">${ICON.check(15)}</div><div class="lbl">${esc(i.label)}</div><button class="del" onclick="delPack('${i.id}')">${ICON.x(16)}</button></div>`).join('')||'<div class="hint">No items</div>'}</div>`
+         <div class="fold-scroll">${pk.map(i=>`<div class="check ${i.done?'done':''}"><div class="box" onclick="togglePack('${i.id}')">${ICON.check(15)}</div><div class="lbl">${esc(i.label)}</div><button class="del" onclick="delPack('${i.id}')">${ICON.x(16)}</button></div>`).join('')||'<div class="hint">No items</div>'}</div>
          <div class="fold-pad"><button class="btn secondary" style="padding:11px" onclick="addPackPrompt()">${ICON.plus(15)} Add item</button></div>`, false)}
     </div>
 
