@@ -41,7 +41,9 @@ function storeSnapshot(){
   (store.ideas||[]).forEach(x=>{ add(x.id); add(x.title); add(x.done?1:0); });
   (store.notes||[]).forEach(x=>{ add(x.id); add(x.updated); add(x.body); });
   (store.trips||[]).forEach(t=>{ add(t.id); add(t.name); add(t.start); add(t.end); });
-  return (store._seq||0) + '|' + (store.events?.length||0) + '|' + (store.ideas?.length||0) + '|' + (store.notes?.length||0) + '|' + h;
+  /* Omit store._seq — it bumps on every push and was forcing quiet remounts
+     even when visible data did not change. */
+  return (store.events?.length||0) + '|' + (store.ideas?.length||0) + '|' + (store.notes?.length||0) + '|' + h;
 }
 
 function dedupeEventsById(events){

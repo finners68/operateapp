@@ -809,9 +809,12 @@ img{-webkit-touch-callout:none;}
 .stagger>*:nth-child(5){animation-delay:.18s;}
 .stagger>*:nth-child(6){animation-delay:.22s;}
 .stagger>*:nth-child(7){animation-delay:.26s;}
-/* Background sync remounts must not replay entrance motion (that looked like a refresh). */
+/* Background sync remounts must not replay entrance motion or re-animate folds. */
 #view.quiet-paint .stagger>*,
 #view.quiet-paint .fade-in{animation:none!important;}
+#view.quiet-paint .fold-body,
+#view.quiet-paint .show-group-fold,
+#view.quiet-paint .show-subsection-fold{transition:none!important;}
 
 .hint{font-size:12.5px;color:var(--text-3);text-align:center;padding:10px;line-height:1.5;}
 .tab-blurb{font-size:13.5px;color:var(--text-2);line-height:1.45;padding:0 4px 14px;font-weight:500;}

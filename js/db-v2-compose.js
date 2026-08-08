@@ -62,6 +62,11 @@ function v2ContactView(c){
 async function composeViewFromV2(v2, opts){
   opts = opts || {};
   const prevEvents = opts.prevEvents || [];
+  /* Keep passenger ids stable across quiet rebuilds so the UI does not thrash. */
+  const prevFlightById = {};
+  prevEvents.forEach(e => {
+    (e.flights || []).forEach(f => { if(f && f.id) prevFlightById[f.id] = f; });
+  });
   const venueById = {};
   (v2.venues || []).forEach(v => { venueById[v.id] = v; });
   const artistById = {};
@@ -270,6 +275,8 @@ async function composeViewFromV2(v2, opts){
   async function passengersFromJourney(j){
     const tickets = ticketsByJourney[j.id] || [];
     const meta = Array.isArray(j.passengers) ? j.passengers : [];
+    const prevPax = (prevFlightById[j.id] && prevFlightById[j.id].passengers) || [];
+    const stablePaxId = (idx, preferred) => preferred || prevPax[idx]?.id || newUuid();
     const byRef = Object.create(null);
     const unassigned = [];
     for(const t of tickets){
@@ -284,8 +291,8 @@ async function composeViewFromV2(v2, opts){
       });
     }
 
-    let pax = meta.map(m => ({
-      id: m.id || newUuid(),
+    let pax = meta.map((m, idx) => ({
+      id: stablePaxId(idx, m.id),
       name: m.name || '',
       seat: m.seat || '',
       passes: byRef[m.id] || []
@@ -296,22 +303,22 @@ async function composeViewFromV2(v2, opts){
       if(unassigned.length){
         const named = unassigned.some(u => u.name || u.seat);
         if(named && unassigned.length > 1){
-          pax = unassigned.map(u => ({
-            id: newUuid(),
+          pax = unassigned.map((u, idx) => ({
+            id: stablePaxId(idx),
             name: u.name || '',
             seat: u.seat || legacySeat || '',
             passes: [u.pass]
           }));
         } else {
           pax = [{
-            id: newUuid(),
+            id: stablePaxId(0),
             name: unassigned[0].name || '',
             seat: unassigned[0].seat || legacySeat || '',
             passes: unassigned.map(u => u.pass)
           }];
         }
       } else if(legacySeat){
-        pax = [{ id: newUuid(), name: '', seat: legacySeat, passes: [] }];
+        pax = [{ id: stablePaxId(0), name: '', seat: legacySeat, passes: [] }];
       }
     } else if(unassigned.length){
       pax[0].passes = [...(pax[0].passes || []), ...unassigned.map(u => u.pass)];

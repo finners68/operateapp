@@ -6,7 +6,10 @@ let fullReconcileTimer = null;
 let realtimeChannel = null;
 let syncStatus = 'off';
 let syncLastSync = 0;
+let lastRemotePullAt = 0;
 let focusListenersBound = false;
+/* Skip focus cloud pulls when we already synced recently — realtime covers live edits. */
+const FOCUS_PULL_MIN_MS = 45000;
 
 function syncActive(){
   if(!isSupabaseConfigured() || !currentOrgId) return false;
@@ -115,11 +118,21 @@ function uiBusyForQuietSync(){
 }
 function captureQuietUi(){
   const screen = document.getElementById('screen');
-  return { scrollY: screen ? screen.scrollTop : 0 };
+  return {
+    scrollY: screen ? screen.scrollTop : 0,
+    tab: store && store.tab,
+    overlay: (typeof overlay !== 'undefined' && overlay)
+      ? { type: overlay.type, id: overlay.id }
+      : null
+  };
 }
 /* Update on-screen data without resetting tab/detail/scroll when avoidable. */
 function renderAfterQuietSync(ui){
   if(typeof applySavedNavToStore === 'function') applySavedNavToStore();
+  /* Overlay is module state (survives store replace). Re-assert if cleared mid-flight. */
+  if(ui && ui.overlay && typeof overlay !== 'undefined' && !overlay){
+    overlay = { type: ui.overlay.type, id: ui.overlay.id };
+  }
   if(typeof renderView === 'function'){
     renderView({ quiet: true, scrollY: ui ? ui.scrollY : undefined });
   } else if(typeof renderNav === 'function'){
@@ -131,21 +144,38 @@ function hasPendingDirtySync(){
   return !!syncDirty;
 }
 
-/* Full network pull — used on focus and when a local rebuild is unsafe. */
-function scheduleRemoteReload(){
+function retryLocalRealtimeSoon(){
+  clearTimeout(localRebuildTimer);
+  localRebuildTimer = setTimeout(() => scheduleLocalRealtimeRefresh(), 700);
+}
+
+/* Full network pull — used on focus (throttled) and when a local rebuild is unsafe. */
+function scheduleRemoteReload(opts){
+  opts = opts || {};
   if(Date.now() - lastPushAt < PUSH_ECHO_MS) return;
+  if(opts.reason === 'focus'){
+    const sincePull = Date.now() - (lastRemotePullAt || 0);
+    const sinceSync = Date.now() - (syncLastSync || 0);
+    if(sincePull < FOCUS_PULL_MIN_MS && sinceSync < FOCUS_PULL_MIN_MS) return;
+  }
   clearTimeout(reloadTimer);
   reloadTimer = setTimeout(async () => {
     if(!currentOrgId) return;
     if(dbRemoteLoading || dbSyncInProgress || uiBusyForQuietSync()){
-      scheduleRemoteReload();
+      scheduleRemoteReload(opts);
       return;
     }
     if(Date.now() - lastPushAt < PUSH_ECHO_MS) return;
+    if(opts.reason === 'focus'){
+      const sincePull = Date.now() - (lastRemotePullAt || 0);
+      const sinceSync = Date.now() - (syncLastSync || 0);
+      if(sincePull < FOCUS_PULL_MIN_MS && sinceSync < FOCUS_PULL_MIN_MS) return;
+    }
     const ui = captureQuietUi();
     const before = storeSnapshot();
     try{
       await loadFromSupabase(currentOrgId);
+      lastRemotePullAt = Date.now();
       if(uiBusyForQuietSync()){
         if(typeof applySavedNavToStore === 'function') applySavedNavToStore();
         return;
@@ -164,12 +194,13 @@ function scheduleRemoteReload(){
    so the current tab/detail cannot jump). Fall back to full pull if dirty or rebuild fails.
    A slower full reconcile catches any patch drift. */
 function scheduleLocalRealtimeRefresh(){
-  if(dbRemoteLoading || dbSyncInProgress){ scheduleRemoteReload(); return; }
   if(Date.now() - lastPushAt < PUSH_ECHO_MS) return;
   clearTimeout(localRebuildTimer);
   localRebuildTimer = setTimeout(async () => {
-    if(!currentOrgId || dbRemoteLoading || dbSyncInProgress || uiBusyForQuietSync()){
-      scheduleRemoteReload();
+    if(!currentOrgId) return;
+    if(dbRemoteLoading || dbSyncInProgress || uiBusyForQuietSync()){
+      /* Wait and retry locally — do not escalate every collision into a cloud pull. */
+      retryLocalRealtimeSoon();
       return;
     }
     if(Date.now() - lastPushAt < PUSH_ECHO_MS) return;
@@ -201,17 +232,22 @@ function scheduleLocalRealtimeRefresh(){
 function scheduleFullReconcile(){
   clearTimeout(fullReconcileTimer);
   fullReconcileTimer = setTimeout(() => {
-    if(syncActive() && currentOrgId) scheduleRemoteReload();
-  }, 15000);
+    if(!syncActive() || !currentOrgId) return;
+    /* Skip if a cloud pull already landed recently. */
+    if(Date.now() - (lastRemotePullAt || 0) < 30000) return;
+    scheduleRemoteReload();
+  }, 60000);
 }
 
 function bindFocusReload(){
   if(focusListenersBound) return;
   focusListenersBound = true;
   document.addEventListener('visibilitychange', () => {
-    if(!document.hidden && syncActive()) scheduleRemoteReload();
+    if(!document.hidden && syncActive()) scheduleRemoteReload({ reason: 'focus' });
   });
-  window.addEventListener('focus', () => { if(syncActive()) scheduleRemoteReload(); });
+  window.addEventListener('focus', () => {
+    if(syncActive()) scheduleRemoteReload({ reason: 'focus' });
+  });
 }
 
 function startRealtime(orgId){
@@ -219,7 +255,7 @@ function startRealtime(orgId){
   const sb = getSupabase();
   if(!sb || !orgId) return;
 
-  /* V2 entity tables — patch locally, then quiet-rebuild (full pull on focus). */
+  /* V2 entity tables — patch locally, then quiet-rebuild (throttled full pull on focus). */
   const tables = [
     'shows', 'journeys', 'schedule_items', 'checklist_items', 'tours',
     'organisation_settings', 'files', 'travel_tickets', 'show_files',
@@ -250,6 +286,7 @@ async function syncPullNow(){
   if(!currentOrgId) return;
   const ui = captureQuietUi();
   await loadFromSupabase(currentOrgId);
+  lastRemotePullAt = Date.now();
   if(typeof applySavedNavToStore === 'function') applySavedNavToStore();
   renderAfterQuietSync(ui);
   syncSetStatus('synced');

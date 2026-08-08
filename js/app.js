@@ -247,6 +247,28 @@ function syncScreenChrome(){
   const ownsTop = !!document.querySelector('#view .tab-page-sticky, #view .detail-top');
   screen.classList.toggle('flush-sticky-header', ownsTop);
 }
+/* Compare generated HTML to the live DOM without false mismatches from
+   browser &amp; encoding, entrance-only classes, or ticking countdown text. */
+function normalizeViewHtml(s){
+  return String(s || '')
+    .replace(/&amp;/g, '&')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/\s*stagger\b/g, '')
+    .replace(/\s*fade-in\b/g, '')
+    .replace(/ class=""/g, '')
+    .replace(/ class=''/g, '')
+    .replace(/(class="cd-txt"[^>]*>)[^<]*/g, '$1')
+    .replace(/(class="cd-unit"[^>]*>)[^<]*/g, '$1')
+    .replace(/(class="dt"[^>]*>)[^<]*/g, '$1')
+    .replace(/(class="fi-upd"[^>]*>)[^<]*/g, '$1')
+    .replace(/(id="sync-row-sub"[^>]*>)[^<]*/g, '$1')
+    .replace(/(id="sync-status"[^>]*>)[^<]*/g, '$1');
+}
+function viewHtmlLooksSame(live, next){
+  if(live === next) return true;
+  return normalizeViewHtml(live) === normalizeViewHtml(next);
+}
 function renderView(opts={}){
   const screen = $('#screen');
   const scrollY = opts.resetScroll ? 0 : (opts.scrollY != null ? opts.scrollY : (screen?.scrollTop || 0));
@@ -284,14 +306,22 @@ function renderView(opts={}){
     }
   }
   /* Quiet syncs: skip DOM rewrite when the screen would look identical — avoids a visible flash. */
-  if(opts.quiet && v && v.innerHTML === html){
+  if(opts.quiet && v && viewHtmlLooksSame(v.innerHTML, html)){
     if(screen) screen.scrollTop = scrollY;
     return false;
   }
-  if(v) v.innerHTML = html;
+  if(v){
+    /* Quiet remounts keep data fresh but must not replay fade-in / stagger. */
+    if(opts.quiet) v.classList.add('quiet-paint');
+    else v.classList.remove('quiet-paint');
+    v.innerHTML = html;
+  }
   if(afterPaint) afterPaint();
   renderNav(); setFab(); syncScreenChrome();
-  if(screen) screen.scrollTop = scrollY;
+  if(screen){
+    screen.scrollTop = scrollY;
+    if(opts.quiet) requestAnimationFrame(()=>{ if(screen) screen.scrollTop = scrollY; });
+  }
   return true;
 }
 function syncSeg(segId, activeKey){
