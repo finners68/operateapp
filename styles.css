@@ -1214,3 +1214,105 @@ img{-webkit-touch-callout:none;}
   .desktop-cal-split.cal-grid-collapsed .cal-grid-expanded{display:none!important;}
   .desktop-cal-split:not(.cal-grid-collapsed) .cal-grid-collapsed-strip{display:none!important;}
 }
+
+/* ============================================================
+   Phone-first usability (one-handed, thumb-friendly)
+   ============================================================ */
+@media (max-width:899px){
+  #screen{padding-bottom:calc(var(--nav-h) + 28px);}
+  .header-btn{
+    width:var(--tap);height:var(--tap);
+  }
+  .info-line > .header-btn,
+  .info-line > label.header-btn,
+  .info-line-stacked > .header-btn,
+  .info-line-stacked > label.header-btn,
+  .show-row .show-row-edit{
+    width:var(--tap)!important;
+    height:var(--tap)!important;
+    min-width:var(--tap);
+    min-height:var(--tap);
+    flex-shrink:0;
+  }
+  .info-line,
+  .info-line-stacked{
+    align-items:center;
+    gap:12px;
+    padding:14px 14px;
+  }
+  .show-subsection-head{
+    min-height:var(--tap);
+    padding:12px 14px;
+  }
+  .show-subsection-head .add{
+    min-height:var(--tap);
+    min-width:48px;
+    padding:10px 8px;
+    display:inline-flex;
+    align-items:center;
+    justify-content:center;
+  }
+  .show-subsection-chev{
+    min-width:var(--tap);
+    min-height:var(--tap);
+    align-items:center;
+    justify-content:center;
+  }
+  .show-group-head{
+    min-height:56px;
+    padding:16px;
+  }
+  /* Quick links: swipe sideways instead of wrapping into a tall chip pile */
+  .hero-links{
+    flex-wrap:nowrap;
+    overflow-x:auto;
+    -webkit-overflow-scrolling:touch;
+    scroll-snap-type:x proximity;
+    margin-left:-4px;
+    margin-right:-4px;
+    padding:2px 4px 6px;
+    gap:8px;
+  }
+  .hero-links .hero-link{
+    flex:0 0 auto;
+    scroll-snap-align:start;
+    min-height:40px;
+    padding:10px 14px;
+  }
+  .act-grid{grid-template-columns:repeat(2,1fr);gap:10px;}
+  .act{min-height:88px;padding:16px 8px;gap:8px;}
+  .act span{font-size:12.5px;}
+  .jbtn{min-height:40px;padding:11px 14px;}
+  .jitem-actions{padding-left:0;margin-top:12px;}
+  .jitem-passes{padding-left:0;}
+  .flight-pax .info-line{padding-left:16px!important;}
+  .seg button{min-height:42px;padding:11px 8px;}
+  .chip{min-height:36px;padding:8px 14px;}
+  .sheet-body{padding:8px 18px calc(22px + var(--safe-bottom));}
+  .sheet .btn{min-height:50px;}
+  .btn-row{flex-direction:column;}
+  .btn-row > .btn{width:100%;}
+  .cal-nav button{width:var(--tap);height:var(--tap);}
+  .cal-cell{min-height:44px;}
+  .nav-item{min-height:52px;padding-top:10px;gap:4px;}
+  .nav-item span{font-size:11px;}
+  .fab{
+    width:58px;height:58px;
+    right:16px;
+    bottom:calc(var(--nav-h) + 12px);
+  }
+  #toast{bottom:calc(var(--nav-h) + 22px);max-width:min(92vw,360px);}
+  .row{padding:15px 16px;gap:14px;}
+  .back-btn{min-height:var(--tap);padding:8px 4px 8px 0;}
+  .detail-bar{min-height:52px;align-items:center;}
+  /* Keep action clusters from crushing text on narrow phones */
+  .info-line .tx,
+  .info-line-stacked .tx{min-width:0;flex:1 1 auto;}
+  .qa-grid{grid-template-columns:repeat(2,1fr);gap:10px;}
+  .qa{min-height:84px;padding:16px 10px 14px;}
+}
+@media (max-width:380px){
+  :root{--pad-x:16px;}
+  .hero-venue,.show-hero-title{font-size:24px;}
+  .lg-title{font-size:30px;}
+}
