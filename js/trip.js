@@ -9,61 +9,42 @@ function viewTripMode(run){
   const nextStep = nextTravelIdx>=0 ? tl[nextTravelIdx] : null;
   const thenStep = nextTravelIdx>=0 ? tl[nextTravelIdx+1] : null;
   const p = runProgress(run);
-  const pk = store.packing||[];
 
   return `
   <div class="lg-header">
-    <div><div class="lg-title" style="font-size:28px">${esc(run.title)}</div><div class="lg-sub">Trip Mode · ${run.shows.length} show${run.shows.length>1?'s':''} · ${p.done}/${p.total} done</div></div>
-    <button class="header-btn" onclick="openView('trip','${run.key}')">${ICON.chevR(20)}</button>
+    <div><div class="lg-title">${esc(run.title)}</div><div class="lg-sub">Trip Mode · just what’s next</div></div>
   </div>
-  <div class="screen-pad stagger">
-    <div class="tripmode-banner"><span class="pulse"></span> LIVE · ${fmtDate(run.start)}${run.end!==run.start?' – '+fmtDate(run.end):''}</div>
-
+  <div class="screen-pad">
     ${nextStep?`
-    <div class="hero" style="background:linear-gradient(155deg,#1e3a2a,#15251d 60%,#141418)">
-      <div class="hero-label" style="color:var(--green)">${ICON.clock(14)} Up next${nextStep.time?' · '+esc(nextStep.time):''} · ${esc(relDay(nextStep.date))}</div>
+    <div class="hero">
+      <div class="hero-label" style="color:var(--green)">Up next${nextStep.time?' · '+esc(nextStep.time):''}</div>
       <div class="hero-venue">${esc(nextStep.title)}</div>
       ${nextStep.sub?`<div class="hero-city">${esc(nextStep.sub)}</div>`:''}
-      <button class="btn" style="margin-top:16px;background:var(--green);box-shadow:0 8px 24px rgba(50,215,75,0.3)" onclick="completeRunStep('${run.key}','${nextStep.id}')">${ICON.check(18)} Mark done</button>
+      <div class="calm-primary-actions">
+        <button class="btn" style="background:var(--green)" onclick="completeRunStep('${run.key}','${nextStep.id}')">Mark done</button>
+        <button class="btn secondary" onclick="openMaps('${jsAttr(nextShow?(venueMapQuery(nextShow)||formatVenueAddress(nextShow)||([nextShow.city,nextShow.country].filter(Boolean).join(', '))):run.title)}')">Venue</button>
+        <button class="btn secondary" onclick="openView('event','${nextShow?nextShow.id:''}')">Open show</button>
+      </div>
     </div>
     ${thenStep?`<div class="then-next">
       <div class="then-lab">Then</div>
-      <div class="then-ic">${(ICON[thenStep.icon]||ICON.clock)(15)}</div>
-      <div class="then-body"><b>${esc(thenStep.title)}</b><span>${thenStep.time?esc(thenStep.time)+' · ':''}${esc(relDay(thenStep.date))}${thenStep.sub?' · '+esc(thenStep.sub):''}</span></div>
+      <div class="then-body"><b>${esc(thenStep.title)}</b><span>${thenStep.time?esc(thenStep.time)+' · ':''}${esc(relDay(thenStep.date))}</span></div>
     </div>`:''}`:`
-    <div class="hero" style="background:linear-gradient(155deg,#1e3a2a,#15251d 60%,#141418)">
-      <div class="hero-label" style="color:var(--green)">${ICON.check(14)} All steps complete</div>
-      <div class="hero-venue">You're on top of it 🎧</div>
+    <div class="hero">
+      <div class="hero-label" style="color:var(--green)">All clear</div>
+      <div class="hero-venue">Nothing left on the timeline</div>
+      <div class="calm-primary-actions">
+        <button class="btn secondary" onclick="openView('event','${nextShow?nextShow.id:''}')">Open show</button>
+      </div>
     </div>`}
 
-    <div class="section">
-      <div class="act-grid">
-        <button class="act" onclick="openMaps('${jsAttr(nextShow?(venueMapQuery(nextShow)||formatVenueAddress(nextShow)||([nextShow.city,nextShow.country].filter(Boolean).join(', '))):run.title)}')"><div class="ic" style="background:var(--blue-soft);color:var(--blue)">${ICON.map(20)}</div><span>Venue</span></button>
-        <button class="act" onclick="openView('event','${nextShow?nextShow.id:''}')"><div class="ic" style="background:var(--accent-soft);color:var(--accent-2)">${ICON.music(20)}</div><span>Show</span></button>
-        <button class="act" onclick="go('calendar')"><div class="ic" style="background:var(--card-2);color:var(--text-2)">${ICON.calendar(20)}</div><span>Calendar</span></button>
-        <button class="act" onclick="openView('contacts')"><div class="ic" style="background:var(--orange-soft);color:var(--orange)">${ICON.user(20)}</div><span>Contacts</span></button>
-      </div>
-    </div>
-
-    <div class="section">
-      <div class="section-head"><div class="section-title">Shows on this tour</div><div class="section-link">${run.shows.length}</div></div>
+    <div class="section" style="margin-top:36px">
+      <div class="section-head"><div class="section-title">This tour</div><div class="section-link">${p.done}/${p.total}</div></div>
       <div class="card flush">${run.shows.map((e,i)=>tripLegRow(e,i,nextShow)).join('')}</div>
     </div>
 
-    <div class="section">
-      ${foldSection('tm-timeline'+run.key, ICON.clock(17), 'Day timeline', tl.filter(x=>x.done).length+'/'+tl.length+' done'+(nextStep&&nextStep.time?' · next '+nextStep.time:''),
-        `<div class="fold-pad"><div class="timeline">${tl.map((s,idx)=>runTlItem(run.key,s,idx===nextTravelIdx)).join('')||'<div class="hint">No steps yet</div>'}</div></div>`, true)}
-    </div>
-
-    <div class="section">
-      ${foldSection('tm-pack', ICON.checkList(17), 'Packing & checklist', pk.filter(i=>i.done).length+'/'+pk.length+' packed',
-        `<div style="padding:0 16px 4px"><div class="progress" style="margin:12px 0 4px"><i style="width:${pk.length?Math.round(pk.filter(i=>i.done).length/pk.length*100):0}%"></i></div></div>
-         <div class="fold-scroll">${pk.map(i=>`<div class="check ${i.done?'done':''}"><div class="box" onclick="togglePack('${i.id}')">${ICON.check(15)}</div><div class="lbl" onclick="togglePack('${i.id}')">${esc(i.label)}</div><button class="del" onclick="delPack('${i.id}')">${ICON.x(16)}</button></div>`).join('')||'<div class="hint">No items</div>'}</div>
-         <div class="fold-pad"><button class="btn secondary" style="padding:11px" onclick="addPackPrompt()">${ICON.plus(15)} Add item</button></div>`, false)}
-    </div>
-
-    <div class="section">
-      <button class="btn secondary" onclick="endTripMode()">${ICON.flag(18)} End Trip Mode</button>
+    <div class="section" style="margin-top:40px">
+      <button class="btn secondary" onclick="endTripMode()">End Trip Mode</button>
     </div>
     <div class="spacer"></div>
   </div>`;

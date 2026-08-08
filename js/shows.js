@@ -148,131 +148,62 @@ function viewHome(){
   const greeting = (()=>{ const h=new Date().getHours(); return h<12?'Good morning':h<18?'Good afternoon':'Good evening'; })();
   let hero = '';
   if(e){
-    const flight = (e.flights&&e.flights[0]);
-    const flightMs = flight ? parseDT(...flight.dep.split(' '))?.getTime() : null;
     const setMs = setStartMs(e.date, e.setTime);
-    const cF = flightMs? countdown(flightMs):null;
     const cS = setMs? countdown(setMs):null;
     const flightPass = (e.flights||[]).map(f=>{
       const passes = typeof flightAllPasses==='function' ? flightAllPasses(f) : (f.passes||[]);
       return passes.length ? {f, p:passes[0]} : null;
     }).filter(Boolean)[0];
-    const hasContacts = !!(e.promoter&&(e.promoter.phone||e.promoter.whatsapp)) || showDrivers(e).some(d=>!d.noGround&&(d.phone||d.whatsapp)) || (e.contacts||[]).some(c=>c.phone||c.whatsapp);
-    const hasTransport = showDrivers(e).length>0;
     const liaisonReach = e.promoter&&(e.promoter.phone||e.promoter.whatsapp);
-    const hasRem = (store.reminders||[]).some(r=>r.showId===e.id && !r.fired && (r.kind||'manual')!=='usb');
     hero = `
       <div class="hero tap nextshow" onclick="openView('event','${e.id}')">
-        <div class="hero-label">${ICON.music(14)} Next show · ${esc(relDay(e.date))}</div>
+        <div class="hero-label">Next · ${esc(relDay(e.date))}</div>
         <div class="hero-venue">${esc(e.venue)}</div>
-        <div class="hero-city">${ICON.pin(14)} ${esc(e.city)}${e.country?', '+esc(e.country):''}</div>
+        <div class="hero-city">${esc(e.city)}${e.country?', '+esc(e.country):''}</div>
         <div class="count-row">
-          <div class="count"><div class="count-k">${ICON.music(12)} Set time</div><div class="count-v" style="font-size:19px">${e.setTime?esc(e.setTime):'TBA'}${e.endTime?`<small> – ${esc(e.endTime)}</small>`:''}</div></div>
-          <div class="count"><div class="count-k">${ICON.clock(12)} Starts in</div><div class="count-v"${setMs?` data-countdown-ms="${setMs}"`:''}><span class="cd-txt">${cS&&!cS.done?cS.txt:'—'}</span><small class="cd-unit">${cS&&!cS.done?cS.unit:''}</small></div></div>
-          ${flight?`<div class="count"><div class="count-k">${ICON.plane(12)} Flight</div><div class="count-v"${flightMs?` data-countdown-ms="${flightMs}" data-countdown-off="Off"`:''}><span class="cd-txt">${cF.done?'Off':cF.txt}</span><small class="cd-unit">${cF.done?'':cF.unit}</small></div></div>`:''}
+          <div class="count"><div class="count-k">Set</div><div class="count-v" style="font-size:19px">${e.setTime?esc(e.setTime):'TBA'}</div></div>
+          <div class="count"><div class="count-k">Starts in</div><div class="count-v"${setMs?` data-countdown-ms="${setMs}"`:''}><span class="cd-txt">${cS&&!cS.done?cS.txt:'—'}</span><small class="cd-unit">${cS&&!cS.done?cS.unit:''}</small></div></div>
         </div>
-        <div class="hero-links">
-          <button type="button" class="hero-link" style="background:rgba(255,159,10,0.2);border-color:rgba(255,159,10,0.42);color:var(--text)" onclick="event.stopPropagation();sheetReminder('${e.id}')">${ICON.reminder(14)} ${hasRem?'Reminder on':'Set reminder'}</button>
-          ${flightPass?`<button type="button" class="hero-link" onclick="event.stopPropagation();openPassByRef('${e.id}','${flightPass.p.id}','${flightPass.f.id}')">${ICON.ticket(14)} Boarding pass</button>`:''}
-          ${hasContacts?`<button type="button" class="hero-link" onclick="event.stopPropagation();openTourContacts('${e.id}')">${ICON.users(14)} Key contacts</button>`:''}
-          ${hasTransport?`<button type="button" class="hero-link" onclick="event.stopPropagation();showTransport('${e.id}')">${ICON.car(14)} Transport</button>`:''}
-          ${liaisonReach?`<button type="button" class="hero-link" onclick="event.stopPropagation();contactPromoter('${e.id}')">${ICON.chat(14)} Liaison</button>`:''}
-          ${e.hotel?`<button type="button" class="hero-link" onclick="event.stopPropagation();openMaps('${jsAttr(hotelMapQuery(e))}')">${ICON.bed(14)} ${esc(e.hotel.name||'Hotel')}</button>`:''}
-          <button type="button" class="hero-link" onclick="event.stopPropagation();openMaps('${jsAttr(venueMapQuery(e))}')">${ICON.pin(14)} Venue</button>
-          <button type="button" class="hero-link" onclick="event.stopPropagation();shareDaySheet('${e.id}')">${ICON.share(14)} Day sheet</button>
+        <div class="calm-primary-actions" onclick="event.stopPropagation()">
+          <button type="button" class="btn" onclick="openView('event','${e.id}')">Open show</button>
+          <button type="button" class="btn secondary" onclick="openMaps('${jsAttr(venueMapQuery(e))}')">Directions to venue</button>
+          ${flightPass?`<button type="button" class="btn secondary" onclick="openPassByRef('${e.id}','${flightPass.p.id}','${flightPass.f.id}')">Boarding pass</button>`:''}
+          ${liaisonReach?`<button type="button" class="btn secondary" onclick="contactPromoter('${e.id}')">Message liaison</button>`:''}
         </div>
       </div>`;
   } else {
-    hero = `<div class="empty"><div class="ic">${ICON.calendar(28)}</div><b>No upcoming shows</b><span>Your next show appears here with countdowns and travel info.</span><button class="btn" style="margin-top:16px;max-width:260px" onclick="sheetEvent()">${ICON.plus(18)} Add your first show</button></div>`;
+    hero = `<div class="empty"><div class="ic">${ICON.calendar(28)}</div><b>Nothing upcoming</b><span>Add a show and this space becomes your calm next-up screen.</span><button class="btn" style="margin-top:16px;max-width:260px" onclick="sheetEvent()">${ICON.plus(18)} Add a show</button></div>`;
   }
 
-  // Today's checklist = next event's checklist
-  const todayChecklist = e && e.checklist && e.checklist.length ? e.checklist : [];
-  const ideasWaiting = sel.ideas().filter(i=>!i.done).slice(0,2);
-  const recentNotes = sel.notes().slice(0,2);
-  const today0 = new Date(); today0.setHours(0,0,0,0);
-  const trips = runs().filter(r=>parseDT(r.end)>=today0).slice(0,2);
-
   const nameBit = store.settings.artistName&&store.settings.artistName!=='You'?', '+esc(store.settings.artistName):'';
-  const photo = store.settings._homeHeaderUrl || store.settings.homeHeader;
-  const header = photo ? `
-  <div class="home-hero" style="background-image:url('${photo}')">
-    <div class="home-hero-actions">
-      <button class="header-btn glass" onclick="openSearch()">${ICON.search(20)}</button>
-      <button class="header-btn glass" onclick="openView('settings')">${ICON.settings(20)}</button>
-    </div>
-    <div class="home-hero-text"><div class="hero-hello">${greeting}${nameBit}</div><div class="hero-home">Home</div></div>
-  </div>` : `
+  const header = `
   <div class="tab-page-sticky">
     <div class="lg-header">
-      <div><div class="lg-title">Home</div><div class="lg-sub">${greeting}${nameBit} · your tour dashboard</div></div>
-      <div style="display:flex;gap:9px">
-        <button class="header-btn" onclick="openSearch()">${ICON.search(20)}</button>
-        <button class="header-btn" onclick="openView('settings')">${ICON.settings(20)}</button>
-      </div>
+      <div><div class="lg-title">Home</div><div class="lg-sub">${greeting}${nameBit}. One next show. That’s it.</div></div>
+      <button class="header-btn" onclick="openView('settings')">${ICON.settings(20)}</button>
     </div>
   </div>`;
-  const st = computeStats();
-  const statsBlock = st.shows ? `
-    <div class="home-panel tap" onclick="openView('stats')">
-      <div class="home-panel-head home-panel-head-flex">
-        <span>Schedule snapshot</span>
-        <span class="home-panel-link">All stats</span>
-      </div>
-      <div class="home-stat-grid">
-        ${homeStat(ICON.music(14),'var(--accent-2)', st.upcoming, 'Shows')}
-        ${homeStat(ICON.plane(14),'var(--blue)', st.flightHrs+'h', 'In the air')}
-        ${homeStat(ICON.trips(14),'var(--green)', st.daysAway, 'Days away')}
-        ${homeStat(ICON.globe(14),'var(--pink)', st.cities, 'Cities')}
-      </div>
-    </div>` : '';
-
-  const feedPanels = [
-    statsBlock,
-    todayChecklist.length ? homePanel('Today\'s checklist', `<button type="button" class="home-panel-link" onclick="openView('event','${e.id}')">Open show</button>`,
-      `<div class="card flush home-inset">${todayChecklist.slice(0,4).map(i=>checkRow(i, `toggleEventCheck('${e.id}','${i.id}')`)).join('')}</div>`) : '',
-    ideasWaiting.length ? homePanel('Ideas', `<button type="button" class="home-panel-link" onclick="go('ideas')">All</button>`,
-      `<div class="card flush home-inset">${ideasWaiting.map(homeIdeaRow).join('')}</div>`) : '',
-    trips.length ? homePanel('Upcoming tours', `<button type="button" class="home-panel-link" onclick="goToursList()">All</button>`,
-      `<div class="card flush home-inset">${trips.map(runRow).join('')}</div>`) : '',
-    recentNotes.length ? homePanel('Recent notes', `<button type="button" class="home-panel-link" onclick="goNotes()">All</button>`,
-      `<div class="card flush home-inset">${recentNotes.map(noteRow).join('')}</div>`) : '',
-  ].filter(Boolean).join('');
 
   return `
   <div class="tab-page">
   ${header}
-  <div class="screen-pad home-screen tab-page-body stagger"${photo?' style="margin-top:12px"':''}>
+  <div class="screen-pad home-screen tab-page-body">
     <section class="home-focus">${hero}</section>
-    ${run?`<div class="tourmode-wrap">${activeTripBanner(run)}</div>`:''}
-
+    ${run?`<div class="tourmode-wrap" style="margin-top:28px">${activeTripBanner(run)}</div>`:''}
     <div class="home-layout">
       <div class="home-panel">
-        <div class="home-panel-head">Shortcuts</div>
+        <div class="home-panel-head">Go somewhere</div>
         <div class="home-panel-body">
           <div class="home-sc-group">
-            <div class="home-sc-label">Tour</div>
             <div class="home-sc-row home-sc-grid">
               ${homeShortcut(`go('shows')`, ICON.music(18), 'var(--accent-2)', 'Shows')}
               ${homeShortcut(`go('trips')`, ICON.trips(18), 'var(--pink)', 'Tours')}
-              ${homeShortcut(`openView('itinerary')`, ICON.file(18), 'var(--blue)', 'Itinerary')}
-            </div>
-          </div>
-          <div class="home-sc-group">
-            <div class="home-sc-label">Desk</div>
-            <div class="home-sc-row home-sc-grid">
-              ${homeShortcut(`sheetIdea()`, ICON.idea(18), 'var(--orange)', 'New idea')}
-              ${homeShortcut(`sheetNote()`, ICON.note(18), 'var(--blue)', 'New note')}
-              ${homeShortcut(`openView('finance')`, ICON.coins(18), 'var(--green)', 'Finance')}
-              ${homeShortcut(`openView('invoices')`, ICON.receipt(18), 'var(--blue)', 'Invoice')}
-              ${homeShortcut(`openView('contacts')`, ICON.users(18), 'var(--accent-2)', 'Contacts')}
+              ${homeShortcut(`go('calendar')`, ICON.calendar(18), 'var(--blue)', 'Calendar')}
             </div>
           </div>
         </div>
       </div>
-      ${feedPanels ? `<div class="home-feed">${feedPanels}</div>` : ''}
     </div>
-
     <div class="spacer"></div>
   </div>
   </div>`;
@@ -371,6 +302,7 @@ function travelGroupSummary(e){
   const flightLegs = showLegs(e.id).filter(x=>x.kind==='travel' && (x.icon||'plane')==='plane').length;
   const manualFlights = (e.flights&&e.flights.length)||0;
   const flightN = flightLegs + manualFlights;
+  const hotelName = (e.hotel && e.hotel.name) || '';
   const hotel = !!(e.hotel || showLegs(e.id).some(x=>x.kind==='stay'));
   const drvList = showDrivers(e);
   const driver = !!(drvList.some(d=>!d.noGround) || showLegs(e.id).some(x=>x.kind==='travel' && isDriverItem(x)));
@@ -378,18 +310,21 @@ function travelGroupSummary(e){
   const transferN = showLegs(e.id).filter(x=>x.kind==='travel' && (x.icon||'plane')!=='plane' && !isDriverItem(x)).length;
   const parts = [];
   if(flightN) parts.push(flightN+' flight'+(flightN>1?'s':''));
-  if(hotel) parts.push('hotel');
-  if(driver) parts.push('driver');
+  if(hotel) parts.push(hotelName ? hotelName : 'hotel set');
+  if(driver) parts.push('driver ready');
   if(noGround) parts.push('Uber/taxi');
   if(transferN) parts.push(transferN+' transfer'+(transferN>1?'s':''));
-  return parts.length ? parts.join(' · ') : 'Nothing added yet';
+  return parts.length ? parts.join(' · ') : 'Tap to add travel';
 }
 function venueGroupSummary(e){
   const n = countAdvanceFields(e.advance);
-  const venue = cleanVenue(e.venue) || 'Venue';
+  const addr = typeof formatVenueAddress==='function' ? formatVenueAddress(e) : '';
   const contacts = (e.contacts||[]).length;
-  const bits = [venue];
-  if(n) bits.push(n+' advance field'+(n>1?'s':''));
+  const bits = [];
+  if(addr) bits.push(addr.split(',').slice(0,2).join(',').trim());
+  else bits.push(cleanVenue(e.venue) || 'Venue');
+  if(e.promoter&&e.promoter.name) bits.push(e.promoter.name);
+  if(n) bits.push('advancing ready');
   if(contacts) bits.push(contacts+' contact'+(contacts>1?'s':''));
   return bits.join(' · ');
 }
@@ -480,12 +415,12 @@ function hotelSubsection(e){
       : [e.hotel.address, e.hotel.postcode].filter(Boolean).join(', ');
     const conf = typeof hotelBookingRef === 'function' ? hotelBookingRef(e.hotel) : (e.hotel.conf || e.hotel.bookingRef || '');
     body += `<div class="card flush">
-      <div class="info-line info-line-stacked"><div class="ic">${ICON.bed(17)}</div>${detailTx(esc(e.hotel.name||'Hotel'), esc(addr || 'Tap to add address'))}
-        <button class="header-btn" style="width:34px;height:34px;align-self:center" onclick="openMaps('${jsAttr(hotelMapQuery(e))}')">${ICON.map(16)}</button></div>
+      <div class="info-line info-line-stacked" onclick="sheetHotel('${e.id}')"><div class="ic">${ICON.bed(17)}</div>${detailTx(esc(e.hotel.name||'Hotel'), esc(addr || 'Tap to add address'))}
+        <button type="button" class="calm-more" onclick="event.stopPropagation();openMaps('${jsAttr(hotelMapQuery(e))}')">↗</button></div>
       <div class="info-line"><div class="ic">${ICON.clock(17)}</div>${fieldTx('Check in / out', `${e.hotel.checkin?fmtDate(e.hotel.checkin):'—'} → ${e.hotel.checkout?fmtDate(e.hotel.checkout):'—'}`)}</div>
-      ${conf?`<div class="info-line" onclick="copyText('${jsAttr(conf)}')"><div class="ic">${ICON.ticket(17)}</div>${fieldTx('Confirmation', esc(conf))}<button class="header-btn" style="width:34px;height:34px;align-self:center">${ICON.copy(16)}</button></div>`:''}
-      ${e.hotel.phone?`<div class="info-line" onclick="callNumber('${jsAttr(e.hotel.phone)}')"><div class="ic">${ICON.phone(17)}</div>${fieldTx('Phone', esc(e.hotel.phone))}<button class="header-btn" style="width:34px;height:34px;align-self:center">${ICON.phone(16)}</button></div>`:''}
-      ${e.hotel.email?`<div class="info-line" onclick="copyText('${jsAttr(e.hotel.email)}')"><div class="ic">${ICON.chat(17)}</div>${fieldTx('Email', esc(e.hotel.email))}<button class="header-btn" style="width:34px;height:34px;align-self:center">${ICON.copy(16)}</button></div>`:''}
+      ${conf?`<div class="info-line" onclick="copyText('${jsAttr(conf)}')"><div class="ic">${ICON.ticket(17)}</div>${fieldTx('Confirmation', esc(conf))}</div>`:''}
+      ${e.hotel.phone?`<div class="info-line" onclick="callNumber('${jsAttr(e.hotel.phone)}')"><div class="ic">${ICON.phone(17)}</div>${fieldTx('Phone', esc(e.hotel.phone))}</div>`:''}
+      ${e.hotel.email?`<div class="info-line" onclick="copyText('${jsAttr(e.hotel.email)}')"><div class="ic">${ICON.chat(17)}</div>${fieldTx('Email', esc(e.hotel.email))}</div>`:''}
       ${e.hotel.notes?`<div class="info-line"><div class="ic">${ICON.note(17)}</div>${fieldTx('Room notes', esc(e.hotel.notes))}</div>`:''}
     </div>`;
   }
@@ -578,17 +513,15 @@ function venueSubsection(e){
   const addrDisplay = addr || (e.city ? [e.city, e.country].filter(Boolean).join(', ') : '') || 'Tap to add';
   const mapQ = venueMapQuery(e);
   const body = `<div class="card flush">
-    <div class="info-line">
+    <div class="info-line" onclick="sheetVenueAddr('${e.id}')">
       <div class="ic">${ICON.pin(17)}</div>
       ${fieldTx('Address', `<span class="addr-trunc">${esc(addrDisplay)}</span>`)}
-      ${mapQ?`<button type="button" class="header-btn" style="width:34px;height:34px;align-self:center" onclick="openMaps('${jsAttr(mapQ)}')" title="Open in Maps">${ICON.map(17)}</button>`:''}
-      <button type="button" class="header-btn" style="width:34px;height:34px;align-self:center" onclick="sheetVenueAddr('${e.id}')" title="Edit venue">${ICON.edit(15)}</button>
+      ${mapQ?`<button type="button" class="calm-more" onclick="event.stopPropagation();openMaps('${jsAttr(mapQ)}')" title="Maps">↗</button>`:''}
     </div>
-    ${e.promoter?`<div class="info-line">
+    ${e.promoter?`<div class="info-line" onclick="sheetPromoter('${e.id}')">
       <div class="ic">${ICON.user(17)}</div>
       ${fieldTx('Artist Liaison', esc(e.promoter.name||'Liaison'))}
-      ${(e.promoter.phone||e.promoter.whatsapp)?`<button type="button" class="btn secondary" style="width:auto;flex:0 0 auto;padding:9px 15px;font-size:13.5px;align-self:center;box-shadow:none" onclick="contactPromoter('${e.id}')">${ICON.chat(15)} Contact</button>`:''}
-      <button type="button" class="header-btn" style="width:34px;height:34px;align-self:center" onclick="sheetPromoter('${e.id}')" title="Edit liaison">${ICON.edit(15)}</button>
+      ${(e.promoter.phone||e.promoter.whatsapp)?`<button type="button" class="calm-more" onclick="event.stopPropagation();contactPromoter('${e.id}')" title="Contact">↗</button>`:''}
     </div>`:`<div class="info-line" onclick="sheetPromoter('${e.id}')"><div class="ic">${ICON.plus(17)}</div><div class="tx"><div class="v" style="color:var(--accent-2)">Add artist liaison</div></div></div>`}
   </div>`;
   return showSubsection('ss-'+e.id+'-venue', 'Venue & liaison', '', body);
@@ -617,11 +550,10 @@ function contactsSubsection(e){
   if(!cs.length){
     return showSubsection('ss-'+e.id+'-contacts', 'Key contacts', addBtn, `<div class="card tap" onclick="sheetEventContact('${e.id}')" style="text-align:center;color:var(--text-3);padding:18px;font-weight:600">${ICON.users(20)} Add a key contact</div>`);
   }
-  const body = `<div class="card flush">${cs.map(ct=>`<div class="info-line info-line-stacked">
+  const body = `<div class="card flush">${cs.map(ct=>`<div class="info-line info-line-stacked" onclick="sheetEventContact('${e.id}','${ct.id}')">
     <div class="ic">${ICON.user(17)}</div>
-    <div class="tx" style="flex:1;min-width:0" onclick="sheetEventContact('${e.id}','${ct.id}')">${detailParts(esc(ct.name||'Contact'), ct.role?esc(showContactRoleLabel(ct.role)):'', ct.phone?esc(ct.phone):'')}</div>
-    ${ct.phone?`<button class="header-btn" style="width:34px;height:34px;align-self:center" onclick="callNumber('${jsAttr(ct.phone)}')">${ICON.phone(15)}</button>`:''}
-    ${(ct.whatsapp||ct.phone)?`<button class="header-btn" style="width:34px;height:34px;align-self:center" onclick="whatsapp('${jsAttr(ct.whatsapp||ct.phone)}')">${ICON.chat(15)}</button>`:''}
+    <div class="tx" style="flex:1;min-width:0">${detailParts(esc(ct.name||'Contact'), ct.role?esc(showContactRoleLabel(ct.role)):'', ct.phone?esc(ct.phone):'')}</div>
+    ${(ct.whatsapp||ct.phone)?`<button type="button" class="calm-more" onclick="event.stopPropagation();contactMoreMenu('${e.id}','${ct.id}')">···</button>`:''}
   </div>`).join('')}</div>`;
   return showSubsection('ss-'+e.id+'-contacts', 'Key contacts', addBtn, body);
 }
@@ -711,32 +643,21 @@ function viewEvent(id){
   const trip = e.tripId? sel.trip(e.tripId):null;
   return `
   <div class="detail-top"><div class="detail-bar">
-    <button class="back-btn" onclick="back()">${ICON.chevL(20)} ${trip?esc(trip.name):overlayBackLabel()}</button>
-    <div style="display:flex;gap:8px">
-      <button class="header-btn" style="width:36px;height:36px" onclick="shareDaySheet('${e.id}')">${ICON.share(17)}</button>
-      <button class="header-btn" style="width:36px;height:36px" onclick="eventMenu('${e.id}')">${ICON.edit(18)}</button>
-    </div>
+    <button class="back-btn" onclick="back()">${ICON.chevL(20)} Back</button>
+    <button class="header-btn" style="width:36px;height:36px" onclick="eventMenu('${e.id}')">${ICON.edit(18)}</button>
   </div></div>
-  <div class="screen-pad stagger show-detail">
-    <div class="dhero show-hero" style="background:linear-gradient(155deg,${c}33,var(--card) 65%)">
-      <div class="cat-bar" style="background:${c}"></div>
-      <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
-        <span class="tag ${e.status}">${e.status}</span>
-        ${trip?`<span class="tag" style="background:${c}22;color:${c}" onclick="openView('trip','${trip.id}')">${esc(trip.name)}</span>`:''}
-      </div>
-      <div class="show-hero-eyebrow">${ICON.music(12)} Show · ${esc(relDay(e.date))}</div>
+  <div class="screen-pad show-detail">
+    <div class="dhero show-hero" style="background:linear-gradient(155deg,${c}22,transparent 70%)">
+      <div class="show-hero-eyebrow">${esc(relDay(e.date))}</div>
       <h1 class="show-hero-title">${esc(e.venue||'Untitled show')}</h1>
-      <div class="show-hero-location">${ICON.pin(14)} ${esc(e.city||'City TBA')}${e.country?', '+esc(e.country):''}</div>
+      <div class="show-hero-location">${esc(e.city||'City TBA')}${e.country?', '+esc(e.country):''}</div>
       <div class="show-stats">
-        <div class="show-stat"><span class="show-stat-k">Date</span><span class="show-stat-v">${esc(fmtDate(e.date))}</span></div>
-        <div class="show-stat"><span class="show-stat-k">Set time</span><span class="show-stat-v">${e.setTime?esc(e.setTime)+(e.endTime?' – '+esc(e.endTime):''):'TBA'}</span></div>
-        ${e.arrival?`<div class="show-stat"><span class="show-stat-k">Arrival</span><span class="show-stat-v">${esc(e.arrival)}</span></div>`:''}
+        <div class="show-stat"><span class="show-stat-k">When</span><span class="show-stat-v">${esc(fmtDate(e.date))}${e.setTime?' · '+esc(e.setTime):''}</span></div>
       </div>
-    </div>
-
-    <div class="show-detail-quick">
-      <div class="block-title">Quick access</div>
-      ${showQuickLinks(e)}
+      <div class="calm-primary-actions">
+        <button type="button" class="btn secondary" onclick="openMaps('${jsAttr(venueMapQuery(e))}')">Venue directions</button>
+        ${e.hotel?`<button type="button" class="btn secondary" onclick="openMaps('${jsAttr(hotelMapQuery(e))}')">Hotel directions</button>`:''}
+      </div>
     </div>
 
     <div class="show-groups">
@@ -749,36 +670,55 @@ function viewEvent(id){
     <div class="show-detail-foot">
     ${(()=>{ const run=runOf(e.id); const otherShows=run?run.shows.length-1:0;
       const active = store.activeShowId && runOf(store.activeShowId) && runOf(store.activeShowId).key===(run&&run.key);
-      return `<div class="section" style="margin-top:20px">
+      return `<div class="section" style="margin-top:28px">
         ${active
-          ? `<button class="btn" onclick="go('home')">${ICON.play(18)} Trip Mode is live — open it</button>`
-          : `<button class="btn" onclick="startTripFromShow('${e.id}')">${ICON.play(18)} Start Trip Mode${otherShows>0?` (this run · ${run.shows.length} shows)`:''}</button>`}
-        ${otherShows>0?`<div class="hint" style="text-align:left;padding:8px 2px 0">Auto-grouped with ${otherShows} nearby show${otherShows>1?'s':''} into one tour — no naming needed.</div>`:''}
+          ? `<button class="btn" onclick="go('home')">Open Trip Mode</button>`
+          : `<button class="btn" onclick="startTripFromShow('${e.id}')">Start Trip Mode</button>`}
       </div>`; })()}
-    <div class="section"><button class="btn danger" onclick="confirmDeleteEvent('${e.id}')">${ICON.trash(17)} Delete show</button></div>
+    <div class="section"><button class="btn danger" onclick="confirmDeleteEvent('${e.id}')">Delete show</button></div>
     </div>
     <div class="spacer"></div><div class="spacer"></div>
   </div>`;
+}
+function calmActionsSheet(title, actions){
+  openSheet(title, `${actions.map(a=>`
+    <button type="button" class="btn ${a.danger?'danger':'secondary'}" style="margin-bottom:10px" onclick="closeSheet();${a.fn}">${a.label}</button>
+  `).join('')}<button type="button" class="btn secondary" onclick="closeSheet()">Cancel</button><div class="spacer"></div>`);
+}
+function contactMoreMenu(eid, cid){
+  const e=sel.event(eid); const ct=(e&&e.contacts||[]).find(x=>x.id===cid); if(!ct) return;
+  const acts=[{ label:'Edit', fn:`sheetEventContact('${eid}','${cid}')` }];
+  if(ct.phone) acts.push({ label:'Call', fn:`callNumber('${jsAttr(ct.phone)}')` });
+  if(ct.whatsapp||ct.phone) acts.push({ label:'WhatsApp', fn:`whatsapp('${jsAttr(ct.whatsapp||ct.phone)}')` });
+  calmActionsSheet(ct.name||'Contact', acts);
+}
+function flightMoreMenu(eid, fid){
+  calmActionsSheet('Flight', [
+    { label: 'Edit flight', fn: `sheetFlight('${eid}','${fid}')` },
+    { label: 'Remove flight', fn: `confirmRemoveFlight('${eid}','${fid}')`, danger: true }
+  ]);
+}
+function flightPaxMoreMenu(eid, fid, paxId){
+  calmActionsSheet('Passenger', [
+    { label: 'Upload boarding pass', fn: `document.getElementById('calm-pass-${paxId}')?.click()` },
+    { label: 'Remove person', fn: `confirmRemoveFlightPassenger('${eid}','${fid}','${paxId}')`, danger: true }
+  ]);
 }
 function flightLine(eid,f){
   if(typeof ensureFlightPassengers==='function') ensureFlightPassengers(f);
   const parsed = typeof flightParseDep==='function' ? flightParseDep(f.dep,'') : {time:(f.dep||'').split(' ').pop()};
   const depTime = parsed.time || (f.dep ? (String(f.dep).split(' ')[1] || (String(f.dep).includes(':')&&!String(f.dep).includes('-')?f.dep:'')) : '');
-  const arrTime = f.arr ? (String(f.arr).split(' ')[1] || (String(f.arr).includes(':')&&!String(f.arr).includes('-')?f.arr:'')) : '';
   const route = `${f.from||'?'} → ${f.to||'?'}`;
   const pax = (typeof flightPassengers==='function' ? flightPassengers(f) : (f.passengers||[]));
   const meta = [
     depTime ? 'Dep '+esc(depTime) : '',
-    arrTime ? 'Arr '+esc(arrTime) : '',
     pax.length ? (pax.length+' passenger'+(pax.length===1?'':'s')) : ''
   ].filter(Boolean).join(' · ');
-  /* Boarding passes render under each passenger — never as one pooled group. */
   const paxBlock = pax.length ? pax.map(p=>flightPaxLine(eid,f,p)).join('') : '';
-  return `<div class="info-line info-line-stacked">
+  return `<div class="info-line info-line-stacked" onclick="sheetFlight('${eid}','${f.id}')">
     <div class="ic">${ICON.plane(17)}</div>
     ${detailTx(esc(f.code||'Flight'), esc(route), meta)}
-    <button type="button" class="add" style="align-self:center" onclick="sheetFlight('${eid}','${f.id}')">Edit</button>
-    <button type="button" class="header-btn" style="width:34px;height:34px;align-self:center;color:var(--red)" title="Remove flight" onclick="confirmRemoveFlight('${eid}','${f.id}')">${ICON.trash(15)}</button>
+    <button type="button" class="calm-more" onclick="event.stopPropagation();flightMoreMenu('${eid}','${f.id}')" aria-label="More">···</button>
   </div>${paxBlock}`;
 }
 function flightPaxLine(eid,f,pax){
@@ -789,11 +729,11 @@ function flightPaxLine(eid,f,pax){
     <div class="info-line" style="padding-left:52px">
       <div class="ic">${ICON.users(15)}</div>
       ${detailTx(title, seat)}
-      <label class="header-btn" style="width:34px;height:34px;align-self:center" title="Boarding pass">${ICON.ticket(16)}<input type="file" accept="${PASS_FILE_ACCEPT}" style="display:none" onchange="uploadPass('${eid}','${f.id}',this,'${pax.id}')"></label>
-      <button type="button" class="header-btn" style="width:34px;height:34px;align-self:center;color:var(--red)" title="Remove person" onclick="confirmRemoveFlightPassenger('${eid}','${f.id}','${pax.id}')">${ICON.trash(15)}</button>
+      <input id="calm-pass-${pax.id}" type="file" accept="${PASS_FILE_ACCEPT}" style="display:none" onchange="uploadPass('${eid}','${f.id}',this,'${pax.id}')">
+      <button type="button" class="calm-more" onclick="flightPaxMoreMenu('${eid}','${f.id}','${pax.id}')" aria-label="More">···</button>
     </div>
-    ${passes.length?`<div style="padding:0 16px 10px 52px"><div class="thumb-row">${passes.map(p=>passThumb(eid, p, passEditable()?`delFlightPass('${eid}','${f.id}','${p.id}','${pax.id}')`:null, f.id)).join('')}</div></div>`
-      :`<div style="padding:0 16px 10px 52px;color:var(--text-3);font-size:12px">No boarding pass yet</div>`}
+    ${passes.length?`<div style="padding:0 16px 10px 52px"><div class="thumb-row">${passes.map(p=>passThumb(eid, p, null, f.id)).join('')}</div></div>`
+      :`<div style="padding:0 16px 10px 52px;color:var(--text-3);font-size:13px">Tap ··· for boarding pass</div>`}
   </div>`;
 }
 function attachThumb(eid,a){
