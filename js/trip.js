@@ -51,14 +51,14 @@ function viewTripMode(run){
     </div>
 
     <div class="section">
-      ${foldSection('tm-timeline'+run.key, ICON.clock(17), 'Day timeline', tl.filter(x=>x.done).length+'/'+tl.length+' done'+(nextStep&&nextStep.time?' · next '+nextStep.time:''),
-        `<div class="fold-pad"><div class="timeline">${tl.map((s,idx)=>runTlItem(run.key,s,idx===nextTravelIdx)).join('')||'<div class="hint">No steps yet</div>'}</div></div>`, true)}
+      <div class="section-head"><div class="section-title">Day timeline</div><div class="section-link">${tl.filter(x=>x.done).length}/${tl.length}</div></div>
+      ${dayTimeline(run.key, run)}
     </div>
 
     <div class="section">
       ${foldSection('tm-pack', ICON.checkList(17), 'Packing & checklist', pk.filter(i=>i.done).length+'/'+pk.length+' packed',
         `<div style="padding:0 16px 4px"><div class="progress" style="margin:12px 0 4px"><i style="width:${pk.length?Math.round(pk.filter(i=>i.done).length/pk.length*100):0}%"></i></div></div>
-         <div class="fold-scroll">${pk.map(i=>`<div class="check ${i.done?'done':''}"><div class="box" onclick="togglePack('${i.id}')">${ICON.check(15)}</div><div class="lbl" onclick="togglePack('${i.id}')">${esc(i.label)}</div><button class="del" onclick="delPack('${i.id}')">${ICON.x(16)}</button></div>`).join('')||'<div class="hint">No items</div>'}</div>
+         <div class="fold-scroll">${pk.map(i=>`<div class="check ${i.done?'done':''}"><div class="box" onclick="togglePack('${i.id}')">${ICON.check(15)}</div><div class="lbl">${esc(i.label)}</div><button class="del" onclick="delPack('${i.id}')">${ICON.x(16)}</button></div>`).join('')||'<div class="hint">No items</div>'}</div>`
          <div class="fold-pad"><button class="btn secondary" style="padding:11px" onclick="addPackPrompt()">${ICON.plus(15)} Add item</button></div>`, false)}
     </div>
 
@@ -343,13 +343,59 @@ function tlRow(runKey, s){
   const isSet=s.kind==='set';
   const col=isSet?'var(--accent-2)':logColor({kind:s.kind,icon:s.icon});
   const btns=stepButtons(s);
+  /* Checkbox is on the right and only toggles when that box is tapped.
+     Tapping the rest of the row opens edit options (does not mark done). */
   return `<div class="tlr ${s.done?'done':''}">
-    <button class="tlr-tick ${s.done?'on':''}" onclick="completeRunStep('${runKey}','${s.id}')">${s.done?ICON.check(13):''}</button>
-    <div class="tlr-time">${esc(s.time||'')}</div>
-    <div class="tlr-ic" style="color:${col}">${(ICON[s.icon]||ICON.clock)(19)}</div>
-    <div class="tlr-body" onclick="${isSet?`openView('event','${s.showId}')`:`completeRunStep('${runKey}','${s.id}')`}"><b>${esc(s.title)}</b>${s.sub?`<span>${esc(s.sub)}</span>`:''}</div>
+    <button type="button" class="tlr-main" onclick="timelineStepOptions('${runKey}','${jsAttr(s.id)}')">
+      <div class="tlr-time">${esc(s.time||'')}</div>
+      <div class="tlr-ic" style="color:${col}">${(ICON[s.icon]||ICON.clock)(19)}</div>
+      <div class="tlr-body"><b>${esc(s.title)}</b>${s.sub?`<span>${esc(s.sub)}</span>`:''}</div>
+    </button>
+    <button type="button" class="tlr-tick ${s.done?'on':''}" aria-label="${s.done?'Mark not done':'Mark done'}" onclick="event.stopPropagation();completeRunStep('${runKey}','${jsAttr(s.id)}')">${s.done?ICON.check(15):''}</button>
     ${btns?`<div class="tlr-actions">${btns}</div>`:''}
   </div>`;
+}
+/* Tap a timeline row (not the checkbox) → choose Edit / related actions. */
+function timelineStepOptions(runKey, stepId){
+  const run=runOf(runKey); if(!run) return;
+  const s=runTimeline(run).find(x=>x.id===stepId); if(!s) return;
+  const bits=[s.time?esc(s.time):'', s.sub?esc(s.sub):''].filter(Boolean).join(' · ');
+  openSheet(s.title||'Timeline step', `
+    ${bits?`<p class="sheet-lede">${bits}</p>`:''}
+    <button type="button" class="btn" onclick="closeSheet();editTimelineStep('${runKey}','${jsAttr(stepId)}')">${ICON.edit(16)} Edit</button>
+    <button type="button" class="btn secondary" style="margin-top:10px" onclick="closeSheet();completeRunStep('${runKey}','${jsAttr(stepId)}')">${s.done?ICON.x(16)+' Mark not done':ICON.check(16)+' Mark done'}</button>
+    <div class="spacer"></div>
+    <button type="button" class="btn secondary" onclick="closeSheet()">Cancel</button>
+    <div class="spacer"></div>
+  `);
+}
+function editTimelineStep(runKey, stepId){
+  const run=runOf(runKey); if(!run) return;
+  const s=runTimeline(run).find(x=>x.id===stepId); if(!s) return;
+  if(s.kind==='set' && s.showId){ openView('event', s.showId); return; }
+  if(String(stepId).startsWith('shflt_')){
+    const fid=stepId.slice(6);
+    const shId=(s.ref&&s.ref.showId)||(store.events.find(e=>(e.flights||[]).some(f=>f.id===fid))||{}).id;
+    if(shId && typeof sheetFlight==='function'){ sheetFlight(shId, fid); return; }
+  }
+  if(String(stepId).startsWith('shhotel_')){
+    const shId=stepId.slice(8);
+    if(typeof sheetHotel==='function'){ sheetHotel(shId); return; }
+  }
+  if(String(stepId).startsWith('shdrv_')){
+    const did=stepId.slice(6);
+    const shId=s.ref&&s.ref.showId;
+    const sh=shId?sel.event(shId):null;
+    if(sh && typeof sheetDriver==='function'){
+      const idx=showDrivers(sh).findIndex(d=>d.id===did);
+      sheetDriver(sh.id, idx>=0?idx:undefined);
+      return;
+    }
+  }
+  const itemId=(s.ref&&s.ref.id&&!s.embedded)?s.ref.id:((store.events||[]).some(x=>x.id===stepId)?stepId:null);
+  if(itemId && typeof openItem==='function'){ openItem(itemId); return; }
+  if(s.showId){ openView('event', s.showId); return; }
+  toast('Open the show to edit this','x');
 }
 
 function tlItem(tripId, s, isNow){
@@ -472,7 +518,7 @@ function tripBody(r){
     <div class="section">
       ${foldSection('trip-pack', ICON.checkList(17), 'Packing & checklist', pk.filter(i=>i.done).length+'/'+pk.length+' packed',
         `<div style="padding:0 16px 4px"><div class="progress" style="margin:12px 0 4px"><i style="width:${pk.length?Math.round(pk.filter(i=>i.done).length/pk.length*100):0}%"></i></div></div>
-         <div class="fold-scroll">${pk.map(i=>`<div class="check ${i.done?'done':''}"><div class="box" onclick="togglePack('${i.id}')">${ICON.check(15)}</div><div class="lbl" onclick="togglePack('${i.id}')">${esc(i.label)}</div><button class="del" onclick="delPack('${i.id}')">${ICON.x(16)}</button></div>`).join('')||'<div class="hint">No items</div>'}</div>
+         <div class="fold-scroll">${pk.map(i=>`<div class="check ${i.done?'done':''}"><div class="box" onclick="togglePack('${i.id}')">${ICON.check(15)}</div><div class="lbl">${esc(i.label)}</div><button class="del" onclick="delPack('${i.id}')">${ICON.x(16)}</button></div>`).join('')||'<div class="hint">No items</div>'}</div>`
          <div class="fold-pad"><button class="btn secondary" style="padding:11px" onclick="addPackPrompt()">${ICON.plus(15)} Add item</button></div>`, false)}
     </div>
 
