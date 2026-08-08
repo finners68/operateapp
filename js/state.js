@@ -700,8 +700,9 @@ const money = {
 };
 
 /* ---------- Tours ("runs") — auto-grouped consecutive shows, no naming ----------
-   A run = a maximal group of shows within RUN_GAP days of each other.
-   A standalone show is a run of one. Logistics attach to shows, timeline is derived. */
+   A run = consecutive shows until a flight returns to the home airport.
+   Rest days do not split a tour. A standalone show is a run of one.
+   Logistics attach to shows; timeline is derived. */
 function dayIdx(ds){ const d=parseDT(ds); return d?Math.floor(d.getTime()/86400000):0; }
 function homeAirport(){ return (store.settings.homeAirport||'AMS').toUpperCase(); }
 /* Strip b2b / bracketed extras from a venue name so the address + map search use the main name only. */
@@ -715,24 +716,36 @@ function isHomeFlight(e){
   if(e.to && String(e.to).toUpperCase() === h) return true;
   return new RegExp('>\\s*'+h+'(\\b|\\))','i').test(e.title||'') || new RegExp('→\\s*'+h+'(\\b|$)','i').test(e.info||'');
 }
+/* Home-airport return legs: calendar travel rows + flights saved on shows. */
+function homeReturnFlights(){
+  const h = homeAirport();
+  const out = store.events.filter(isHomeFlight);
+  store.events.forEach(s=>{
+    if((s.kind||'show')!=='show' || !Array.isArray(s.flights)) return;
+    s.flights.forEach(f=>{
+      if(!f || !f.to || String(f.to).toUpperCase()!==h) return;
+      const parts=String(f.dep||'').trim().split(/\s+/);
+      const date=parts[0]&&/^\d{4}-\d{2}-\d{2}/.test(parts[0])?parts[0]:s.date;
+      const start=parts[1]||(parts[0]&&parts[0].includes(':')&&!parts[0].includes('-')?parts[0]:'')||'12:00';
+      out.push({ date, start, kind:'travel', to:f.to });
+    });
+  });
+  return out;
+}
 function dtKey(dateStr,timeStr){ return (dateStr||'')+' '+(timeStr||'00:00'); }
-/* Two consecutive shows belong to the same tour only if the days between them are
-   all active (travel days, not free days) AND he doesn't return to his home airport
-   between them. A free day either side, or a flight home, ends the tour. */
-function sameTour(prev, cur, activeDays, homeFlights){
-  const a=dayIdx(prev.date), b=dayIdx(cur.date);
-  for(let d=a+1; d<b; d++){ if(!activeDays.has(d)) return false; }   // an empty day between = break
+/* Two consecutive shows belong to the same tour unless a flight back to the
+   home airport falls between them. Rest / free days no longer split a tour. */
+function sameTour(prev, cur, homeFlights){
   const pKey=dtKey(prev.date, prev.setTime||'23:59'), cKey=dtKey(cur.date, cur.setTime||'23:58');
   for(const f of homeFlights){ const fKey=dtKey(f.date, f.start||'12:00'); if(fKey>pKey && fKey<cKey) return false; }
   return true;
 }
 function runs(){
   const shows = sel.events(); // shows only, sorted by date
-  const activeDays = new Set(); store.events.forEach(e=>activeDays.add(dayIdx(e.date)));
-  const homeFlights = store.events.filter(isHomeFlight);
+  const homeFlights = homeReturnFlights();
   const out=[]; let cur=null;
   shows.forEach(sh=>{
-    if(cur && sameTour(cur.shows[cur.shows.length-1], sh, activeDays, homeFlights)){ cur.shows.push(sh); }
+    if(cur && sameTour(cur.shows[cur.shows.length-1], sh, homeFlights)){ cur.shows.push(sh); }
     else { cur={shows:[sh]}; out.push(cur); }
   });
   return out.map(r=>{
