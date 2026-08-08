@@ -76,9 +76,11 @@ function tripLegRow(e, i, nextEvent){
   // Marker: completed = green tick, next = orange number, upcoming = neutral grey number
   const icBg = e.setDone ? 'rgba(50,215,75,0.18)' : isNext ? 'rgba(255,159,10,0.22)' : 'rgba(255,255,255,0.05)';
   const icCol = e.setDone ? 'var(--green)' : isNext ? 'var(--orange)' : 'var(--text-3)';
+  const ready = typeof showReadiness === 'function' ? showReadiness(e) : null;
   return `<div class="row" style="${bg}" onclick="openView('event','${e.id}')">
     <div class="ic" style="background:${icBg};color:${icCol};font-weight:800;font-size:13px">${e.setDone?ICON.check(16):i+1}</div>
-    <div class="body"><b>${esc(e.venue)} ${isNext?'<span class="tag hold" style="margin-left:4px">Next</span>':''}</b><span>${esc(e.city)}${e.country?', '+esc(e.country):''} · ${esc(fmtDate(e.date))}${e.setTime?' · '+esc(e.setTime):''}</span></div>
+    <div class="body"><b>${esc(e.venue)} ${isNext?'<span class="tag hold" style="margin-left:4px">Next</span>':''}</b><span>${esc(e.city)}${e.country?', '+esc(e.country):''} · ${esc(fmtDate(e.date))}${e.setTime?' · '+esc(e.setTime):''}${ready?' · '+ready.done+'/'+ready.total+' ready':''}</span></div>
+    ${typeof readinessRingHtml === 'function' ? readinessRingHtml(e, 34) : ''}
     ${ICON.chevR(15)}
   </div>`;
 }

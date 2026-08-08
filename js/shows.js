@@ -121,12 +121,98 @@ function groupShowsByMonth(list){
   });
   return out;
 }
+/* Show readiness: travel · hotel · advancing · deal — used for progress rings. */
+function showReadiness(e){
+  if(!e) return { items: [], done: 0, total: 0, pct: 0 };
+  const flightN = showLegs(e.id).filter(x=>x.kind==='travel' && (x.icon||'plane')==='plane').length
+    + ((e.flights && e.flights.length) || 0);
+  const hasGround = showDrivers(e).some(d=>!d.noGround)
+    || showLegs(e.id).some(x=>x.kind==='travel' && (isDriverItem(x) || ((x.icon||'plane')!=='plane')));
+  const travel = flightN > 0 || hasGround;
+  const hotel = !!(e.hotel && (e.hotel.name || e.hotel.address || e.hotel.city || e.hotel.address_line_1))
+    || showLegs(e.id).some(x=>x.kind==='stay');
+  const advancing = countAdvanceFields(e.advance) > 0;
+  let deal = !!(e.finance && e.finance.notDisclosed);
+  if(!deal && e.finance){
+    try { deal = !!(typeof money!=='undefined' && money.eventCalc(e).gross); }
+    catch(err){ deal = !!(e.finance.fee || e.finance.amount || e.finance.gross); }
+  }
+  const items = [
+    { key: 'travel', label: 'Travel', hint: 'Flight, driver or transfer', done: travel },
+    { key: 'hotel', label: 'Hotel', hint: 'Stay details added', done: hotel },
+    { key: 'advancing', label: 'Advancing', hint: 'Show-day details', done: advancing },
+    { key: 'deal', label: 'Deal', hint: 'Fee or not disclosed', done: deal }
+  ];
+  const done = items.filter(i => i.done).length;
+  const total = items.length;
+  return { items, done, total, pct: total ? Math.round(done / total * 100) : 0 };
+}
+function readinessRingHtml(e, size){
+  const r = showReadiness(e);
+  const s = size || 40;
+  const rad = 15;
+  const circ = 2 * Math.PI * rad;
+  const offset = circ * (1 - (r.total ? r.done / r.total : 0));
+  const tone = r.done === r.total ? 'ready-ring--full' : (r.done === 0 ? 'ready-ring--empty' : 'ready-ring--mid');
+  return `<div class="ready-ring ${tone}" style="--ready-size:${s}px" title="Readiness ${r.done}/${r.total}" aria-label="Readiness ${r.done} of ${r.total}">
+    <svg viewBox="0 0 40 40" aria-hidden="true">
+      <circle class="ready-ring-track" cx="20" cy="20" r="${rad}"/>
+      <circle class="ready-ring-value" cx="20" cy="20" r="${rad}"
+        stroke-dasharray="${circ.toFixed(2)}" stroke-dashoffset="${offset.toFixed(2)}"/>
+    </svg>
+    <span class="ready-ring-n">${r.done}<small>/${r.total}</small></span>
+  </div>`;
+}
+function readinessPanelHtml(e){
+  const r = showReadiness(e);
+  const chips = r.items.map(i => `
+    <button type="button" class="ready-chip ${i.done?'is-done':''}" onclick="event.stopPropagation();jumpShowReadiness('${e.id}','${i.key}')">
+      <span class="ready-chip-mark">${i.done ? ICON.check(12) : ''}</span>
+      <span class="ready-chip-lab">${esc(i.label)}</span>
+    </button>`).join('');
+  const missing = r.items.filter(i => !i.done).map(i => i.label);
+  const sub = r.done === r.total
+    ? 'All set for this show'
+    : (missing.length ? ('Still need: ' + missing.join(' · ')) : '');
+  return `<div class="ready-panel">
+    <div class="ready-panel-head">
+      ${readinessRingHtml(e, 52)}
+      <div class="ready-panel-copy">
+        <b>Readiness</b>
+        <span>${esc(sub)}</span>
+      </div>
+    </div>
+    <div class="ready-chips">${chips}</div>
+  </div>`;
+}
+function jumpShowReadiness(eid, key){
+  const group = key === 'deal' ? 'sg-'+eid+'-deal'
+    : (key === 'advancing' ? 'sg-'+eid+'-venue' : 'sg-'+eid+'-travel');
+  const sub = key === 'hotel' ? 'ss-'+eid+'-hotel'
+    : key === 'travel' ? 'ss-'+eid+'-flights'
+    : key === 'advancing' ? 'ss-'+eid+'-advancing'
+    : null;
+  if(typeof folds !== 'undefined'){
+    folds[group] = true;
+    if(sub) folds[sub] = true;
+  }
+  if(overlay && overlay.type === 'event' && overlay.id === eid){
+    renderView();
+  } else {
+    openView('event', eid);
+  }
+  setTimeout(()=>{
+    const el = document.getElementById('fold-'+(sub || group));
+    if(el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }, 80);
+}
 function showListRow(e){
   const col = CATS[e.color]||CATS.purple;
   const statusTag = e.status && e.status !== 'confirmed' ? `<span class="tag ${e.status}" style="margin-left:6px;vertical-align:middle;font-size:10px;padding:2px 7px">${e.status}</span>` : '';
   const meta = [e.city, e.country].filter(Boolean).map(x=>esc(x)).join(', ');
   const timeBit = e.setTime ? esc(e.setTime)+(e.endTime?' – '+esc(e.endTime):'') : '—';
-  const detail = [meta, timeBit].filter(Boolean).join(' · ');
+  const ready = showReadiness(e);
+  const detail = [meta, timeBit, (ready.done+'/'+ready.total+' ready')].filter(Boolean).join(' · ');
   const d = parseDT(e.date);
   const dateIc = d
     ? `<div class="ic show-date-ic" style="background:${col}22;color:${col}" aria-label="${esc(fmtDate(e.date))}"><span class="show-date-day">${d.getDate()}</span><span class="show-date-mon">${MON[d.getMonth()]}</span></div>`
@@ -134,8 +220,8 @@ function showListRow(e){
   return `<div class="row show-row" onclick="openView('event','${e.id}')">
     ${dateIc}
     <div class="body"><b>${esc(e.venue||'Untitled show')}${statusTag}</b><span>${detail}</span></div>
+    ${readinessRingHtml(e, 36)}
     <button type="button" class="header-btn show-row-edit" onclick="event.stopPropagation();eventMenu('${e.id}')" title="Edit show">${ICON.edit(16)}</button>
-    <div class="trail"><span style="font-size:12px;font-weight:600">${esc(relDay(e.date))}</span>${ICON.chevR(15)}</div>
   </div>`;
 }
 
@@ -161,6 +247,7 @@ function viewHome(){
     const hasTransport = showDrivers(e).length>0;
     const liaisonReach = e.promoter&&(e.promoter.phone||e.promoter.whatsapp);
     const hasRem = (store.reminders||[]).some(r=>r.showId===e.id && !r.fired && (r.kind||'manual')!=='usb');
+    const readyHome = showReadiness(e);
     hero = `
       <div class="hero tap nextshow" onclick="openView('event','${e.id}')">
         <div class="hero-label">${ICON.music(14)} Next show · ${esc(relDay(e.date))}</div>
@@ -172,6 +259,7 @@ function viewHome(){
           ${flight?`<div class="count"><div class="count-k">${ICON.plane(12)} Flight</div><div class="count-v"${flightMs?` data-countdown-ms="${flightMs}" data-countdown-off="Off"`:''}><span class="cd-txt">${cF.done?'Off':cF.txt}</span><small class="cd-unit">${cF.done?'':cF.unit}</small></div></div>`:''}
         </div>
         <div class="hero-links">
+          <button type="button" class="hero-link ready-hero-pill" onclick="event.stopPropagation();openView('event','${e.id}')">${readinessRingHtml(e, 28)} ${readyHome.done}/${readyHome.total} ready</button>
           <button type="button" class="hero-link" style="background:rgba(255,159,10,0.2);border-color:rgba(255,159,10,0.42);color:var(--text)" onclick="event.stopPropagation();sheetReminder('${e.id}')">${ICON.reminder(14)} ${hasRem?'Reminder on':'Set reminder'}</button>
           ${flightPass?`<button type="button" class="hero-link" onclick="event.stopPropagation();openPassByRef('${e.id}','${flightPass.p.id}','${flightPass.f.id}')">${ICON.ticket(14)} Boarding pass</button>`:''}
           ${hasContacts?`<button type="button" class="hero-link" onclick="event.stopPropagation();openTourContacts('${e.id}')">${ICON.users(14)} Key contacts</button>`:''}
@@ -732,6 +820,7 @@ function viewEvent(id){
         <div class="show-stat"><span class="show-stat-k">Set time</span><span class="show-stat-v">${e.setTime?esc(e.setTime)+(e.endTime?' – '+esc(e.endTime):''):'TBA'}</span></div>
         ${e.arrival?`<div class="show-stat"><span class="show-stat-k">Arrival</span><span class="show-stat-v">${esc(e.arrival)}</span></div>`:''}
       </div>
+      ${readinessPanelHtml(e)}
     </div>
 
     <div class="show-detail-quick">
