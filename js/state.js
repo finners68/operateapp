@@ -197,6 +197,23 @@ function flightAllPasses(f){
   if(fromPax.length) return fromPax;
   return Array.isArray(f.passes) ? f.passes : [];
 }
+/* True only when a flight has something worth showing (route, number, times, or people). */
+function flightHasDetails(f){
+  if(!f) return false;
+  if(String(f.code||'').trim()) return true;
+  if(String(f.from||'').trim()) return true;
+  if(String(f.to||'').trim()) return true;
+  if(String(f.dep||'').trim()) return true;
+  if(String(f.arr||'').trim()) return true;
+  if(String(f.seat||'').trim()) return true;
+  if(Array.isArray(f.passes) && f.passes.length) return true;
+  const pax = Array.isArray(f.passengers) ? f.passengers : [];
+  return pax.some(p => p && (
+    String(p.name||'').trim() ||
+    String(p.seat||'').trim() ||
+    (Array.isArray(p.passes) && p.passes.length)
+  ));
+}
 function flightPassengerSummary(f){
   return flightPassengers(f).map(p => {
     const bits = [p.name, p.seat ? ('Seat ' + p.seat) : ''].filter(Boolean);
@@ -766,7 +783,7 @@ function homeTourMarkers(){
   store.events.forEach(s=>{
     if((s.kind||'show')!=='show' || !Array.isArray(s.flights)) return;
     s.flights.forEach(f=>{
-      if(!f) return;
+      if(!f || (typeof flightHasDetails==='function' && !flightHasDetails(f))) return;
       const from=airportCode(f.from), to=airportCode(f.to);
       const when=flightLegWhen(f, s.date);
       if(to===h && from!==h) returns.push({ date:when.date, start:when.start, afterShowId:s.id });
@@ -829,6 +846,16 @@ function runTimeline(run){
     const d = logisticDisplayLines(e);
     const sub = e.kind==='travel' ? logisticMetaLine(e) : (e.info||'');
     return {id:e.id, kind:e.kind, date:e.date, time:e.start||(e.info&&(e.info.match(/(\d{1,2}:\d{2})/)||[])[1])||'', title:d.title, sub: e.kind==='travel' ? [d.primary, sub].filter(Boolean).join(' · ') : sub, icon:e.icon||(e.kind==='stay'?'bed':'plane'), done:!!e.done, ref:e};
+  }).filter(r=>{
+    if(r.kind==='travel' && (r.icon||'plane')==='plane'){
+      const e=r.ref||{};
+      return !!(e.from||e.to||e.flightNo||e.code||(r.sub&&String(r.sub).trim())||(r.title&&r.title!=='Flight'&&r.title!=='Travel'));
+    }
+    if(r.kind==='stay'){
+      const e=r.ref||{};
+      return !!(e.place||e.addr||e.bookingRef||(r.sub&&String(r.sub).trim())||(r.title&&r.title!=='Hotel'));
+    }
+    return true;
   });
   // Info entered inside a show's own sections is embedded on the show, not a
   // separate leg — surface it too, unless a leg of that kind already exists.
@@ -838,6 +865,7 @@ function runTimeline(run){
   run.shows.forEach(s=>{
     if(!hasPlane.has(s.id) && Array.isArray(s.flights)){
       s.flights.forEach(f=>{
+        if(typeof flightHasDetails==='function' && !flightHasDetails(f)) return;
         if(typeof ensureFlightPassengers==='function') ensureFlightPassengers(f);
         const parts=String(f.dep||'').trim().split(/\s+/);
         const paxSub = typeof flightPassengerSummary==='function' ? flightPassengerSummary(f) : (f.seat?'Seat '+f.seat:'');

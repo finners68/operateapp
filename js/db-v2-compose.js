@@ -345,7 +345,7 @@ async function composeViewFromV2(v2, opts){
     const fl = [];
     for(const j of fj.flights.sort((a,b) => (a.sort_order||0) - (b.sort_order||0))){
       const passengers = await passengersFromJourney(j);
-      fl.push({
+      const row = {
         id: j.id,
         code: j.flight_number || j.journey_title || '',
         from: j.departure_location_code || j.departure_airport_iata || j.departure_location_name || '',
@@ -357,7 +357,10 @@ async function composeViewFromV2(v2, opts){
         /* Passes live on each passenger — keep top-level empty so reload
            does not re-pool every pass under the first person. */
         passes: []
-      });
+      };
+      if(typeof flightHasDetails === 'function' ? flightHasDetails(row) : (row.code || row.from || row.to || row.dep || row.arr || passengers.length)){
+        fl.push(row);
+      }
     }
 
     const attachments = [];

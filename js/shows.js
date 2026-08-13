@@ -413,13 +413,13 @@ function dealGroupSummary(e){
 }
 function flightsSubsection(e){
   const legs = showLegs(e.id).filter(x=>x.kind==='travel' && (x.icon||'plane')==='plane').sort(legSort);
-  const manual = e.flights&&e.flights.length;
+  const manual = (e.flights||[]).filter(f => typeof flightHasDetails!=='function' || flightHasDetails(f));
   let body = '';
-  if(!legs.length && !manual){
+  if(!legs.length && !manual.length){
     body = `<div class="card tap" onclick="sheetFlight('${e.id}')" style="text-align:center;color:var(--text-3);padding:20px">${ICON.plane(22)}<div style="margin-top:6px;font-weight:600">Add flight</div></div>`;
   } else {
     if(legs.length) body += showSourceLabel('From journey')+`<div class="card flush">${legs.map(journeyRow).join('')}</div>`;
-    if(manual) body += showSourceLabel('Added to show')+`<div class="card flush">${e.flights.map(f=>flightLine(e.id,f)).join('')}</div>`;
+    if(manual.length) body += showSourceLabel('Added to show')+`<div class="card flush">${manual.map(f=>flightLine(e.id,f)).join('')}</div>`;
   }
   return showSubsection('ss-'+e.id+'-flights', 'Flights', `<button type="button" class="add" onclick="sheetFlight('${e.id}')">Add</button>`, body);
 }
