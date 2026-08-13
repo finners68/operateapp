@@ -713,20 +713,41 @@ function homeCurrency(){ return UK_AIRPORTS.includes(homeAirport())?'GBP':'EUR';
 function isHomeFlight(e){
   if(e.kind!=='travel') return false;
   const h = homeAirport();
-  if(e.to && String(e.to).toUpperCase() === h) return true;
+  if(e.to && airportCode(e.to) === h) return true;
   return new RegExp('>\\s*'+h+'(\\b|\\))','i').test(e.title||'') || new RegExp('→\\s*'+h+'(\\b|$)','i').test(e.info||'');
 }
-/* Home-airport return legs: calendar travel rows + flights saved on shows. */
+/* Pull a 3-letter airport code out of "AMS", "ams", or "Amsterdam (AMS)". */
+function airportCode(v){
+  const s=String(v||'').toUpperCase().trim();
+  if(/^[A-Z]{3}$/.test(s)) return s;
+  const m=s.match(/\(([A-Z]{3})\)/) || s.match(/\b([A-Z]{3})\b/);
+  return m?m[1]:s;
+}
+/* Home-airport return legs: calendar travel rows + flights saved on shows.
+   Prefer arrival day/time when present — that's when you're actually home. */
 function homeReturnFlights(){
   const h = homeAirport();
-  const out = store.events.filter(isHomeFlight);
+  const out = store.events.filter(isHomeFlight).map(e=>{
+    const arrParts=String(e.arr||e.arrival||'').trim().split(/\s+/);
+    if(arrParts[0]&&/^\d{4}-\d{2}-\d{2}/.test(arrParts[0])){
+      return { date:arrParts[0], start:arrParts[1]||e.start||'12:00', kind:'travel', to:e.to };
+    }
+    return { date:e.date, start:e.start||'12:00', kind:'travel', to:e.to };
+  });
   store.events.forEach(s=>{
     if((s.kind||'show')!=='show' || !Array.isArray(s.flights)) return;
     s.flights.forEach(f=>{
-      if(!f || !f.to || String(f.to).toUpperCase()!==h) return;
-      const parts=String(f.dep||'').trim().split(/\s+/);
-      const date=parts[0]&&/^\d{4}-\d{2}-\d{2}/.test(parts[0])?parts[0]:s.date;
-      const start=parts[1]||(parts[0]&&parts[0].includes(':')&&!parts[0].includes('-')?parts[0]:'')||'12:00';
+      if(!f || airportCode(f.to)!==h) return;
+      const arrParts=String(f.arr||'').trim().split(/\s+/);
+      const depParts=String(f.dep||'').trim().split(/\s+/);
+      let date, start;
+      if(arrParts[0]&&/^\d{4}-\d{2}-\d{2}/.test(arrParts[0])){
+        date=arrParts[0];
+        start=arrParts[1]||(arrParts[0].includes(':')&&!arrParts[0].includes('-')?arrParts[0]:'')||'12:00';
+      } else {
+        date=depParts[0]&&/^\d{4}-\d{2}-\d{2}/.test(depParts[0])?depParts[0]:s.date;
+        start=depParts[1]||(depParts[0]&&depParts[0].includes(':')&&!depParts[0].includes('-')?depParts[0]:'')||'12:00';
+      }
       out.push({ date, start, kind:'travel', to:f.to });
     });
   });
@@ -734,10 +755,28 @@ function homeReturnFlights(){
 }
 function dtKey(dateStr,timeStr){ return (dateStr||'')+' '+(timeStr||'00:00'); }
 /* Two consecutive shows belong to the same tour unless a flight back to the
-   home airport falls between them. Rest / free days no longer split a tour. */
+   home airport falls between them. Rest / free days no longer split a tour.
+
+   Important: a home return saved on the earlier show's date (very common) must
+   still end that tour — comparing only "after set time" missed noon/morning
+   returns and glued every show into one giant tour. */
 function sameTour(prev, cur, homeFlights){
-  const pKey=dtKey(prev.date, prev.setTime||'23:59'), cKey=dtKey(cur.date, cur.setTime||'23:58');
-  for(const f of homeFlights){ const fKey=dtKey(f.date, f.start||'12:00'); if(fKey>pKey && fKey<cKey) return false; }
+  for(const f of homeFlights){
+    if(!f || !f.date) continue;
+    if(f.date > prev.date && f.date < cur.date) return false;          // returned on a day between shows
+    if(f.date === prev.date && prev.date !== cur.date) return false;   // returned on/after the earlier show day
+    if(f.date === cur.date && prev.date !== cur.date){                 // landed home before the next show
+      const fKey=dtKey(f.date, f.start||'00:00');
+      const cKey=dtKey(cur.date, cur.setTime||'23:59');
+      if(fKey < cKey) return false;
+    }
+    if(prev.date === cur.date && f.date === prev.date){                // rare same-day double
+      const pKey=dtKey(prev.date, prev.setTime||'00:00');
+      const cKey=dtKey(cur.date, cur.setTime||'23:59');
+      const fKey=dtKey(f.date, f.start||'12:00');
+      if(fKey > pKey && fKey < cKey) return false;
+    }
+  }
   return true;
 }
 function runs(){
