@@ -700,8 +700,8 @@ const money = {
 };
 
 /* ---------- Tours ("runs") — auto-grouped consecutive shows, no naming ----------
-   A run = consecutive shows until a flight returns to the home airport.
-   Rest days do not split a tour. A standalone show is a run of one.
+   A tour starts when you fly OUT from the home airport and ends when you fly
+   back IN. Rest days do not split a tour. A standalone show is a run of one.
    Logistics attach to shows; timeline is derived. */
 function dayIdx(ds){ const d=parseDT(ds); return d?Math.floor(d.getTime()/86400000):0; }
 function homeAirport(){ return (store.settings.homeAirport||'AMS').toUpperCase(); }
@@ -710,12 +710,6 @@ function cleanVenue(v){ v=(v||'').trim(); const c=v.replace(/\s*[\(\[][^\)\]]*[\
 /* The artist's money currency follows their home airport: UK airports -> GBP, everywhere else -> EUR. */
 const UK_AIRPORTS=['LHR','LGW','STN','LTN','LCY','MAN','BHX','EDI','GLA','BRS','NCL','LPL','LBA','BFS','SEN','EMA','ABZ','CWL','SOU','EXT','GLA','INV','DSA'];
 function homeCurrency(){ return UK_AIRPORTS.includes(homeAirport())?'GBP':'EUR'; }
-function isHomeFlight(e){
-  if(e.kind!=='travel') return false;
-  const h = homeAirport();
-  if(e.to && airportCode(e.to) === h) return true;
-  return new RegExp('>\\s*'+h+'(\\b|\\))','i').test(e.title||'') || new RegExp('→\\s*'+h+'(\\b|$)','i').test(e.info||'');
-}
 /* Pull a 3-letter airport code out of "AMS", "ams", or "Amsterdam (AMS)". */
 function airportCode(v){
   const s=String(v||'').toUpperCase().trim();
@@ -723,68 +717,96 @@ function airportCode(v){
   const m=s.match(/\(([A-Z]{3})\)/) || s.match(/\b([A-Z]{3})\b/);
   return m?m[1]:s;
 }
-/* Home-airport return legs: calendar travel rows + flights saved on shows.
-   Prefer arrival day/time when present — that's when you're actually home. */
-function homeReturnFlights(){
+function isHomeFlight(e){
+  if(e.kind!=='travel') return false;
   const h = homeAirport();
-  const out = store.events.filter(isHomeFlight).map(e=>{
-    const arrParts=String(e.arr||e.arrival||'').trim().split(/\s+/);
-    if(arrParts[0]&&/^\d{4}-\d{2}-\d{2}/.test(arrParts[0])){
-      return { date:arrParts[0], start:arrParts[1]||e.start||'12:00', kind:'travel', to:e.to };
+  if(e.to && airportCode(e.to) === h) return true;
+  return new RegExp('>\\s*'+h+'(\\b|\\))','i').test(e.title||'') || new RegExp('→\\s*'+h+'(\\b|$)','i').test(e.info||'');
+}
+function isHomeOutboundTravel(e){
+  if(e.kind!=='travel') return false;
+  const h = homeAirport();
+  if(e.from && airportCode(e.from) === h && airportCode(e.to) !== h) return true;
+  return new RegExp('^\\s*'+h+'\\s*>','i').test(e.title||'') || new RegExp('^\\s*'+h+'\\s*→','i').test(e.info||'');
+}
+/* Prefer arrival day/time when present — that's when the leg actually finishes. */
+function flightLegWhen(f, fallbackDate, fallbackTime){
+  const arrParts=String(f&&f.arr||'').trim().split(/\s+/);
+  const depParts=String(f&&f.dep||'').trim().split(/\s+/);
+  if(arrParts[0]&&/^\d{4}-\d{2}-\d{2}/.test(arrParts[0])){
+    return { date:arrParts[0], start:arrParts[1]||fallbackTime||'12:00' };
+  }
+  if(depParts[0]&&/^\d{4}-\d{2}-\d{2}/.test(depParts[0])){
+    return {
+      date:depParts[0],
+      start:depParts[1]||(depParts[0].includes(':')&&!depParts[0].includes('-')?depParts[0]:'')||fallbackTime||'12:00'
+    };
+  }
+  if(depParts[0]&&depParts[0].includes(':')&&!depParts[0].includes('-')){
+    return { date:fallbackDate, start:depParts[0] };
+  }
+  return { date:fallbackDate, start:fallbackTime||'12:00' };
+}
+/* Markers that start/end tours around the home airport. */
+function homeTourMarkers(){
+  const h = homeAirport();
+  const returns = [];   // flying TO home — ends a tour after that show/day
+  const outbounds = []; // flying FROM home — starts a tour on that show/day
+
+  store.events.forEach(e=>{
+    if(e.kind==='travel' && isHomeFlight(e)){
+      const when=flightLegWhen({arr:e.arr||e.arrival, dep:((e.date||'')+' '+(e.start||'')).trim()}, e.date, e.start||'12:00');
+      returns.push({ date:when.date, start:when.start, afterShowId:e.showId||null });
     }
-    return { date:e.date, start:e.start||'12:00', kind:'travel', to:e.to };
+    if(e.kind==='travel' && isHomeOutboundTravel(e)){
+      outbounds.push({ date:e.date, start:e.start||'12:00', showId:e.showId||null });
+    }
   });
+
   store.events.forEach(s=>{
     if((s.kind||'show')!=='show' || !Array.isArray(s.flights)) return;
     s.flights.forEach(f=>{
-      if(!f || airportCode(f.to)!==h) return;
-      const arrParts=String(f.arr||'').trim().split(/\s+/);
-      const depParts=String(f.dep||'').trim().split(/\s+/);
-      let date, start;
-      if(arrParts[0]&&/^\d{4}-\d{2}-\d{2}/.test(arrParts[0])){
-        date=arrParts[0];
-        start=arrParts[1]||(arrParts[0].includes(':')&&!arrParts[0].includes('-')?arrParts[0]:'')||'12:00';
-      } else {
-        date=depParts[0]&&/^\d{4}-\d{2}-\d{2}/.test(depParts[0])?depParts[0]:s.date;
-        start=depParts[1]||(depParts[0]&&depParts[0].includes(':')&&!depParts[0].includes('-')?depParts[0]:'')||'12:00';
-      }
-      out.push({ date, start, kind:'travel', to:f.to });
+      if(!f) return;
+      const from=airportCode(f.from), to=airportCode(f.to);
+      const when=flightLegWhen(f, s.date);
+      if(to===h && from!==h) returns.push({ date:when.date, start:when.start, afterShowId:s.id });
+      if(from===h && to!==h) outbounds.push({ date:when.date, start:when.start, showId:s.id });
     });
   });
-  return out;
+  return { returns, outbounds };
 }
-function dtKey(dateStr,timeStr){ return (dateStr||'')+' '+(timeStr||'00:00'); }
-/* Two consecutive shows belong to the same tour unless a flight back to the
-   home airport falls between them. Rest / free days no longer split a tour.
+/* Two consecutive shows stay on the same tour unless you left home for the
+   later show, or came home after the earlier one.
 
-   Important: a home return saved on the earlier show's date (very common) must
-   still end that tour — comparing only "after set time" missed noon/morning
-   returns and glued every show into one giant tour. */
-function sameTour(prev, cur, homeFlights){
-  for(const f of homeFlights){
-    if(!f || !f.date) continue;
-    if(f.date > prev.date && f.date < cur.date) return false;          // returned on a day between shows
-    if(f.date === prev.date && prev.date !== cur.date) return false;   // returned on/after the earlier show day
-    if(f.date === cur.date && prev.date !== cur.date){                 // landed home before the next show
-      const fKey=dtKey(f.date, f.start||'00:00');
-      const cKey=dtKey(cur.date, cur.setTime||'23:59');
-      if(fKey < cKey) return false;
+   Crucial: a return flight saved ON the last show must keep that show in the
+   tour (end after it). An older bug treated "return on show day" as landing
+   before the show, which peeled the last show into its own broken tour. */
+function sameTour(prev, cur, markers){
+  const returns=markers.returns||[];
+  const outbounds=markers.outbounds||[];
+
+  for(const o of outbounds){
+    if(o.showId && o.showId===cur.id) return false; // this show leaves home → new tour
+    if(!o.showId && o.date && o.date>prev.date && o.date<=cur.date) return false;
+  }
+
+  for(const f of returns){
+    if(f.afterShowId){
+      if(f.afterShowId===prev.id) return false; // came home after prev → cur is a new tour
+      continue;
     }
-    if(prev.date === cur.date && f.date === prev.date){                // rare same-day double
-      const pKey=dtKey(prev.date, prev.setTime||'00:00');
-      const cKey=dtKey(cur.date, cur.setTime||'23:59');
-      const fKey=dtKey(f.date, f.start||'12:00');
-      if(fKey > pKey && fKey < cKey) return false;
-    }
+    if(!f.date) continue;
+    if(f.date>prev.date && f.date<cur.date) return false;
+    if(f.date===prev.date && prev.date!==cur.date) return false;
   }
   return true;
 }
 function runs(){
   const shows = sel.events(); // shows only, sorted by date
-  const homeFlights = homeReturnFlights();
+  const markers = homeTourMarkers();
   const out=[]; let cur=null;
   shows.forEach(sh=>{
-    if(cur && sameTour(cur.shows[cur.shows.length-1], sh, homeFlights)){ cur.shows.push(sh); }
+    if(cur && sameTour(cur.shows[cur.shows.length-1], sh, markers)){ cur.shows.push(sh); }
     else { cur={shows:[sh]}; out.push(cur); }
   });
   return out.map(r=>{

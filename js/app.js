@@ -1143,7 +1143,7 @@ function viewSettings(){
 
     <div class="set-title">Touring</div>
     <div class="set-group">
-      <div class="set-row tap" onclick="editHomeAirport()"><div class="ic" style="background:var(--accent-soft);color:var(--accent-2)">${ICON.planeUp(17)}</div><div class="body"><b>Home airport</b><span>Returning here ends a tour</span></div><div class="trail">${esc(s.homeAirport||'AMS')} ${ICON.chevR(15)}</div></div>
+      <div class="set-row tap" onclick="editHomeAirport()"><div class="ic" style="background:var(--accent-soft);color:var(--accent-2)">${ICON.planeUp(17)}</div><div class="body"><b>Home airport</b><span>Leaving starts a tour · returning ends it</span></div><div class="trail">${esc(s.homeAirport||'AMS')} ${ICON.chevR(15)}</div></div>
       <div class="set-row tap" onclick="openView('stats')"><div class="ic" style="background:var(--blue-soft);color:var(--blue)">${ICON.trend(17)}</div><div class="body"><b>Tour stats</b><span>Flight time, days away & more</span></div><div class="trail">${ICON.chevR(15)}</div></div>
       <div class="set-row tap" onclick="sheetPacking()"><div class="ic" style="background:var(--card-2);color:var(--text-2)">${ICON.bag(17)}</div><div class="body"><b>Default packing list</b><span>${(s.packingTemplate||[]).length} items</span></div><div class="trail">${ICON.chevR(15)}</div></div>
     </div>
