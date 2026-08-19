@@ -1117,16 +1117,30 @@ function normalizeMakeFields(payload){
   });
   return out;
 }
+function resolveOperateOrgId(){
+  if(typeof currentOrgId !== 'undefined' && currentOrgId) return String(currentOrgId);
+  if(store && store.organisationId) return String(store.organisationId);
+  if(typeof getStoredOrgId === 'function'){
+    const stored = getStoredOrgId();
+    if(stored) return String(stored);
+  }
+  if(typeof getFixedOrgId === 'function'){
+    const fixed = getFixedOrgId();
+    if(fixed) return String(fixed);
+  }
+  const cfg = (typeof OPERATE_CONFIG !== 'undefined' && OPERATE_CONFIG) || window.OPERATE_CONFIG;
+  if(cfg && cfg.OPERATE_ORG_ID && !String(cfg.OPERATE_ORG_ID).includes('YOUR-ORG')){
+    return String(cfg.OPERATE_ORG_ID);
+  }
+  return '';
+}
 /* POST the uploaded file straight to Make. Basics + full use different webhooks. */
 async function postItineraryFileToMake(it, opts={}){
   const file=(it.imgs||[]).find(im=>im.kind==='image') || (it.imgs||[])[0];
   if(!file || !file.data) return { error:'no_file' };
   const blob=dataUrlToBlob(file.data);
   if(!blob) return { error:'bad_file' };
-  const orgId = (typeof currentOrgId !== 'undefined' && currentOrgId)
-    || (store && store.organisationId)
-    || (typeof getFixedOrgId === 'function' && getFixedOrgId())
-    || '';
+  const orgId = resolveOperateOrgId();
   const stage = opts.stage || (it.showId ? 'full' : 'basics');
   const webhookUrl = stage === 'full' ? MAKE_ITINERARY_FULL_WEBHOOK_URL : MAKE_ITINERARY_WEBHOOK_URL;
   const form=new FormData();
@@ -1136,7 +1150,7 @@ async function postItineraryFileToMake(it, opts={}){
   form.append('contentType', file.mime || blob.type || 'application/octet-stream');
   form.append('stage', stage);
   form.append('itinerary_id', it.id || '');
-  if(orgId) form.append('organisation_id', orgId);
+  form.append('organisation_id', orgId);
   if(it.showId) form.append('show_id', it.showId);
   const controller=new AbortController();
   const timer=setTimeout(()=>controller.abort(), stage === 'full' ? 120000 : 90000);
