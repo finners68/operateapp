@@ -1115,18 +1115,25 @@ function normalizeMakeFields(payload){
   return out;
 }
 /* POST the uploaded file straight to Make. No Supabase in the middle. */
-async function postItineraryFileToMake(it){
+async function postItineraryFileToMake(it, opts={}){
   const file=(it.imgs||[]).find(im=>im.kind==='image') || (it.imgs||[])[0];
   if(!file || !file.data) return { error:'no_file' };
   const blob=dataUrlToBlob(file.data);
   if(!blob) return { error:'bad_file' };
+  const orgId = (typeof currentOrgId !== 'undefined' && currentOrgId)
+    || (store && store.organisationId)
+    || (typeof getFixedOrgId === 'function' && getFixedOrgId())
+    || '';
+  const stage = opts.stage || (it.showId ? 'full' : 'basics');
   const form=new FormData();
   const name=file.name || (file.kind==='image' ? 'itinerary.jpg' : 'itinerary.pdf');
   form.append('file', blob, name);
   form.append('filename', name);
   form.append('contentType', file.mime || blob.type || 'application/octet-stream');
-  if(it.showId) form.append('show_id', it.showId);
+  form.append('stage', stage);
   form.append('itinerary_id', it.id || '');
+  if(orgId) form.append('organisation_id', orgId);
+  if(it.showId) form.append('show_id', it.showId);
   const controller=new AbortController();
   const timer=setTimeout(()=>controller.abort(), 90000);
   try{
@@ -1171,7 +1178,7 @@ async function sendItineraryToMake(id){
   `);
   toast('Sending to Make…','image');
   try{
-    const result = await postItineraryFileToMake(it);
+    const result = await postItineraryFileToMake(it, { stage:'basics' });
     if(result.error){
       toast(itineraryScanErrorToast(result.error),'x');
       sheetItineraryReview(id);
