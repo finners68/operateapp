@@ -893,7 +893,7 @@ function readFiles(input, cb){
 /* ============================================================
    Itinerary inbox
    Flow: choose new vs existing → upload file.
-   Existing show: POST the file straight to the Make webhook and wait.
+   New show: POST the file straight to the Make webhook, wait, then review basics.
    ============================================================ */
 let itineraryUploadMode = null; // 'new' | 'existing'
 const MAKE_ITINERARY_WEBHOOK_URL = 'https://hook.eu2.make.com/xgg1tbfi9leurmlcsgndqc5ssaxhjjxu';
@@ -908,7 +908,7 @@ function viewItinerary(){
   </div></div>
   <div class="screen-pad stagger">
     <button type="button" class="btn" style="margin-top:14px" onclick="sheetItineraryStart()">${ICON.plus(18)} Submit itinerary</button>
-    <div class="hint" style="text-align:left;padding:11px 2px 2px">Choose <b>new show</b> or <b>existing show</b>, then upload. Existing-show uploads are sent straight to your Make webhook.</div>
+    <div class="hint" style="text-align:left;padding:11px 2px 2px">Choose <b>new show</b> or <b>existing show</b>, then upload. New-show uploads are sent straight to your Make webhook.</div>
     ${list.length? list.map(itinCard).join('') : `<div class="empty" style="margin-top:22px"><div class="ic">${ICON.file(26)}</div><b>Nothing submitted yet</b><span>Upload your first itinerary screenshot.</span></div>`}
     <div class="spacer"></div><div class="spacer"></div>
   </div>`;
@@ -941,8 +941,8 @@ function sheetItineraryStart(){
   openSheet('Submit itinerary', `
     <p class="sheet-lede">First choose what this upload is for — then pick the file.</p>
     <div class="edit-section-grid">
-      <button type="button" class="edit-section-btn" onclick="beginItineraryNewShow()">${ICON.plus(16)}<span><b>New show</b><small>Create a show from this itinerary</small></span></button>
-      <button type="button" class="edit-section-btn" onclick="beginItineraryExistingShow()">${ICON.music(16)}<span><b>Existing show</b><small>Send the file to Make for that show</small></span></button>
+      <button type="button" class="edit-section-btn" onclick="beginItineraryNewShow()">${ICON.plus(16)}<span><b>New show</b><small>Upload → send to Make → review basics</small></span></button>
+      <button type="button" class="edit-section-btn" onclick="beginItineraryExistingShow()">${ICON.music(16)}<span><b>Existing show</b><small>Attach a file to a show you already have</small></span></button>
     </div>
     <div class="spacer"></div>
   `);
@@ -950,11 +950,10 @@ function sheetItineraryStart(){
 function beginItineraryNewShow(){
   itineraryUploadMode = 'new';
   openSheet('New show from itinerary', `
-    <p class="sheet-lede">Upload the itinerary for now. The full new-show Make flow comes next.</p>
-    <label class="btn" style="margin-top:8px">${ICON.plus(18)} Upload itinerary
+    <p class="sheet-lede">Upload the itinerary. It is sent straight to Make, then you check the show basics.</p>
+    <label class="btn" style="margin-top:8px">${ICON.plus(18)} Upload &amp; send to Make
       <input type="file" accept="image/*,application/pdf" multiple style="display:none" onchange="submitItinerary(this,'new')">
     </label>
-    <div class="hint" style="text-align:left;padding:10px 2px 0">This path only saves the file for now — it does not call Make yet.</div>
     <div class="spacer"></div>
   `);
 }
@@ -972,13 +971,13 @@ function beginItineraryExistingShow(){
   const upcoming = typeof showPassed==='function' ? shows.filter(s=>!showPassed(s)) : shows;
   const list = upcoming.length ? upcoming : shows;
   openSheet('Existing show', `
-    <p class="sheet-lede">Pick the show, then upload. The file is sent straight to your Make webhook.</p>
+    <p class="sheet-lede">Pick the show, then upload the file. This path only saves the attachment for now.</p>
     <div class="field"><label>Show</label>
       <select id="itn-pick-show" class="input">
         ${list.map(s=>`<option value="${s.id}">${esc(s.venue||'Show')} · ${esc(fmtDate(s.date))}</option>`).join('')}
       </select>
     </div>
-    <label class="btn" style="margin-top:8px">${ICON.plus(18)} Upload &amp; send to Make
+    <label class="btn" style="margin-top:8px">${ICON.plus(18)} Upload itinerary
       <input type="file" accept="image/*,application/pdf" multiple style="display:none" onchange="submitItinerary(this,'existing')">
     </label>
     <div class="spacer"></div>
@@ -1040,7 +1039,7 @@ function blankShowFromBasics(basics){
   };
 }
 function submitItinerary(input, mode){
-  const uploadMode = mode || itineraryUploadMode || 'existing';
+  const uploadMode = mode || itineraryUploadMode || 'new';
   toast('Reading…','image');
   readFiles(input, async imgs=>{
     if(!imgs.length){ toast('Nothing added','x'); return; }
@@ -1052,13 +1051,13 @@ function submitItinerary(input, mode){
     if(uploadMode === 'new'){
       const n=new Date();
       date=`${n.getFullYear()}-${pad(n.getMonth()+1)}-${pad(n.getDate())}`;
-      source = 'New show itinerary';
+      source = 'New show → Make';
     } else {
       showId = rawVal('itn-pick-show') || '';
       if(!showId){ toast('Pick a show first','x'); return; }
       const show = sel.event(showId);
       date = (show && show.date) || '';
-      source = 'Existing show → Make';
+      source = 'Existing show itinerary';
       if(!date){
         const n=new Date();
         date=`${n.getFullYear()}-${pad(n.getMonth()+1)}-${pad(n.getDate())}`;
@@ -1084,12 +1083,12 @@ function submitItinerary(input, mode){
     itineraryUploadMode = null;
     renderView();
 
-    if(uploadMode === 'existing'){
+    if(uploadMode === 'new'){
       await sendItineraryToMake(entry.id);
     } else {
       closeSheet();
       sheetItinerary(entry.id);
-      toast('File saved — new-show Make flow coming next','check');
+      toast('File saved on existing show','check');
     }
   });
 }
@@ -1166,7 +1165,7 @@ async function sendItineraryToMake(id){
     <div class="empty" style="padding:28px 10px">
       <div class="ic">${ICON.file(28)}</div>
       <b>Sending your file…</b>
-      <span>Posted straight to your Make webhook. Waiting for a response.</span>
+      <span>Posted straight to your Make webhook. Waiting for show basics.</span>
     </div>
     <div class="spacer"></div>
   `);
@@ -1175,28 +1174,19 @@ async function sendItineraryToMake(id){
     const result = await postItineraryFileToMake(it);
     if(result.error){
       toast(itineraryScanErrorToast(result.error),'x');
-      sheetItinerary(id);
+      sheetItineraryReview(id);
       return;
     }
     it.scanFields = result.fields || {};
     const scannedDate = normalizeScanDate(it.scanFields.date);
     if(scannedDate) it.date = scannedDate;
-    const show = it.showId ? sel.event(it.showId) : null;
-    let filled=[];
-    if(show && it.scanFields && Object.keys(it.scanFields).length){
-      filled = applyScanToShow(show, it.scanFields);
-      persist('shows', show.id);
-      if(typeof pushShowNow === 'function') pushShowNow(show.id);
-    }
     persist('user_preferences');
-    closeSheet(true, { noReturn:true });
-    if(show) openView('event', show.id);
-    else sheetItinerary(id);
-    const extra = filled.length ? (' · filled '+filled.join(', ')) : '';
-    toast('Sent to Make'+extra, 'check');
+    sheetItineraryReview(id);
+    const keys = Object.keys(it.scanFields||{});
+    toast(keys.length ? 'Check the show basics, then save' : 'Sent to Make — fill basics and save','check');
   }catch(err){
     toast('Couldn’t reach Make — see browser console','x');
-    sheetItinerary(id);
+    sheetItineraryReview(id);
   }
 }
 async function scanItineraryForReview(id){
