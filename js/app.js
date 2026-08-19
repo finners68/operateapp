@@ -892,9 +892,12 @@ function readFiles(input, cb){
 
 /* ============================================================
    Itinerary inbox
-   Flow: upload → scan → review show basics → save creates the show
-   and fills hotel / transport / advancing from the scan.
+   Flow: choose new vs existing → upload file.
+   Existing show: POST the file straight to the Make webhook and wait.
    ============================================================ */
+let itineraryUploadMode = null; // 'new' | 'existing'
+const MAKE_ITINERARY_WEBHOOK_URL = 'https://hook.eu2.make.com/xgg1tbfi9leurmlcsgndqc5ssaxhjjxu';
+
 function viewItinerary(){
   const list = (store.itineraries||[]).slice().sort((a,b)=> (b.date||'').localeCompare(a.date||'') || (b.created||0)-(a.created||0));
   return `
@@ -904,10 +907,8 @@ function viewItinerary(){
     <div style="width:36px"></div>
   </div></div>
   <div class="screen-pad stagger">
-    <label class="btn" style="margin-top:14px">${ICON.plus(18)} Upload itinerary
-      <input type="file" accept="image/*,application/pdf" multiple style="display:none" onchange="submitItinerary(this)">
-    </label>
-    <div class="hint" style="text-align:left;padding:11px 2px 2px">Upload an ABOSS itinerary or advance sheet first. Operate scans it, shows you the <b>show basics</b> to check, then creates the show and fills the rest when you save.</div>
+    <button type="button" class="btn" style="margin-top:14px" onclick="sheetItineraryStart()">${ICON.plus(18)} Submit itinerary</button>
+    <div class="hint" style="text-align:left;padding:11px 2px 2px">Choose <b>new show</b> or <b>existing show</b>, then upload. Existing-show uploads are sent straight to your Make webhook.</div>
     ${list.length? list.map(itinCard).join('') : `<div class="empty" style="margin-top:22px"><div class="ic">${ICON.file(26)}</div><b>Nothing submitted yet</b><span>Upload your first itinerary screenshot.</span></div>`}
     <div class="spacer"></div><div class="spacer"></div>
   </div>`;
@@ -934,6 +935,54 @@ function openItineraryEntry(id){
   const it=(store.itineraries||[]).find(x=>x.id===id); if(!it) return;
   if(it.scanFields && !it.showId){ sheetItineraryReview(id); return; }
   sheetItinerary(id);
+}
+function sheetItineraryStart(){
+  itineraryUploadMode = null;
+  openSheet('Submit itinerary', `
+    <p class="sheet-lede">First choose what this upload is for — then pick the file.</p>
+    <div class="edit-section-grid">
+      <button type="button" class="edit-section-btn" onclick="beginItineraryNewShow()">${ICON.plus(16)}<span><b>New show</b><small>Create a show from this itinerary</small></span></button>
+      <button type="button" class="edit-section-btn" onclick="beginItineraryExistingShow()">${ICON.music(16)}<span><b>Existing show</b><small>Send the file to Make for that show</small></span></button>
+    </div>
+    <div class="spacer"></div>
+  `);
+}
+function beginItineraryNewShow(){
+  itineraryUploadMode = 'new';
+  openSheet('New show from itinerary', `
+    <p class="sheet-lede">Upload the itinerary for now. The full new-show Make flow comes next.</p>
+    <label class="btn" style="margin-top:8px">${ICON.plus(18)} Upload itinerary
+      <input type="file" accept="image/*,application/pdf" multiple style="display:none" onchange="submitItinerary(this,'new')">
+    </label>
+    <div class="hint" style="text-align:left;padding:10px 2px 0">This path only saves the file for now — it does not call Make yet.</div>
+    <div class="spacer"></div>
+  `);
+}
+function beginItineraryExistingShow(){
+  itineraryUploadMode = 'existing';
+  const shows = sel.events().slice().sort((a,b)=>(b.date||'').localeCompare(a.date||''));
+  if(!shows.length){
+    openSheet('Add to a show', `
+      <div class="empty" style="padding:18px 8px"><div class="ic">${ICON.music(26)}</div><b>No shows yet</b><span>Create a show first, or choose New show instead.</span></div>
+      <button type="button" class="btn secondary" onclick="beginItineraryNewShow()">${ICON.plus(16)} New show from itinerary</button>
+      <div class="spacer"></div>
+    `);
+    return;
+  }
+  const upcoming = typeof showPassed==='function' ? shows.filter(s=>!showPassed(s)) : shows;
+  const list = upcoming.length ? upcoming : shows;
+  openSheet('Existing show', `
+    <p class="sheet-lede">Pick the show, then upload. The file is sent straight to your Make webhook.</p>
+    <div class="field"><label>Show</label>
+      <select id="itn-pick-show" class="input">
+        ${list.map(s=>`<option value="${s.id}">${esc(s.venue||'Show')} · ${esc(fmtDate(s.date))}</option>`).join('')}
+      </select>
+    </div>
+    <label class="btn" style="margin-top:8px">${ICON.plus(18)} Upload &amp; send to Make
+      <input type="file" accept="image/*,application/pdf" multiple style="display:none" onchange="submitItinerary(this,'existing')">
+    </label>
+    <div class="spacer"></div>
+  `);
 }
 function normalizeScanDate(v){
   const s=String(v||'').trim();
@@ -990,90 +1039,173 @@ function blankShowFromBasics(basics){
     }
   };
 }
-function submitItinerary(input){
+function submitItinerary(input, mode){
+  const uploadMode = mode || itineraryUploadMode || 'existing';
   toast('Reading…','image');
   readFiles(input, async imgs=>{
     if(!imgs.length){ toast('Nothing added','x'); return; }
-    const n=new Date();
-    const date=`${n.getFullYear()}-${pad(n.getMonth()+1)}-${pad(n.getDate())}`;
+
+    let showId = '';
+    let date = '';
+    let source = '';
+
+    if(uploadMode === 'new'){
+      const n=new Date();
+      date=`${n.getFullYear()}-${pad(n.getMonth()+1)}-${pad(n.getDate())}`;
+      source = 'New show itinerary';
+    } else {
+      showId = rawVal('itn-pick-show') || '';
+      if(!showId){ toast('Pick a show first','x'); return; }
+      const show = sel.event(showId);
+      date = (show && show.date) || '';
+      source = 'Existing show → Make';
+      if(!date){
+        const n=new Date();
+        date=`${n.getFullYear()}-${pad(n.getMonth()+1)}-${pad(n.getDate())}`;
+      }
+    }
+
     const entry={
       id:uid('itin'),
-      source:'Itinerary upload',
+      source,
       date,
       time:'',
       note:'',
-      showId:'',
+      showId: showId||'',
       imgs,
       scanFields:null,
+      mode: uploadMode,
       created:Date.now()
     };
     store.itineraries = store.itineraries || [];
     store.itineraries.unshift(entry);
     persist('user_preferences');
     imgs.forEach(im => hostImg(im, 'itinerary', 'itinerary'));
+    itineraryUploadMode = null;
     renderView();
-    await scanItineraryForReview(entry.id);
+
+    if(uploadMode === 'existing'){
+      await sendItineraryToMake(entry.id);
+    } else {
+      closeSheet();
+      sheetItinerary(entry.id);
+      toast('File saved — new-show Make flow coming next','check');
+    }
   });
 }
-async function fetchItineraryScanFields(it){
-  const img=(it.imgs||[]).find(im=>im.kind==='image');
-  if(!img) return { error:'no_image' };
-  if(!isSupabaseConfigured() || !authUser) return { error:'sign_in' };
-  const token = await getAccessToken();
-  if(!token) return { error:'sign_in' };
-  const res=await fetch(OPERATE_CONFIG.SUPABASE_URL.replace(/\/$/,'')+'/functions/v1/scan-itinerary', {
-    method:'POST',
-    headers:{ 'apikey':OPERATE_CONFIG.SUPABASE_ANON_KEY, 'Authorization':'Bearer '+token, 'Content-Type':'application/json' },
-    body: JSON.stringify({ image: img.data })
-  });
-  const data=await res.json().catch(()=>({}));
-  if(!res.ok || (data && data.error)) return { error: (data&&data.error) || 'scan_failed' };
-  return { fields: (data&&data.fields) || {} };
+function dataUrlToBlob(dataUrl){
+  const m=String(dataUrl||'').match(/^data:([^;]+);base64,(.+)$/);
+  if(!m) return null;
+  try{
+    const mime=m[1]||'application/octet-stream';
+    const bin=atob(m[2]);
+    const bytes=new Uint8Array(bin.length);
+    for(let i=0;i<bin.length;i++) bytes[i]=bin.charCodeAt(i);
+    return new Blob([bytes],{type:mime});
+  }catch(_){ return null; }
 }
-async function scanItineraryForReview(id){
+function normalizeMakeFields(payload){
+  if(!payload || typeof payload!=='object') return {};
+  const src=(payload.fields && typeof payload.fields==='object') ? payload.fields : payload;
+  const out={};
+  Object.keys(src).forEach(k=>{
+    const v=src[k];
+    if(v==null) return;
+    if(typeof v==='string' || typeof v==='number' || typeof v==='boolean') out[k]=String(v);
+  });
+  return out;
+}
+/* POST the uploaded file straight to Make. No Supabase in the middle. */
+async function postItineraryFileToMake(it){
+  const file=(it.imgs||[]).find(im=>im.kind==='image') || (it.imgs||[])[0];
+  if(!file || !file.data) return { error:'no_file' };
+  const blob=dataUrlToBlob(file.data);
+  if(!blob) return { error:'bad_file' };
+  const form=new FormData();
+  const name=file.name || (file.kind==='image' ? 'itinerary.jpg' : 'itinerary.pdf');
+  form.append('file', blob, name);
+  form.append('filename', name);
+  form.append('contentType', file.mime || blob.type || 'application/octet-stream');
+  if(it.showId) form.append('show_id', it.showId);
+  form.append('itinerary_id', it.id || '');
+  const controller=new AbortController();
+  const timer=setTimeout(()=>controller.abort(), 90000);
+  try{
+    const res=await fetch(MAKE_ITINERARY_WEBHOOK_URL, {
+      method:'POST',
+      body:form,
+      signal:controller.signal
+    });
+    const text=await res.text().catch(()=>'');
+    if(!res.ok) return { error:'make_failed', status:res.status };
+    let payload={};
+    if(text.trim()){
+      try{ payload=JSON.parse(text); }catch(_){ return { ok:true, fields:{}, raw:text }; }
+    }
+    return { ok:true, fields: normalizeMakeFields(payload) };
+  }catch(err){
+    if(err && err.name==='AbortError') return { error:'make_timeout' };
+    return { error:'scan_failed', detail: String(err&&err.message||err||'') };
+  }finally{
+    clearTimeout(timer);
+  }
+}
+function itineraryScanErrorToast(code){
+  if(code==='make_timeout') return 'Make timed out — check your scenario / Webhook response';
+  if(code==='make_failed') return 'Make rejected the upload — check the scenario is on';
+  if(code==='no_file' || code==='bad_file') return 'No usable file to send — try another upload';
+  return 'Couldn’t reach Make (often a browser CORS block) — check the console';
+}
+async function sendItineraryToMake(id){
   const it=(store.itineraries||[]).find(x=>x.id===id); if(!it) return;
-  const hasImage=(it.imgs||[]).some(im=>im.kind==='image');
-  if(!hasImage){
-    toast('PDF saved — add a screenshot to auto-read show basics','file');
-    sheetItineraryReview(id);
+  if(!(it.imgs||[]).length){
+    toast('Nothing to send — upload a file first','file');
     return;
   }
-  openSheet('Reading itinerary', `
+  openSheet('Sending to Make', `
     <div class="empty" style="padding:28px 10px">
       <div class="ic">${ICON.file(28)}</div>
-      <b>Scanning your upload…</b>
-      <span>Pulling venue, date and times so you can check them before the show is created.</span>
+      <b>Sending your file…</b>
+      <span>Posted straight to your Make webhook. Waiting for a response.</span>
     </div>
     <div class="spacer"></div>
   `);
-  toast('Scanning itinerary…','image');
+  toast('Sending to Make…','image');
   try{
-    const result = await fetchItineraryScanFields(it);
-    if(result.error==='sign_in'){
-      toast('Sign in to auto-read itineraries — you can still fill basics manually','x');
-      sheetItineraryReview(id);
-      return;
-    }
-    if(result.error==='no_image'){
-      sheetItineraryReview(id);
-      return;
-    }
+    const result = await postItineraryFileToMake(it);
     if(result.error){
-      toast('Couldn’t read everything — check the basics manually','x');
-      sheetItineraryReview(id);
+      toast(itineraryScanErrorToast(result.error),'x');
+      sheetItinerary(id);
       return;
     }
     it.scanFields = result.fields || {};
     const scannedDate = normalizeScanDate(it.scanFields.date);
     if(scannedDate) it.date = scannedDate;
+    const show = it.showId ? sel.event(it.showId) : null;
+    let filled=[];
+    if(show && it.scanFields && Object.keys(it.scanFields).length){
+      filled = applyScanToShow(show, it.scanFields);
+      persist('shows', show.id);
+      if(typeof pushShowNow === 'function') pushShowNow(show.id);
+    }
     persist('user_preferences');
-    sheetItineraryReview(id);
-    const keys = Object.keys(it.scanFields||{});
-    toast(keys.length ? 'Check the show basics, then save' : 'Nothing clear found — fill basics and save','check');
+    closeSheet(true, { noReturn:true });
+    if(show) openView('event', show.id);
+    else sheetItinerary(id);
+    const extra = filled.length ? (' · filled '+filled.join(', ')) : '';
+    toast('Sent to Make'+extra, 'check');
   }catch(err){
-    toast('Scan error — fill basics manually','x');
-    sheetItineraryReview(id);
+    toast('Couldn’t reach Make — see browser console','x');
+    sheetItinerary(id);
   }
+}
+async function scanItineraryForReview(id){
+  await sendItineraryToMake(id);
+}
+async function fetchItineraryScanFields(it){
+  const result = await postItineraryFileToMake(it);
+  if(result.error) return { error: result.error };
+  return { fields: result.fields || {} };
 }
 function sheetItineraryReview(id){
   const it=(store.itineraries||[]).find(x=>x.id===id); if(!it) return;
