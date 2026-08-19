@@ -760,6 +760,7 @@ function viewEvent(id){
     </div>
   </div></div>
   <div class="screen-pad stagger show-detail">
+    ${typeof itineraryFullUploadBanner === 'function' ? itineraryFullUploadBanner(e.id) : ''}
     <div class="dhero show-hero" style="background:linear-gradient(155deg,${c}33,var(--card) 65%)">
       <div class="cat-bar" style="background:${c}"></div>
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">

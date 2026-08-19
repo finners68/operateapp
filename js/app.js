@@ -897,6 +897,9 @@ function readFiles(input, cb){
    ============================================================ */
 let itineraryUploadMode = null; // 'new' | 'existing'
 const MAKE_ITINERARY_WEBHOOK_URL = 'https://hook.eu2.make.com/xgg1tbfi9leurmlcsgndqc5ssaxhjjxu';
+const MAKE_ITINERARY_FULL_WEBHOOK_URL = 'https://hook.eu2.make.com/p2f3yp4wj7795gifd38v5rpepf3syxjt';
+/* showId -> { status:'uploading'|'done'|'error', message:string } while full OCR runs */
+let itineraryFullUploadByShow = {};
 
 function viewItinerary(){
   const list = (store.itineraries||[]).slice().sort((a,b)=> (b.date||'').localeCompare(a.date||'') || (b.created||0)-(a.created||0));
@@ -1114,7 +1117,7 @@ function normalizeMakeFields(payload){
   });
   return out;
 }
-/* POST the uploaded file straight to Make. No Supabase in the middle. */
+/* POST the uploaded file straight to Make. Basics + full use different webhooks. */
 async function postItineraryFileToMake(it, opts={}){
   const file=(it.imgs||[]).find(im=>im.kind==='image') || (it.imgs||[])[0];
   if(!file || !file.data) return { error:'no_file' };
@@ -1125,6 +1128,7 @@ async function postItineraryFileToMake(it, opts={}){
     || (typeof getFixedOrgId === 'function' && getFixedOrgId())
     || '';
   const stage = opts.stage || (it.showId ? 'full' : 'basics');
+  const webhookUrl = stage === 'full' ? MAKE_ITINERARY_FULL_WEBHOOK_URL : MAKE_ITINERARY_WEBHOOK_URL;
   const form=new FormData();
   const name=file.name || (file.kind==='image' ? 'itinerary.jpg' : 'itinerary.pdf');
   form.append('file', blob, name);
@@ -1135,9 +1139,9 @@ async function postItineraryFileToMake(it, opts={}){
   if(orgId) form.append('organisation_id', orgId);
   if(it.showId) form.append('show_id', it.showId);
   const controller=new AbortController();
-  const timer=setTimeout(()=>controller.abort(), 90000);
+  const timer=setTimeout(()=>controller.abort(), stage === 'full' ? 120000 : 90000);
   try{
-    const res=await fetch(MAKE_ITINERARY_WEBHOOK_URL, {
+    const res=await fetch(webhookUrl, {
       method:'POST',
       body:form,
       signal:controller.signal
@@ -1146,9 +1150,9 @@ async function postItineraryFileToMake(it, opts={}){
     if(!res.ok) return { error:'make_failed', status:res.status };
     let payload={};
     if(text.trim()){
-      try{ payload=JSON.parse(text); }catch(_){ return { ok:true, fields:{}, raw:text }; }
+      try{ payload=JSON.parse(text); }catch(_){ return { ok:true, fields:{}, payload:{}, raw:text }; }
     }
-    return { ok:true, fields: normalizeMakeFields(payload) };
+    return { ok:true, fields: normalizeMakeFields(payload), payload };
   }catch(err){
     if(err && err.name==='AbortError') return { error:'make_timeout' };
     return { error:'scan_failed', detail: String(err&&err.message||err||'') };
@@ -1331,6 +1335,87 @@ function saveItineraryReview(id){
   openView('event', showId);
   const extra = filled.length ? (' · filled '+filled.join(', ')) : '';
   toast('Show created'+extra, 'check');
+  startItineraryFullUpload(id, showId);
+}
+function itineraryFullUploadBanner(showId){
+  const st = itineraryFullUploadByShow[showId];
+  if(!st) return '';
+  if(st.status === 'uploading'){
+    return `<div class="hint" style="text-align:left;margin:0 0 14px;padding:12px 14px;border-radius:12px;background:rgba(99,102,241,.12);color:var(--text-1);font-weight:650">
+      Uploading itinerary details… Make is filling hotel, travel and the rest into this show.
+    </div>`;
+  }
+  if(st.status === 'done'){
+    return `<div class="hint" style="text-align:left;margin:0 0 14px;padding:12px 14px;border-radius:12px;background:rgba(34,197,94,.12);color:var(--text-1);font-weight:650">
+      ${esc(st.message || 'Itinerary details uploaded successfully.')}
+    </div>`;
+  }
+  if(st.status === 'error'){
+    return `<div class="hint" style="text-align:left;margin:0 0 14px;padding:12px 14px;border-radius:12px;background:rgba(239,68,68,.12);color:var(--text-1);font-weight:650">
+      ${esc(st.message || 'Couldn’t finish itinerary upload.')}
+      <button type="button" class="link-btn" style="display:inline;margin-left:8px" onclick="retryItineraryFullUpload('${showId}')">Retry</button>
+    </div>`;
+  }
+  return '';
+}
+function refreshIfViewingShow(showId){
+  if(overlay && overlay.type === 'event' && overlay.id === showId && typeof renderView === 'function') renderView();
+}
+async function startItineraryFullUpload(itineraryId, showId){
+  const it=(store.itineraries||[]).find(x=>x.id===itineraryId);
+  if(!it || !showId) return;
+  it.showId = showId;
+  itineraryFullUploadByShow[showId] = { status:'uploading', message:'' };
+  refreshIfViewingShow(showId);
+  try{
+    const result = await postItineraryFileToMake(it, { stage:'full' });
+    if(result.error){
+      itineraryFullUploadByShow[showId] = {
+        status:'error',
+        message: itineraryScanErrorToast(result.error)
+      };
+      refreshIfViewingShow(showId);
+      toast(itineraryScanErrorToast(result.error), 'x');
+      return;
+    }
+    const payload = result.payload || {};
+    const ok = payload.ok === true || payload.ok === 'true' || payload.success === true || !('ok' in payload && payload.ok === false);
+    const message = payload.message || payload.status || (ok
+      ? 'Itinerary details uploaded successfully.'
+      : 'Make finished but reported a problem.');
+    if(!ok){
+      itineraryFullUploadByShow[showId] = { status:'error', message:String(message) };
+      refreshIfViewingShow(showId);
+      toast(String(message), 'x');
+      return;
+    }
+    itineraryFullUploadByShow[showId] = { status:'done', message:String(message) };
+    it.fullUploadDone = true;
+    persist('user_preferences');
+    if(typeof currentOrgId !== 'undefined' && currentOrgId && typeof loadFromSupabase === 'function'){
+      try{ await loadFromSupabase(currentOrgId); }catch(_){}
+    }
+    refreshIfViewingShow(showId);
+    toast(String(message), 'check');
+    setTimeout(()=>{
+      if(itineraryFullUploadByShow[showId]?.status === 'done'){
+        delete itineraryFullUploadByShow[showId];
+        refreshIfViewingShow(showId);
+      }
+    }, 8000);
+  }catch(err){
+    itineraryFullUploadByShow[showId] = {
+      status:'error',
+      message: 'Couldn’t reach Make — see browser console'
+    };
+    refreshIfViewingShow(showId);
+    toast('Couldn’t reach Make for full upload', 'x');
+  }
+}
+function retryItineraryFullUpload(showId){
+  const it=(store.itineraries||[]).find(x=>x.showId===showId);
+  if(!it){ toast('Original itinerary not found','x'); return; }
+  startItineraryFullUpload(it.id, showId);
 }
 function sheetItinerary(id){
   const it=(store.itineraries||[]).find(x=>x.id===id); if(!it) return;
