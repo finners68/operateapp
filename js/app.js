@@ -1317,16 +1317,15 @@ function sheetItineraryReview(id){
     const closeBtn = sheetEl.querySelector('.sheet-head .header-btn');
     if(closeBtn) closeBtn.setAttribute('onclick', `abandonItineraryReview('${id}')`);
   }
-  /* Keep default scrim close for a beat so leftover taps after upload don't cancel. */
+  /* Backdrop only closes the sheet — it must NOT notify Make (ghost taps
+     after file picker / sheet open were firing status=cancelled reason=closed). */
   const scrim = $('#scrim');
-  if(scrim) scrim.onclick = ()=>closeSheet();
+  if(scrim) scrim.onclick = ()=>closeItineraryReviewQuietly(id);
   itineraryReviewArmTimer = setTimeout(()=>{
     itineraryReviewArmTimer = null;
     if(itineraryReviewActiveId !== id) return;
     itineraryReviewCancelArmed = true;
-    const liveScrim = $('#scrim');
-    if(liveScrim) liveScrim.onclick = ()=>abandonItineraryReview(id);
-  }, 700);
+  }, 1200);
 }
 function notifyItineraryDecision(it, status, extra={}){
   if(!it || !status) return;
@@ -1344,23 +1343,29 @@ function notifyItineraryDecision(it, status, extra={}){
   persist('user_preferences');
   fetch(MAKE_ITINERARY_DECISION_WEBHOOK_URL, { method:'POST', body:form }).catch(()=>{});
 }
-function abandonItineraryReview(id){
-  if(!itineraryReviewCancelArmed && itineraryReviewActiveId === id){
-    /* Ignore ghost taps right after the review sheet opens. */
-    return;
-  }
-  const it=(store.itineraries||[]).find(x=>x.id===id);
-  if(it && !it.showId) notifyItineraryDecision(it, 'cancelled', { reason:'closed' });
+function clearItineraryReviewGuards(){
   itineraryReviewActiveId = null;
   itineraryReviewCancelArmed = false;
   if(itineraryReviewArmTimer){ clearTimeout(itineraryReviewArmTimer); itineraryReviewArmTimer = null; }
+}
+/* Close the review UI without telling Make. */
+function closeItineraryReviewQuietly(id){
+  if(itineraryReviewActiveId === id) clearItineraryReviewGuards();
+  closeSheet(true, { noReturn:true });
+  renderView();
+}
+function abandonItineraryReview(id){
+  /* Only the X button uses this — and only after the sheet has been open briefly. */
+  if(!itineraryReviewCancelArmed || itineraryReviewActiveId !== id) return;
+  const it=(store.itineraries||[]).find(x=>x.id===id);
+  if(it && !it.showId) notifyItineraryDecision(it, 'cancelled', { reason:'closed' });
+  clearItineraryReviewGuards();
   closeSheet(true, { noReturn:true });
   renderView();
   toast('Upload cancelled','x');
 }
 function discardItineraryReview(id){
-  /* Explicit discard — always allowed, even before cancel is armed. */
-  itineraryReviewCancelArmed = true;
+  /* Explicit discard always notifies Make. */
   openSheet('Discard upload?', `
     <p style="font-size:15px;color:var(--text-2);line-height:1.5;margin:2px 2px 18px">This cancels the itinerary and tells Make not to continue.</p>
     <button class="btn danger" id="itn-discard-yes">Discard</button>
@@ -1372,9 +1377,7 @@ function discardItineraryReview(id){
     if(b) b.onclick=()=>{
       const it=(store.itineraries||[]).find(x=>x.id===id);
       if(it) notifyItineraryDecision(it, 'cancelled', { reason:'discarded' });
-      itineraryReviewActiveId = null;
-      itineraryReviewCancelArmed = false;
-      if(itineraryReviewArmTimer){ clearTimeout(itineraryReviewArmTimer); itineraryReviewArmTimer = null; }
+      clearItineraryReviewGuards();
       store.itineraries=(store.itineraries||[]).filter(x=>x.id!==id);
       persist('user_preferences');
       closeSheet(true, { noReturn:true });
@@ -1417,9 +1420,7 @@ function saveItineraryReview(id){
   it.source='New show from itinerary';
   it.showId=showId;
   it.date=date;
-  itineraryReviewActiveId = null;
-  itineraryReviewCancelArmed = false;
-  if(itineraryReviewArmTimer){ clearTimeout(itineraryReviewArmTimer); itineraryReviewArmTimer = null; }
+  clearItineraryReviewGuards();
   notifyItineraryDecision(it, 'confirmed', { show_id: showId });
   persist('shows', showId);
   if(typeof pushShowNow==='function') pushShowNow(showId);
