@@ -197,7 +197,7 @@ function flightAllPasses(f){
   if(fromPax.length) return fromPax;
   return Array.isArray(f.passes) ? f.passes : [];
 }
-/* True only when a flight has something worth showing (route, number, times, or people). */
+/* True only when a flight has something worth showing (route, number, times, gate info, or people). */
 function flightHasDetails(f){
   if(!f) return false;
   if(String(f.code||'').trim()) return true;
@@ -206,6 +206,10 @@ function flightHasDetails(f){
   if(String(f.dep||'').trim()) return true;
   if(String(f.arr||'').trim()) return true;
   if(String(f.seat||'').trim()) return true;
+  if(String(f.gate||'').trim()) return true;
+  if(String(f.terminal||'').trim()) return true;
+  if(String(f.fstatus||'').trim()) return true;
+  if(String(f.delay||'').trim()) return true;
   if(Array.isArray(f.passes) && f.passes.length) return true;
   const pax = Array.isArray(f.passengers) ? f.passengers : [];
   return pax.some(p => p && (
@@ -213,6 +217,25 @@ function flightHasDetails(f){
     String(p.seat||'').trim() ||
     (Array.isArray(p.passes) && p.passes.length)
   ));
+}
+/* Move old show-level flightNo/gate/terminal onto the first flight so one place holds it. */
+function migrateShowFlightInfo(e){
+  if(!e) return;
+  const legacy = e.flightNo||e.gate||e.terminal||e.fstatus||e.delay;
+  if(!legacy) return;
+  e.flights = e.flights || [];
+  let f = e.flights.find(x => flightHasDetails(x)) || e.flights[0];
+  if(!f){
+    f = { id: uid('fl'), code:'', from:'', to:'', dep:'', arr:'', seat:'', passengers:[], passes:[], done:false };
+    e.flights.push(f);
+  }
+  if(!f.code && e.flightNo) f.code = e.flightNo;
+  if(!f.terminal && e.terminal) f.terminal = e.terminal;
+  if(!f.gate && e.gate) f.gate = e.gate;
+  if(!f.fstatus && e.fstatus) f.fstatus = e.fstatus;
+  if(!f.delay && e.delay) f.delay = e.delay;
+  if(e.fiUpdated && !f.fiUpdated) f.fiUpdated = e.fiUpdated;
+  e.flightNo = ''; e.terminal = ''; e.gate = ''; e.fstatus = ''; e.delay = ''; e.fiUpdated = null;
 }
 function flightPassengerSummary(f){
   return flightPassengers(f).map(p => {
@@ -872,8 +895,8 @@ function runTimeline(run){
         const passes = typeof flightAllPasses==='function' ? flightAllPasses(f) : (f.passes||[]);
         rows.push({id:'shflt_'+f.id, kind:'travel', icon:'plane', date:parts[0]&&/^\d{4}-\d{2}-\d{2}/.test(parts[0])?parts[0]:(s.date), time:parts[1]||(parts[0]&&parts[0].includes(':')&&!parts[0].includes('-')?parts[0]:'')||'',
           title:(f.from&&f.to)?f.from+' → '+f.to:(f.code||'Flight'),
-          sub:[f.code, paxSub].filter(Boolean).join(' · '),
-          done:!!f.done, embedded:true, ref:Object.assign({kind:'travel', icon:'plane', showId:s.id, to:f.to, from:f.from, embedded:true, passes}, f)});
+          sub:[f.code, f.gate?('Gate '+f.gate):'', f.terminal?('Term '+f.terminal):'', paxSub].filter(Boolean).join(' · '),
+          done:!!f.done, embedded:true, ref:Object.assign({kind:'travel', icon:'plane', showId:s.id, to:f.to, from:f.from, embedded:true, passes, flightNo:f.code||'', terminal:f.terminal||'', gate:f.gate||'', fstatus:f.fstatus||'', delay:f.delay||'', fiUpdated:f.fiUpdated||null}, f)});
       });
     }
     if(!hasStay.has(s.id) && s.hotel && (s.hotel.name||s.hotel.address||s.hotel.city)){

@@ -491,7 +491,7 @@ function tripBody(r){
         <div class="hero-venue" style="font-size:22px;margin-top:6px">${esc(nextStep.title)}</div>
         ${nextStep.sub?`<div class="hero-city">${esc(nextStep.sub)}</div>`:''}
         <div class="hero-info" style="margin-top:15px;flex-wrap:wrap">${stepPills(nextStep)}</div>
-        ${(nextStep.ref && !nextStep.embedded && nextStep.kind==='travel' && (nextStep.ref.icon||'plane')==='plane')?flightInfoWidget(nextStep.ref):''}
+        ${(nextStep.ref && nextStep.kind==='travel' && (nextStep.ref.icon||'plane')==='plane')?flightInfoWidget(nextStep.ref):''}
       </div>
       ${thenStep?`<div class="then-next">
         <div class="then-lab">Then</div>

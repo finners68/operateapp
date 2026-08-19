@@ -352,6 +352,11 @@ async function composeViewFromV2(v2, opts){
         to: j.arrival_location_code || j.arrival_airport_iata || j.arrival_location_name || '',
         dep: flightDateTimeLocal(j.departure_at),
         arr: flightDateTimeLocal(j.arrival_at),
+        terminal: j.departure_terminal || '',
+        gate: j.departure_gate || '',
+        fstatus: j.journey_status || '',
+        delay: j.delay_description || '',
+        fiUpdated: j.status_updated_at ? Date.parse(j.status_updated_at) : null,
         seat: '',
         passengers,
         /* Passes live on each passenger — keep top-level empty so reload

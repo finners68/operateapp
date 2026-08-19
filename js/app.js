@@ -351,8 +351,13 @@ function setFab(){
    Sheet / modal system
    ============================================================ */
 let sheetEl = null;
+/* Stack of panels to reopen when the user dismisses a nested edit sheet
+   (e.g. Flights → back to Edit show, instead of closing everything). */
+let sheetReturnStack = [];
 function openSheet(title, bodyHTML, opts={}){
-  closeSheet(true);
+  closeSheet(true, { noReturn: true });
+  if(opts.clearReturn) sheetReturnStack = [];
+
   const app = $('#app');
   const scrim = $('#scrim');
   const s = document.createElement('div');
@@ -377,26 +382,41 @@ function openSheet(title, bodyHTML, opts={}){
   scrim.onclick = ()=>closeSheet();
   requestAnimationFrame(()=>requestAnimationFrame(()=>s.classList.add('on')));
 }
-function closeSheet(instant){
+function closeSheet(instant, opts={}){
   const app = $('#app');
   const scrim = $('#scrim');
   closeDateTimePicker(true);
+  const ret = (!opts.noReturn && !instant) ? sheetReturnStack.pop() : null;
   if(!sheetEl){
     scrim.classList.remove('on');
     if(app) app.classList.remove('sheet-open');
+    if(ret) setTimeout(()=>reopenSheetReturn(ret), 0);
     return;
   }
   const s = sheetEl; sheetEl=null; scrim.classList.remove('on');
-  if(instant){
+  const finish = ()=>{
     s.remove();
-    if(app) app.classList.remove('sheet-open');
+    if(!sheetEl && app) app.classList.remove('sheet-open');
+    if(ret) reopenSheetReturn(ret);
+  };
+  if(instant){
+    finish();
     return;
   }
   s.classList.remove('on');
-  setTimeout(()=>{
-    s.remove();
-    if(!sheetEl && app) app.classList.remove('sheet-open');
-  }, 280);
+  setTimeout(finish, 280);
+}
+function reopenSheetReturn(ret){
+  if(!ret || !ret.kind) return;
+  if(ret.kind==='eventMenu' && ret.id) eventMenu(ret.id);
+  else if(ret.kind==='showChecklist' && ret.id) sheetShowChecklist(ret.id);
+  else if(ret.kind==='showTimeline' && ret.id) sheetShowTimeline(ret.id);
+  else if(ret.kind==='showFlights' && ret.id) sheetFlight(ret.id);
+}
+/* Open a show-edit section and remember to return to the Edit show panel. */
+function openFromEventMenu(eid, opener){
+  sheetReturnStack.push({ kind:'eventMenu', id:eid });
+  if(typeof opener === 'function') opener();
 }
 function val(id){ const e=document.getElementById(id); return e?e.value.trim():''; }
 function rawVal(id){ const e=document.getElementById(id); return e?e.value:''; }
@@ -769,7 +789,7 @@ function confirmSheet(title, msg, confirmLabel, onConfirm, danger){
 function promptSheet(title, placeholder, onSave, initial=''){
   openSheet(title, `
     <div class="field"><input id="prompt-in" class="input" placeholder="${esc(placeholder)}" value="${esc(initial)}"></div>
-    <button class="btn" onclick="const v=val('prompt-in'); if(v){closeSheet(); (${onSave})(v);} else toast('Type something','x')">Add</button>
+    <button class="btn" onclick="const v=val('prompt-in'); if(v){closeSheet(true,{noReturn:true}); (${onSave})(v); const ret=sheetReturnStack.pop(); if(ret) reopenSheetReturn(ret);} else toast('Type something','x')">Add</button>
   `);
   setTimeout(()=>{ const i=document.getElementById('prompt-in'); if(i) i.focus(); },320);
 }
@@ -777,9 +797,29 @@ function promptSheet(title, placeholder, onSave, initial=''){
 /* ============================================================
    Checklists (event + trip) and timeline steps
    ============================================================ */
-function toggleEventCheck(eid,cid){ const e=sel.event(eid); const i=e.checklist.find(x=>x.id===cid); if(i){i.done=!i.done; haptic(); persist('shows', eid); renderView();} }
-function delEventCheck(eid,cid){ const e=sel.event(eid); e.checklist=e.checklist.filter(x=>x.id!==cid); persist('shows', eid); renderView(); }
-function addEventCheckPrompt(eid){ promptSheet('Checklist item','e.g. Track ID list', function(v){ const e=sel.event(eid); e.checklist.push({id:uid('ck'),label:v,done:false}); persist('shows', eid); renderView(); toast('Added','check'); }); }
+function toggleEventCheck(eid,cid){ const e=sel.event(eid); if(!e) return; const i=(e.checklist=e.checklist||[]).find(x=>x.id===cid); if(i){i.done=!i.done; haptic(); persist('shows', eid); renderView();} }
+function delEventCheck(eid,cid){ const e=sel.event(eid); if(!e) return; e.checklist=(e.checklist||[]).filter(x=>x.id!==cid); persist('shows', eid); renderView(); }
+function addEventCheckPrompt(eid){
+  const e=sel.event(eid); if(!e) return;
+  sheetReturnStack.push({ kind:'showChecklist', id:eid });
+  promptSheet('Checklist item','e.g. Track ID list', function(v){
+    const show=sel.event(eid); if(!show) return;
+    (show.checklist = show.checklist || []).push({id:uid('ck'),label:v,done:false});
+    persist('shows', eid);
+    if(typeof pushShowNow==='function') pushShowNow(eid);
+    toast('Added','check');
+  });
+}
+function addEventCheckFromSheet(eid){
+  const e=sel.event(eid); if(!e) return;
+  const v=val('ck-new');
+  if(!v){ toast('Type something','x'); return; }
+  (e.checklist = e.checklist || []).push({id:uid('ck'),label:v,done:false});
+  persist('shows', eid);
+  if(typeof pushShowNow==='function') pushShowNow(eid);
+  sheetShowChecklist(eid);
+  toast('Added','check');
+}
 function toggleTripCheck(tid,cid){ const t=sel.trip(tid); const i=t.checklist.find(x=>x.id===cid); if(i){i.done=!i.done; haptic(); persist('tours', tid); renderView();} }
 function delTripCheck(tid,cid){ const t=sel.trip(tid); t.checklist=t.checklist.filter(x=>x.id!==cid); persist('tours', tid); renderView(); }
 function addTripCheckPrompt(tid){ promptSheet('Packing / checklist item','e.g. Battery packs', function(v){ const t=sel.trip(tid); t.checklist.push({id:uid('ck'),label:v,done:false}); persist('tours', tid); renderView(); toast('Added','check'); }); }
@@ -1034,25 +1074,23 @@ function eventMenu(eid){
   openSheet('Edit show', `
     <p class="sheet-lede">Update any part of this show — basics, travel, venue, deal or prep.</p>
     <div class="edit-section-grid">
-      <button type="button" class="edit-section-btn" onclick="closeSheet(); sheetEvent('${eid}')">${ICON.edit(16)}<span><b>Show basics</b><small>Venue, date, times, status</small></span></button>
-      <button type="button" class="edit-section-btn" onclick="closeSheet(); sheetHotel('${eid}')">${ICON.bed(16)}<span><b>Hotel</b><small>Stay & confirmation</small></span></button>
-      <button type="button" class="edit-section-btn" onclick="closeSheet(); sheetFlight('${eid}')">${ICON.plane(16)}<span><b>Flights</b><small>People, seats & boarding passes</small></span></button>
-      <button type="button" class="edit-section-btn" onclick="closeSheet(); sheetFlightInfo('${eid}')">${ICON.planeUp(16)}<span><b>Flight info</b><small>Number, gate, terminal</small></span></button>
-      <button type="button" class="edit-section-btn" onclick="closeSheet(); sheetDriver('${eid}')">${ICON.car(16)}<span><b>Driver</b><small>Ground transport</small></span></button>
-      <button type="button" class="edit-section-btn" onclick="closeSheet(); sheetVenueAddr('${eid}')">${ICON.pin(16)}<span><b>Venue & address</b><small>Location & maps</small></span></button>
-      <button type="button" class="edit-section-btn" onclick="closeSheet(); sheetPromoter('${eid}')">${ICON.users(16)}<span><b>Artist Liaison</b><small>Show-day contact</small></span></button>
-      <button type="button" class="edit-section-btn" onclick="closeSheet(); sheetAdvance('${eid}')">${ICON.file(16)}<span><b>Advance</b><small>Stage, catering, access</small></span></button>
-      <button type="button" class="edit-section-btn" onclick="closeSheet(); sheetFinance('${eid}')">${ICON.coins(16)}<span><b>Deal</b><small>Fee, expenses, paid</small></span></button>
-      <button type="button" class="edit-section-btn" onclick="closeSheet(); sheetShowTimeline('${eid}')">${ICON.clock(16)}<span><b>Day timeline</b><small>Schedule steps</small></span></button>
-      <button type="button" class="edit-section-btn" onclick="closeSheet(); sheetShowChecklist('${eid}')">${ICON.checkList(16)}<span><b>Checklist</b><small>Prep tasks</small></span></button>
-      <button type="button" class="edit-section-btn" onclick="closeSheet(); sheetEventContact('${eid}')">${ICON.users(16)}<span><b>Key contact</b><small>Extra people</small></span></button>
+      <button type="button" class="edit-section-btn" onclick="openFromEventMenu('${eid}',()=>sheetEvent('${eid}'))">${ICON.edit(16)}<span><b>Show basics</b><small>Venue, date, times, status</small></span></button>
+      <button type="button" class="edit-section-btn" onclick="openFromEventMenu('${eid}',()=>sheetHotel('${eid}'))">${ICON.bed(16)}<span><b>Hotel</b><small>Stay & confirmation</small></span></button>
+      <button type="button" class="edit-section-btn" onclick="openFromEventMenu('${eid}',()=>sheetFlight('${eid}'))">${ICON.plane(16)}<span><b>Flights</b><small>Route, gate, seats & passes</small></span></button>
+      <button type="button" class="edit-section-btn" onclick="openFromEventMenu('${eid}',()=>sheetDriver('${eid}'))">${ICON.car(16)}<span><b>Transport</b><small>Driver, Uber or taxi</small></span></button>
+      <button type="button" class="edit-section-btn" onclick="openFromEventMenu('${eid}',()=>sheetPromoter('${eid}'))">${ICON.users(16)}<span><b>Artist Liaison</b><small>Show-day contact</small></span></button>
+      <button type="button" class="edit-section-btn" onclick="openFromEventMenu('${eid}',()=>sheetAdvance('${eid}'))">${ICON.file(16)}<span><b>Advance</b><small>Stage, catering, access</small></span></button>
+      <button type="button" class="edit-section-btn" onclick="openFromEventMenu('${eid}',()=>sheetFinance('${eid}'))">${ICON.coins(16)}<span><b>Deal</b><small>Fee, expenses, paid</small></span></button>
+      <button type="button" class="edit-section-btn" onclick="openFromEventMenu('${eid}',()=>sheetShowTimeline('${eid}'))">${ICON.clock(16)}<span><b>Day timeline</b><small>Schedule steps</small></span></button>
+      <button type="button" class="edit-section-btn" onclick="openFromEventMenu('${eid}',()=>sheetShowChecklist('${eid}'))">${ICON.checkList(16)}<span><b>Checklist</b><small>Prep tasks</small></span></button>
+      <button type="button" class="edit-section-btn" onclick="openFromEventMenu('${eid}',()=>sheetEventContact('${eid}'))">${ICON.users(16)}<span><b>Key contact</b><small>Extra people</small></span></button>
     </div>
     <div class="spacer"></div>
-    <button class="btn secondary" onclick="closeSheet(); startTripFromShow('${eid}')">${ICON.play(16)} Start Trip Mode</button>
+    <button class="btn secondary" onclick="closeSheet(true,{noReturn:true}); sheetReturnStack=[]; startTripFromShow('${eid}')">${ICON.play(16)} Start Trip Mode</button>
     <div class="spacer"></div>
-    <button class="btn danger" onclick="closeSheet(); confirmDeleteEvent('${eid}')">${ICON.trash(16)} Delete show</button>
+    <button class="btn danger" onclick="closeSheet(true,{noReturn:true}); sheetReturnStack=[]; confirmDeleteEvent('${eid}')">${ICON.trash(16)} Delete show</button>
     <div class="spacer"></div>
-  `, { full: true });
+  `, { full: true, clearReturn: true });
 }
 function tripMenu(tid){
   openSheet('Trip options', `

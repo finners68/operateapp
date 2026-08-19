@@ -917,6 +917,11 @@ async function pushToSupabaseV2(orgId, dirtyIn){
         departure_at: flightTimes.departure_at,
         arrival_at: flightTimes.arrival_at,
         journey_notes: null,
+        departure_terminal: f.terminal || null,
+        departure_gate: f.gate || null,
+        journey_status: f.fstatus || null,
+        delay_description: f.delay || null,
+        status_updated_at: f.fiUpdated ? new Date(f.fiUpdated).toISOString() : null,
         passengers: paxMeta,
         sort_order: i
       });

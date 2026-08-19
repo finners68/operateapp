@@ -398,7 +398,9 @@ function prepGroupSummary(e){
   const ideas = store.ideas.filter(x=>x.eventId===e.id).length;
   const contentN = ideas + (e.content?1:0);
   const attachN = (e.attachments||[]).length;
+  const tlN = (e.timeline||[]).length;
   const parts = [];
+  if(tlN) parts.push(tlN+' timeline step'+(tlN!==1?'s':''));
   if(cp.total) parts.push('checklist '+cp.done+'/'+cp.total);
   if(contentN) parts.push(contentN+' content item'+(contentN>1?'s':''));
   if(attachN) parts.push(attachN+' attachment'+(attachN>1?'s':''));
@@ -560,9 +562,8 @@ function driverSubsection(e){
     if(legs.length) body += showSourceLabel('Added to show');
     body += orderedDrivers(e).map(o=>driverCard(e.id,o.d,o.idx)).join('');
   }
-  if(!body) body = `<div class="card tap" onclick="sheetDriver('${e.id}')" style="text-align:center;color:var(--text-3);padding:20px">${ICON.car(22)}<div style="margin-top:6px;font-weight:600">Add driver or Uber/taxi</div></div>`;
-  const title = (drivers.length>1 || drivers.some(d=>d.noGround)) ? 'Transport' : 'Driver';
-  return showSubsection('ss-'+e.id+'-driver', title, `<button type="button" class="add" onclick="sheetDriver('${e.id}')">Add</button>`, body);
+  if(!body) body = `<div class="card tap" onclick="sheetDriver('${e.id}')" style="text-align:center;color:var(--text-3);padding:20px">${ICON.car(22)}<div style="margin-top:6px;font-weight:600">Add transport</div></div>`;
+  return showSubsection('ss-'+e.id+'-driver', 'Transport', `<button type="button" class="add" onclick="sheetDriver('${e.id}')">Add</button>`, body);
 }
 function transfersSubsection(e){
   const legs = showLegs(e.id).filter(x=>x.kind==='travel' && (x.icon||'plane')!=='plane' && !isDriverItem(x)).sort(legSort);
@@ -639,12 +640,22 @@ function contentSubsection(e){
 }
 function checklistSubsection(e){
   const cp = sel.eventChecklistProgress(e);
-  const addBtn = `<button type="button" class="add" onclick="addEventCheckPrompt('${e.id}')">Add</button>`;
+  const addBtn = `<button type="button" class="add" onclick="sheetShowChecklist('${e.id}')">Add</button>`;
   const title = cp.total ? `Checklist · ${cp.done}/${cp.total}` : 'Checklist';
   const body = e.checklist&&e.checklist.length
     ? `<div class="card flush">${e.checklist.map(i=>`<div class="check ${i.done?'done':''}"><div class="box" onclick="toggleEventCheck('${e.id}','${i.id}')">${ICON.check(15)}</div><div class="lbl" onclick="toggleEventCheck('${e.id}','${i.id}')">${esc(i.label)}</div><button class="del" onclick="delEventCheck('${e.id}','${i.id}')">${ICON.x(16)}</button></div>`).join('')}</div>`
-    : `<div class="card tap" onclick="addEventCheckPrompt('${e.id}')" style="text-align:center;color:var(--text-3);padding:18px;font-weight:600">${ICON.checkList(20)} Add a checklist item</div>`;
+    : `<div class="card tap" onclick="sheetShowChecklist('${e.id}')" style="text-align:center;color:var(--text-3);padding:18px;font-weight:600">${ICON.checkList(20)} Add a checklist item</div>`;
   return showSubsection('ss-'+e.id+'-checklist', title, addBtn, body);
+}
+function timelineSubsection(e){
+  const tl = e.timeline || [];
+  const addBtn = `<button type="button" class="add" onclick="sheetShowTimeline('${e.id}')">${tl.length?'Edit':'Add'}</button>`;
+  if(!tl.length){
+    return showSubsection('ss-'+e.id+'-timeline', 'Day timeline', addBtn,
+      `<div class="card tap" onclick="sheetShowTimeline('${e.id}')" style="text-align:center;color:var(--text-3);padding:18px;font-weight:600">${ICON.clock(20)} Add show-day schedule steps</div>`);
+  }
+  const body = `<div class="card flush">${tl.map(s=>`<div class="check ${s.done?'done':''}"><div class="box" onclick="toggleShowTimelineStep('${e.id}','${s.id}')">${ICON.check(15)}</div><div class="lbl" onclick="toggleShowTimelineStep('${e.id}','${s.id}')"><b>${esc(s.time||'—')}</b> ${esc(s.title)}${s.sub?`<span style="display:block;font-size:12px;color:var(--text-3);font-weight:600;margin-top:2px">${esc(s.sub)}</span>`:''}</div></div>`).join('')}</div>`;
+  return showSubsection('ss-'+e.id+'-timeline', 'Day timeline', addBtn, body);
 }
 function attachmentsSubsection(e){
   const body = `<div class="thumb-row">
@@ -658,7 +669,7 @@ function notesSubsection(e){
   return showSubsection('ss-'+e.id+'-notes', 'Internal notes', '', body);
 }
 function prepGroupBody(e){
-  return contentSubsection(e)+checklistSubsection(e)+attachmentsSubsection(e)+notesSubsection(e);
+  return timelineSubsection(e)+contentSubsection(e)+checklistSubsection(e)+attachmentsSubsection(e)+notesSubsection(e);
 }
 function moneyGroupBody(e){
   if(e.finance && e.finance.notDisclosed){
@@ -707,6 +718,7 @@ function moneyGroupBody(e){
 function viewEvent(id){
   const e = sel.event(id);
   if(!e) return backStub();
+  if(typeof migrateShowFlightInfo==='function') migrateShowFlightInfo(e);
   const c = CATS[e.color]||CATS.purple;
   const trip = e.tripId? sel.trip(e.tripId):null;
   return `
@@ -770,6 +782,9 @@ function flightLine(eid,f){
   const meta = [
     depTime ? 'Dep '+esc(depTime) : '',
     arrTime ? 'Arr '+esc(arrTime) : '',
+    f.terminal ? 'Term '+esc(f.terminal) : '',
+    f.gate ? 'Gate '+esc(f.gate) : '',
+    f.fstatus ? esc(f.fstatus) : '',
     pax.length ? (pax.length+' passenger'+(pax.length===1?'':'s')) : ''
   ].filter(Boolean).join(' · ');
   /* Boarding passes render under each passenger — never as one pooled group. */
@@ -860,7 +875,7 @@ function sheetEvent(eid){
     <div class="field"><label>Content to capture</label><input id="ev-content" class="input" placeholder="e.g. 2x reels · crowd clip" value="${esc(e?e.content:'')}"></div>
     ${editExtras}
     <div class="field"><label>Colour</label><div class="swatches" id="ev-cat">${swatches}</div></div>
-    ${eid?`<button type="button" class="btn secondary" style="margin-bottom:10px" onclick="closeSheet();eventMenu('${eid}')">${ICON.edit(16)} All show sections…</button>`:''}
+    ${eid?`<button type="button" class="btn secondary" style="margin-bottom:10px" onclick="closeSheet(true,{noReturn:true});sheetReturnStack=[];eventMenu('${eid}')">${ICON.edit(16)} All show sections…</button>`:''}
     <button class="btn" id="ev-save" onclick="saveEvent('${eid||''}')">${eid?'Save changes':'Add show'}</button>
     <div class="spacer"></div>
   `);
@@ -1005,8 +1020,31 @@ function saveHotel(eid){
   }, 'Hotel saved');
 }
 function sheetFlight(eid, fid){
-  const e=sel.event(eid);
-  const f = fid ? ((e.flights||[]).find(x=>x.id===fid) || null) : null;
+  const e=sel.event(eid); if(!e) return;
+  migrateShowFlightInfo(e);
+  const flights = (e.flights||[]).filter(f => typeof flightHasDetails!=='function' || flightHasDetails(f));
+  /* From the editor with no flight id: show existing flights first. */
+  if(!fid){
+    if(flights.length){
+      openSheet('Flights', `
+        <p class="sheet-lede">Flights already on this show — tap one to edit route, gate and passengers.</p>
+        <div class="card flush">${flights.map(f=>{
+          const route = (f.from||f.to) ? `${esc(f.from||'?')} → ${esc(f.to||'?')}` : 'Route not set';
+          const bits = [f.code?esc(f.code):'', f.gate?('Gate '+esc(f.gate)):'', f.terminal?('Term '+esc(f.terminal)):'', f.fstatus?esc(f.fstatus):''].filter(Boolean).join(' · ');
+          return `<div class="row" onclick="sheetReturnStack.push({kind:'showFlights',id:'${eid}'});sheetFlight('${eid}','${f.id}')">
+            <div class="ic">${ICON.plane(18)}</div>
+            <div class="body"><b>${esc(f.code||'Flight')}</b><span>${route}${bits?' · '+bits:''}</span></div>
+            ${ICON.chevR(15)}
+          </div>`;
+        }).join('')}</div>
+        <button type="button" class="btn secondary" style="margin-top:14px" onclick="sheetReturnStack.push({kind:'showFlights',id:'${eid}'});sheetFlight('${eid}','__new__')">${ICON.plus(16)} Add flight</button>
+        <div class="spacer"></div>
+      `, { full: true });
+      return;
+    }
+  }
+  const forceNew = fid === '__new__';
+  const f = (!forceNew && fid) ? ((e.flights||[]).find(x=>x.id===fid) || null) : null;
   if(f && typeof ensureFlightPassengers==='function') ensureFlightPassengers(f);
   const editing = !!f;
   const today = new Date();
@@ -1031,12 +1069,21 @@ function sheetFlight(eid, fid){
         <input id="fl-dep-time" type="time" class="input" value="${esc(parsed.time||'')}" onclick="event.stopPropagation();openInputPicker('fl-dep-time')">
       </div>
     </div>
+    <div class="block-title" style="margin:6px 2px 8px">Day-of flight info</div>
+    <div class="row-2">
+      <div class="field"><label>Terminal</label><input id="fl-term" class="input" value="${esc(f&&f.terminal||'')}" placeholder="2"></div>
+      <div class="field"><label>Gate</label><input id="fl-gate" class="input" value="${esc(f&&f.gate||'')}" placeholder="B12"></div>
+    </div>
+    <div class="row-2">
+      <div class="field"><label>Status</label><input id="fl-status" class="input" value="${esc(f&&f.fstatus||'')}" placeholder="On time / Boarding"></div>
+      <div class="field"><label>Delay</label><input id="fl-delay" class="input" value="${esc(f&&f.delay||'')}" placeholder="+25 min"></div>
+    </div>
     <div class="field"><label>Passengers</label>
       <div id="fl-pax-list">${paxList.map((p,i)=>flightSheetPaxRow(p,i,eid,f&&f.id)).join('')}</div>
       <button type="button" class="btn secondary" style="margin-top:8px" onclick="addFlightPaxRow('${eid}','${f&&f.id||''}')">${ICON.plus(15)} Add person</button>
       <div class="hint" style="padding:8px 2px 0">Same flight for everyone — each person has their own seat and boarding pass.</div>
     </div>
-    <button class="btn" id="fl-save" onclick="saveFlight('${eid}','${fid||''}')">${editing?'Save flight':'Add flight'}</button>
+    <button class="btn" id="fl-save" onclick="saveFlight('${eid}','${editing?fid:''}')">${editing?'Save flight':'Add flight'}</button>
     ${editing?`<button type="button" class="btn danger" style="margin-top:10px" onclick="confirmRemoveFlight('${eid}','${f.id}')">${ICON.trash(16)} Remove flight</button>`:''}
     <div class="spacer"></div>
   `);
@@ -1136,6 +1183,11 @@ function saveFlight(eid, fid){
       to: val('fl-to').toUpperCase(),
       dep,
       arr: existing ? (existing.arr||'') : '',
+      terminal: val('fl-term'),
+      gate: val('fl-gate'),
+      fstatus: val('fl-status'),
+      delay: val('fl-delay'),
+      fiUpdated: Date.now(),
       seat: '',
       passengers: passengers.length ? passengers : [],
       passes: [],
@@ -1146,6 +1198,8 @@ function saveFlight(eid, fid){
     } else {
       (e.flights = e.flights || []).push(payload);
     }
+    /* Clear legacy show-level flight info once it lives on the flight. */
+    e.flightNo=''; e.terminal=''; e.gate=''; e.fstatus=''; e.delay='';
     persist('shows', eid);
     if(typeof pushShowNow === 'function') pushShowNow(eid);
     closeSheet();
@@ -1303,17 +1357,24 @@ function setShowReminderCustom(eid){
 }
 function clearShowReminder(eid){ cancelReminder(eid); closeSheet(); renderView(); toast('Reminder removed','trash'); }
 /* ---- Flight status widget: gate / terminal / status / delay.
-   Manually entered now (works offline); wired to auto-update from live flight data in Phase 2. ---- */
+   Lives on each flight (and travel logistics legs). ---- */
 function flightInfoWidget(e){
-  if(!e || e.kind!=='travel' || (e.icon||'plane')!=='plane') return '';
-  const has = e.flightNo||e.gate||e.terminal||e.fstatus||e.delay;
-  if(!has){ return `<div class="fi-add" onclick="event.stopPropagation();sheetFlightInfo('${e.id}')">${ICON.planeUp(15)} Add flight info · gate, terminal, status</div>`; }
+  if(!e) return '';
+  if(e.kind==='travel' && (e.icon||'plane')!=='plane') return '';
+  const has = e.flightNo||e.code||e.gate||e.terminal||e.fstatus||e.delay;
+  const showId = e.showId || e.id;
+  const flightId = e.embedded ? e.id : '';
+  const openEdit = e.embedded && showId
+    ? `sheetFlight('${showId}','${flightId}')`
+    : `sheetFlightInfo('${e.id}')`;
+  if(!has){ return `<div class="fi-add" onclick="event.stopPropagation();${openEdit}">${ICON.planeUp(15)} Add flight info · gate, terminal, status</div>`; }
   const st = e.fstatus||'Scheduled';
   const cell=(k,v)=>`<div class="fi-cell"><span>${k}</span><b>${v?esc(v):'—'}</b></div>`;
   const upd = e.fiUpdated?`<span class="fi-upd">${timeAgo(e.fiUpdated)}</span>`:'';
-  const track = e.flightNo?`<button class="fi-track" onclick="event.stopPropagation();flightTrack('${e.id}')">${ICON.reminder(13)} Track live</button>`:'';
-  return `<div class="fi" onclick="event.stopPropagation();sheetFlightInfo('${e.id}')">
-    <div class="fi-head"><span class="fi-live"><i></i>${e.flightNo?esc(e.flightNo)+' · ':''}${esc(st)}</span>
+  const code = e.flightNo||e.code||'';
+  const track = (!e.embedded && e.flightNo)?`<button class="fi-track" onclick="event.stopPropagation();flightTrack('${e.id}')">${ICON.reminder(13)} Track live</button>`:'';
+  return `<div class="fi" onclick="event.stopPropagation();${openEdit}">
+    <div class="fi-head"><span class="fi-live"><i></i>${code?esc(code)+' · ':''}${esc(st)}</span>
       ${e.delay?`<span class="fi-delay">${esc(e.delay)}</span>`:upd}</div>
     <div class="fi-grid">${cell('Terminal',e.terminal)}${cell('Gate',e.gate)}</div>
     ${track?`<div style="margin-top:9px">${track}</div>`:''}
@@ -1340,10 +1401,17 @@ async function flightTrack(id){
     if(d.gate) e.gate=d.gate;
     e.delay=d.delay||'';
     e.fiUpdated=Date.now(); e.fiLive=true;
-    persist('shows', eid); renderView(); toast('Live status updated ✈︎','check');
+    persist('shows', id); renderView(); toast('Live status updated ✈︎','check');
   }catch(err){ toast('Could not reach flight service','x'); }
 }
 function sheetFlightInfo(id){
+  /* Prefer editing the show's flight(s) — gate/terminal now live on each flight. */
+  const show = sel.event(id);
+  if(show && (show.kind||'show')==='show'){
+    migrateShowFlightInfo(show);
+    sheetFlight(id);
+    return;
+  }
   const e=store.events.find(x=>x.id===id); if(!e) return;
   const has = e.flightNo||e.gate||e.terminal||e.fstatus||e.delay;
   openSheet('Flight info', `
@@ -1365,11 +1433,11 @@ function sheetFlightInfo(id){
 function saveFlightInfo(id){
   const e=store.events.find(x=>x.id===id); if(!e) return;
   e.flightNo=val('fi-no'); e.terminal=val('fi-term'); e.gate=val('fi-gate'); e.fstatus=val('fi-status'); e.delay=val('fi-delay'); e.fiUpdated=Date.now();
-  persist('shows', eid); closeSheet(); renderView(); toast('Flight info saved','check');
+  persist('shows', id); closeSheet(); renderView(); toast('Flight info saved','check');
 }
 function clearFlightInfo(id){
   const e=store.events.find(x=>x.id===id); if(e){ e.flightNo=''; e.terminal=''; e.gate=''; e.fstatus=''; e.delay=''; e.fiUpdated=null; }
-  persist('shows', eid); closeSheet(); renderView(); toast('Flight info cleared','trash');
+  persist('shows', id); closeSheet(); renderView(); toast('Flight info cleared','trash');
 }
 function sheetDriver(eid, idx){
   const e=sel.event(eid); const list=showDrivers(e);
@@ -1661,12 +1729,14 @@ function delEventContact(eid,cid){
 function sheetShowChecklist(eid){
   const e = sel.event(eid);
   if(!e) return;
-  const rows = (e.checklist||[]).length
+  if(!e.checklist) e.checklist = [];
+  const rows = e.checklist.length
     ? `<div class="card flush">${e.checklist.map(i=>`<div class="check ${i.done?'done':''}"><div class="box" onclick="toggleEventCheck('${eid}','${i.id}')">${ICON.check(15)}</div><div class="lbl" onclick="toggleEventCheck('${eid}','${i.id}')">${esc(i.label)}</div><button class="del" onclick="delEventCheck('${eid}','${i.id}')">${ICON.x(16)}</button></div>`).join('')}</div>`
     : `<div class="hint" style="padding:8px 4px 12px">No items yet — add what you need to prep.</div>`;
   openSheet('Checklist', `
     ${rows}
-    <button type="button" class="btn secondary" onclick="addEventCheckPrompt('${eid}')">${ICON.plus(16)} Add item</button>
+    <div class="field" style="margin-top:12px"><label>New item</label><input id="ck-new" class="input" placeholder="e.g. Track ID list"></div>
+    <button type="button" class="btn" onclick="addEventCheckFromSheet('${eid}')">${ICON.plus(16)} Add item</button>
     <div class="spacer"></div>
   `, { full: true });
 }
@@ -1684,6 +1754,7 @@ function sheetShowTimeline(eid){
   `, { full: true });
 }
 function sheetShowTimelineStep(eid){
+  sheetReturnStack.push({ kind:'showTimeline', id:eid });
   openSheet('Add timeline step', `
     <div class="row-2">
       <div class="field picker-field" style="flex:0 0 40%" onclick="openInputPicker('est-time')">
@@ -1705,7 +1776,12 @@ function saveShowTimelineStep(eid){
   withButton($('#est-save'), ()=>{
     (e.timeline = e.timeline || []).push({ id: uid('tl'), time: time||'', title, sub: val('est-sub'), done: false });
     e.timeline.sort((a,b)=>(a.time||'').localeCompare(b.time||''));
-    persist('shows', eid); closeSheet(); sheetShowTimeline(eid);
+    persist('shows', eid);
+    if(typeof pushShowNow==='function') pushShowNow(eid);
+    closeSheet(true, { noReturn:true });
+    const ret = sheetReturnStack.pop();
+    if(ret) reopenSheetReturn(ret);
+    else sheetShowTimeline(eid);
   }, 'Step added');
 }
 function toggleShowTimelineStep(eid,sid){
