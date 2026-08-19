@@ -903,6 +903,9 @@ const MAKE_ITINERARY_DECISION_WEBHOOK_URL = 'https://hook.eu2.make.com/s9nhy6yve
 let itineraryFullUploadByShow = {};
 /* Itinerary id currently open on the show-basics review sheet (awaiting confirm/cancel). */
 let itineraryReviewActiveId = null;
+/* Prevents ghost taps (e.g. after file picker) from auto-cancelling the review. */
+let itineraryReviewCancelArmed = false;
+let itineraryReviewArmTimer = null;
 
 function viewItinerary(){
   const list = (store.itineraries||[]).slice().sort((a,b)=> (b.date||'').localeCompare(a.date||'') || (b.created||0)-(a.created||0));
@@ -1228,6 +1231,8 @@ async function fetchItineraryScanFields(it){
 function sheetItineraryReview(id){
   const it=(store.itineraries||[]).find(x=>x.id===id); if(!it) return;
   itineraryReviewActiveId = id;
+  itineraryReviewCancelArmed = false;
+  if(itineraryReviewArmTimer){ clearTimeout(itineraryReviewArmTimer); itineraryReviewArmTimer = null; }
   const f=it.scanFields||{};
   const n=new Date();
   const today=`${n.getFullYear()}-${pad(n.getMonth()+1)}-${pad(n.getDate())}`;
@@ -1312,8 +1317,16 @@ function sheetItineraryReview(id){
     const closeBtn = sheetEl.querySelector('.sheet-head .header-btn');
     if(closeBtn) closeBtn.setAttribute('onclick', `abandonItineraryReview('${id}')`);
   }
+  /* Keep default scrim close for a beat so leftover taps after upload don't cancel. */
   const scrim = $('#scrim');
-  if(scrim) scrim.onclick = ()=>abandonItineraryReview(id);
+  if(scrim) scrim.onclick = ()=>closeSheet();
+  itineraryReviewArmTimer = setTimeout(()=>{
+    itineraryReviewArmTimer = null;
+    if(itineraryReviewActiveId !== id) return;
+    itineraryReviewCancelArmed = true;
+    const liveScrim = $('#scrim');
+    if(liveScrim) liveScrim.onclick = ()=>abandonItineraryReview(id);
+  }, 700);
 }
 function notifyItineraryDecision(it, status, extra={}){
   if(!it || !status) return;
@@ -1332,14 +1345,22 @@ function notifyItineraryDecision(it, status, extra={}){
   fetch(MAKE_ITINERARY_DECISION_WEBHOOK_URL, { method:'POST', body:form }).catch(()=>{});
 }
 function abandonItineraryReview(id){
+  if(!itineraryReviewCancelArmed && itineraryReviewActiveId === id){
+    /* Ignore ghost taps right after the review sheet opens. */
+    return;
+  }
   const it=(store.itineraries||[]).find(x=>x.id===id);
   if(it && !it.showId) notifyItineraryDecision(it, 'cancelled', { reason:'closed' });
   itineraryReviewActiveId = null;
+  itineraryReviewCancelArmed = false;
+  if(itineraryReviewArmTimer){ clearTimeout(itineraryReviewArmTimer); itineraryReviewArmTimer = null; }
   closeSheet(true, { noReturn:true });
   renderView();
   toast('Upload cancelled','x');
 }
 function discardItineraryReview(id){
+  /* Explicit discard — always allowed, even before cancel is armed. */
+  itineraryReviewCancelArmed = true;
   openSheet('Discard upload?', `
     <p style="font-size:15px;color:var(--text-2);line-height:1.5;margin:2px 2px 18px">This cancels the itinerary and tells Make not to continue.</p>
     <button class="btn danger" id="itn-discard-yes">Discard</button>
@@ -1352,6 +1373,8 @@ function discardItineraryReview(id){
       const it=(store.itineraries||[]).find(x=>x.id===id);
       if(it) notifyItineraryDecision(it, 'cancelled', { reason:'discarded' });
       itineraryReviewActiveId = null;
+      itineraryReviewCancelArmed = false;
+      if(itineraryReviewArmTimer){ clearTimeout(itineraryReviewArmTimer); itineraryReviewArmTimer = null; }
       store.itineraries=(store.itineraries||[]).filter(x=>x.id!==id);
       persist('user_preferences');
       closeSheet(true, { noReturn:true });
@@ -1395,6 +1418,8 @@ function saveItineraryReview(id){
   it.showId=showId;
   it.date=date;
   itineraryReviewActiveId = null;
+  itineraryReviewCancelArmed = false;
+  if(itineraryReviewArmTimer){ clearTimeout(itineraryReviewArmTimer); itineraryReviewArmTimer = null; }
   notifyItineraryDecision(it, 'confirmed', { show_id: showId });
   persist('shows', showId);
   if(typeof pushShowNow==='function') pushShowNow(showId);
