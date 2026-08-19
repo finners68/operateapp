@@ -898,8 +898,11 @@ function readFiles(input, cb){
 let itineraryUploadMode = null; // 'new' | 'existing'
 const MAKE_ITINERARY_WEBHOOK_URL = 'https://hook.eu2.make.com/xgg1tbfi9leurmlcsgndqc5ssaxhjjxu';
 const MAKE_ITINERARY_FULL_WEBHOOK_URL = 'https://hook.eu2.make.com/p2f3yp4wj7795gifd38v5rpepf3syxjt';
+const MAKE_ITINERARY_DECISION_WEBHOOK_URL = 'https://hook.eu2.make.com/s9nhy6yvevqj0h8wg51wv57m1acwd3fg';
 /* showId -> { status:'uploading'|'done'|'error', message:string } while full OCR runs */
 let itineraryFullUploadByShow = {};
+/* Itinerary id currently open on the show-basics review sheet (awaiting confirm/cancel). */
+let itineraryReviewActiveId = null;
 
 function viewItinerary(){
   const list = (store.itineraries||[]).slice().sort((a,b)=> (b.date||'').localeCompare(a.date||'') || (b.created||0)-(a.created||0));
@@ -1224,6 +1227,7 @@ async function fetchItineraryScanFields(it){
 }
 function sheetItineraryReview(id){
   const it=(store.itineraries||[]).find(x=>x.id===id); if(!it) return;
+  itineraryReviewActiveId = id;
   const f=it.scanFields||{};
   const n=new Date();
   const today=`${n.getFullYear()}-${pad(n.getMonth()+1)}-${pad(n.getDate())}`;
@@ -1299,13 +1303,62 @@ function sheetItineraryReview(id){
     ${extras.length?`<div class="hint" style="text-align:left;padding:4px 2px 10px">Also ready to add after save: <b>${extras.join(', ')}</b></div>`:''}
     <button class="btn" id="itn-rev-save" onclick="saveItineraryReview('${id}')">Create show</button>
     <button class="btn secondary" style="margin-top:10px" onclick="scanItineraryForReview('${id}')">${ICON.checkList(15)} Send to Make again</button>
-    <button class="btn danger" style="margin-top:10px" onclick="delItinerary('${id}')">${ICON.trash(15)} Discard upload</button>
+    <button class="btn danger" style="margin-top:10px" onclick="discardItineraryReview('${id}')">${ICON.trash(15)} Discard upload</button>
     <div class="spacer"></div>
   `);
   if(sheetEl){
     sheetEl.style.setProperty('--sheet-tone', initC);
     sheetEl.classList.add('sheet-toned');
+    const closeBtn = sheetEl.querySelector('.sheet-head .header-btn');
+    if(closeBtn) closeBtn.setAttribute('onclick', `abandonItineraryReview('${id}')`);
   }
+  const scrim = $('#scrim');
+  if(scrim) scrim.onclick = ()=>abandonItineraryReview(id);
+}
+function notifyItineraryDecision(it, status, extra={}){
+  if(!it || !status) return;
+  if(it.decisionNotified === 'confirmed') return;
+  if(it.decisionNotified === status) return;
+  const orgId = resolveOperateOrgId();
+  const form = new FormData();
+  form.append('status', status);
+  form.append('itinerary_id', it.id || '');
+  form.append('organisation_id', orgId || '');
+  const showId = extra.show_id || it.showId || '';
+  if(showId) form.append('show_id', showId);
+  if(extra.reason) form.append('reason', String(extra.reason));
+  it.decisionNotified = status;
+  persist('user_preferences');
+  fetch(MAKE_ITINERARY_DECISION_WEBHOOK_URL, { method:'POST', body:form }).catch(()=>{});
+}
+function abandonItineraryReview(id){
+  const it=(store.itineraries||[]).find(x=>x.id===id);
+  if(it && !it.showId) notifyItineraryDecision(it, 'cancelled', { reason:'closed' });
+  itineraryReviewActiveId = null;
+  closeSheet(true, { noReturn:true });
+  renderView();
+  toast('Upload cancelled','x');
+}
+function discardItineraryReview(id){
+  openSheet('Discard upload?', `
+    <p style="font-size:15px;color:var(--text-2);line-height:1.5;margin:2px 2px 18px">This cancels the itinerary and tells Make not to continue.</p>
+    <button class="btn danger" id="itn-discard-yes">Discard</button>
+    <div class="spacer"></div>
+    <button class="btn secondary" onclick="sheetItineraryReview('${id}')">Keep editing</button>
+  `);
+  setTimeout(()=>{
+    const b=document.getElementById('itn-discard-yes');
+    if(b) b.onclick=()=>{
+      const it=(store.itineraries||[]).find(x=>x.id===id);
+      if(it) notifyItineraryDecision(it, 'cancelled', { reason:'discarded' });
+      itineraryReviewActiveId = null;
+      store.itineraries=(store.itineraries||[]).filter(x=>x.id!==id);
+      persist('user_preferences');
+      closeSheet(true, { noReturn:true });
+      renderView();
+      toast('Upload discarded','trash');
+    };
+  }, 50);
 }
 function saveItineraryReview(id){
   const it=(store.itineraries||[]).find(x=>x.id===id); if(!it) return;
@@ -1341,6 +1394,8 @@ function saveItineraryReview(id){
   it.source='New show from itinerary';
   it.showId=showId;
   it.date=date;
+  itineraryReviewActiveId = null;
+  notifyItineraryDecision(it, 'confirmed', { show_id: showId });
   persist('shows', showId);
   if(typeof pushShowNow==='function') pushShowNow(showId);
   persist('user_preferences');
@@ -1537,7 +1592,16 @@ function delItinShot(id,imid){
   const it=(store.itineraries||[]).find(x=>x.id===id); if(it){ it.imgs=(it.imgs||[]).filter(im=>im.id!==imid); } persist('user_preferences'); openItineraryEntry(id);
 }
 function delItinerary(id){
-  confirmSheet('Delete submission?','','Delete',()=>{ store.itineraries=(store.itineraries||[]).filter(x=>x.id!==id); persist('user_preferences'); closeSheet(); renderView(); toast('Deleted','trash'); }, true);
+  confirmSheet('Delete submission?','','Delete',()=>{
+    const it=(store.itineraries||[]).find(x=>x.id===id);
+    if(it && !it.showId) notifyItineraryDecision(it, 'cancelled', { reason:'deleted' });
+    if(itineraryReviewActiveId === id) itineraryReviewActiveId = null;
+    store.itineraries=(store.itineraries||[]).filter(x=>x.id!==id);
+    persist('user_preferences');
+    closeSheet(true, { noReturn:true });
+    renderView();
+    toast('Deleted','trash');
+  }, true);
 }
 function uploadAttachment(eid,input){ toast('Uploading…','image'); readFile(input, att=>{ const e=sel.event(eid); (e.attachments=e.attachments||[]).push(att); persist('shows', eid); renderView(); toast('Attached','check'); hostImg(att, eid, 'attachment'); }); }
 function delAttachment(eid,aid){ const e=sel.event(eid); e.attachments=e.attachments.filter(a=>a.id!==aid); persist('shows', eid); renderView(); toast('Removed','trash'); }
