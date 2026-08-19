@@ -398,7 +398,7 @@ function prepGroupSummary(e){
   const ideas = store.ideas.filter(x=>x.eventId===e.id).length;
   const contentN = ideas + (e.content?1:0);
   const attachN = (e.attachments||[]).length;
-  const tlN = (e.timeline||[]).length;
+  const tlN = (typeof showDayTimeline==='function' ? showDayTimeline(e) : (e.timeline||[])).length;
   const parts = [];
   if(tlN) parts.push(tlN+' timeline step'+(tlN!==1?'s':''));
   if(cp.total) parts.push('checklist '+cp.done+'/'+cp.total);
@@ -647,14 +647,44 @@ function checklistSubsection(e){
     : `<div class="card tap" onclick="sheetShowChecklist('${e.id}')" style="text-align:center;color:var(--text-3);padding:18px;font-weight:600">${ICON.checkList(20)} Add a checklist item</div>`;
   return showSubsection('ss-'+e.id+'-checklist', title, addBtn, body);
 }
+function timelineStepRow(e, s, opts={}){
+  const eid = e.id;
+  const editable = !s.auto && opts.edit;
+  const openAuto = s.auto ? timelineAutoOpen(eid, s) : '';
+  const labelClick = s.auto && openAuto
+    ? `onclick="${openAuto}"`
+    : (editable ? `onclick="sheetShowTimelineStep('${eid}','${s.id}')"` : `onclick="toggleShowTimelineStep('${eid}','${s.id}')"`);
+  return `<div class="check ${s.done?'done':''}">
+    <div class="box" onclick="toggleShowTimelineStep('${eid}','${s.id}')">${ICON.check(15)}</div>
+    <div class="lbl" ${labelClick} style="flex:1;min-width:0">
+      <b>${esc(s.time||'—')}</b> ${esc(s.title||'Step')}
+      ${s.sub?`<span style="display:block;font-size:12px;color:var(--text-3);font-weight:600;margin-top:2px">${esc(s.sub)}</span>`:''}
+      ${s.auto?`<span style="display:block;font-size:11px;color:var(--text-3);margin-top:2px">From show info</span>`:''}
+    </div>
+    ${editable?`<button class="del" onclick="delShowTimelineStep('${eid}','${s.id}')">${ICON.x(16)}</button>`:''}
+  </div>`;
+}
+function timelineAutoOpen(eid, s){
+  if(s.kind==='flight' && s.refId) return `sheetFlight('${eid}','${s.refId}')`;
+  if(s.kind==='hotel') return `sheetHotel('${eid}')`;
+  if(s.kind==='transport'){
+    const e=sel.event(eid); const list=showDrivers(e);
+    const idx=list.findIndex(d=>String(d.id)===String(s.refId));
+    return idx>=0 ? `sheetDriver('${eid}',${idx})` : `sheetDriver('${eid}')`;
+  }
+  if(s.kind==='set' || s.kind==='arrival') return `sheetEvent('${eid}')`;
+  if(s.kind==='advance') return `sheetAdvance('${eid}')`;
+  return '';
+}
 function timelineSubsection(e){
-  const tl = e.timeline || [];
+  const tl = typeof showDayTimeline==='function' ? showDayTimeline(e) : (e.timeline||[]);
   const addBtn = `<button type="button" class="add" onclick="sheetShowTimeline('${e.id}')">${tl.length?'Edit':'Add'}</button>`;
   if(!tl.length){
     return showSubsection('ss-'+e.id+'-timeline', 'Day timeline', addBtn,
-      `<div class="card tap" onclick="sheetShowTimeline('${e.id}')" style="text-align:center;color:var(--text-3);padding:18px;font-weight:600">${ICON.clock(20)} Add show-day schedule steps</div>`);
+      `<div class="card tap" onclick="sheetShowTimeline('${e.id}')" style="text-align:center;color:var(--text-3);padding:18px;font-weight:600">${ICON.clock(20)} Add show details — timeline fills in automatically</div>`);
   }
-  const body = `<div class="card flush">${tl.map(s=>`<div class="check ${s.done?'done':''}"><div class="box" onclick="toggleShowTimelineStep('${e.id}','${s.id}')">${ICON.check(15)}</div><div class="lbl" onclick="toggleShowTimelineStep('${e.id}','${s.id}')"><b>${esc(s.time||'—')}</b> ${esc(s.title)}${s.sub?`<span style="display:block;font-size:12px;color:var(--text-3);font-weight:600;margin-top:2px">${esc(s.sub)}</span>`:''}</div></div>`).join('')}</div>`;
+  const body = `<div class="card flush">${tl.map(s=>timelineStepRow(e,s)).join('')}</div>
+    <div class="hint" style="text-align:left;padding:8px 4px 0">Flights, hotel, transport and set time appear here automatically. Tap Edit to add custom steps.</div>`;
   return showSubsection('ss-'+e.id+'-timeline', 'Day timeline', addBtn, body);
 }
 function attachmentsSubsection(e){
@@ -1743,38 +1773,50 @@ function sheetShowChecklist(eid){
 function sheetShowTimeline(eid){
   const e = sel.event(eid);
   if(!e) return;
-  const tl = e.timeline || [];
+  const tl = typeof showDayTimeline==='function' ? showDayTimeline(e) : (e.timeline||[]);
+  const autoN = tl.filter(s=>s.auto).length;
+  const customN = tl.filter(s=>!s.auto).length;
   const rows = tl.length
-    ? `<div class="card flush">${tl.map(s=>`<div class="check ${s.done?'done':''}"><div class="box" onclick="toggleShowTimelineStep('${eid}','${s.id}')">${ICON.check(15)}</div><div class="lbl" onclick="toggleShowTimelineStep('${eid}','${s.id}')"><b>${esc(s.time||'—')}</b> ${esc(s.title)}${s.sub?`<span style="display:block;font-size:12px;color:var(--text-3);font-weight:600;margin-top:2px">${esc(s.sub)}</span>`:''}</div><button class="del" onclick="delShowTimelineStep('${eid}','${s.id}')">${ICON.x(16)}</button></div>`).join('')}</div>`
-    : `<div class="hint" style="padding:8px 4px 12px">Build the running order for show day.</div>`;
+    ? `<div class="card flush">${tl.map(s=>timelineStepRow(e,s,{edit:true})).join('')}</div>`
+    : `<div class="hint" style="padding:8px 4px 12px">Add a flight, hotel, transport or set time on this show — those steps appear here automatically.</div>`;
   openSheet('Day timeline', `
+    <p class="sheet-lede">${autoN?autoN+' from show info': 'No auto steps yet'}${customN?` · ${customN} custom`:''}. Tick items off as you go, or add your own.</p>
     ${rows}
-    <button type="button" class="btn secondary" onclick="sheetShowTimelineStep('${eid}')">${ICON.plus(16)} Add step</button>
+    <button type="button" class="btn secondary" style="margin-top:12px" onclick="sheetShowTimelineStep('${eid}')">${ICON.plus(16)} Add custom step</button>
     <div class="spacer"></div>
   `, { full: true });
 }
-function sheetShowTimelineStep(eid){
+function sheetShowTimelineStep(eid, sid){
+  const e = sel.event(eid);
+  const existing = sid && e ? (e.timeline||[]).find(x=>x.id===sid) : null;
   sheetReturnStack.push({ kind:'showTimeline', id:eid });
-  openSheet('Add timeline step', `
+  openSheet(existing?'Edit custom step':'Add custom step', `
     <div class="row-2">
       <div class="field picker-field" style="flex:0 0 40%" onclick="openInputPicker('est-time')">
         <label>Time</label>
-        <input id="est-time" type="time" class="input" onclick="event.stopPropagation();openInputPicker('est-time')">
+        <input id="est-time" type="time" class="input" value="${esc(existing&&existing.time||'')}" onclick="event.stopPropagation();openInputPicker('est-time')">
       </div>
-      <div class="field"><label>What</label><input id="est-title" class="input" placeholder="Soundcheck"></div>
+      <div class="field"><label>What</label><input id="est-title" class="input" value="${esc(existing&&existing.title||'')}" placeholder="Soundcheck"></div>
     </div>
-    <div class="field"><label>Detail (optional)</label><input id="est-sub" class="input" placeholder="Venue, note…"></div>
-    <button class="btn" id="est-save" onclick="saveShowTimelineStep('${eid}')">Add step</button>
+    <div class="field"><label>Detail (optional)</label><input id="est-sub" class="input" value="${esc(existing&&existing.sub||'')}" placeholder="Venue, note…"></div>
+    <button class="btn" id="est-save" onclick="saveShowTimelineStep('${eid}','${sid||''}')">${existing?'Save step':'Add step'}</button>
+    ${existing?`<button type="button" class="btn danger" style="margin-top:10px" onclick="delShowTimelineStep('${eid}','${sid}')">${ICON.trash(16)} Remove</button>`:''}
     <div class="spacer"></div>
   `);
 }
-function saveShowTimelineStep(eid){
+function saveShowTimelineStep(eid, sid){
   const e = sel.event(eid);
   const time = rawVal('est-time');
   const title = val('est-title');
   if(!title){ toast('What happens?','x'); return; }
   withButton($('#est-save'), ()=>{
-    (e.timeline = e.timeline || []).push({ id: uid('tl'), time: time||'', title, sub: val('est-sub'), done: false });
+    e.timeline = e.timeline || [];
+    if(sid){
+      const s = e.timeline.find(x=>x.id===sid);
+      if(s){ s.time=time||''; s.title=title; s.sub=val('est-sub'); }
+    } else {
+      e.timeline.push({ id: uid('tl'), time: time||'', title, sub: val('est-sub'), done: false });
+    }
     e.timeline.sort((a,b)=>(a.time||'').localeCompare(b.time||''));
     persist('shows', eid);
     if(typeof pushShowNow==='function') pushShowNow(eid);
@@ -1782,19 +1824,32 @@ function saveShowTimelineStep(eid){
     const ret = sheetReturnStack.pop();
     if(ret) reopenSheetReturn(ret);
     else sheetShowTimeline(eid);
-  }, 'Step added');
+  }, sid?'Step saved':'Step added');
 }
 function toggleShowTimelineStep(eid,sid){
   const e = sel.event(eid);
-  const s = e && (e.timeline||[]).find(x=>x.id===sid);
-  if(!s) return;
-  s.done = !s.done; haptic(); persist('shows', eid); renderView();
+  if(!e || !sid) return;
+  if(String(sid).startsWith('auto:')){
+    if(typeof toggleShowAutoTimelineStep==='function') toggleShowAutoTimelineStep(e, sid);
+  } else {
+    const s = (e.timeline||[]).find(x=>x.id===sid);
+    if(!s) return;
+    s.done = !s.done;
+  }
+  haptic(); persist('shows', eid);
+  if(sheetEl) sheetShowTimeline(eid);
+  else renderView();
 }
 function delShowTimelineStep(eid,sid){
   const e = sel.event(eid);
   if(!e || !e.timeline) return;
+  if(String(sid).startsWith('auto:')){ toast('That step comes from show info — edit the flight, hotel or set time instead','x'); return; }
   e.timeline = e.timeline.filter(x=>x.id!==sid);
-  persist('shows', eid); renderView(); toast('Step removed','trash');
+  persist('shows', eid);
+  if(typeof pushShowNow==='function') pushShowNow(eid);
+  if(sheetEl) sheetShowTimeline(eid);
+  else renderView();
+  toast('Step removed','trash');
 }
 function sheetTimelineStep(tid){
   openSheet('Add timeline step', `
@@ -1904,13 +1959,13 @@ function buildDaySheet(e){
   L.push(`${e.city||''}${e.country?', '+e.country:''} · ${fmtDateLong(e.date)}`);
   L.push('');
   L.push('⏱ SCHEDULE');
-  if(e.arrival) L.push(`  Arrival: ${e.arrival}`);
-  if(e.flights&&e.flights.length) e.flights.forEach(f=>{
-    const pax = typeof flightPassengerSummary==='function' ? flightPassengerSummary(f) : (f.seat?'seat '+f.seat:'');
-    L.push(`  Flight ${f.code}: ${f.from} ${f.dep?String(f.dep).split(' ').pop():''} → ${f.to} ${f.arr?String(f.arr).split(' ').pop():''}${pax?' ('+pax+')':''}`);
-  });
-  (e.timeline||[]).forEach(s=>L.push(`  ${s.time||''} ${s.title}`));
-  if(e.setTime) L.push(`  Set time: ${e.setTime}`);
+  const tl = typeof showDayTimeline==='function' ? showDayTimeline(e) : (e.timeline||[]);
+  if(tl.length){
+    tl.forEach(s=>L.push(`  ${s.time||'—'} ${s.title}${s.sub?' — '+s.sub:''}`));
+  } else {
+    if(e.arrival) L.push(`  Arrival: ${e.arrival}`);
+    if(e.setTime) L.push(`  Set time: ${e.setTime}`);
+  }
   L.push('');
   L.push('📍 VENUE');
   L.push(`  ${e.venue||''}`);

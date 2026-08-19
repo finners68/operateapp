@@ -255,6 +255,129 @@ function flightParseDep(dep, fallbackDate){
   }
   return { date: fallbackDate || '', time: '' };
 }
+/* Show-day timeline: auto steps from flights / hotel / transport / set / advancing,
+   plus any custom steps saved on e.timeline. Built live so it stays in sync. */
+function showDayTimeline(e){
+  if(!e) return [];
+  const autoDone = e.timelineAutoDone || {};
+  const rows = [];
+
+  if(e.arrival){
+    rows.push({
+      id:'auto:arrival', auto:true, kind:'arrival', icon:'pin',
+      time:e.arrival, title:'Arrive at venue', sub:'From show basics',
+      done:!!autoDone['auto:arrival']
+    });
+  }
+
+  (e.flights||[]).forEach(f=>{
+    if(typeof flightHasDetails==='function' && !flightHasDetails(f)) return;
+    const parsed = flightParseDep(f.dep, e.date);
+    const route = (f.from&&f.to) ? (f.from+' → '+f.to) : (f.code||'Flight');
+    const bits = [
+      f.code||'',
+      parsed.date && parsed.date!==e.date ? parsed.date : '',
+      f.gate ? ('Gate '+f.gate) : '',
+      f.terminal ? ('Term '+f.terminal) : ''
+    ].filter(Boolean);
+    rows.push({
+      id:'auto:flight:'+f.id, auto:true, kind:'flight', icon:'plane', refId:f.id,
+      time:parsed.time||'', title:route, sub:bits.join(' · ')||'From flights',
+      done:!!f.done
+    });
+  });
+
+  if(e.hotel && (e.hotel.name||e.hotel.address||e.hotel.city||e.hotel.checkin)){
+    const when = e.hotel.checkin && e.hotel.checkin!==e.date ? ('Check-in '+e.hotel.checkin) : 'Check-in';
+    rows.push({
+      id:'auto:hotel', auto:true, kind:'hotel', icon:'bed',
+      time:'', title:e.hotel.name||'Hotel', sub:when,
+      done:!!e.hotel.done
+    });
+  }
+
+  showDrivers(e).forEach((d, idx)=>{
+    if(!(d.time||d.journey||d.name||d.noGround)) return;
+    const id = d.id || ('i'+idx);
+    rows.push({
+      id:'auto:drv:'+id, auto:true, kind:'transport', icon:'car', refId:id,
+      time:d.time||'', title:d.journey||(d.noGround?'Uber / taxi':(d.name||'Transport')),
+      sub:d.noGround?'No grounds':[d.name,d.pickup].filter(Boolean).join(' · ')||'From transport',
+      done:!!d.done
+    });
+  });
+
+  ((e.advance&&e.advance.schedule)||[]).forEach((s,i)=>{
+    if(!(s.time||s.label||s.title)) return;
+    const id='auto:adv:'+i;
+    rows.push({
+      id, auto:true, kind:'advance', icon:'clock',
+      time:s.time||'', title:s.label||s.title||'Schedule',
+      sub:'From advancing', done:!!(s.done||autoDone[id])
+    });
+  });
+
+  if(e.advance&&e.advance.soundcheck){
+    const id='auto:soundcheck';
+    rows.push({
+      id, auto:true, kind:'advance', icon:'music',
+      time:'', title:'Sound check', sub:String(e.advance.soundcheck),
+      done:!!autoDone[id]
+    });
+  }
+
+  if(e.setTime || e.venue){
+    rows.push({
+      id:'auto:set', auto:true, kind:'set', icon:'music',
+      time:e.setTime||'', title:e.venue||'Set',
+      sub:e.setTime?('Set '+e.setTime+(e.endTime?' – '+e.endTime:'')):'Set TBA',
+      done:!!e.setDone
+    });
+  }
+
+  (e.timeline||[]).forEach(s=>{
+    if(!s) return;
+    rows.push({
+      id:s.id, auto:false, kind:'custom', icon:'clock',
+      time:s.time||'', title:s.title||'Step', sub:s.sub||'',
+      done:!!s.done
+    });
+  });
+
+  rows.sort((a,b)=>{
+    const ta=a.time||'99:99', tb=b.time||'99:99';
+    if(ta!==tb) return ta.localeCompare(tb);
+    return String(a.title||'').localeCompare(String(b.title||''));
+  });
+  return rows;
+}
+function toggleShowAutoTimelineStep(e, sid){
+  if(!e || !sid) return false;
+  if(sid==='auto:set'){ e.setDone=!e.setDone; return true; }
+  if(sid==='auto:hotel'){
+    if(!e.hotel) e.hotel={};
+    e.hotel.done=!e.hotel.done;
+    return true;
+  }
+  if(sid.startsWith('auto:flight:')){
+    const f=(e.flights||[]).find(x=>x.id===sid.slice(12));
+    if(f){ f.done=!f.done; return true; }
+    return false;
+  }
+  if(sid.startsWith('auto:drv:')){
+    const d=showDrivers(e).find(x=>String(x.id)===sid.slice(9));
+    if(d){ d.done=!d.done; return true; }
+    return false;
+  }
+  if(sid.startsWith('auto:adv:')){
+    const i=+sid.slice(9);
+    const s=e.advance&&e.advance.schedule&&e.advance.schedule[i];
+    if(s){ s.done=!s.done; return true; }
+  }
+  e.timelineAutoDone = e.timelineAutoDone || {};
+  e.timelineAutoDone[sid] = !e.timelineAutoDone[sid];
+  return true;
+}
 
 /* persist(scope, id) = day-to-day scoped dirty; online flush is immediate.
    persistAll() = intentional full tour sync (bootstrap / recovery only).
