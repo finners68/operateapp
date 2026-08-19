@@ -1317,10 +1317,9 @@ function sheetItineraryReview(id){
     const closeBtn = sheetEl.querySelector('.sheet-head .header-btn');
     if(closeBtn) closeBtn.setAttribute('onclick', `abandonItineraryReview('${id}')`);
   }
-  /* Backdrop only closes the sheet — it must NOT notify Make (ghost taps
-     after file picker / sheet open were firing status=cancelled reason=closed). */
+  /* No tap-outside-to-close — exit must be intentional (Create / Discard / X). */
   const scrim = $('#scrim');
-  if(scrim) scrim.onclick = ()=>closeItineraryReviewQuietly(id);
+  if(scrim) scrim.onclick = null;
   itineraryReviewArmTimer = setTimeout(()=>{
     itineraryReviewArmTimer = null;
     if(itineraryReviewActiveId !== id) return;
@@ -1348,12 +1347,6 @@ function clearItineraryReviewGuards(){
   itineraryReviewCancelArmed = false;
   if(itineraryReviewArmTimer){ clearTimeout(itineraryReviewArmTimer); itineraryReviewArmTimer = null; }
 }
-/* Close the review UI without telling Make. */
-function closeItineraryReviewQuietly(id){
-  if(itineraryReviewActiveId === id) clearItineraryReviewGuards();
-  closeSheet(true, { noReturn:true });
-  renderView();
-}
 function abandonItineraryReview(id){
   /* Only the X button uses this — and only after the sheet has been open briefly. */
   if(!itineraryReviewCancelArmed || itineraryReviewActiveId !== id) return;
@@ -1372,6 +1365,8 @@ function discardItineraryReview(id){
     <div class="spacer"></div>
     <button class="btn secondary" onclick="sheetItineraryReview('${id}')">Keep editing</button>
   `);
+  const scrim = $('#scrim');
+  if(scrim) scrim.onclick = null;
   setTimeout(()=>{
     const b=document.getElementById('itn-discard-yes');
     if(b) b.onclick=()=>{
