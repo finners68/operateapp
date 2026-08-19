@@ -1006,28 +1006,28 @@ function normalizeScanTime(v){
 function blankShowFromBasics(basics){
   return {
     id: uid('evt'),
-    artist: store.settings.artistName,
+    artist: basics.artist || store.settings.artistName,
     tripId: null,
     venue: basics.venue||'New show',
     venueAddr: basics.venueAddr||'',
-    venueAddr2: '',
-    venueRegion: '',
-    venuePostcode: '',
+    venueAddr2: basics.venueAddr2||'',
+    venueRegion: basics.venueRegion||'',
+    venuePostcode: basics.venuePostcode||'',
     city: basics.city||'',
     country: basics.country||'',
     date: basics.date||'',
     setTime: basics.setTime||'',
     endTime: basics.endTime||'',
     arrival: basics.arrival||'',
-    status: 'confirmed',
-    content: '',
-    color: 'purple',
+    status: basics.status||'confirmed',
+    content: basics.content||'',
+    color: basics.color||'purple',
     hotel: null,
     flights: [],
     driver: null,
     drivers: [],
     promoter: null,
-    notes: '',
+    notes: basics.notes||'',
     checklist: [],
     timeline: [],
     attachments: [],
@@ -1206,34 +1206,50 @@ function sheetItineraryReview(id){
   const city=f.city||'';
   const country=f.country||'';
   const date=normalizeScanDate(f.date)||it.date||today;
-  const setTime=normalizeScanTime(f.setTime);
+  const setTime=normalizeScanTime(f.setTime)||'23:00';
   const endTime=normalizeScanTime(f.endTime);
   const arrival=normalizeScanTime(f.arrival);
-  const venueAddr=f.venueAddress||'';
-  const shows = sel.events().slice().sort((a,b)=>(b.date||'').localeCompare(a.date||''));
-  const upcoming = typeof showPassed==='function' ? shows.filter(s=>!showPassed(s)) : shows;
-  const showOpts = (upcoming.length?upcoming:shows);
-  const extras = [];
+  const venueAddr=f.venueAddress||f.venueAddr||'';
+  const venueAddr2=f.venueAddress2||f.venueAddr2||'';
+  const venueRegion=f.venueRegion||f.region||'';
+  const venuePostcode=f.venuePostcode||f.postcode||'';
+  const content=f.content||'';
+  const notes=f.notes||f.remarks||'';
+  const artist=f.artist||store.settings.artistName||'';
+  const status=f.status||'confirmed';
+  const initCat=f.color&&CATS[f.color]?f.color:'purple';
+  const initC=CATS[initCat]||CATS.purple;
+  const swatches=Object.entries(CATS).map(([k,v])=>`<div class="sw${k===initCat?' on':''}" style="background:${v}" data-cat="${k}" onclick="pickCat(this)"></div>`).join('');
+  const extras=[];
   if(f.hotelName||f.hotelAddress) extras.push('hotel');
   if(f.driverName||f.driverPhone) extras.push('transport');
   if(f.soundcheck||f.curfew||f.doors||f.stage||f.guestlist||f.catering) extras.push('advancing');
-  const thumbs=(it.imgs||[]).slice(0,3).map(im=>im.kind==='image'
-    ? `<div class="thumb" onclick="openViewer('${im.data}')"><img src="${im.data}"></div>`
-    : `<div class="thumb"><div class="pdf">${ICON.file(22)}</div></div>`).join('');
 
-  openSheet('Review show basics', `
-    <p class="sheet-lede">Check these details. When you save, the show is created and the rest of the itinerary (hotel, transport, advancing) is filled in.</p>
-    ${thumbs?`<div class="thumb-row" style="margin-bottom:12px">${thumbs}</div>`:''}
-    <div class="field"><label>Venue</label><input id="itn-rev-venue" class="input" value="${esc(venue)}" placeholder="Club / festival name"></div>
-    <div class="row-2">
-      <div class="field"><label>City</label><input id="itn-rev-city" class="input" value="${esc(city)}" placeholder="Amsterdam"></div>
-      <div class="field"><label>Country</label><input id="itn-rev-country" class="input" value="${esc(country)}" placeholder="NL"></div>
+  openSheet('Show basics', `
+    <div class="dhero sheet-event-preview" id="ev-preview" style="background:linear-gradient(155deg,${initC}33,var(--card) 65%);border-color:${initC}44">
+      <div class="cat-bar" style="background:${initC}"></div>
+      <div class="sheet-event-tone" style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:${initC}">New show from itinerary</div>
+      <div id="ev-preview-venue" style="font-size:20px;font-weight:800;margin-top:4px">${esc(venue||'Venue name')}</div>
     </div>
-    <div class="field"><label>Venue address</label><input id="itn-rev-addr" class="input" value="${esc(venueAddr)}" placeholder="Street, number…"></div>
+    <div class="field"><label>Venue</label><input id="itn-rev-venue" class="input" placeholder="e.g. Shelter" value="${esc(venue)}" oninput="updateEventPreviewVenue()"></div>
+    <div class="field"><label>Address</label><input id="itn-rev-addr" class="input" placeholder="Street and number" value="${esc(venueAddr)}"></div>
+    <div class="field"><label>Address line 2</label><input id="itn-rev-addr2" class="input" placeholder="Building, floor, unit (optional)" value="${esc(venueAddr2)}"></div>
     <div class="row-2">
-      <div class="field picker-field" onclick="openInputPicker('itn-rev-date')">
-        <label>Date</label>
-        <input id="itn-rev-date" type="date" class="input" value="${esc(date)}" onclick="event.stopPropagation();openInputPicker('itn-rev-date')">
+      <div class="field"><label>City</label><input id="itn-rev-city" class="input" placeholder="Amsterdam" value="${esc(city)}"></div>
+      <div class="field"><label>Region</label><input id="itn-rev-region" class="input" placeholder="North Holland" value="${esc(venueRegion)}"></div>
+    </div>
+    <div class="row-2">
+      <div class="field"><label>Postcode</label><input id="itn-rev-postcode" class="input" placeholder="1012 AB" value="${esc(venuePostcode)}"></div>
+      <div class="field"><label>Country</label><input id="itn-rev-country" class="input" placeholder="Netherlands" value="${esc(country)}"></div>
+    </div>
+    <div class="field picker-field" onclick="openInputPicker('itn-rev-date')">
+      <label>Date</label>
+      <input id="itn-rev-date" type="date" class="input" value="${esc(date)}" onclick="event.stopPropagation();openInputPicker('itn-rev-date')">
+    </div>
+    <div class="row-2">
+      <div class="field picker-field" onclick="openInputPicker('itn-rev-set')">
+        <label>Set time</label>
+        <input id="itn-rev-set" type="time" class="input" value="${esc(setTime)}" onclick="event.stopPropagation();openInputPicker('itn-rev-set')">
       </div>
       <div class="field picker-field" onclick="openInputPicker('itn-rev-arr')">
         <label>Arrival</label>
@@ -1241,27 +1257,30 @@ function sheetItineraryReview(id){
       </div>
     </div>
     <div class="row-2">
-      <div class="field picker-field" onclick="openInputPicker('itn-rev-set')">
-        <label>Set time</label>
-        <input id="itn-rev-set" type="time" class="input" value="${esc(setTime)}" onclick="event.stopPropagation();openInputPicker('itn-rev-set')">
-      </div>
       <div class="field picker-field" onclick="openInputPicker('itn-rev-end')">
         <label>End time</label>
         <input id="itn-rev-end" type="time" class="input" value="${esc(endTime)}" onclick="event.stopPropagation();openInputPicker('itn-rev-end')">
       </div>
+      <div class="field"><label>Artist</label><input id="itn-rev-artist" class="input" placeholder="${esc(store.settings.artistName||'Artist')}" value="${esc(artist)}"></div>
     </div>
+    <div class="field"><label>Status</label>
+      <div class="seg" id="itn-rev-status">
+        ${['confirmed','hold','cancelled'].map(s=>`<button data-v="${s}" class="${status===s?'on':''}" onclick="segPick(this)">${s[0].toUpperCase()+s.slice(1)}</button>`).join('')}
+      </div>
+    </div>
+    <div class="field"><label>Content to capture</label><input id="itn-rev-content" class="input" placeholder="e.g. 2x reels · crowd clip" value="${esc(content)}"></div>
+    <div class="field"><label>Internal notes</label><textarea id="itn-rev-notes" class="textarea" placeholder="Team-only notes">${esc(notes)}</textarea></div>
+    <div class="field"><label>Colour</label><div class="swatches" id="itn-rev-cat">${swatches}</div></div>
     ${extras.length?`<div class="hint" style="text-align:left;padding:4px 2px 10px">Also ready to add after save: <b>${extras.join(', ')}</b></div>`:''}
-    <div class="field"><label>Or add to an existing show instead</label>
-      <select id="itn-rev-existing" class="input">
-        <option value="">— Create a new show —</option>
-        ${showOpts.map(s=>`<option value="${s.id}">${esc(s.venue||'Show')} · ${esc(fmtDate(s.date))}</option>`).join('')}
-      </select>
-    </div>
-    <button class="btn" id="itn-rev-save" onclick="saveItineraryReview('${id}')">Save show</button>
-    <button class="btn secondary" style="margin-top:10px" onclick="scanItineraryForReview('${id}')">${ICON.checkList(15)} Scan again</button>
+    <button class="btn" id="itn-rev-save" onclick="saveItineraryReview('${id}')">Create show</button>
+    <button class="btn secondary" style="margin-top:10px" onclick="scanItineraryForReview('${id}')">${ICON.checkList(15)} Send to Make again</button>
     <button class="btn danger" style="margin-top:10px" onclick="delItinerary('${id}')">${ICON.trash(15)} Discard upload</button>
     <div class="spacer"></div>
-  `, { full: true });
+  `);
+  if(sheetEl){
+    sheetEl.style.setProperty('--sheet-tone', initC);
+    sheetEl.classList.add('sheet-toned');
+  }
 }
 function saveItineraryReview(id){
   const it=(store.itineraries||[]).find(x=>x.id===id); if(!it) return;
@@ -1271,42 +1290,30 @@ function saveItineraryReview(id){
   if(!date){ toast('Add a show date','x'); return; }
   const basics={
     venue,
+    venueAddr: val('itn-rev-addr'),
+    venueAddr2: val('itn-rev-addr2'),
+    venueRegion: val('itn-rev-region'),
+    venuePostcode: val('itn-rev-postcode'),
     city: val('itn-rev-city'),
     country: val('itn-rev-country'),
-    venueAddr: val('itn-rev-addr'),
     date,
     arrival: rawVal('itn-rev-arr'),
     setTime: rawVal('itn-rev-set'),
-    endTime: rawVal('itn-rev-end')
+    endTime: rawVal('itn-rev-end'),
+    artist: val('itn-rev-artist') || store.settings.artistName,
+    status: (typeof getSeg==='function' ? getSeg('itn-rev-status') : '') || 'confirmed',
+    content: val('itn-rev-content'),
+    notes: val('itn-rev-notes'),
+    color: (typeof getCat==='function' ? getCat('itn-rev-cat') : '') || 'purple'
   };
-  const existingId=rawVal('itn-rev-existing');
   const f=it.scanFields||{};
   const btn=$('#itn-rev-save'); if(btn) btn.disabled=true;
 
-  let showId='';
-  let filled=[];
-  if(existingId){
-    const e=sel.event(existingId); if(!e){ toast('Show not found','x'); if(btn) btn.disabled=false; return; }
-    // Reviewed basics only fill gaps on an existing show
-    if(!e.venue && basics.venue) e.venue=basics.venue;
-    if(!e.city && basics.city) e.city=basics.city;
-    if(!e.country && basics.country) e.country=basics.country;
-    if(!e.venueAddr && basics.venueAddr) e.venueAddr=basics.venueAddr;
-    if(!e.date && basics.date) e.date=basics.date;
-    if(!e.arrival && basics.arrival) e.arrival=basics.arrival;
-    if(!e.setTime && basics.setTime) e.setTime=basics.setTime;
-    if(!e.endTime && basics.endTime) e.endTime=basics.endTime;
-    filled=applyScanToShow(e, f);
-    showId=e.id;
-    it.source='Added to existing show';
-  } else {
-    const ev=blankShowFromBasics(basics);
-    store.events.push(ev);
-    filled=applyScanToShow(ev, f);
-    showId=ev.id;
-    it.source='New show from itinerary';
-  }
-
+  const ev=blankShowFromBasics(basics);
+  store.events.push(ev);
+  const filled=applyScanToShow(ev, f);
+  const showId=ev.id;
+  it.source='New show from itinerary';
   it.showId=showId;
   it.date=date;
   persist('shows', showId);
@@ -1316,7 +1323,7 @@ function saveItineraryReview(id){
   renderView();
   openView('event', showId);
   const extra = filled.length ? (' · filled '+filled.join(', ')) : '';
-  toast((existingId?'Show updated':'Show created')+extra, 'check');
+  toast('Show created'+extra, 'check');
 }
 function sheetItinerary(id){
   const it=(store.itineraries||[]).find(x=>x.id===id); if(!it) return;

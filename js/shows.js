@@ -932,7 +932,7 @@ function applyEventSheetColor(cat){
   }
 }
 function updateEventPreviewVenue(){
-  const v = val('ev-venue') || 'Venue name';
+  const v = val('ev-venue') || val('itn-rev-venue') || 'Venue name';
   const el = document.getElementById('ev-preview-venue');
   if(el) el.textContent = v;
 }
