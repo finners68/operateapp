@@ -891,13 +891,10 @@ function readFiles(input, cb){
 }
 
 /* ============================================================
-   Itinerary inbox — drop ABOSS itineraries / flight screenshots.
-   Phase 1: stores the reference + date/time/show tag (never overwrites structured data).
-   Phase 2: reads the image and fills only the MISSING show fields automatically.
+   Itinerary inbox
+   Flow: upload → scan → review show basics → save creates the show
+   and fills hotel / transport / advancing from the scan.
    ============================================================ */
-let itineraryUploadMode = null; // 'new' | 'existing'
-let itineraryUploadShowId = '';
-
 function viewItinerary(){
   const list = (store.itineraries||[]).slice().sort((a,b)=> (b.date||'').localeCompare(a.date||'') || (b.created||0)-(a.created||0));
   return `
@@ -907,185 +904,304 @@ function viewItinerary(){
     <div style="width:36px"></div>
   </div></div>
   <div class="screen-pad stagger">
-    <button type="button" class="btn" style="margin-top:14px" onclick="sheetItineraryStart()">${ICON.plus(18)} Submit itinerary</button>
-    <div class="hint" style="text-align:left;padding:11px 2px 2px">Upload an ABOSS itinerary, flight screenshot or advance sheet. You’ll choose whether it’s a <b>new show</b> or info for an <b>existing show</b>, then Operate can fill in missing details without overwriting what you’ve already entered.</div>
+    <label class="btn" style="margin-top:14px">${ICON.plus(18)} Upload itinerary
+      <input type="file" accept="image/*,application/pdf" multiple style="display:none" onchange="submitItinerary(this)">
+    </label>
+    <div class="hint" style="text-align:left;padding:11px 2px 2px">Upload an ABOSS itinerary or advance sheet first. Operate scans it, shows you the <b>show basics</b> to check, then creates the show and fills the rest when you save.</div>
     ${list.length? list.map(itinCard).join('') : `<div class="empty" style="margin-top:22px"><div class="ic">${ICON.file(26)}</div><b>Nothing submitted yet</b><span>Upload your first itinerary screenshot.</span></div>`}
     <div class="spacer"></div><div class="spacer"></div>
   </div>`;
 }
 function itinCard(it){
   const show = it.showId? sel.event(it.showId):null;
+  const pending = !!(it.scanFields && !it.showId);
   const when = (it.date?fmtDate(it.date):'')+(it.time?' · '+it.time:'');
   const thumbs = (it.imgs||[]).map(im=>im.kind==='image'
     ? `<div class="thumb" onclick="event.stopPropagation();openViewer('${im.data}')"><img src="${im.data}"></div>`
     : `<div class="thumb"><div class="pdf">${ICON.file(26)}<span>${esc(im.name||'PDF')}</span></div></div>`).join('');
   return `<div class="card" style="margin-top:12px;padding:14px">
-    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px" onclick="sheetItinerary('${it.id}')">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px" onclick="openItineraryEntry('${it.id}')">
       <div style="min-width:0"><b style="font-size:15.5px">${esc(it.source||'Itinerary')}</b>
-        <div style="font-size:13px;color:var(--text-2);margin-top:2px">${when||'No date set'}${show?' · '+esc(show.venue):''}</div>
+        <div style="font-size:13px;color:var(--text-2);margin-top:2px">${pending?'Review show basics':(when||'No date set')}${show?' · '+esc(show.venue):''}</div>
+        ${pending?`<div style="font-size:12.5px;color:var(--accent-2);margin-top:4px;font-weight:650">Waiting for you to confirm &amp; create the show</div>`:''}
         ${it.note?`<div style="font-size:13px;color:var(--text-3);margin-top:5px;white-space:pre-wrap">${esc(it.note)}</div>`:''}</div>
       ${ICON.chevR(15)}
     </div>
     ${thumbs?`<div class="thumb-row" style="margin-top:11px">${thumbs}</div>`:''}
   </div>`;
 }
-function sheetItineraryStart(){
-  itineraryUploadMode = null;
-  itineraryUploadShowId = '';
-  openSheet('Submit itinerary', `
-    <p class="sheet-lede">First choose what this upload is for — then pick the file.</p>
-    <div class="edit-section-grid">
-      <button type="button" class="edit-section-btn" onclick="beginItineraryNewShow()">${ICON.plus(16)}<span><b>New show</b><small>Create a show from this itinerary</small></span></button>
-      <button type="button" class="edit-section-btn" onclick="beginItineraryExistingShow()">${ICON.music(16)}<span><b>Existing show</b><small>Add missing details to a show you already have</small></span></button>
-    </div>
-    <div class="spacer"></div>
-  `);
+function openItineraryEntry(id){
+  const it=(store.itineraries||[]).find(x=>x.id===id); if(!it) return;
+  if(it.scanFields && !it.showId){ sheetItineraryReview(id); return; }
+  sheetItinerary(id);
 }
-function beginItineraryNewShow(){
-  itineraryUploadMode = 'new';
-  itineraryUploadShowId = '';
-  const n = new Date();
-  const today = `${n.getFullYear()}-${pad(n.getMonth()+1)}-${pad(n.getDate())}`;
-  openSheet('New show from itinerary', `
-    <p class="sheet-lede">Add the basics, upload the itinerary, then scan to fill hotel, times and more.</p>
-    <div class="field"><label>Venue</label><input id="itn-new-venue" class="input" placeholder="Club / festival name"></div>
-    <div class="row-2">
-      <div class="field"><label>City</label><input id="itn-new-city" class="input" placeholder="Amsterdam"></div>
-      <div class="field picker-field" onclick="openInputPicker('itn-new-date')">
-        <label>Date</label>
-        <input id="itn-new-date" type="date" class="input" value="${today}" onclick="event.stopPropagation();openInputPicker('itn-new-date')">
-      </div>
-    </div>
-    <label class="btn" style="margin-top:8px">${ICON.plus(18)} Upload itinerary
-      <input type="file" accept="image/*,application/pdf" multiple style="display:none" onchange="submitItinerary(this,'new')">
-    </label>
-    <div class="hint" style="text-align:left;padding:10px 2px 0">You can scan the screenshot after upload to fill missing details automatically.</div>
-    <div class="spacer"></div>
-  `);
-}
-function beginItineraryExistingShow(){
-  itineraryUploadMode = 'existing';
-  itineraryUploadShowId = '';
-  const shows = sel.events().slice().sort((a,b)=>(b.date||'').localeCompare(a.date||''));
-  if(!shows.length){
-    openSheet('Add to a show', `
-      <div class="empty" style="padding:18px 8px"><div class="ic">${ICON.music(26)}</div><b>No shows yet</b><span>Create a show first, or choose New show instead.</span></div>
-      <button type="button" class="btn secondary" onclick="beginItineraryNewShow()">${ICON.plus(16)} New show from itinerary</button>
-      <div class="spacer"></div>
-    `);
-    return;
+function normalizeScanDate(v){
+  const s=String(v||'').trim();
+  if(!s) return '';
+  if(/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0,10);
+  const m=s.match(/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{2,4})$/);
+  if(m){
+    const d=+m[1], mo=+m[2], y=m[3].length===2?2000+(+m[3]):(+m[3]);
+    if(d>=1&&d<=31&&mo>=1&&mo<=12) return `${y}-${pad(mo)}-${pad(d)}`;
   }
-  const upcoming = typeof showPassed==='function' ? shows.filter(s=>!showPassed(s)) : shows;
-  const list = upcoming.length ? upcoming : shows;
-  openSheet('Add to a show', `
-    <p class="sheet-lede">Pick the show this itinerary belongs to, then upload the file.</p>
-    <div class="field"><label>Show</label>
-      <select id="itn-pick-show" class="input">
-        ${list.map(s=>`<option value="${s.id}">${esc(s.venue||'Show')} · ${esc(fmtDate(s.date))}</option>`).join('')}
-      </select>
-    </div>
-    <label class="btn" style="margin-top:8px">${ICON.plus(18)} Upload itinerary
-      <input type="file" accept="image/*,application/pdf" multiple style="display:none" onchange="submitItinerary(this,'existing')">
-    </label>
-    <div class="hint" style="text-align:left;padding:10px 2px 0">Scan fills only missing fields — it won’t overwrite what you’ve already entered.</div>
-    <div class="spacer"></div>
-  `);
+  const dt=new Date(s);
+  if(!isNaN(dt.getTime())) return `${dt.getFullYear()}-${pad(dt.getMonth()+1)}-${pad(dt.getDate())}`;
+  return '';
 }
-function submitItinerary(input, mode){
-  const uploadMode = mode || itineraryUploadMode || 'existing';
+function normalizeScanTime(v){
+  const s=String(v||'').trim();
+  if(!s) return '';
+  const m=s.match(/(\d{1,2}):(\d{2})/);
+  if(!m) return '';
+  return pad(+m[1])+':'+m[2];
+}
+function blankShowFromBasics(basics){
+  return {
+    id: uid('evt'),
+    artist: store.settings.artistName,
+    tripId: null,
+    venue: basics.venue||'New show',
+    venueAddr: basics.venueAddr||'',
+    venueAddr2: '',
+    venueRegion: '',
+    venuePostcode: '',
+    city: basics.city||'',
+    country: basics.country||'',
+    date: basics.date||'',
+    setTime: basics.setTime||'',
+    endTime: basics.endTime||'',
+    arrival: basics.arrival||'',
+    status: 'confirmed',
+    content: '',
+    color: 'purple',
+    hotel: null,
+    flights: [],
+    driver: null,
+    drivers: [],
+    promoter: null,
+    notes: '',
+    checklist: [],
+    timeline: [],
+    attachments: [],
+    advance: {},
+    finance: {
+      fee:0, currency:store.settings.baseCurrency, dealType:'Guarantee',
+      expenses:[], perDiem:0, commission:0, paid:false
+    }
+  };
+}
+function submitItinerary(input){
   toast('Reading…','image');
-  readFiles(input, imgs=>{
+  readFiles(input, async imgs=>{
     if(!imgs.length){ toast('Nothing added','x'); return; }
-
-    let showId = '';
-    let date = '';
-    let source = '';
-
-    if(uploadMode === 'new'){
-      const venue = val('itn-new-venue');
-      date = rawVal('itn-new-date');
-      const city = val('itn-new-city');
-      if(!venue){ toast('Add a venue name','x'); return; }
-      if(!date){ toast('Add a show date','x'); return; }
-      const ev = {
-        id: uid('evt'),
-        artist: store.settings.artistName,
-        tripId: null,
-        venue,
-        venueAddr: '',
-        venueAddr2: '',
-        venueRegion: '',
-        venuePostcode: '',
-        city: city||'',
-        country: '',
-        date,
-        setTime: '',
-        endTime: '',
-        arrival: '',
-        status: 'confirmed',
-        content: '',
-        color: 'purple',
-        hotel: null,
-        flights: [],
-        driver: null,
-        drivers: [],
-        promoter: null,
-        notes: '',
-        checklist: [],
-        timeline: [],
-        attachments: [],
-        finance: {
-          fee:0, currency:store.settings.baseCurrency, dealType:'Guarantee',
-          expenses:[], perDiem:0, commission:0, paid:false
-        }
-      };
-      store.events.push(ev);
-      showId = ev.id;
-      source = 'New show itinerary';
-      persist('shows', showId);
-      if(typeof pushShowNow === 'function') pushShowNow(showId);
-    } else {
-      showId = rawVal('itn-pick-show') || itineraryUploadShowId || '';
-      if(!showId){ toast('Pick a show first','x'); return; }
-      const show = sel.event(showId);
-      date = (show && show.date) || '';
-      source = 'Show itinerary';
-    }
-
-    if(!date){
-      const n=new Date();
-      date=`${n.getFullYear()}-${pad(n.getMonth()+1)}-${pad(n.getDate())}`;
-    }
-
+    const n=new Date();
+    const date=`${n.getFullYear()}-${pad(n.getMonth()+1)}-${pad(n.getDate())}`;
     const entry={
       id:uid('itin'),
-      source,
+      source:'Itinerary upload',
       date,
       time:'',
       note:'',
-      showId: showId||'',
+      showId:'',
       imgs,
-      created:Date.now(),
-      mode: uploadMode
+      scanFields:null,
+      created:Date.now()
     };
     store.itineraries = store.itineraries || [];
     store.itineraries.unshift(entry);
     persist('user_preferences');
     imgs.forEach(im => hostImg(im, 'itinerary', 'itinerary'));
-    itineraryUploadMode = null;
-    itineraryUploadShowId = '';
     renderView();
-    sheetItinerary(entry.id, { suggestScan: true, createdNew: uploadMode==='new' });
-    if(uploadMode==='new') toast('Show created — scan to fill details','check');
+    await scanItineraryForReview(entry.id);
   });
 }
-function sheetItinerary(id, opts={}){
+async function fetchItineraryScanFields(it){
+  const img=(it.imgs||[]).find(im=>im.kind==='image');
+  if(!img) return { error:'no_image' };
+  if(!isSupabaseConfigured() || !authUser) return { error:'sign_in' };
+  const token = await getAccessToken();
+  if(!token) return { error:'sign_in' };
+  const res=await fetch(OPERATE_CONFIG.SUPABASE_URL.replace(/\/$/,'')+'/functions/v1/scan-itinerary', {
+    method:'POST',
+    headers:{ 'apikey':OPERATE_CONFIG.SUPABASE_ANON_KEY, 'Authorization':'Bearer '+token, 'Content-Type':'application/json' },
+    body: JSON.stringify({ image: img.data })
+  });
+  const data=await res.json().catch(()=>({}));
+  if(!res.ok || (data && data.error)) return { error: (data&&data.error) || 'scan_failed' };
+  return { fields: (data&&data.fields) || {} };
+}
+async function scanItineraryForReview(id){
+  const it=(store.itineraries||[]).find(x=>x.id===id); if(!it) return;
+  const hasImage=(it.imgs||[]).some(im=>im.kind==='image');
+  if(!hasImage){
+    toast('PDF saved — add a screenshot to auto-read show basics','file');
+    sheetItineraryReview(id);
+    return;
+  }
+  openSheet('Reading itinerary', `
+    <div class="empty" style="padding:28px 10px">
+      <div class="ic">${ICON.file(28)}</div>
+      <b>Scanning your upload…</b>
+      <span>Pulling venue, date and times so you can check them before the show is created.</span>
+    </div>
+    <div class="spacer"></div>
+  `);
+  toast('Scanning itinerary…','image');
+  try{
+    const result = await fetchItineraryScanFields(it);
+    if(result.error==='sign_in'){
+      toast('Sign in to auto-read itineraries — you can still fill basics manually','x');
+      sheetItineraryReview(id);
+      return;
+    }
+    if(result.error==='no_image'){
+      sheetItineraryReview(id);
+      return;
+    }
+    if(result.error){
+      toast('Couldn’t read everything — check the basics manually','x');
+      sheetItineraryReview(id);
+      return;
+    }
+    it.scanFields = result.fields || {};
+    const scannedDate = normalizeScanDate(it.scanFields.date);
+    if(scannedDate) it.date = scannedDate;
+    persist('user_preferences');
+    sheetItineraryReview(id);
+    const keys = Object.keys(it.scanFields||{});
+    toast(keys.length ? 'Check the show basics, then save' : 'Nothing clear found — fill basics and save','check');
+  }catch(err){
+    toast('Scan error — fill basics manually','x');
+    sheetItineraryReview(id);
+  }
+}
+function sheetItineraryReview(id){
+  const it=(store.itineraries||[]).find(x=>x.id===id); if(!it) return;
+  const f=it.scanFields||{};
+  const n=new Date();
+  const today=`${n.getFullYear()}-${pad(n.getMonth()+1)}-${pad(n.getDate())}`;
+  const venue=f.venue||f.venueName||'';
+  const city=f.city||'';
+  const country=f.country||'';
+  const date=normalizeScanDate(f.date)||it.date||today;
+  const setTime=normalizeScanTime(f.setTime);
+  const endTime=normalizeScanTime(f.endTime);
+  const arrival=normalizeScanTime(f.arrival);
+  const venueAddr=f.venueAddress||'';
+  const shows = sel.events().slice().sort((a,b)=>(b.date||'').localeCompare(a.date||''));
+  const upcoming = typeof showPassed==='function' ? shows.filter(s=>!showPassed(s)) : shows;
+  const showOpts = (upcoming.length?upcoming:shows);
+  const extras = [];
+  if(f.hotelName||f.hotelAddress) extras.push('hotel');
+  if(f.driverName||f.driverPhone) extras.push('transport');
+  if(f.soundcheck||f.curfew||f.doors||f.stage||f.guestlist||f.catering) extras.push('advancing');
+  const thumbs=(it.imgs||[]).slice(0,3).map(im=>im.kind==='image'
+    ? `<div class="thumb" onclick="openViewer('${im.data}')"><img src="${im.data}"></div>`
+    : `<div class="thumb"><div class="pdf">${ICON.file(22)}</div></div>`).join('');
+
+  openSheet('Review show basics', `
+    <p class="sheet-lede">Check these details. When you save, the show is created and the rest of the itinerary (hotel, transport, advancing) is filled in.</p>
+    ${thumbs?`<div class="thumb-row" style="margin-bottom:12px">${thumbs}</div>`:''}
+    <div class="field"><label>Venue</label><input id="itn-rev-venue" class="input" value="${esc(venue)}" placeholder="Club / festival name"></div>
+    <div class="row-2">
+      <div class="field"><label>City</label><input id="itn-rev-city" class="input" value="${esc(city)}" placeholder="Amsterdam"></div>
+      <div class="field"><label>Country</label><input id="itn-rev-country" class="input" value="${esc(country)}" placeholder="NL"></div>
+    </div>
+    <div class="field"><label>Venue address</label><input id="itn-rev-addr" class="input" value="${esc(venueAddr)}" placeholder="Street, number…"></div>
+    <div class="row-2">
+      <div class="field picker-field" onclick="openInputPicker('itn-rev-date')">
+        <label>Date</label>
+        <input id="itn-rev-date" type="date" class="input" value="${esc(date)}" onclick="event.stopPropagation();openInputPicker('itn-rev-date')">
+      </div>
+      <div class="field picker-field" onclick="openInputPicker('itn-rev-arr')">
+        <label>Arrival</label>
+        <input id="itn-rev-arr" type="time" class="input" value="${esc(arrival)}" onclick="event.stopPropagation();openInputPicker('itn-rev-arr')">
+      </div>
+    </div>
+    <div class="row-2">
+      <div class="field picker-field" onclick="openInputPicker('itn-rev-set')">
+        <label>Set time</label>
+        <input id="itn-rev-set" type="time" class="input" value="${esc(setTime)}" onclick="event.stopPropagation();openInputPicker('itn-rev-set')">
+      </div>
+      <div class="field picker-field" onclick="openInputPicker('itn-rev-end')">
+        <label>End time</label>
+        <input id="itn-rev-end" type="time" class="input" value="${esc(endTime)}" onclick="event.stopPropagation();openInputPicker('itn-rev-end')">
+      </div>
+    </div>
+    ${extras.length?`<div class="hint" style="text-align:left;padding:4px 2px 10px">Also ready to add after save: <b>${extras.join(', ')}</b></div>`:''}
+    <div class="field"><label>Or add to an existing show instead</label>
+      <select id="itn-rev-existing" class="input">
+        <option value="">— Create a new show —</option>
+        ${showOpts.map(s=>`<option value="${s.id}">${esc(s.venue||'Show')} · ${esc(fmtDate(s.date))}</option>`).join('')}
+      </select>
+    </div>
+    <button class="btn" id="itn-rev-save" onclick="saveItineraryReview('${id}')">Save show</button>
+    <button class="btn secondary" style="margin-top:10px" onclick="scanItineraryForReview('${id}')">${ICON.checkList(15)} Scan again</button>
+    <button class="btn danger" style="margin-top:10px" onclick="delItinerary('${id}')">${ICON.trash(15)} Discard upload</button>
+    <div class="spacer"></div>
+  `, { full: true });
+}
+function saveItineraryReview(id){
+  const it=(store.itineraries||[]).find(x=>x.id===id); if(!it) return;
+  const venue=val('itn-rev-venue');
+  const date=rawVal('itn-rev-date');
+  if(!venue){ toast('Add a venue name','x'); return; }
+  if(!date){ toast('Add a show date','x'); return; }
+  const basics={
+    venue,
+    city: val('itn-rev-city'),
+    country: val('itn-rev-country'),
+    venueAddr: val('itn-rev-addr'),
+    date,
+    arrival: rawVal('itn-rev-arr'),
+    setTime: rawVal('itn-rev-set'),
+    endTime: rawVal('itn-rev-end')
+  };
+  const existingId=rawVal('itn-rev-existing');
+  const f=it.scanFields||{};
+  const btn=$('#itn-rev-save'); if(btn) btn.disabled=true;
+
+  let showId='';
+  let filled=[];
+  if(existingId){
+    const e=sel.event(existingId); if(!e){ toast('Show not found','x'); if(btn) btn.disabled=false; return; }
+    // Reviewed basics only fill gaps on an existing show
+    if(!e.venue && basics.venue) e.venue=basics.venue;
+    if(!e.city && basics.city) e.city=basics.city;
+    if(!e.country && basics.country) e.country=basics.country;
+    if(!e.venueAddr && basics.venueAddr) e.venueAddr=basics.venueAddr;
+    if(!e.date && basics.date) e.date=basics.date;
+    if(!e.arrival && basics.arrival) e.arrival=basics.arrival;
+    if(!e.setTime && basics.setTime) e.setTime=basics.setTime;
+    if(!e.endTime && basics.endTime) e.endTime=basics.endTime;
+    filled=applyScanToShow(e, f);
+    showId=e.id;
+    it.source='Added to existing show';
+  } else {
+    const ev=blankShowFromBasics(basics);
+    store.events.push(ev);
+    filled=applyScanToShow(ev, f);
+    showId=ev.id;
+    it.source='New show from itinerary';
+  }
+
+  it.showId=showId;
+  it.date=date;
+  persist('shows', showId);
+  if(typeof pushShowNow==='function') pushShowNow(showId);
+  persist('user_preferences');
+  closeSheet(true, { noReturn:true });
+  renderView();
+  openView('event', showId);
+  const extra = filled.length ? (' · filled '+filled.join(', ')) : '';
+  toast((existingId?'Show updated':'Show created')+extra, 'check');
+}
+function sheetItinerary(id){
   const it=(store.itineraries||[]).find(x=>x.id===id); if(!it) return;
   const shows = store.events.filter(e=>(e.kind||'show')==='show').sort((a,b)=>(a.date||'').localeCompare(b.date||''));
   const thumbs=(it.imgs||[]).map(im=>`<div class="thumb" ${im.kind==='image'?`onclick="openViewer('${im.data}')"`:''}>${im.kind==='image'?`<img src="${im.data}">`:`<div class="pdf">${ICON.file(26)}<span>${esc(im.name||'PDF')}</span></div>`}<div class="del-badge" onclick="event.stopPropagation();delItinShot('${id}','${im.id}')">${ICON.x(13)}</div></div>`).join('');
   const linked = it.showId ? sel.event(it.showId) : null;
   openSheet('Itinerary details', `
-    ${opts.createdNew?`<div class="hint" style="text-align:left;padding:2px 2px 12px">New show created${linked?` · <b>${esc(linked.venue)}</b>`:''}. Scan the itinerary to fill missing hotel, times and advancing details.</div>`:''}
     <div class="field"><label>What is this?</label><input id="itn-src" class="input" value="${esc(it.source||'')}" placeholder="ABOSS itinerary / Google flight status"></div>
     <div class="row-2">
       <div class="field picker-field" onclick="openInputPicker('itn-date')">
@@ -1101,16 +1217,14 @@ function sheetItinerary(id, opts={}){
       <select id="itn-show" class="input">${['<option value="">— Not linked —</option>'].concat(shows.map(s=>`<option value="${s.id}" ${it.showId===s.id?'selected':''}>${esc(s.venue)} · ${esc(fmtDate(s.date))}</option>`)).join('')}</select></div>
     <div class="field"><label>Notes</label><textarea id="itn-note" class="textarea" placeholder="Anything to flag — gate, hotel, key times…">${esc(it.note||'')}</textarea></div>
     <div class="field"><label>Screenshots</label><div class="thumb-row">${thumbs}<label class="thumb thumb-add">${ICON.plus(22)}<span>Add</span><input type="file" accept="image/*,application/pdf" multiple style="display:none" onchange="addItineraryShots('${id}',this)"></label></div></div>
-    <button class="btn" id="itn-scan" onclick="scanItinerary('${id}')">${ICON.checkList(16)} Scan &amp; auto-fill show</button>
-    <div class="hint" style="text-align:left;padding:6px 2px 2px">Reads this screenshot and fills only the <b>missing</b> details on the linked show. It never overwrites anything you've already entered.</div>
+    ${!it.showId?`<button class="btn" onclick="scanItineraryForReview('${id}')">${ICON.checkList(16)} Review &amp; create show</button>`
+      :`<button class="btn secondary" id="itn-scan" onclick="scanItinerary('${id}')">${ICON.checkList(16)} Scan &amp; fill missing details</button>
+         <div class="hint" style="text-align:left;padding:6px 2px 2px">Fills only <b>missing</b> details on the linked show.</div>`}
     <button class="btn secondary" style="margin-top:10px" onclick="saveItinerary('${id}')">Save</button>
     ${linked?`<button class="btn secondary" style="margin-top:10px" onclick="closeSheet(true,{noReturn:true});openView('event','${linked.id}')">${ICON.music(15)} Open show</button>`:''}
     <button class="btn danger" style="margin-top:10px" onclick="delItinerary('${id}')">${ICON.trash(15)} Delete submission</button>
     <div class="spacer"></div>
   `);
-  if(opts.suggestScan){
-    setTimeout(()=>{ const b=$('#itn-scan'); if(b) b.focus(); }, 350);
-  }
 }
 function saveItinerary(id){
   const it=(store.itineraries||[]).find(x=>x.id===id); if(!it) return;
@@ -1119,17 +1233,18 @@ function saveItinerary(id){
 }
 function addItineraryShots(id,input){
   const it=(store.itineraries||[]).find(x=>x.id===id); if(!it) return;
-  readFiles(input, imgs=>{ if(imgs.length){ it.imgs=(it.imgs||[]).concat(imgs); persist('user_preferences'); imgs.forEach(im=>hostImg(im,'itinerary','itinerary')); sheetItinerary(id); } });
+  readFiles(input, imgs=>{ if(imgs.length){ it.imgs=(it.imgs||[]).concat(imgs); persist('user_preferences'); imgs.forEach(im=>hostImg(im,'itinerary','itinerary')); openItineraryEntry(id); } });
 }
-/* ---- Phase 2: read an itinerary screenshot and fill ONLY the missing show fields ---- */
+/* Fill ONLY missing show fields from a scan result. */
 function applyScanToShow(e, f){
   if(!e || !f) return [];
   const filled=[];
   if(!e.venue    && (f.venue||f.venueName)) { e.venue=f.venue||f.venueName; filled.push('venue'); }
-  if(!e.date     && f.date)          { e.date=f.date;                 filled.push('date'); }
-  if(!e.setTime  && f.setTime)       { e.setTime=f.setTime;           filled.push('set time'); }
-  if(!e.endTime  && f.endTime)       { e.endTime=f.endTime;           filled.push('end time'); }
-  if(!e.arrival  && f.arrival)       { e.arrival=f.arrival;           filled.push('arrival'); }
+  const scannedDate=normalizeScanDate(f.date);
+  if(!e.date     && scannedDate)     { e.date=scannedDate;            filled.push('date'); }
+  if(!e.setTime  && f.setTime)       { e.setTime=normalizeScanTime(f.setTime)||f.setTime; filled.push('set time'); }
+  if(!e.endTime  && f.endTime)       { e.endTime=normalizeScanTime(f.endTime)||f.endTime; filled.push('end time'); }
+  if(!e.arrival  && f.arrival)       { e.arrival=normalizeScanTime(f.arrival)||f.arrival; filled.push('arrival'); }
   if(!e.venueAddr && f.venueAddress) { e.venueAddr=f.venueAddress;    filled.push('venue address'); }
   if(!e.city     && f.city)          { e.city=f.city;                 filled.push('city'); }
   if(!e.country  && f.country)       { e.country=f.country;           filled.push('country'); }
@@ -1150,13 +1265,14 @@ function applyScanToShow(e, f){
     filled.push('hotel');
   }
   if(!showDrivers(e).length && (f.driverName || f.driverPhone)){
+    showDrivers(e);
     e.drivers.push({ id:uid('drv'), journey:'', name:f.driverName||'', phone:f.driverPhone||'', whatsapp:'', pickup:'', notes:'' });
     e.driver = e.drivers[0];
-    filled.push('driver');
+    filled.push('transport');
   }
   return filled;
 }
-function scanBtnReset(){ const b=$('#itn-scan'); if(b){ b.disabled=false; b.innerHTML=ICON.checkList(16)+' Scan &amp; auto-fill show'; } }
+function scanBtnReset(){ const b=$('#itn-scan'); if(b){ b.disabled=false; b.innerHTML=ICON.checkList(16)+' Scan &amp; fill missing details'; } }
 async function scanItinerary(id){
   const it=(store.itineraries||[]).find(x=>x.id===id); if(!it) return;
   const pick = rawVal('itn-show');
@@ -1164,22 +1280,16 @@ async function scanItinerary(id){
   if(!showId){ toast('Pick a show first','x'); return; }
   if(pick && pick!==it.showId){ it.showId=pick; }
   const e=sel.event(showId); if(!e){ toast('Show not found','x'); return; }
-  const img=(it.imgs||[]).find(im=>im.kind==='image');
-  if(!img){ toast('Add a screenshot first','x'); return; }
-  if(!isSupabaseConfigured() || !authUser){ toast('Sign in to scan itineraries','x'); return; }
-  const token = await getAccessToken();
-  if(!token){ toast('Sign in to scan itineraries','x'); return; }
   const btn=$('#itn-scan'); if(btn){ btn.disabled=true; btn.textContent='Scanning…'; }
   toast('Scanning itinerary…','image');
   try{
-    const res=await fetch(OPERATE_CONFIG.SUPABASE_URL.replace(/\/$/,'')+'/functions/v1/scan-itinerary', {
-      method:'POST',
-      headers:{ 'apikey':OPERATE_CONFIG.SUPABASE_ANON_KEY, 'Authorization':'Bearer '+token, 'Content-Type':'application/json' },
-      body: JSON.stringify({ image: img.data })
-    });
-    const data=await res.json().catch(()=>({}));
-    if(!res.ok || (data && data.error)){ toast('Scan failed'+(data&&data.error?': '+data.error:''),'x'); scanBtnReset(); return; }
-    const f=(data&&data.fields)||{};
+    const result = await fetchItineraryScanFields(it);
+    if(result.error==='sign_in'){ toast('Sign in to scan itineraries','x'); scanBtnReset(); return; }
+    if(result.error==='no_image'){ toast('Add a screenshot first','x'); scanBtnReset(); return; }
+    if(result.error){ toast('Scan failed'+(result.error?': '+result.error:''),'x'); scanBtnReset(); return; }
+    const f=result.fields||{};
+    it.scanFields=f;
+    persist('user_preferences');
     if(!Object.keys(f).length){ toast('Nothing readable found','x'); scanBtnReset(); return; }
     const filled=applyScanToShow(e, f);
     persist('shows', e.id);
@@ -1189,7 +1299,7 @@ async function scanItinerary(id){
   }catch(err){ toast('Scan error','x'); scanBtnReset(); }
 }
 function delItinShot(id,imid){
-  const it=(store.itineraries||[]).find(x=>x.id===id); if(it){ it.imgs=(it.imgs||[]).filter(im=>im.id!==imid); } persist('user_preferences'); sheetItinerary(id);
+  const it=(store.itineraries||[]).find(x=>x.id===id); if(it){ it.imgs=(it.imgs||[]).filter(im=>im.id!==imid); } persist('user_preferences'); openItineraryEntry(id);
 }
 function delItinerary(id){
   confirmSheet('Delete submission?','','Delete',()=>{ store.itineraries=(store.itineraries||[]).filter(x=>x.id!==id); persist('user_preferences'); closeSheet(); renderView(); toast('Deleted','trash'); }, true);
