@@ -2,7 +2,8 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { corsHeaders, jsonResponse } from '../_shared/cors.ts';
 
 const FIELD_PROMPT = `Extract touring/show itinerary fields from this image. Return ONLY valid JSON with these optional string keys (omit if not visible):
-setTime, endTime, venueAddress, city, soundcheck, curfew, doors, stage, guestlist, catering, dressingRoom, parking, wifi, remarks, hotelName, hotelAddress, hotelCheckin, driverName, driverPhone`;
+venue, venueName, date, arrival, setTime, endTime, venueAddress, city, country, soundcheck, curfew, doors, stage, guestlist, catering, dressingRoom, parking, wifi, remarks, hotelName, hotelAddress, hotelCheckin, driverName, driverPhone.
+Use date as YYYY-MM-DD when possible.`;
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
