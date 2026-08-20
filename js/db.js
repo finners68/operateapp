@@ -821,6 +821,32 @@ async function pushShowNow(showId){
   db.write(store);
   return flushDirtyNow();
 }
+/* Wait until the client-minted show UUID is actually in the local V2 cache
+   (meaning upsert to Supabase finished). Used before Make so webhook + DB match. */
+async function ensureShowSyncedToCloud(showId, opts){
+  const timeoutMs = (opts && opts.timeoutMs) || 25000;
+  if(!showId) return false;
+  if(typeof markDirty === 'function') markDirty('shows', showId);
+  db.write(store);
+  const have = () => !!(store?.v2?.shows || []).some(sh => sh && sh.id === showId);
+  if(have()) return true;
+  if(typeof syncActive === 'function' && !syncActive()) return false;
+  if(!currentOrgId) return false;
+  const start = Date.now();
+  while(Date.now() - start < timeoutMs){
+    if(have()) return true;
+    if(!dbRemoteLoading && !dbSyncInProgress){
+      if(typeof syncDirty !== 'undefined') syncDirty = true;
+      try{ await pushToSupabase(currentOrgId); }
+      catch(e){ console.error('ensureShowSyncedToCloud', e); }
+    } else {
+      await new Promise(r => setTimeout(r, 250));
+    }
+    if(have()) return true;
+    await new Promise(r => setTimeout(r, 150));
+  }
+  return have();
+}
 async function pushTourNow(tourId){
   if(!tourId) return false;
   if(typeof markDirty === 'function') markDirty('tours', tourId);

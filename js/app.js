@@ -1381,7 +1381,7 @@ function discardItineraryReview(id){
     };
   }, 50);
 }
-function saveItineraryReview(id){
+async function saveItineraryReview(id){
   const it=(store.itineraries||[]).find(x=>x.id===id); if(!it) return;
   const venue=val('itn-rev-venue');
   const date=rawVal('itn-rev-date');
@@ -1408,6 +1408,7 @@ function saveItineraryReview(id){
   const f=it.scanFields||{};
   const btn=$('#itn-rev-save'); if(btn) btn.disabled=true;
 
+  /* Frontend mints the only show UUID — Make and Supabase must reuse this. */
   const ev=blankShowFromBasics(basics);
   store.events.push(ev);
   const filled=applyScanToShow(ev, f);
@@ -1416,23 +1417,54 @@ function saveItineraryReview(id){
   it.showId=showId;
   it.date=date;
   clearItineraryReviewGuards();
-  notifyItineraryDecision(it, 'confirmed', { show_id: showId });
   persist('shows', showId);
-  if(typeof pushShowNow==='function') pushShowNow(showId);
   persist('user_preferences');
   closeSheet(true, { noReturn:true });
   renderView();
   openView('event', showId);
   const extra = filled.length ? (' · filled '+filled.join(', ')) : '';
   toast('Show created'+extra, 'check');
+
+  itineraryFullUploadByShow[showId] = {
+    status:'uploading',
+    message:'Saving show to the cloud…'
+  };
+  refreshIfViewingShow(showId);
+
+  let synced = false;
+  try{
+    if(typeof ensureShowSyncedToCloud === 'function'){
+      synced = await ensureShowSyncedToCloud(showId);
+    } else if(typeof pushShowNow === 'function'){
+      synced = !!(await pushShowNow(showId));
+    }
+  }catch(err){
+    console.error('saveItineraryReview sync', err);
+    synced = false;
+  }
+
+  if(!synced){
+    itineraryFullUploadByShow[showId] = {
+      status:'error',
+      message:'Couldn’t save this show to the cloud yet. Retry when you’re online — Make will use the same show ID.'
+    };
+    refreshIfViewingShow(showId);
+    toast('Show saved on this device — cloud sync needed before Make', 'x');
+    return;
+  }
+
+  /* Only tell Make after the row exists with this exact id. */
+  notifyItineraryDecision(it, 'confirmed', { show_id: showId });
   startItineraryFullUpload(id, showId);
 }
 function itineraryFullUploadBanner(showId){
   const st = itineraryFullUploadByShow[showId];
   if(!st) return '';
   if(st.status === 'uploading'){
+    const msg = st.message
+      || 'Uploading itinerary details… Make is filling hotel, travel and the rest into this show.';
     return `<div class="hint" style="text-align:left;margin:0 0 14px;padding:12px 14px;border-radius:12px;background:rgba(99,102,241,.12);color:var(--text-1);font-weight:650">
-      Uploading itinerary details… Make is filling hotel, travel and the rest into this show.
+      ${esc(msg)}
     </div>`;
   }
   if(st.status === 'done'){
@@ -1455,7 +1487,10 @@ async function startItineraryFullUpload(itineraryId, showId){
   const it=(store.itineraries||[]).find(x=>x.id===itineraryId);
   if(!it || !showId) return;
   it.showId = showId;
-  itineraryFullUploadByShow[showId] = { status:'uploading', message:'' };
+  itineraryFullUploadByShow[showId] = {
+    status:'uploading',
+    message:'Uploading itinerary details… Make is filling hotel, travel and the rest into this show.'
+  };
   refreshIfViewingShow(showId);
   try{
     const result = await postItineraryFileToMake(it, { stage:'full' });
@@ -1502,9 +1537,36 @@ async function startItineraryFullUpload(itineraryId, showId){
     toast('Couldn’t reach Make for full upload', 'x');
   }
 }
-function retryItineraryFullUpload(showId){
+async function retryItineraryFullUpload(showId){
   const it=(store.itineraries||[]).find(x=>x.showId===showId);
   if(!it){ toast('Original itinerary not found','x'); return; }
+  itineraryFullUploadByShow[showId] = {
+    status:'uploading',
+    message:'Saving show to the cloud…'
+  };
+  refreshIfViewingShow(showId);
+  let synced = false;
+  try{
+    if(typeof ensureShowSyncedToCloud === 'function'){
+      synced = await ensureShowSyncedToCloud(showId);
+    } else if(typeof pushShowNow === 'function'){
+      synced = !!(await pushShowNow(showId));
+    }
+  }catch(err){
+    console.error('retryItineraryFullUpload sync', err);
+  }
+  if(!synced){
+    itineraryFullUploadByShow[showId] = {
+      status:'error',
+      message:'Couldn’t save this show to the cloud yet. Retry when you’re online.'
+    };
+    refreshIfViewingShow(showId);
+    toast('Cloud sync needed before Make', 'x');
+    return;
+  }
+  if(it.decisionNotified !== 'confirmed'){
+    notifyItineraryDecision(it, 'confirmed', { show_id: showId });
+  }
   startItineraryFullUpload(it.id, showId);
 }
 function sheetItinerary(id){

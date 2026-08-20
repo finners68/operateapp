@@ -261,13 +261,15 @@ function v2MapShowContactRole(role){
   return { role: 'other', notes: raw };
 }
 
-/* If local state still has duplicate copies of a show, collapse onto the
-   existing cloud row (same date + venue) instead of inserting another. */
+/* Client-minted UUIDs are authoritative — never rewrite them to another row.
+   Date+venue collapse only applies when the local show has no real UUID yet
+   (legacy / incomplete rows), so we do not invent a second backend id. */
 function v2ResolveShowId(s){
   if(!s) return newUuid();
   if(s.id && isUuid(s.id)){
     const byId = (store?.v2?.shows || []).find(sh => sh.id === s.id);
     if(byId?.id) return byId.id;
+    return s.id;
   }
   const name = String(s.venue || '').trim().toLowerCase();
   const date = s.date;
