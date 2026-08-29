@@ -4,11 +4,28 @@
 let showFilter = 'upcoming';
 let showSearch = '';
 let showsMode = 'shows'; // 'shows' | 'tours' — the two views under the merged Shows / Tours section
+function getShowsListState(){
+  return { mode: showsMode, filter: showFilter, search: showSearch };
+}
+function setShowSearchQuiet(v){
+  showSearch = String(v == null ? '' : v);
+}
+function reactShowsListLive(){
+  return typeof OperateReact !== 'undefined'
+    && OperateReact
+    && typeof OperateReact.isShowsListMounted === 'function'
+    && OperateReact.isShowsListMounted();
+}
 function setShowsMode(m){
   if(showsMode===m) return;
   showsMode=m;
   haptic();
   if(typeof saveNavState==='function') saveNavState();
+  if(reactShowsListLive()){
+    if(typeof OperateReact.refreshShowsList === 'function') OperateReact.refreshShowsList();
+    if(typeof setFab === 'function') setFab();
+    return;
+  }
   if(typeof swapShowsModePanel==='function' && swapShowsModePanel()) return;
   renderView();
 }
@@ -107,9 +124,30 @@ function viewShows(){
     <div class="screen-pad tab-page-body" id="shows-mode-panel">${showsModePanelInner()}<div class="spacer"></div></div>
   </div>`;
 }
-function setShowFilter(k){ showFilter=k; haptic(); renderView(); }
+function setShowFilter(k){
+  showFilter=k;
+  haptic();
+  if(reactShowsListLive()){
+    if(typeof OperateReact.refreshShowsList === 'function') OperateReact.refreshShowsList();
+    return;
+  }
+  renderView();
+}
 let showSearchT;
-function debouncedShowSearch(){ clearTimeout(showSearchT); showSearchT=setTimeout(()=>{ const el=$('#view .searchbar input'); const pos=el?el.selectionStart:0; renderView(); const n=$('#view .searchbar input'); if(n){n.focus(); try{n.setSelectionRange(pos,pos);}catch(e){}} },160); }
+function debouncedShowSearch(){
+  clearTimeout(showSearchT);
+  showSearchT=setTimeout(()=>{
+    if(reactShowsListLive()){
+      if(typeof OperateReact.refreshShowsList === 'function') OperateReact.refreshShowsList();
+      return;
+    }
+    const el=$('#view .searchbar input');
+    const pos=el?el.selectionStart:0;
+    renderView();
+    const n=$('#view .searchbar input');
+    if(n){n.focus(); try{n.setSelectionRange(pos,pos);}catch(e){}}
+  },160);
+}
 function groupShowsByMonth(list){
   const out = [];
   let cur = null;

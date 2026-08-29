@@ -277,8 +277,9 @@ function renderView(opts={}){
   const v = $('#view');
   const reactShow = (typeof OperateReact !== 'undefined') ? OperateReact : null;
   const wantReactShow = !!(overlay && overlay.type === 'event' && reactShow && typeof reactShow.mountShow === 'function');
+  const wantReactShowsList = !!(!overlay && store.tab === 'shows' && reactShow && typeof reactShow.mountShowsList === 'function');
 
-  /* Show page: React island — update in place instead of wiping the whole screen. */
+  /* Show detail: React island. */
   if(wantReactShow){
     const same = typeof reactShow.getMountedShowId === 'function'
       && reactShow.getMountedShowId() === overlay.id
@@ -293,6 +294,7 @@ function renderView(opts={}){
       }
       return true;
     }
+    if(typeof reactShow.unmountShowsList === 'function') reactShow.unmountShowsList();
     if(typeof reactShow.unmountShow === 'function') reactShow.unmountShow();
     if(v){
       if(opts.quiet) v.classList.add('quiet-paint');
@@ -308,10 +310,43 @@ function renderView(opts={}){
     return true;
   }
 
-  /* Leaving the React show page — tear down the island before other screens paint. */
-  if(reactShow && typeof reactShow.unmountShow === 'function'
-      && typeof reactShow.isShowMounted === 'function' && reactShow.isShowMounted()){
-    reactShow.unmountShow();
+  /* Shows list tab: React island. */
+  if(wantReactShowsList){
+    if(typeof reactShow.isShowsListMounted === 'function' && reactShow.isShowsListMounted()){
+      if(typeof reactShow.refreshShowsList === 'function') reactShow.refreshShowsList();
+      renderNav(); setFab(); syncScreenChrome();
+      if(screen){
+        screen.scrollTop = scrollY;
+        if(opts.quiet) requestAnimationFrame(()=>{ if(screen) screen.scrollTop = scrollY; });
+      }
+      return true;
+    }
+    if(typeof reactShow.unmountShow === 'function') reactShow.unmountShow();
+    if(typeof reactShow.unmountShowsList === 'function') reactShow.unmountShowsList();
+    if(v){
+      if(opts.quiet) v.classList.add('quiet-paint');
+      else v.classList.remove('quiet-paint');
+      v.innerHTML = '';
+      reactShow.mountShowsList(v);
+    }
+    renderNav(); setFab(); syncScreenChrome();
+    if(screen){
+      screen.scrollTop = scrollY;
+      if(opts.quiet) requestAnimationFrame(()=>{ if(screen) screen.scrollTop = scrollY; });
+    }
+    return true;
+  }
+
+  /* Leaving React islands — tear down before other screens paint. */
+  if(reactShow){
+    if(typeof reactShow.unmountShow === 'function'
+        && typeof reactShow.isShowMounted === 'function' && reactShow.isShowMounted()){
+      reactShow.unmountShow();
+    }
+    if(typeof reactShow.unmountShowsList === 'function'
+        && typeof reactShow.isShowsListMounted === 'function' && reactShow.isShowsListMounted()){
+      reactShow.unmountShowsList();
+    }
   }
 
   let html = '';
