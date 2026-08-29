@@ -275,6 +275,45 @@ function renderView(opts={}){
   const screen = $('#screen');
   const scrollY = opts.resetScroll ? 0 : (opts.scrollY != null ? opts.scrollY : (screen?.scrollTop || 0));
   const v = $('#view');
+  const reactShow = (typeof OperateReact !== 'undefined') ? OperateReact : null;
+  const wantReactShow = !!(overlay && overlay.type === 'event' && reactShow && typeof reactShow.mountShow === 'function');
+
+  /* Show page: React island — update in place instead of wiping the whole screen. */
+  if(wantReactShow){
+    const same = typeof reactShow.getMountedShowId === 'function'
+      && reactShow.getMountedShowId() === overlay.id
+      && typeof reactShow.isShowMounted === 'function'
+      && reactShow.isShowMounted();
+    if(same){
+      if(typeof reactShow.refreshShow === 'function') reactShow.refreshShow();
+      renderNav(); setFab(); syncScreenChrome();
+      if(screen){
+        screen.scrollTop = scrollY;
+        if(opts.quiet) requestAnimationFrame(()=>{ if(screen) screen.scrollTop = scrollY; });
+      }
+      return true;
+    }
+    if(typeof reactShow.unmountShow === 'function') reactShow.unmountShow();
+    if(v){
+      if(opts.quiet) v.classList.add('quiet-paint');
+      else v.classList.remove('quiet-paint');
+      v.innerHTML = '';
+      reactShow.mountShow(overlay.id, v);
+    }
+    renderNav(); setFab(); syncScreenChrome();
+    if(screen){
+      screen.scrollTop = scrollY;
+      if(opts.quiet) requestAnimationFrame(()=>{ if(screen) screen.scrollTop = scrollY; });
+    }
+    return true;
+  }
+
+  /* Leaving the React show page — tear down the island before other screens paint. */
+  if(reactShow && typeof reactShow.unmountShow === 'function'
+      && typeof reactShow.isShowMounted === 'function' && reactShow.isShowMounted()){
+    reactShow.unmountShow();
+  }
+
   let html = '';
   let afterPaint = null;
   if(overlay){
@@ -326,6 +365,60 @@ function renderView(opts={}){
   }
   return true;
 }
+/* Soft refresh: rewrite the screen without fade/stagger flash. Prefer
+   patchCheckRowsById for one-tap toggles when possible. */
+function softRender(opts){
+  return renderView(Object.assign({ quiet: true }, opts || {}));
+}
+function cssAttrEscape(v){
+  return String(v == null ? '' : v).replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+}
+function patchCheckRowsById(id, done){
+  if(id == null || id === '') return 0;
+  const rows = document.querySelectorAll('.check[data-id="'+cssAttrEscape(id)+'"]');
+  rows.forEach(row => row.classList.toggle('done', !!done));
+  return rows.length;
+}
+function removeCheckRowsById(id){
+  if(id == null || id === '') return 0;
+  const rows = [...document.querySelectorAll('.check[data-id="'+cssAttrEscape(id)+'"]')];
+  rows.forEach(row => row.remove());
+  return rows.length;
+}
+function patchShowChecklistHead(eid){
+  const e = (typeof sel !== 'undefined' && sel.event) ? sel.event(eid) : null;
+  if(!e) return;
+  const cp = (typeof sel.eventChecklistProgress === 'function')
+    ? sel.eventChecklistProgress(e)
+    : { done:0, total:(e.checklist||[]).length };
+  const fold = document.getElementById('fold-ss-'+eid+'-checklist');
+  const span = fold && fold.querySelector('.show-subsection-head > span');
+  if(span) span.textContent = cp.total ? ('Checklist · '+cp.done+'/'+cp.total) : 'Checklist';
+  const prep = document.getElementById('fold-sg-'+eid+'-prep');
+  const sub = prep && prep.querySelector('.show-group-titles span');
+  if(sub && typeof prepGroupSummary === 'function') sub.textContent = prepGroupSummary(e);
+}
+function patchShowDealPaid(eid, paid){
+  const e = (typeof sel !== 'undefined' && sel.event) ? sel.event(eid) : null;
+  if(!e) return false;
+  let hit = 0;
+  document.querySelectorAll('.tag.confirmed, .tag.hold').forEach(tag => {
+    const head = tag.closest('.deal-head');
+    if(!head) return;
+    tag.classList.toggle('confirmed', !!paid);
+    tag.classList.toggle('hold', !paid);
+    tag.textContent = paid ? 'Paid' : 'Unpaid';
+    hit++;
+  });
+  const deal = document.getElementById('fold-sg-'+eid+'-deal');
+  const sub = deal && deal.querySelector('.show-group-titles span');
+  if(sub && typeof dealGroupSummary === 'function'){
+    sub.textContent = dealGroupSummary(e);
+    hit++;
+  }
+  return hit > 0;
+}
+
 function syncSeg(segId, activeKey){
   const seg = document.getElementById(segId);
   if(!seg) return;
@@ -797,8 +890,29 @@ function promptSheet(title, placeholder, onSave, initial=''){
 /* ============================================================
    Checklists (event + trip) and timeline steps
    ============================================================ */
-function toggleEventCheck(eid,cid){ const e=sel.event(eid); if(!e) return; const i=(e.checklist=e.checklist||[]).find(x=>x.id===cid); if(i){i.done=!i.done; haptic(); persist('shows', eid); renderView();} }
-function delEventCheck(eid,cid){ const e=sel.event(eid); if(!e) return; e.checklist=(e.checklist||[]).filter(x=>x.id!==cid); persist('shows', eid); renderView(); }
+function toggleEventCheck(eid,cid){
+  const e=sel.event(eid); if(!e) return;
+  const i=(e.checklist=e.checklist||[]).find(x=>x.id===cid);
+  if(!i) return;
+  i.done=!i.done;
+  haptic();
+  persist('shows', eid);
+  if(!patchCheckRowsById(cid, i.done)) softRender();
+  else patchShowChecklistHead(eid);
+}
+function delEventCheck(eid,cid){
+  const e=sel.event(eid); if(!e) return;
+  e.checklist=(e.checklist||[]).filter(x=>x.id!==cid);
+  persist('shows', eid);
+  if(typeof pushShowNow==='function') pushShowNow(eid);
+  removeCheckRowsById(cid);
+  patchShowChecklistHead(eid);
+  if(!(e.checklist||[]).length) softRender();
+  else if(typeof sheetEl!=='undefined' && sheetEl && typeof sheetShowChecklist==='function'){
+    /* Keep open checklist sheet in sync without remounting the whole show. */
+    try{ sheetShowChecklist(eid); }catch(_){}
+  }
+}
 function addEventCheckPrompt(eid){
   const e=sel.event(eid); if(!e) return;
   sheetReturnStack.push({ kind:'showChecklist', id:eid });
@@ -807,6 +921,7 @@ function addEventCheckPrompt(eid){
     (show.checklist = show.checklist || []).push({id:uid('ck'),label:v,done:false});
     persist('shows', eid);
     if(typeof pushShowNow==='function') pushShowNow(eid);
+    softRender();
     toast('Added','check');
   });
 }
@@ -818,12 +933,58 @@ function addEventCheckFromSheet(eid){
   persist('shows', eid);
   if(typeof pushShowNow==='function') pushShowNow(eid);
   sheetShowChecklist(eid);
+  softRender();
   toast('Added','check');
 }
-function toggleTripCheck(tid,cid){ const t=sel.trip(tid); const i=t.checklist.find(x=>x.id===cid); if(i){i.done=!i.done; haptic(); persist('tours', tid); renderView();} }
-function delTripCheck(tid,cid){ const t=sel.trip(tid); t.checklist=t.checklist.filter(x=>x.id!==cid); persist('tours', tid); renderView(); }
-function addTripCheckPrompt(tid){ promptSheet('Packing / checklist item','e.g. Battery packs', function(v){ const t=sel.trip(tid); t.checklist.push({id:uid('ck'),label:v,done:false}); persist('tours', tid); renderView(); toast('Added','check'); }); }
-function completeStep(tid,sid){ const t=sel.trip(tid); const s=t.timeline.find(x=>x.id===sid); if(s){ s.done=!s.done; haptic(); persist('tours', tid); renderView(); if(s.done) toast('Step done ✓','check'); } }
+function toggleTripCheck(tid,cid){
+  const t=sel.trip(tid); if(!t) return;
+  const i=(t.checklist||[]).find(x=>x.id===cid);
+  if(!i) return;
+  i.done=!i.done;
+  haptic();
+  persist('tours', tid);
+  if(!patchCheckRowsById(cid, i.done)) softRender();
+}
+function delTripCheck(tid,cid){
+  const t=sel.trip(tid); if(!t) return;
+  t.checklist=(t.checklist||[]).filter(x=>x.id!==cid);
+  persist('tours', tid);
+  removeCheckRowsById(cid);
+  if(!(t.checklist||[]).length) softRender();
+}
+function addTripCheckPrompt(tid){
+  promptSheet('Packing / checklist item','e.g. Battery packs', function(v){
+    const t=sel.trip(tid); t.checklist.push({id:uid('ck'),label:v,done:false});
+    persist('tours', tid);
+    softRender();
+    toast('Added','check');
+  });
+}
+function completeStep(tid,sid){
+  const t=sel.trip(tid); if(!t) return;
+  const s=(t.timeline||[]).find(x=>x.id===sid);
+  if(!s) return;
+  s.done=!s.done;
+  haptic();
+  persist('tours', tid);
+  const item = document.querySelector('.tl-item[data-id="'+cssAttrEscape(sid)+'"]');
+  if(item){
+    item.classList.toggle('done', !!s.done);
+    item.classList.toggle('now', false);
+    const hint = item.querySelector('.swipe-hint');
+    if(hint){
+      if(s.done) hint.remove();
+      else if(!item.querySelector('.swipe-hint')){
+        const card = item.querySelector('.tl-card');
+        if(card) card.insertAdjacentHTML('beforeend', `<div class="swipe-hint">${ICON.check(12)} Tap to complete</div>`);
+      }
+    } else if(!s.done){
+      const card = item.querySelector('.tl-card');
+      if(card) card.insertAdjacentHTML('beforeend', `<div class="swipe-hint">${ICON.check(12)} Tap to complete</div>`);
+    }
+  } else if(!patchCheckRowsById(sid, s.done)) softRender();
+  if(s.done) toast('Step done ✓','check');
+}
 function saveEventNotes(eid,v){ const e=sel.event(eid); if(e){e.notes=v; persist('shows', eid);} }
 
 /* ============================================================
@@ -1686,8 +1847,8 @@ function delItinerary(id){
     toast('Deleted','trash');
   }, true);
 }
-function uploadAttachment(eid,input){ toast('Uploading…','image'); readFile(input, att=>{ const e=sel.event(eid); (e.attachments=e.attachments||[]).push(att); persist('shows', eid); renderView(); toast('Attached','check'); hostImg(att, eid, 'attachment'); }); }
-function delAttachment(eid,aid){ const e=sel.event(eid); e.attachments=e.attachments.filter(a=>a.id!==aid); persist('shows', eid); renderView(); toast('Removed','trash'); }
+function uploadAttachment(eid,input){ toast('Uploading…','image'); readFile(input, att=>{ const e=sel.event(eid); (e.attachments=e.attachments||[]).push(att); persist('shows', eid); softRender(); toast('Attached','check'); hostImg(att, eid, 'attachment'); }); }
+function delAttachment(eid,aid){ const e=sel.event(eid); e.attachments=e.attachments.filter(a=>a.id!==aid); persist('shows', eid); softRender(); toast('Removed','trash'); }
 function uploadPass(eid,fid,input,passengerId){ toast('Uploading pass…','ticket'); readFile(input, att=>{ attachPassToShowFlight(eid, fid, att, passengerId).then(ok=>{ if(ok) toast('Boarding pass added','check'); else toast('Could not attach pass','x'); }); }); }
 function delFlightPass(eid,fid,pid,passengerId){
   const e=sel.event(eid);
@@ -1712,11 +1873,11 @@ function delItemPass(itemId, passId){
   if(!it || !it.passes) return;
   if(passId) it.passes=it.passes.filter(p=>p.id!==passId);
   else it.passes=[];
-  persist('shows', itemId || eid); renderView(); toast('Boarding pass removed','trash');
+  persist('shows', itemId || eid); softRender(); toast('Boarding pass removed','trash');
 }
-function removeHotel(eid){ const e=sel.event(eid); if(e){ e.hotel=null; } persist('shows', eid); if(typeof pushShowNow==='function') pushShowNow(eid); closeSheet(); renderView(); toast('Hotel removed','trash'); }
-function removeDriver(eid, idx){ const e=sel.event(eid); if(e){ const list=showDrivers(e); if(idx!=null) list.splice(idx,1); e.driver=list.find(d=>!d.noGround)||null; } persist('shows', eid); closeSheet(); renderView(); toast('Removed','trash'); }
-function removePromoter(eid){ const e=sel.event(eid); if(e){ e.promoter=null; } persist('shows', eid); closeSheet(); renderView(); toast('Contact removed','trash'); }
+function removeHotel(eid){ const e=sel.event(eid); if(e){ e.hotel=null; } persist('shows', eid); if(typeof pushShowNow==='function') pushShowNow(eid); closeSheet(); softRender(); toast('Hotel removed','trash'); }
+function removeDriver(eid, idx){ const e=sel.event(eid); if(e){ const list=showDrivers(e); if(idx!=null) list.splice(idx,1); e.driver=list.find(d=>!d.noGround)||null; } persist('shows', eid); closeSheet(); softRender(); toast('Removed','trash'); }
+function removePromoter(eid){ const e=sel.event(eid); if(e){ e.promoter=null; } persist('shows', eid); closeSheet(); softRender(); toast('Contact removed','trash'); }
 /* ============================================================
    Menus + delete
    ============================================================ */
@@ -1729,7 +1890,7 @@ function eventMenu(eid){
       <button type="button" class="edit-section-btn" onclick="openFromEventMenu('${eid}',()=>sheetFlight('${eid}'))">${ICON.plane(16)}<span><b>Flights</b><small>Route, gate, seats & passes</small></span></button>
       <button type="button" class="edit-section-btn" onclick="openFromEventMenu('${eid}',()=>sheetDriver('${eid}'))">${ICON.car(16)}<span><b>Transport</b><small>Driver, Uber or taxi</small></span></button>
       <button type="button" class="edit-section-btn" onclick="openFromEventMenu('${eid}',()=>sheetPromoter('${eid}'))">${ICON.users(16)}<span><b>Artist Liaison</b><small>Show-day contact</small></span></button>
-      <button type="button" class="edit-section-btn" onclick="openFromEventMenu('${eid}',()=>sheetAdvance('${eid}'))">${ICON.file(16)}<span><b>Advance</b><small>Stage, catering, access</small></span></button>
+      <button type="button" class="edit-section-btn" onclick="openFromEventMenu('${eid}',()=>sheetAdvance('${eid}'))">${ICON.file(16)}<span><b>Show-day details</b><small>Stage, catering, access</small></span></button>
       <button type="button" class="edit-section-btn" onclick="openFromEventMenu('${eid}',()=>sheetFinance('${eid}'))">${ICON.coins(16)}<span><b>Deal</b><small>Fee, expenses, paid</small></span></button>
       <button type="button" class="edit-section-btn" onclick="openFromEventMenu('${eid}',()=>sheetShowTimeline('${eid}'))">${ICON.clock(16)}<span><b>Day timeline</b><small>Schedule steps</small></span></button>
       <button type="button" class="edit-section-btn" onclick="openFromEventMenu('${eid}',()=>sheetShowChecklist('${eid}'))">${ICON.checkList(16)}<span><b>Checklist</b><small>Prep tasks</small></span></button>

@@ -2,7 +2,7 @@
 # https://operate-app.netlify.app
 
 [build]
-  command = "node scripts/generate-config.mjs"
+  command = "npm ci && npm run build:react && node scripts/generate-config.mjs"
   publish = "."
 
 [[headers]]

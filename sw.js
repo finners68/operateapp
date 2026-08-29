@@ -1,5 +1,5 @@
 /* Operate service worker — app-shell offline cache */
-const VERSION = 'operate-v121';
+const VERSION = 'operate-v125';
 const SHELL = [
   './',
   './index.html',
@@ -7,7 +7,7 @@ const SHELL = [
   './manifest.json',
   './js/config.js',
   './js/supabase.js',
-  './js/tour-logistics-catalog.js',
+  './js/cloud-logistics-catalog.js',
   './js/db-v2-state.js',
   './js/state.js',
   './js/db-v2-maps.js',
@@ -24,6 +24,7 @@ const SHELL = [
   './js/ideas.js',
   './js/notes.js',
   './js/app.js',
+  './js/react-show.js',
   './js/pwa.js',
   './icons/icon-180.png',
   './icons/icon-192.png',

@@ -210,6 +210,7 @@ function flightHasDetails(f){
   if(String(f.terminal||'').trim()) return true;
   if(String(f.fstatus||'').trim()) return true;
   if(String(f.delay||'').trim()) return true;
+  if(String(f.notes||'').trim()) return true;
   if(Array.isArray(f.passes) && f.passes.length) return true;
   const pax = Array.isArray(f.passengers) ? f.passengers : [];
   return pax.some(p => p && (
@@ -392,6 +393,7 @@ function persistAll(){
   } else {
     queueSync();
   }
+  if(typeof notifyStore === 'function') notifyStore();
 }
 function persist(scope, id){
   let scoped = false;
@@ -415,6 +417,7 @@ function persist(scope, id){
   } else {
     queueSync();
   }
+  if(typeof notifyStore === 'function') notifyStore();
 }
 function commit(){ persistAll(); render(); }
 
@@ -445,8 +448,8 @@ function fieldTx(label, value){
   return `<div class="tx"><div class="k">${label}</div><div class="v">${value}</div></div>`;
 }
 function showGroup(id, title, iconHTML, summary, bodyHTML, defOpen){
-  /* Show groups start collapsed; expand on tap. Pass defOpen=true to force open. */
-  const open = isOpen(id, defOpen === true);
+  /* Show groups default open so the page is scannable; user can still collapse. */
+  const open = isOpen(id, defOpen !== false);
   const chev = ICON.chevDown ? ICON.chevDown(20) : ICON.chevR(20);
   return `<section class="show-group ${open?'open':''}" id="fold-${id}">
     <div class="show-group-head" onclick="toggleFold('${id}')" role="button" aria-expanded="${open?'true':'false'}">
@@ -458,7 +461,7 @@ function showGroup(id, title, iconHTML, summary, bodyHTML, defOpen){
   </section>`;
 }
 function showSubsection(id, title, addBtnHTML, bodyHTML, defOpen){
-  /* Subsections start collapsed; expand on tap. */
+  /* Subsections with content default open; empty ones stay closed until tapped. */
   const open = isOpen(id, defOpen === true);
   const chev = ICON.chevDown ? ICON.chevDown(16) : ICON.chevR(16);
   return `<div class="show-subsection ${open?'open':''}" id="fold-${id}">
@@ -1071,6 +1074,7 @@ function acct(){ return ACCOUNT_TYPES[store.settings.accountType]||ACCOUNT_TYPES
 /* ---------- Collapsible state ---------- */
 let folds = {}; // id -> open(bool)
 function isOpen(id, def){ return folds[id]===undefined ? !!def : folds[id]; }
+function setFoldOpen(id, open){ folds[id] = !!open; }
 /* Clear remembered open/closed state for a show so sections start collapsed
    each time you open that show. Quiet sync remounts keep the user's expands. */
 function resetShowFolds(showId){

@@ -1,11 +1,20 @@
 {
   "name": "operate",
   "private": true,
-  "description": "Operate — touring operations PWA (no build step; scripts are plain browser JS).",
+  "description": "Operate — touring operations PWA. Vanilla shell + React show-page island.",
   "type": "module",
   "scripts": {
     "check": "node scripts/check-syntax.mjs",
     "test": "node --test",
-    "ci": "npm run check && npm test"
+    "build:react": "vite build",
+    "ci": "npm run check && npm test && npm run build:react"
+  },
+  "dependencies": {
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^6.1.1",
+    "vite": "^8.2.2"
   }
 }
