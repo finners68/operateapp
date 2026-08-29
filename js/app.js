@@ -275,32 +275,21 @@ function renderView(opts={}){
   const screen = $('#screen');
   const scrollY = opts.resetScroll ? 0 : (opts.scrollY != null ? opts.scrollY : (screen?.scrollTop || 0));
   const v = $('#view');
-  const reactShow = (typeof OperateReact !== 'undefined') ? OperateReact : null;
-  const wantReactShow = !!(overlay && overlay.type === 'event' && reactShow && typeof reactShow.mountShow === 'function');
-  const wantReactShowsList = !!(!overlay && store.tab === 'shows' && reactShow && typeof reactShow.mountShowsList === 'function');
+  const R = (typeof OperateReact !== 'undefined') ? OperateReact : null;
 
-  /* Show detail: React island. */
-  if(wantReactShow){
-    const same = typeof reactShow.getMountedShowId === 'function'
-      && reactShow.getMountedShowId() === overlay.id
-      && typeof reactShow.isShowMounted === 'function'
-      && reactShow.isShowMounted();
-    if(same){
-      if(typeof reactShow.refreshShow === 'function') reactShow.refreshShow();
-      renderNav(); setFab(); syncScreenChrome();
-      if(screen){
-        screen.scrollTop = scrollY;
-        if(opts.quiet) requestAnimationFrame(()=>{ if(screen) screen.scrollTop = scrollY; });
-      }
-      return true;
+  function paintReact(mountFn){
+    if(typeof R.unmountAllIslands === 'function') R.unmountAllIslands();
+    else {
+      if(R.unmountShow) R.unmountShow();
+      if(R.unmountShowsList) R.unmountShowsList();
+      if(R.unmountHome) R.unmountHome();
+      if(R.unmountTripMode) R.unmountTripMode();
     }
-    if(typeof reactShow.unmountShowsList === 'function') reactShow.unmountShowsList();
-    if(typeof reactShow.unmountShow === 'function') reactShow.unmountShow();
     if(v){
       if(opts.quiet) v.classList.add('quiet-paint');
       else v.classList.remove('quiet-paint');
       v.innerHTML = '';
-      reactShow.mountShow(overlay.id, v);
+      mountFn(v);
     }
     renderNav(); setFab(); syncScreenChrome();
     if(screen){
@@ -309,43 +298,47 @@ function renderView(opts={}){
     }
     return true;
   }
-
-  /* Shows list tab: React island. */
-  if(wantReactShowsList){
-    if(typeof reactShow.isShowsListMounted === 'function' && reactShow.isShowsListMounted()){
-      if(typeof reactShow.refreshShowsList === 'function') reactShow.refreshShowsList();
-      renderNav(); setFab(); syncScreenChrome();
-      if(screen){
-        screen.scrollTop = scrollY;
-        if(opts.quiet) requestAnimationFrame(()=>{ if(screen) screen.scrollTop = scrollY; });
-      }
-      return true;
-    }
-    if(typeof reactShow.unmountShow === 'function') reactShow.unmountShow();
-    if(typeof reactShow.unmountShowsList === 'function') reactShow.unmountShowsList();
-    if(v){
-      if(opts.quiet) v.classList.add('quiet-paint');
-      else v.classList.remove('quiet-paint');
-      v.innerHTML = '';
-      reactShow.mountShowsList(v);
-    }
+  function refreshReact(refreshFn){
+    if(typeof refreshFn === 'function') refreshFn();
     renderNav(); setFab(); syncScreenChrome();
     if(screen){
       screen.scrollTop = scrollY;
       if(opts.quiet) requestAnimationFrame(()=>{ if(screen) screen.scrollTop = scrollY; });
     }
     return true;
+  }
+
+  /* Show detail */
+  if(overlay && overlay.type === 'event' && R && typeof R.mountShow === 'function'){
+    if(R.isShowMounted && R.isShowMounted() && R.getMountedShowId && R.getMountedShowId() === overlay.id){
+      return refreshReact(R.refreshShow);
+    }
+    return paintReact(el => R.mountShow(overlay.id, el));
+  }
+  /* Shows list tab */
+  if(!overlay && store.tab === 'shows' && R && typeof R.mountShowsList === 'function'){
+    if(R.isShowsListMounted && R.isShowsListMounted()) return refreshReact(R.refreshShowsList);
+    return paintReact(el => R.mountShowsList(el));
+  }
+  /* Home tab */
+  if(!overlay && store.tab === 'home' && R && typeof R.mountHome === 'function'){
+    if(R.isHomeMounted && R.isHomeMounted()) return refreshReact(R.refreshHome);
+    return paintReact(el => R.mountHome(el));
+  }
+  /* Tour Mode tab */
+  if(!overlay && store.tab === 'trips' && R && typeof R.mountTripMode === 'function'){
+    if(R.isTripModeMounted && R.isTripModeMounted()) return refreshReact(R.refreshTripMode);
+    return paintReact(el => R.mountTripMode(el));
   }
 
   /* Leaving React islands — tear down before other screens paint. */
-  if(reactShow){
-    if(typeof reactShow.unmountShow === 'function'
-        && typeof reactShow.isShowMounted === 'function' && reactShow.isShowMounted()){
-      reactShow.unmountShow();
-    }
-    if(typeof reactShow.unmountShowsList === 'function'
-        && typeof reactShow.isShowsListMounted === 'function' && reactShow.isShowsListMounted()){
-      reactShow.unmountShowsList();
+  if(R){
+    if(typeof R.unmountAllIslands === 'function') R.unmountAllIslands();
+    else {
+      if(R.unmountShow && R.isShowMounted && R.isShowMounted()) R.unmountShow();
+      if(R.unmountShowsList && R.isShowsListMounted && R.isShowsListMounted()) R.unmountShowsList();
+      if(R.unmountHome && R.isHomeMounted && R.isHomeMounted()) R.unmountHome();
+      if(R.unmountTripMode && R.isTripModeMounted && R.isTripModeMounted()) R.unmountTripMode();
     }
   }
 

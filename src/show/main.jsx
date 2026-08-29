@@ -1,15 +1,28 @@
 import { createRoot } from 'react-dom/client';
 import ShowPage from './ShowPage.jsx';
 import ShowsListPage from '../shows-list/ShowsListPage.jsx';
+import HomePage from '../home/HomePage.jsx';
+import TripModePage from '../trip/TripModePage.jsx';
 import { notifyStore } from './bridge.js';
 
 let showRoot = null;
 let mountedShowId = null;
 let listRoot = null;
+let homeRoot = null;
+let tripRoot = null;
+
+export function unmountAllIslands(){
+  unmountShow();
+  unmountShowsList();
+  unmountHome();
+  unmountTripMode();
+}
 
 export function mountShow(showId, el){
   if(!el || showId == null) return;
   unmountShowsList();
+  unmountHome();
+  unmountTripMode();
   if(showRoot && mountedShowId === showId){
     notifyStore();
     return;
@@ -31,21 +44,15 @@ export function unmountShow(){
   mountedShowId = null;
 }
 
-export function isShowMounted(){
-  return !!showRoot;
-}
-
-export function getMountedShowId(){
-  return mountedShowId;
-}
-
-export function refreshShow(){
-  notifyStore();
-}
+export function isShowMounted(){ return !!showRoot; }
+export function getMountedShowId(){ return mountedShowId; }
+export function refreshShow(){ notifyStore(); }
 
 export function mountShowsList(el){
   if(!el) return;
   unmountShow();
+  unmountHome();
+  unmountTripMode();
   if(listRoot){
     notifyStore();
     return;
@@ -61,10 +68,51 @@ export function unmountShowsList(){
   listRoot = null;
 }
 
-export function isShowsListMounted(){
-  return !!listRoot;
+export function isShowsListMounted(){ return !!listRoot; }
+export function refreshShowsList(){ notifyStore(); }
+
+export function mountHome(el){
+  if(!el) return;
+  unmountShow();
+  unmountShowsList();
+  unmountTripMode();
+  if(homeRoot){
+    notifyStore();
+    return;
+  }
+  homeRoot = createRoot(el);
+  homeRoot.render(<HomePage />);
 }
 
-export function refreshShowsList(){
-  notifyStore();
+export function unmountHome(){
+  if(homeRoot){
+    try{ homeRoot.unmount(); }catch(_){}
+  }
+  homeRoot = null;
 }
+
+export function isHomeMounted(){ return !!homeRoot; }
+export function refreshHome(){ notifyStore(); }
+
+export function mountTripMode(el){
+  if(!el) return;
+  unmountShow();
+  unmountShowsList();
+  unmountHome();
+  if(tripRoot){
+    notifyStore();
+    return;
+  }
+  tripRoot = createRoot(el);
+  tripRoot.render(<TripModePage />);
+}
+
+export function unmountTripMode(){
+  if(tripRoot){
+    try{ tripRoot.unmount(); }catch(_){}
+  }
+  tripRoot = null;
+}
+
+export function isTripModeMounted(){ return !!tripRoot; }
+export function refreshTripMode(){ notifyStore(); }
