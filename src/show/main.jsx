@@ -1,9 +1,15 @@
 import { createRoot } from 'react-dom/client';
+import { flushSync } from 'react-dom';
 import ShowPage from './ShowPage.jsx';
 import ShowsListPage from '../shows-list/ShowsListPage.jsx';
 import HomePage from '../home/HomePage.jsx';
 import TripModePage from '../trip/TripModePage.jsx';
 import { notifyStore } from './bridge.js';
+
+/* Paint in the same turn as the mount so tab switches never flash blank. */
+function paint(root, node){
+  flushSync(() => { root.render(node); });
+}
 
 let showRoot = null;
 let mountedShowId = null;
@@ -33,7 +39,7 @@ export function mountShow(showId, el){
   }
   mountedShowId = showId;
   showRoot = createRoot(el);
-  showRoot.render(<ShowPage showId={showId} />);
+  paint(showRoot, <ShowPage showId={showId} />);
 }
 
 export function unmountShow(){
@@ -58,7 +64,7 @@ export function mountShowsList(el){
     return;
   }
   listRoot = createRoot(el);
-  listRoot.render(<ShowsListPage />);
+  paint(listRoot, <ShowsListPage />);
 }
 
 export function unmountShowsList(){
@@ -81,7 +87,7 @@ export function mountHome(el){
     return;
   }
   homeRoot = createRoot(el);
-  homeRoot.render(<HomePage />);
+  paint(homeRoot, <HomePage />);
 }
 
 export function unmountHome(){
@@ -104,7 +110,7 @@ export function mountTripMode(el){
     return;
   }
   tripRoot = createRoot(el);
-  tripRoot.render(<TripModePage />);
+  paint(tripRoot, <TripModePage />);
 }
 
 export function unmountTripMode(){

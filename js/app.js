@@ -200,17 +200,17 @@ function restoreNavState(){
   navStack = navStack.filter(o=>!(o&&o.type==='finance' && typeof financeLockActive==='function' && financeLockActive()));
   if(ns.scrollY){ requestAnimationFrame(()=>{ const s=document.getElementById('screen'); if(s) s.scrollTop=ns.scrollY; }); }
 }
-function go(tab){ navStack=[]; overlay=null; store.tab=tab; if(tab==='ideas') ideasStale=false; haptic(); persist('user_preferences'); saveNavState(); render({ resetScroll: true }); }
+function go(tab){ navStack=[]; overlay=null; store.tab=tab; if(tab==='ideas') ideasStale=false; haptic(); persist('user_preferences'); saveNavState(); render({ resetScroll: true, quiet: true }); }
 function openView(type, id){
   if(type==='finance' && financeLockActive()){ requireUnlock('finance', ()=>openView('finance', id)); return; }
   if(overlay) navStack.push(overlay);   // remember where we came from
   overlay={type, id};
   if(type==='event' && id && typeof resetShowFolds==='function') resetShowFolds(id);
-  haptic(); saveNavState(); renderView({ resetScroll: true });
+  haptic(); saveNavState(); renderView({ resetScroll: true, quiet: true });
 }
 function back(){
   overlay = navStack.length ? navStack.pop() : null;   // step back one screen, not all the way out
-  saveNavState(); renderView({ resetScroll: true });
+  saveNavState(); renderView({ resetScroll: true, quiet: true });
 }
 
 /* Which nav tab to highlight. Drilling into a detail keeps the section you
@@ -286,8 +286,8 @@ function renderView(opts={}){
       if(R.unmountTripMode) R.unmountTripMode();
     }
     if(v){
-      if(opts.quiet) v.classList.add('quiet-paint');
-      else v.classList.remove('quiet-paint');
+      /* Tab/detail switches should appear instantly — never replay fade/stagger. */
+      v.classList.add('quiet-paint');
       v.innerHTML = '';
       mountFn(v);
     }
@@ -380,9 +380,8 @@ function renderView(opts={}){
     return false;
   }
   if(v){
-    /* Quiet remounts keep data fresh but must not replay fade-in / stagger. */
-    if(opts.quiet) v.classList.add('quiet-paint');
-    else v.classList.remove('quiet-paint');
+    /* Page paints should appear instantly — never replay fade-in / stagger. */
+    v.classList.add('quiet-paint');
     v.innerHTML = html;
   }
   if(afterPaint) afterPaint();

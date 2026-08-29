@@ -198,7 +198,7 @@ function ToursBody(){
   return (
     <>
       {upcoming.length ? (
-        <div className="stagger">
+        <div>
           {upcoming.map(r => <RunCard key={r.key} run={r} />)}
         </div>
       ) : (
