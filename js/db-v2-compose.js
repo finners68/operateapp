@@ -269,59 +269,125 @@ async function composeViewFromV2(v2, opts){
     return out;
   }
 
-  /* Shared flight details + per-person seat/name; passes hang off each passenger
-     via travel_tickets.ticket_reference. Legacy single-seat / unscoped passes
-     become one default passenger so nothing is lost on reload. */
+  /* Make / OCR often writes passengers as a single object, a JSON string, or
+     comma-separated objects — not a clean [{id,name,seat}] array. Normalize. */
+  function normalizeJourneyPassengersMeta(raw){
+    if(raw == null || raw === '') return [];
+    if(Array.isArray(raw)) return raw.filter(m => m && typeof m === 'object');
+    if(typeof raw === 'object') return [raw];
+    if(typeof raw === 'string'){
+      const s = raw.trim();
+      if(!s) return [];
+      try{
+        return normalizeJourneyPassengersMeta(JSON.parse(s));
+      }catch(_){}
+      try{
+        return normalizeJourneyPassengersMeta(JSON.parse('[' + s + ']'));
+      }catch(_){}
+      return [];
+    }
+    return [];
+  }
+
+  function paxNamesMatch(a, b){
+    const x = String(a || '').trim().toLowerCase();
+    const y = String(b || '').trim().toLowerCase();
+    return !!x && !!y && x === y;
+  }
+
+  /* Shared flight details + per-person seat/name; passes hang off each passenger.
+     Preferred link: travel_tickets.ticket_reference = passenger id.
+     OCR often puts a booking code in ticket_reference instead — then we match
+     by passenger_name and still read name/seat from the ticket columns. */
   async function passengersFromJourney(j){
     const tickets = ticketsByJourney[j.id] || [];
-    const meta = Array.isArray(j.passengers) ? j.passengers : [];
+    const meta = normalizeJourneyPassengersMeta(j.passengers);
     const prevPax = (prevFlightById[j.id] && prevFlightById[j.id].passengers) || [];
-    const stablePaxId = (idx, preferred) => preferred || prevPax[idx]?.id || newUuid();
+    const stablePaxId = (idx, preferred) => {
+      if(preferred && String(preferred).trim()) return String(preferred).trim();
+      return prevPax[idx]?.id || newUuid();
+    };
+    const metaIds = new Set(
+      meta.map(m => m && m.id != null ? String(m.id).trim() : '').filter(Boolean)
+    );
+
     const byRef = Object.create(null);
     const unassigned = [];
     for(const t of tickets){
       const pass = await passFromTicket(t);
       if(!pass) continue;
       const ref = (t.ticket_reference || '').trim();
-      if(ref) (byRef[ref] = byRef[ref] || []).push(pass);
-      else unassigned.push({
+      const entry = {
         pass,
         name: t.passenger_name || '',
-        seat: t.seat_number || ''
-      });
+        seat: t.seat_number || '',
+        ticket: t
+      };
+      /* Only treat ticket_reference as a passenger id when it matches known
+         meta ids or is a UUID (app contract). Booking codes like KCPTR3S stay
+         unassigned and match by name. */
+      const refIsPaxId = ref && (
+        metaIds.has(ref) ||
+        (typeof isUuid === 'function' && isUuid(ref))
+      );
+      if(refIsPaxId) (byRef[ref] = byRef[ref] || []).push(entry);
+      else unassigned.push(entry);
     }
 
-    let pax = meta.map((m, idx) => ({
-      id: stablePaxId(idx, m.id),
-      name: m.name || '',
-      seat: m.seat || '',
-      passes: byRef[m.id] || []
-    }));
+    const usedUnassigned = new Set();
+    let pax = meta.map((m, idx) => {
+      const id = stablePaxId(idx, m.id);
+      const linked = byRef[String(m.id || '').trim()] || byRef[id] || [];
+      const nameHits = unassigned.filter((u, i) => {
+        if(usedUnassigned.has(i)) return false;
+        if(!paxNamesMatch(u.name, m.name)) return false;
+        usedUnassigned.add(i);
+        return true;
+      });
+      const fromTickets = linked.concat(nameHits);
+      const hint = fromTickets[0];
+      return {
+        id,
+        name: (m.name || hint?.name || '').trim(),
+        seat: (m.seat || hint?.seat || '').trim(),
+        passes: fromTickets.map(x => x.pass)
+      };
+    });
 
     if(!pax.length){
-      const legacySeat = (j.journey_notes || '').replace(/^Legacy seat:\s*/i, '') || '';
-      if(unassigned.length){
-        const named = unassigned.some(u => u.name || u.seat);
-        if(named && unassigned.length > 1){
-          pax = unassigned.map((u, idx) => ({
-            id: stablePaxId(idx),
-            name: u.name || '',
-            seat: u.seat || legacySeat || '',
-            passes: [u.pass]
-          }));
-        } else {
-          pax = [{
-            id: stablePaxId(0),
-            name: unassigned[0].name || '',
-            seat: unassigned[0].seat || legacySeat || '',
-            passes: unassigned.map(u => u.pass)
-          }];
-        }
+      const notesRaw = String(j.journey_notes || '').trim();
+      const legacySeatMatch = notesRaw.match(/^Legacy seat:\s*(.+)$/i);
+      const legacySeat = legacySeatMatch ? legacySeatMatch[1].trim() : '';
+      const pool = unassigned.slice();
+      Object.keys(byRef).forEach(k => { pool.push(...byRef[k]); });
+      if(pool.length){
+        const byName = Object.create(null);
+        const order = [];
+        pool.forEach(u => {
+          const key = String(u.name || '').trim().toLowerCase() || '__anon__:' + order.length;
+          if(!byName[key]){
+            byName[key] = { name: u.name || '', seat: u.seat || '', passes: [] };
+            order.push(key);
+          }
+          if(u.seat && !byName[key].seat) byName[key].seat = u.seat;
+          byName[key].passes.push(u.pass);
+        });
+        pax = order.map((key, idx) => ({
+          id: stablePaxId(idx),
+          name: byName[key].name,
+          seat: byName[key].seat || legacySeat || '',
+          passes: byName[key].passes
+        }));
       } else if(legacySeat){
         pax = [{ id: stablePaxId(0), name: '', seat: legacySeat, passes: [] }];
       }
-    } else if(unassigned.length){
-      pax[0].passes = [...(pax[0].passes || []), ...unassigned.map(u => u.pass)];
+    } else {
+      const leftover = unassigned.filter((_, i) => !usedUnassigned.has(i));
+      if(leftover.length && pax[0]){
+        pax[0].passes = [...(pax[0].passes || []), ...leftover.map(u => u.pass)];
+        if(!pax[0].name && leftover[0].name) pax[0].name = leftover[0].name;
+        if(!pax[0].seat && leftover[0].seat) pax[0].seat = leftover[0].seat;
+      }
     }
     return pax;
   }
@@ -345,6 +411,9 @@ async function composeViewFromV2(v2, opts){
     const fl = [];
     for(const j of fj.flights.sort((a,b) => (a.sort_order||0) - (b.sort_order||0))){
       const passengers = await passengersFromJourney(j);
+      const notesRaw = String(j.journey_notes || '').trim();
+      /* Old rows stored "Legacy seat: 12A" in notes — that is seat data, not notes. */
+      const notes = /^Legacy seat:\s*/i.test(notesRaw) ? '' : notesRaw;
       const row = {
         id: j.id,
         code: j.flight_number || j.journey_title || '',
@@ -358,6 +427,7 @@ async function composeViewFromV2(v2, opts){
         delay: j.delay_description || '',
         fiUpdated: j.status_updated_at ? Date.parse(j.status_updated_at) : null,
         seat: '',
+        notes,
         passengers,
         /* Passes live on each passenger — keep top-level empty so reload
            does not re-pool every pass under the first person. */

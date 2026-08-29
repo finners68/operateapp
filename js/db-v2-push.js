@@ -918,7 +918,7 @@ async function pushToSupabaseV2(orgId, dirtyIn){
         arrival_location_code: f.to || null,
         departure_at: flightTimes.departure_at,
         arrival_at: flightTimes.arrival_at,
-        journey_notes: null,
+        journey_notes: (f.notes && String(f.notes).trim()) ? String(f.notes).trim() : null,
         departure_terminal: f.terminal || null,
         departure_gate: f.gate || null,
         journey_status: f.fstatus || null,

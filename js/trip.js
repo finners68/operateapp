@@ -58,7 +58,7 @@ function viewTripMode(run){
     <div class="section">
       ${foldSection('tm-pack', ICON.checkList(17), 'Packing & checklist', pk.filter(i=>i.done).length+'/'+pk.length+' packed',
         `<div style="padding:0 16px 4px"><div class="progress" style="margin:12px 0 4px"><i style="width:${pk.length?Math.round(pk.filter(i=>i.done).length/pk.length*100):0}%"></i></div></div>
-         <div class="fold-scroll">${pk.map(i=>`<div class="check ${i.done?'done':''}"><div class="box" onclick="togglePack('${i.id}')">${ICON.check(15)}</div><div class="lbl">${esc(i.label)}</div><button class="del" onclick="delPack('${i.id}')">${ICON.x(16)}</button></div>`).join('')||'<div class="hint">No items</div>'}</div>
+         <div class="fold-scroll">${pk.map(i=>`<div class="check ${i.done?'done':''}" data-id="${esc(i.id)}"><div class="box" onclick="togglePack('${i.id}')">${ICON.check(15)}</div><div class="lbl">${esc(i.label)}</div><button class="del" onclick="delPack('${i.id}')">${ICON.x(16)}</button></div>`).join('')||'<div class="hint">No items</div>'}</div>
          <div class="fold-pad"><button class="btn secondary" style="padding:11px" onclick="addPackPrompt()">${ICON.plus(15)} Add item</button></div>`, false)}
     </div>
 
@@ -399,7 +399,7 @@ function editTimelineStep(runKey, stepId){
 }
 
 function tlItem(tripId, s, isNow){
-  return `<div class="tl-item ${s.done?'done':''} ${isNow&&!s.done?'now':''}">
+  return `<div class="tl-item ${s.done?'done':''} ${isNow&&!s.done?'now':''}" data-id="${esc(s.id)}">
     <div class="tl-time">${esc(s.time)}</div>
     <div class="tl-line"><div class="tl-node"></div></div>
     <div class="tl-card" onclick="completeStep('${tripId}','${s.id}')">
@@ -518,7 +518,7 @@ function tripBody(r){
     <div class="section">
       ${foldSection('trip-pack', ICON.checkList(17), 'Packing & checklist', pk.filter(i=>i.done).length+'/'+pk.length+' packed',
         `<div style="padding:0 16px 4px"><div class="progress" style="margin:12px 0 4px"><i style="width:${pk.length?Math.round(pk.filter(i=>i.done).length/pk.length*100):0}%"></i></div></div>
-         <div class="fold-scroll">${pk.map(i=>`<div class="check ${i.done?'done':''}"><div class="box" onclick="togglePack('${i.id}')">${ICON.check(15)}</div><div class="lbl">${esc(i.label)}</div><button class="del" onclick="delPack('${i.id}')">${ICON.x(16)}</button></div>`).join('')||'<div class="hint">No items</div>'}</div>
+         <div class="fold-scroll">${pk.map(i=>`<div class="check ${i.done?'done':''}" data-id="${esc(i.id)}"><div class="box" onclick="togglePack('${i.id}')">${ICON.check(15)}</div><div class="lbl">${esc(i.label)}</div><button class="del" onclick="delPack('${i.id}')">${ICON.x(16)}</button></div>`).join('')||'<div class="hint">No items</div>'}</div>
          <div class="fold-pad"><button class="btn secondary" style="padding:11px" onclick="addPackPrompt()">${ICON.plus(15)} Add item</button></div>`, false)}
     </div>
 
@@ -575,7 +575,14 @@ function toursListBody(){
     ${past.length?`<div class="section"><div class="section-head"><div class="section-title" style="font-size:16px;color:var(--text-2)">Past</div></div>
       <div class="card flush">${past.slice(0,12).map(runRow).join('')}</div></div>`:''}`;
 }
-function toggleLegDone(runKey, showId){ const sh=sel.event(showId); if(sh){ sh.setDone=!sh.setDone; haptic(); persist('shows', showId); renderView(); toast(sh.setDone?'Leg complete ✓':'Leg reopened', sh.setDone?'check':'arrowUp'); } }
+function toggleLegDone(runKey, showId){
+  const sh=sel.event(showId); if(!sh) return;
+  sh.setDone=!sh.setDone;
+  haptic();
+  persist('shows', showId);
+  if(!patchCheckRowsById(showId, sh.setDone) && !patchCheckRowsById('set_'+showId, sh.setDone)) softRender();
+  toast(sh.setDone?'Leg complete ✓':'Leg reopened', sh.setDone?'check':'arrowUp');
+}
 
 /* ============================================================
    TRIP — create / edit
@@ -649,13 +656,41 @@ function openTourContacts(runKey){
   openSheet('Key contacts', body+'<div class="spacer"></div>');
 }
 function completeRunStep(runKey, stepId){
-  if(stepId.startsWith('set_')){ const sh=sel.event(stepId.slice(4)); if(sh){ sh.setDone=!sh.setDone; } }
-  else if(stepId.startsWith('shhotel_')){ const sh=sel.event(stepId.slice(8)); if(sh&&sh.hotel){ sh.hotel.done=!sh.hotel.done; } }
-  else if(stepId.startsWith('shflt_')){ const id=stepId.slice(6); store.events.forEach(e=>(e.flights||[]).forEach(f=>{ if(f.id===id) f.done=!f.done; })); }
-  else if(stepId.startsWith('shdrv_')){ const id=stepId.slice(6); store.events.forEach(e=>(e.drivers||[]).forEach(d=>{ if(d.id===id) d.done=!d.done; })); }
-  else { const it=store.events.find(x=>x.id===stepId); if(it){ it.done=!it.done; if(it.done) toast('Done ✓','check'); } }
-  haptic(); persist('user_preferences'); renderView();
+  let done = null;
+  if(stepId.startsWith('set_')){ const sh=sel.event(stepId.slice(4)); if(sh){ sh.setDone=!sh.setDone; done=!!sh.setDone; } }
+  else if(stepId.startsWith('shhotel_')){ const sh=sel.event(stepId.slice(8)); if(sh&&sh.hotel){ sh.hotel.done=!sh.hotel.done; done=!!sh.hotel.done; } }
+  else if(stepId.startsWith('shflt_')){ const id=stepId.slice(6); store.events.forEach(e=>(e.flights||[]).forEach(f=>{ if(f.id===id){ f.done=!f.done; done=!!f.done; } })); }
+  else if(stepId.startsWith('shdrv_')){ const id=stepId.slice(6); store.events.forEach(e=>(e.drivers||[]).forEach(d=>{ if(d.id===id){ d.done=!d.done; done=!!d.done; } })); }
+  else { const it=store.events.find(x=>x.id===stepId); if(it){ it.done=!it.done; done=!!it.done; if(it.done) toast('Done ✓','check'); } }
+  haptic(); persist('user_preferences');
+  if(done == null || !patchCheckRowsById(stepId, done)) softRender();
 }
-function togglePack(id){ const p=store.packing.find(x=>x.id===id); if(p){p.done=!p.done; haptic(); persist('user_preferences'); renderView();} }
-function delPack(id){ store.packing=store.packing.filter(x=>x.id!==id); persist('user_preferences'); renderView(); }
-function addPackPrompt(){ promptSheet('Packing item','e.g. Rain jacket', function(v){ store.packing.push({id:uid('pk'),label:v,done:false}); persist('user_preferences'); renderView(); toast('Added','check'); }); }
+function togglePack(id){
+  const p=store.packing.find(x=>x.id===id);
+  if(!p) return;
+  p.done=!p.done;
+  haptic();
+  persist('user_preferences');
+  if(!patchCheckRowsById(id, p.done)) softRender();
+  else {
+    const pk = store.packing || [];
+    const label = pk.filter(i=>i.done).length+'/'+pk.length+' packed';
+    ['tm-pack','trip-pack'].forEach(fid=>{
+      const span = document.querySelector('#fold-'+fid+' .ft span');
+      if(span) span.textContent = label;
+    });
+  }
+}
+function delPack(id){
+  store.packing=store.packing.filter(x=>x.id!==id);
+  persist('user_preferences');
+  removeCheckRowsById(id);
+}
+function addPackPrompt(){
+  promptSheet('Packing item','e.g. Rain jacket', function(v){
+    store.packing.push({id:uid('pk'),label:v,done:false});
+    persist('user_preferences');
+    softRender();
+    toast('Added','check');
+  });
+}

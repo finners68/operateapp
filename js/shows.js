@@ -317,7 +317,7 @@ function activeTripBanner(run){
 }
 /* Shared small components */
 function checkRow(i, onclick){
-  return `<div class="check ${i.done?'done':''}" onclick="${onclick}">
+  return `<div class="check ${i.done?'done':''}" data-id="${esc(i.id)}" onclick="${onclick}">
     <div class="box">${ICON.check(15)}</div>
     <div class="lbl">${esc(i.label)}</div>
   </div>`;
@@ -382,14 +382,14 @@ function travelGroupSummary(e){
   if(driver) parts.push('driver');
   if(noGround) parts.push('Uber/taxi');
   if(transferN) parts.push(transferN+' transfer'+(transferN>1?'s':''));
-  return parts.length ? parts.join(' · ') : 'Nothing added yet';
+  return parts.length ? parts.join(' · ') : 'Add flights, hotel or transport';
 }
 function venueGroupSummary(e){
   const n = countAdvanceFields(e.advance);
   const venue = cleanVenue(e.venue) || 'Venue';
   const contacts = (e.contacts||[]).length;
   const bits = [venue];
-  if(n) bits.push(n+' advance field'+(n>1?'s':''));
+  if(n) bits.push(n+' day-of detail'+(n>1?'s':''));
   if(contacts) bits.push(contacts+' contact'+(contacts>1?'s':''));
   return bits.join(' · ');
 }
@@ -405,12 +405,12 @@ function prepGroupSummary(e){
   if(contentN) parts.push(contentN+' content item'+(contentN>1?'s':''));
   if(attachN) parts.push(attachN+' attachment'+(attachN>1?'s':''));
   if(e.notes&&e.notes.trim()) parts.push('notes');
-  return parts.length ? parts.join(' · ') : 'Nothing added yet';
+  return parts.length ? parts.join(' · ') : 'Checklist, timeline, notes — add what you need';
 }
 function dealGroupSummary(e){
   if(e.finance&&e.finance.notDisclosed) return 'Not disclosed';
   const c = money.eventCalc(e);
-  if(!c.gross) return 'Not set';
+  if(!c.gross) return 'Add the fee or mark as not disclosed';
   return fmtMoney(c.gross,c.cur)+(c.paid?' · paid':' · unpaid');
 }
 function flightsSubsection(e){
@@ -418,12 +418,13 @@ function flightsSubsection(e){
   const manual = (e.flights||[]).filter(f => typeof flightHasDetails!=='function' || flightHasDetails(f));
   let body = '';
   if(!legs.length && !manual.length){
-    body = `<div class="card tap" onclick="sheetFlight('${e.id}')" style="text-align:center;color:var(--text-3);padding:20px">${ICON.plane(22)}<div style="margin-top:6px;font-weight:600">Add flight</div></div>`;
+    body = `<div class="card tap" onclick="sheetFlight('${e.id}')" style="text-align:center;color:var(--text-3);padding:20px">${ICON.plane(22)}<div style="margin-top:6px;font-weight:600">Add flight</div><div style="margin-top:4px;font-size:12px;font-weight:500">Number, times, passengers and boarding passes</div></div>`;
   } else {
     if(legs.length) body += showSourceLabel('From journey')+`<div class="card flush">${legs.map(journeyRow).join('')}</div>`;
     if(manual.length) body += showSourceLabel('Added to show')+`<div class="card flush">${manual.map(f=>flightLine(e.id,f)).join('')}</div>`;
   }
-  return showSubsection('ss-'+e.id+'-flights', 'Flights', `<button type="button" class="add" onclick="sheetFlight('${e.id}')">Add</button>`, body);
+  const has = !!(legs.length || manual.length);
+  return showSubsection('ss-'+e.id+'-flights', 'Flights', `<button type="button" class="add" onclick="sheetFlight('${e.id}')">Add</button>`, body, has);
 }
 /* A UK show — UK postcodes are granular (a postcode ≈ a building) so they land
    exactly; postcodes elsewhere cover a wide area and Maps resolves them to the
@@ -491,8 +492,9 @@ function hotelSubsection(e){
       ${e.hotel.notes?`<div class="info-line"><div class="ic">${ICON.note(17)}</div>${fieldTx('Room notes', esc(e.hotel.notes))}</div>`:''}
     </div>`;
   }
-  if(!body) body = `<div class="card tap" onclick="sheetHotel('${e.id}')" style="text-align:center;color:var(--text-3);padding:20px">${ICON.bed(22)}<div style="margin-top:6px;font-weight:600">Add hotel details</div></div>`;
-  return showSubsection('ss-'+e.id+'-hotel', 'Hotel', `<button type="button" class="add" onclick="sheetHotel('${e.id}')">${e.hotel?'Edit':'Add'}</button>`, body);
+  if(!body) body = `<div class="card tap" onclick="sheetHotel('${e.id}')" style="text-align:center;color:var(--text-3);padding:20px">${ICON.bed(22)}<div style="margin-top:6px;font-weight:600">Add hotel details</div><div style="margin-top:4px;font-size:12px;font-weight:500">Name, dates, confirmation and maps</div></div>`;
+  const has = !!(legs.length || e.hotel);
+  return showSubsection('ss-'+e.id+'-hotel', 'Hotel', `<button type="button" class="add" onclick="sheetHotel('${e.id}')">${e.hotel?'Edit':'Add'}</button>`, body, has);
 }
 /* Chronological rank for a driver by its journey: arrival → set → departure.
    Blank / custom journeys sort after the known ones, keeping their add order. */
@@ -562,14 +564,15 @@ function driverSubsection(e){
     if(legs.length) body += showSourceLabel('Added to show');
     body += orderedDrivers(e).map(o=>driverCard(e.id,o.d,o.idx)).join('');
   }
-  if(!body) body = `<div class="card tap" onclick="sheetDriver('${e.id}')" style="text-align:center;color:var(--text-3);padding:20px">${ICON.car(22)}<div style="margin-top:6px;font-weight:600">Add transport</div></div>`;
-  return showSubsection('ss-'+e.id+'-driver', 'Transport', `<button type="button" class="add" onclick="sheetDriver('${e.id}')">Add</button>`, body);
+  if(!body) body = `<div class="card tap" onclick="sheetDriver('${e.id}')" style="text-align:center;color:var(--text-3);padding:20px">${ICON.car(22)}<div style="margin-top:6px;font-weight:600">Add transport</div><div style="margin-top:4px;font-size:12px;font-weight:500">Driver details, pickup, or Uber / taxi</div></div>`;
+  const has = !!(legs.length || drivers.length);
+  return showSubsection('ss-'+e.id+'-driver', 'Transport', `<button type="button" class="add" onclick="sheetDriver('${e.id}')">Add</button>`, body, has);
 }
 function transfersSubsection(e){
   const legs = showLegs(e.id).filter(x=>x.kind==='travel' && (x.icon||'plane')!=='plane' && !isDriverItem(x)).sort(legSort);
   if(!legs.length) return '';
   const body = showSourceLabel('From journey')+`<div class="card flush">${legs.map(journeyRow).join('')}</div>`;
-  return showSubsection('ss-'+e.id+'-transfers', 'Transfers', `<button type="button" class="add" onclick="addLogisticFor('${e.id}')">Add</button>`, body);
+  return showSubsection('ss-'+e.id+'-transfers', 'Transfers', `<button type="button" class="add" onclick="addLogisticFor('${e.id}')">Add</button>`, body, true);
 }
 function travelGroupBody(e){
   return flightsSubsection(e)+hotelSubsection(e)+driverSubsection(e)+transfersSubsection(e);
@@ -592,7 +595,7 @@ function venueSubsection(e){
       <button type="button" class="header-btn" style="width:34px;height:34px;align-self:center" onclick="sheetPromoter('${e.id}')" title="Edit liaison">${ICON.edit(15)}</button>
     </div>`:`<div class="info-line" onclick="sheetPromoter('${e.id}')"><div class="ic">${ICON.plus(17)}</div><div class="tx"><div class="v" style="color:var(--accent-2)">Add artist liaison</div></div></div>`}
   </div>`;
-  return showSubsection('ss-'+e.id+'-venue', 'Venue & liaison', '', body);
+  return showSubsection('ss-'+e.id+'-venue', 'Venue & liaison', '', body, true);
 }
 function advanceSubsection(e){
   const a = e.advance||{};
@@ -602,7 +605,7 @@ function advanceSubsection(e){
   const hasAny = countAdvanceFields(a) > 0;
   const editBtn = `<button type="button" class="add" onclick="sheetAdvance('${e.id}')">${hasAny?'Edit':'Add'}</button>`;
   if(!hasAny){
-    return showSubsection('ss-'+e.id+'-advancing', 'Advancing', editBtn, `<div class="card tap" onclick="sheetAdvance('${e.id}')" style="text-align:center;color:var(--text-3);padding:18px;font-weight:600">${ICON.checkList(20)} Add show-day details</div>`);
+    return showSubsection('ss-'+e.id+'-advancing', 'Show-day details', editBtn, `<div class="card tap" onclick="sheetAdvance('${e.id}')" style="text-align:center;color:var(--text-3);padding:18px;font-weight:600">${ICON.checkList(20)} Add show-day details<div style="margin-top:4px;font-size:12px;font-weight:500">Access, soundcheck, running order, wifi…</div></div>`);
   }
   const scheduleRows = [advRow(ICON.pin(17),'Stage / area',a.stage), schedHTML?`<div class="info-line" style="align-items:flex-start"><div class="ic">${ICON.clock(17)}</div><div class="tx" style="width:100%"><div class="k">Running order</div>${schedHTML}</div></div>`:''].filter(Boolean).join('');
   const accessRows = [advRow(ICON.planeUp(17),'Access / arrival',a.access), advRow(ICON.music(17),'Sound check',a.soundcheck), advRow(ICON.clock(17),'Curfew',a.curfew), advRow(ICON.pin(17),'Navigation address',a.navAddr,navExtra)].filter(Boolean).join('');
@@ -610,7 +613,7 @@ function advanceSubsection(e){
   const otherRows = advRow(ICON.note(17),'Remarks',a.remarks);
   const mini = (title, rows)=> rows ? `<div class="show-adv-mini"><div class="show-adv-mini-head">${esc(title)}</div><div class="card flush">${rows}</div></div>` : '';
   const body = mini('Schedule', scheduleRows)+mini('Access', accessRows)+mini('Backstage', backstageRows)+mini('Other', otherRows);
-  return showSubsection('ss-'+e.id+'-advancing', 'Advancing', editBtn, body);
+  return showSubsection('ss-'+e.id+'-advancing', 'Show-day details', editBtn, body, true);
 }
 function contactsSubsection(e){
   const cs = e.contacts||[];
@@ -624,7 +627,7 @@ function contactsSubsection(e){
     ${ct.phone?`<button class="header-btn" style="width:34px;height:34px;align-self:center" onclick="callNumber('${jsAttr(ct.phone)}')">${ICON.phone(15)}</button>`:''}
     ${(ct.whatsapp||ct.phone)?`<button class="header-btn" style="width:34px;height:34px;align-self:center" onclick="whatsapp('${jsAttr(ct.whatsapp||ct.phone)}')">${ICON.chat(15)}</button>`:''}
   </div>`).join('')}</div>`;
-  return showSubsection('ss-'+e.id+'-contacts', 'Key contacts', addBtn, body);
+  return showSubsection('ss-'+e.id+'-contacts', 'Key contacts', addBtn, body, true);
 }
 function venueGroupBody(e){
   return venueSubsection(e)+advanceSubsection(e)+contactsSubsection(e);
@@ -636,25 +639,27 @@ function contentSubsection(e){
   if(e.content) body += `<div class="card show-brief" style="background:linear-gradient(150deg,var(--accent-soft),var(--card));margin:10px"><div class="show-brief-k">${ICON.camera(14)} Brief</div><div class="show-brief-v">${esc(e.content)}</div></div>`;
   if(linked.length) body += `<div class="card flush">${linked.map(i=>{const t=IDEA_TYPES[i.type]||IDEA_TYPES.other;return `<div class="row" onclick="openView('idea','${i.id}')"><div class="ic" style="background:${t.color}22;color:${t.color}">${ICON[t.icon](16)}</div><div class="body"><b>${esc(i.title)}</b><span>${t.label}${i.done?' · done':''}</span></div>${ICON.chevR(15)}</div>`;}).join('')}</div>`;
   if(!body) body = `<div class="card tap" onclick="sheetEvent('${e.id}')" style="text-align:center;color:var(--text-3);padding:18px;font-weight:600;margin:10px">${ICON.camera(20)} Set what to film / capture</div>`;
-  return showSubsection('ss-'+e.id+'-content', 'Content to capture', addBtn, body);
+  const has = !!(e.content || linked.length);
+  return showSubsection('ss-'+e.id+'-content', 'Content to capture', addBtn, body, has);
 }
 function checklistSubsection(e){
   const cp = sel.eventChecklistProgress(e);
   const addBtn = `<button type="button" class="add" onclick="sheetShowChecklist('${e.id}')">Add</button>`;
   const title = cp.total ? `Checklist · ${cp.done}/${cp.total}` : 'Checklist';
   const body = e.checklist&&e.checklist.length
-    ? `<div class="card flush">${e.checklist.map(i=>`<div class="check ${i.done?'done':''}"><div class="box" onclick="toggleEventCheck('${e.id}','${i.id}')">${ICON.check(15)}</div><div class="lbl" onclick="toggleEventCheck('${e.id}','${i.id}')">${esc(i.label)}</div><button class="del" onclick="delEventCheck('${e.id}','${i.id}')">${ICON.x(16)}</button></div>`).join('')}</div>`
+    ? `<div class="card flush">${e.checklist.map(i=>`<div class="check ${i.done?'done':''}" data-id="${esc(i.id)}"><div class="box" onclick="toggleEventCheck('${e.id}','${i.id}')">${ICON.check(15)}</div><div class="lbl" onclick="toggleEventCheck('${e.id}','${i.id}')">${esc(i.label)}</div><button class="del" onclick="delEventCheck('${e.id}','${i.id}')">${ICON.x(16)}</button></div>`).join('')}</div>`
     : `<div class="card tap" onclick="sheetShowChecklist('${e.id}')" style="text-align:center;color:var(--text-3);padding:18px;font-weight:600">${ICON.checkList(20)} Add a checklist item</div>`;
-  return showSubsection('ss-'+e.id+'-checklist', title, addBtn, body);
+  return showSubsection('ss-'+e.id+'-checklist', title, addBtn, body, !!cp.total);
 }
 function timelineStepRow(e, s, opts={}){
   const eid = e.id;
   const editable = !s.auto && opts.edit;
   const openAuto = s.auto ? timelineAutoOpen(eid, s) : '';
+  const openAutoSafe = openAuto; /* already built as JS call string */
   const labelClick = s.auto && openAuto
-    ? `onclick="${openAuto}"`
+    ? `onclick="${openAutoSafe}"`
     : (editable ? `onclick="sheetShowTimelineStep('${eid}','${s.id}')"` : `onclick="toggleShowTimelineStep('${eid}','${s.id}')"`);
-  return `<div class="check ${s.done?'done':''}">
+  return `<div class="check ${s.done?'done':''}" data-id="${esc(s.id)}">
     <div class="box" onclick="toggleShowTimelineStep('${eid}','${s.id}')">${ICON.check(15)}</div>
     <div class="lbl" ${labelClick} style="flex:1;min-width:0">
       <b>${esc(s.time||'—')}</b> ${esc(s.title||'Step')}
@@ -685,18 +690,20 @@ function timelineSubsection(e){
   }
   const body = `<div class="card flush">${tl.map(s=>timelineStepRow(e,s)).join('')}</div>
     <div class="hint" style="text-align:left;padding:8px 4px 0">Flights, hotel, transport and set time appear here automatically. Tap Edit to add custom steps.</div>`;
-  return showSubsection('ss-'+e.id+'-timeline', 'Day timeline', addBtn, body);
+  return showSubsection('ss-'+e.id+'-timeline', 'Day timeline', addBtn, body, true);
 }
 function attachmentsSubsection(e){
+  const has = !!(e.attachments||[]).length;
   const body = `<div class="thumb-row">
     ${(e.attachments||[]).map(a=>attachThumb(e.id,a)).join('')}
     <label class="thumb thumb-add">${ICON.plus(22)}<span>Add</span><input type="file" accept="image/*,application/pdf" style="display:none" onchange="uploadAttachment('${e.id}',this)"></label>
   </div>`;
-  return showSubsection('ss-'+e.id+'-attachments', 'Attachments', '', body);
+  return showSubsection('ss-'+e.id+'-attachments', 'Attachments', '', body, has);
 }
 function notesSubsection(e){
+  const has = !!(e.notes && String(e.notes).trim());
   const body = `<div class="card" style="margin:10px"><textarea class="textarea" placeholder="Anything to remember about this show…" onblur="saveEventNotes('${e.id}',this.value)">${esc(e.notes||'')}</textarea></div>`;
-  return showSubsection('ss-'+e.id+'-notes', 'Internal notes', '', body);
+  return showSubsection('ss-'+e.id+'-notes', 'Internal notes', '', body, has);
 }
 function prepGroupBody(e){
   return timelineSubsection(e)+contentSubsection(e)+checklistSubsection(e)+attachmentsSubsection(e)+notesSubsection(e);
@@ -785,8 +792,8 @@ function viewEvent(id){
     <div class="show-groups">
       ${showGroup('sg-'+e.id+'-travel', 'Travel', ICON.plane(20), travelGroupSummary(e), travelGroupBody(e))}
       ${showGroup('sg-'+e.id+'-venue', 'Venue & show day', ICON.pin(20), venueGroupSummary(e), venueGroupBody(e))}
-      ${showGroup('sg-'+e.id+'-deal', 'Deal', ICON.coins(20), dealGroupSummary(e), moneyGroupBody(e))}
-      ${showGroup('sg-'+e.id+'-prep', 'Prep', ICON.checkList(20), prepGroupSummary(e), prepGroupBody(e))}
+      ${showGroup('sg-'+e.id+'-deal', 'Fee & deal', ICON.coins(20), dealGroupSummary(e), moneyGroupBody(e))}
+      ${showGroup('sg-'+e.id+'-prep', 'Day prep', ICON.checkList(20), prepGroupSummary(e), prepGroupBody(e))}
     </div>
 
     <div class="show-detail-foot">
@@ -820,12 +827,19 @@ function flightLine(eid,f){
   ].filter(Boolean).join(' · ');
   /* Boarding passes render under each passenger — never as one pooled group. */
   const paxBlock = pax.length ? pax.map(p=>flightPaxLine(eid,f,p)).join('') : '';
+  const notes = String(f.notes || '').trim();
+  const notesBlock = notes
+    ? `<div class="flight-notes" style="padding:0 16px 10px 52px;color:var(--text-2);font-size:13px;line-height:1.45">
+        <div style="font-weight:650;color:var(--text-1);margin-bottom:2px">Journey notes</div>
+        ${esc(notes)}
+      </div>`
+    : '';
   return `<div class="info-line info-line-stacked">
     <div class="ic">${ICON.plane(17)}</div>
     ${detailTx(esc(f.code||'Flight'), esc(route), meta)}
     <button type="button" class="add" style="align-self:center" onclick="sheetFlight('${eid}','${f.id}')">Edit</button>
     <button type="button" class="header-btn" style="width:34px;height:34px;align-self:center;color:var(--red)" title="Remove flight" onclick="confirmRemoveFlight('${eid}','${f.id}')">${ICON.trash(15)}</button>
-  </div>${paxBlock}`;
+  </div>${notesBlock}${paxBlock}`;
 }
 function flightPaxLine(eid,f,pax){
   const title = esc(pax.name||'Passenger');
@@ -982,7 +996,7 @@ function saveEvent(eid){
   persist('shows', showId);
   if(typeof pushShowNow === 'function') pushShowNow(showId);
   closeSheet(true);
-  renderView();
+  softRender();
   toast(eid?'Show updated':'Show added','check');
   if(btn) btn.disabled = false;
 }
@@ -1109,6 +1123,7 @@ function sheetFlight(eid, fid){
       <div class="field"><label>Status</label><input id="fl-status" class="input" value="${esc(f&&f.fstatus||'')}" placeholder="On time / Boarding"></div>
       <div class="field"><label>Delay</label><input id="fl-delay" class="input" value="${esc(f&&f.delay||'')}" placeholder="+25 min"></div>
     </div>
+    <div class="field"><label>Journey notes</label><textarea id="fl-notes" class="textarea" style="min-height:72px" placeholder="Connection tips, meeting point, baggage…">${esc(f&&f.notes||'')}</textarea></div>
     <div class="field"><label>Passengers</label>
       <div id="fl-pax-list">${paxList.map((p,i)=>flightSheetPaxRow(p,i,eid,f&&f.id)).join('')}</div>
       <button type="button" class="btn secondary" style="margin-top:8px" onclick="addFlightPaxRow('${eid}','${f&&f.id||''}')">${ICON.plus(15)} Add person</button>
@@ -1218,6 +1233,7 @@ function saveFlight(eid, fid){
       gate: val('fl-gate'),
       fstatus: val('fl-status'),
       delay: val('fl-delay'),
+      notes: val('fl-notes'),
       fiUpdated: Date.now(),
       seat: '',
       passengers: passengers.length ? passengers : [],
@@ -1234,7 +1250,7 @@ function saveFlight(eid, fid){
     persist('shows', eid);
     if(typeof pushShowNow === 'function') pushShowNow(eid);
     closeSheet();
-    renderView();
+    softRender();
   }, existing ? 'Flight saved' : 'Flight added');
 }
 function delFlight(eid,fid){
@@ -1242,7 +1258,7 @@ function delFlight(eid,fid){
   e.flights=(e.flights||[]).filter(f=>f.id!==fid);
   persist('shows', eid);
   if(typeof pushShowNow==='function') pushShowNow(eid);
-  renderView();
+  softRender();
   toast('Flight removed','trash');
 }
 function confirmRemoveFlight(eid, fid){
@@ -1266,7 +1282,7 @@ function delFlightPassenger(eid, fid, paxId){
   f.passes=[];
   persist('shows', eid);
   if(typeof pushShowNow==='function') pushShowNow(eid);
-  renderView();
+  softRender();
   toast('Person removed','trash');
 }
 function confirmRemoveFlightPassenger(eid, fid, paxId){
@@ -1377,7 +1393,7 @@ function sheetReminder(eid){
 }
 function setShowReminder(eid, atMs, label){
   const noteEl=document.getElementById('rem-note'); const note=noteEl?noteEl.value.trim():'';
-  scheduleReminder(eid, atMs, note||label).then(ok=>{ closeSheet(); renderView(); toast(ok?'Reminder set':'Saved — enable notifications to be pinged', ok?'reminder':'x'); });
+  scheduleReminder(eid, atMs, note||label).then(ok=>{ closeSheet(); softRender(); toast(ok?'Reminder set':'Saved — enable notifications to be pinged', ok?'reminder':'x'); });
 }
 function setShowReminderCustom(eid){
   const el=document.getElementById('rem-when'); const v=el?el.value:'';
@@ -1386,7 +1402,7 @@ function setShowReminderCustom(eid){
   if(!at || at<=Date.now()){ toast('Pick a future time','x'); return; }
   setShowReminder(eid, at, 'Reminder');
 }
-function clearShowReminder(eid){ cancelReminder(eid); closeSheet(); renderView(); toast('Reminder removed','trash'); }
+function clearShowReminder(eid){ cancelReminder(eid); closeSheet(); softRender(); toast('Reminder removed','trash'); }
 /* ---- Flight status widget: gate / terminal / status / delay.
    Lives on each flight (and travel logistics legs). ---- */
 function flightInfoWidget(e){
@@ -1432,7 +1448,7 @@ async function flightTrack(id){
     if(d.gate) e.gate=d.gate;
     e.delay=d.delay||'';
     e.fiUpdated=Date.now(); e.fiLive=true;
-    persist('shows', id); renderView(); toast('Live status updated ✈︎','check');
+    persist('shows', id); softRender(); toast('Live status updated ✈︎','check');
   }catch(err){ toast('Could not reach flight service','x'); }
 }
 function sheetFlightInfo(id){
@@ -1464,11 +1480,11 @@ function sheetFlightInfo(id){
 function saveFlightInfo(id){
   const e=store.events.find(x=>x.id===id); if(!e) return;
   e.flightNo=val('fi-no'); e.terminal=val('fi-term'); e.gate=val('fi-gate'); e.fstatus=val('fi-status'); e.delay=val('fi-delay'); e.fiUpdated=Date.now();
-  persist('shows', id); closeSheet(); renderView(); toast('Flight info saved','check');
+  persist('shows', id); closeSheet(); softRender(); toast('Flight info saved','check');
 }
 function clearFlightInfo(id){
   const e=store.events.find(x=>x.id===id); if(e){ e.flightNo=''; e.terminal=''; e.gate=''; e.fstatus=''; e.delay=''; e.fiUpdated=null; }
-  persist('shows', id); closeSheet(); renderView(); toast('Flight info cleared','trash');
+  persist('shows', id); closeSheet(); softRender(); toast('Flight info cleared','trash');
 }
 function sheetDriver(eid, idx){
   const e=sel.event(eid); const list=showDrivers(e);
@@ -1519,7 +1535,7 @@ function saveDriver(eid, idx){
       : Object.assign(base, { name, phone:val('dr-phone'), whatsapp:val('dr-wa'), pickup:val('dr-pick'), notes:val('dr-notes') });
     if(idx!=null && list[idx]) list[idx]=drv; else list.push(drv);
     e.driver = list.find(x=>!x.noGround) || null;
-    persist('shows', eid); closeSheet(); renderView();
+    persist('shows', eid); closeSheet(); softRender();
   }, idx!=null?'Saved':'Added');
 }
 function sheetVenueAddr(eid){
@@ -1550,7 +1566,7 @@ function saveVenueAddr(eid){
     e.venuePostcode=val('va-postcode');
     e.city=val('va-city');
     e.country=val('va-country');
-    persist('shows', eid); closeSheet(); renderView();
+    persist('shows', eid); closeSheet(); softRender();
   }, 'Saved');
 }
 function sheetPromoter(eid){
@@ -1572,7 +1588,7 @@ function savePromoter(eid){
     const phone = val('pr-phone');
     const whatsapp = val('pr-wa') || phone;
     e.promoter = { name, phone, whatsapp };
-    persist('shows', eid); closeSheet(); renderView();
+    persist('shows', eid); closeSheet(); softRender();
   }, 'Promoter saved');
 }
 /* ---- Advancing: rich, ABOSS-depth show-day info. Every field hidden unless filled. ---- */
@@ -1590,7 +1606,7 @@ function sheetAdvance(eid){
       ${roTimeFieldHtml(s.time, 'ro-t-'+i)}
       <div class="field"><input class="input ro-l" value="${esc(s.label||s.title||'')}" placeholder="Soundcheck / Set / Curfew"></div>
     </div>`).join('');
-  openSheet('Advancing', `
+  openSheet('Show-day details', `
     <div class="field"><label>Stage / area</label><input id="ad-stage" class="input" value="${esc(a.stage||'')}" placeholder="Temple stage"></div>
     <div class="field"><label>Running order</label><div id="ad-ro">${roInputs}</div>
       <button class="btn secondary" style="padding:9px;margin-top:6px" onclick="addRoRow()">${ICON.plus(14)} Add time</button></div>
@@ -1661,7 +1677,7 @@ function saveAdvance(eid){
       if(i >= 0) list[i] = Object.assign({}, list[i], row);
       else list.push(row);
     }
-    persist('shows', eid); closeSheet(); renderView();
+    persist('shows', eid); closeSheet(); softRender();
   }, 'Details saved');
 }
 /* Key-contact roles — values match show_contacts.contact_role where possible. */
@@ -1747,7 +1763,7 @@ function saveEventContact(eid,cid){
     else e.contacts.push({id:uid('ct'),...data});
     persist('shows', eid);
     if(typeof pushShowNow === 'function') pushShowNow(eid);
-    closeSheet(); renderView();
+    closeSheet(); softRender();
   }, 'Contact saved');
 }
 function delEventContact(eid,cid){
@@ -1755,14 +1771,14 @@ function delEventContact(eid,cid){
   e.contacts=(e.contacts||[]).filter(x=>x.id!==cid);
   persist('shows', eid);
   if(typeof pushShowNow === 'function') pushShowNow(eid);
-  closeSheet(); renderView(); toast('Contact removed','trash');
+  closeSheet(); softRender(); toast('Contact removed','trash');
 }
 function sheetShowChecklist(eid){
   const e = sel.event(eid);
   if(!e) return;
   if(!e.checklist) e.checklist = [];
   const rows = e.checklist.length
-    ? `<div class="card flush">${e.checklist.map(i=>`<div class="check ${i.done?'done':''}"><div class="box" onclick="toggleEventCheck('${eid}','${i.id}')">${ICON.check(15)}</div><div class="lbl" onclick="toggleEventCheck('${eid}','${i.id}')">${esc(i.label)}</div><button class="del" onclick="delEventCheck('${eid}','${i.id}')">${ICON.x(16)}</button></div>`).join('')}</div>`
+    ? `<div class="card flush">${e.checklist.map(i=>`<div class="check ${i.done?'done':''}" data-id="${esc(i.id)}"><div class="box" onclick="toggleEventCheck('${eid}','${i.id}')">${ICON.check(15)}</div><div class="lbl" onclick="toggleEventCheck('${eid}','${i.id}')">${esc(i.label)}</div><button class="del" onclick="delEventCheck('${eid}','${i.id}')">${ICON.x(16)}</button></div>`).join('')}</div>`
     : `<div class="hint" style="padding:8px 4px 12px">No items yet — add what you need to prep.</div>`;
   openSheet('Checklist', `
     ${rows}
@@ -1838,8 +1854,23 @@ function toggleShowTimelineStep(eid,sid){
     s.done = !s.done;
   }
   haptic(); persist('shows', eid);
-  if(sheetEl) sheetShowTimeline(eid);
-  else renderView();
+  let done = false;
+  if(typeof showDayTimeline === 'function'){
+    const step = showDayTimeline(e).find(x => x.id === sid);
+    done = !!(step && step.done);
+  } else {
+    const s = (e.timeline||[]).find(x=>x.id===sid);
+    done = !!(s && s.done);
+  }
+  if(sheetEl){
+    if(typeof sheetShowTimeline==='function') sheetShowTimeline(eid);
+  } else if(!patchCheckRowsById(sid, done)){
+    softRender();
+  } else {
+    const prep = document.getElementById('fold-sg-'+eid+'-prep');
+    const sub = prep && prep.querySelector('.show-group-titles span');
+    if(sub && typeof prepGroupSummary==='function') sub.textContent = prepGroupSummary(e);
+  }
 }
 function delShowTimelineStep(eid,sid){
   const e = sel.event(eid);
@@ -1848,8 +1879,9 @@ function delShowTimelineStep(eid,sid){
   e.timeline = e.timeline.filter(x=>x.id!==sid);
   persist('shows', eid);
   if(typeof pushShowNow==='function') pushShowNow(eid);
+  removeCheckRowsById(sid);
   if(sheetEl) sheetShowTimeline(eid);
-  else renderView();
+  else softRender();
   toast('Step removed','trash');
 }
 function sheetTimelineStep(tid){
@@ -1872,7 +1904,7 @@ function saveTimelineStep(tid){
   withButton($('#ts-save'), ()=>{
     t.timeline.push({id:uid('tl'),time:time||'',title,sub:val('ts-sub'),done:false});
     t.timeline.sort((a,b)=>(a.time||'').localeCompare(b.time||''));
-    persist('tours', tid); closeSheet(); renderView();
+    persist('tours', tid); closeSheet(); softRender();
   }, 'Step added');
 }
 function sheetEmergency(tid){
@@ -1886,13 +1918,13 @@ function sheetEmergency(tid){
 function saveEmergency(tid){
   const t=sel.trip(tid); const name=val('em-name');
   if(!name){ toast('Add a name','x'); return; }
-  withButton($('#em-save'), ()=>{ (t.emergency=t.emergency||[]).push({name,phone:val('em-phone')}); persist('tours', tid); closeSheet(); renderView(); }, 'Contact added');
+  withButton($('#em-save'), ()=>{ (t.emergency=t.emergency||[]).push({name,phone:val('em-phone')}); persist('tours', tid); closeSheet(); softRender(); }, 'Contact added');
 }
 /* ============================================================
    MONEY — event block, editor, overview
    ============================================================ */
 function moneyBlock(e){
-  return showGroup('sg-'+e.id+'-deal', 'Deal', ICON.coins(20), dealGroupSummary(e), moneyGroupBody(e));
+  return showGroup('sg-'+e.id+'-deal', 'Fee & deal', ICON.coins(20), dealGroupSummary(e), moneyGroupBody(e));
 }
 function sheetFinance(eid){
   const e=sel.event(eid); const f=e.finance||{};
@@ -1929,10 +1961,18 @@ function saveFinance(eid){
       notDisclosed:getSeg('fi-nd')==='1', estimated:false,
       expenses:f.expenses||[],
     });
-    persist('shows', eid); closeSheet(); renderView();
+    persist('shows', eid); closeSheet(); softRender();
   }, 'Deal saved');
 }
-function togglePaid(eid){ const e=sel.event(eid); e.finance.paid=!e.finance.paid; haptic(); persist('shows', eid); renderView(); toast(e.finance.paid?'Marked paid':'Marked unpaid', e.finance.paid?'check':'money'); }
+function togglePaid(eid){
+  const e=sel.event(eid); if(!e||!e.finance) return;
+  e.finance.paid=!e.finance.paid;
+  haptic();
+  persist('shows', eid);
+  if(typeof pushShowNow==='function') pushShowNow(eid);
+  if(!patchShowDealPaid(eid, e.finance.paid)) softRender();
+  toast(e.finance.paid?'Marked paid':'Marked unpaid', e.finance.paid?'check':'money');
+}
 function addExpense(eid){
   openSheet('Add expense', `
     <div class="row-2">
@@ -1946,9 +1986,9 @@ function saveExpense(eid){
   const label=val('ex-label'); const amount=+val('ex-amt')||0;
   if(!label && !amount){ toast('Add a label or amount','x'); return; }
   const e=sel.event(eid); (e.finance.expenses=e.finance.expenses||[]).push({id:uid('ex'),label,amount});
-  persist('shows', eid); closeSheet(); renderView(); toast('Expense added','receipt');
+  persist('shows', eid); closeSheet(); softRender(); toast('Expense added','receipt');
 }
-function delExpense(eid,xid){ const e=sel.event(eid); e.finance.expenses=e.finance.expenses.filter(x=>x.id!==xid); persist('shows', eid); renderView(); }
+function delExpense(eid,xid){ const e=sel.event(eid); e.finance.expenses=e.finance.expenses.filter(x=>x.id!==xid); persist('shows', eid); softRender(); }
 
 /* ============================================================
    DAY SHEET — shareable advancing doc (ABOSS core, beaten on UX)

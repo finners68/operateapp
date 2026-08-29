@@ -389,7 +389,7 @@ function toggleIdeaDone(iid){
   const hideAfterToggle = (ideaFilter === 'active' && i.done) || (ideaFilter === 'done' && !i.done);
   if(hideAfterToggle){
     const keepSel = selectedIdeaId;
-    renderView();
+    softRender();
     if(keepSel === iid){
       const card = document.querySelector(`.idea[data-idea="${iid}"]`);
       if(card){
