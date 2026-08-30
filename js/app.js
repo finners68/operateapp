@@ -1580,9 +1580,14 @@ function notifyItineraryDecision(it, status, extra={}){
   const showId = extra.show_id || it.showId || '';
   if(showId) form.append('show_id', showId);
   if(extra.reason) form.append('reason', String(extra.reason));
+  if(extra.cloud_synced != null) form.append('cloud_synced', extra.cloud_synced ? 'true' : 'false');
   it.decisionNotified = status;
   persist('user_preferences');
-  fetch(MAKE_ITINERARY_DECISION_WEBHOOK_URL, { method:'POST', body:form }).catch(()=>{});
+  fetch(MAKE_ITINERARY_DECISION_WEBHOOK_URL, { method:'POST', body:form, keepalive:true })
+    .then(res => {
+      if(!res.ok) console.warn('itinerary decision webhook', res.status);
+    })
+    .catch(err => console.warn('itinerary decision webhook failed', err));
 }
 function clearItineraryReviewGuards(){
   itineraryReviewActiveId = null;
@@ -1682,19 +1687,22 @@ async function saveItineraryReview(id){
     synced = false;
   }
 
+  /* Always tell Make the user confirmed — even if cloud sync is still catching up.
+     Include the final show id (may have been reminted during sync). */
+  const finalShowId = it.showId || showId;
+  notifyItineraryDecision(it, 'confirmed', { show_id: finalShowId, cloud_synced: !!synced });
+
   if(!synced){
-    itineraryFullUploadByShow[showId] = {
+    itineraryFullUploadByShow[finalShowId] = {
       status:'error',
-      message:'Couldn’t save this show to the cloud yet. Retry when you’re online — Make will use the same show ID.'
+      message:'Show confirmed to Make, but cloud sync is still catching up. Tap Retry when online to upload full itinerary details.'
     };
-    refreshIfViewingShow(showId);
-    toast('Show saved on this device — cloud sync needed before Make', 'x');
+    refreshIfViewingShow(finalShowId);
+    toast('Confirmed to Make — cloud sync still pending', 'x');
     return;
   }
 
-  /* Only tell Make after the row exists with this exact id. */
-  notifyItineraryDecision(it, 'confirmed', { show_id: showId });
-  startItineraryFullUpload(id, showId);
+  startItineraryFullUpload(id, finalShowId);
 }
 function itineraryFullUploadBanner(showId){
   const st = itineraryFullUploadByShow[showId];

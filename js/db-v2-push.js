@@ -114,6 +114,38 @@ async function v2GetMemberRole(sb, orgId){
 }
 
 /* UUID-primary upsert. Classification tags may still set legacy_id. */
+function v2RemapLocalEntityId(table, oldId, newId){
+  if(!store || !oldId || !newId || oldId === newId) return;
+  if(table === 'shows'){
+    (store.events || []).forEach(e => {
+      if(e && e.id === oldId) e.id = newId;
+    });
+    (store.itineraries || []).forEach(it => {
+      if(it && it.showId === oldId) it.showId = newId;
+    });
+    if(store.activeShowId === oldId) store.activeShowId = newId;
+    if(overlay && overlay.type === 'event' && overlay.id === oldId) overlay.id = newId;
+    if(store._dirty && store._dirty.shows instanceof Set){
+      if(store._dirty.shows.has(oldId)){
+        store._dirty.shows.delete(oldId);
+        store._dirty.shows.add(newId);
+      }
+    }
+  }
+  if(table === 'venues' && store.v2 && Array.isArray(store.v2.shows)){
+    store.v2.shows.forEach(sh => {
+      if(sh && sh.venue_id === oldId) sh.venue_id = newId;
+    });
+  }
+  if(table === 'tours'){
+    (store.trips || []).forEach(t => { if(t && t.id === oldId) t.id = newId; });
+    (store.events || []).forEach(e => { if(e && e.tripId === oldId) e.tripId = newId; });
+  }
+  if(table === 'artists'){
+    (store.artists || []).forEach(a => { if(a && a.id === oldId) a.id = newId; });
+  }
+}
+
 async function v2UpsertById(sb, table, orgId, rowOrRows){
   const rows = (Array.isArray(rowOrRows) ? rowOrRows : [rowOrRows]).filter(Boolean);
   if(!rows.length) return [];
@@ -145,7 +177,8 @@ async function v2UpsertById(sb, table, orgId, rowOrRows){
   });
   const payload = [...byId.values()];
   /* Show/venue ids are globally unique. If this id already belongs to another
-     organisation (e.g. leftover JAKE rows while on FIN), mint a new id. */
+     organisation (e.g. leftover JAKE rows while on FIN), mint a new id and
+     rewrite local references so ensureShowSyncedToCloud can succeed. */
   try{
     const ids = payload.map(r => r.id).filter(Boolean);
     if(ids.length){
@@ -157,10 +190,11 @@ async function v2UpsertById(sb, table, orgId, rowOrRows){
       );
       if(foreign.size){
         payload.forEach(row => {
-          if(foreign.has(row.id)){
-            row.id = newUuid();
-            row.legacy_id = null;
-          }
+          if(!foreign.has(row.id)) return;
+          const oldId = row.id;
+          row.id = newUuid();
+          row.legacy_id = null;
+          if(typeof v2RemapLocalEntityId === 'function') v2RemapLocalEntityId(table, oldId, row.id);
         });
       }
     }
@@ -173,6 +207,18 @@ async function v2UpsertById(sb, table, orgId, rowOrRows){
     return data || [];
   }catch(e){
     const msg = String(e && e.message || e);
+    /* 409 = id already taken (often cross-org). Remint once and retry. */
+    if(/\b409\b|duplicate key|conflict/i.test(msg)){
+      payload.forEach(row => {
+        const oldId = row.id;
+        row.id = newUuid();
+        row.legacy_id = null;
+        if(typeof v2RemapLocalEntityId === 'function') v2RemapLocalEntityId(table, oldId, row.id);
+      });
+      const data = await v2RepoUpsert(sb, table, payload, 'id');
+      (data || []).forEach(r => { if(r) v2RepoPatchLocal(table, r); });
+      return data || [];
+    }
     if(!/legacy_id/i.test(msg) || !payload.some(r => r.legacy_id)) throw e;
     /* Stale local cache: resolve each legacy_id from DB and retry once. */
     for(const row of payload){
