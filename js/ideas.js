@@ -5,6 +5,16 @@ let ideaFilter = 'all';
 let selectedIdeaId = null;
 var ideasStale = false; // true once the tab has rendered — suppresses the entrance animation on re-render so nothing jumps
 let contentMode = 'ideas'; // 'ideas' | 'notes' — the two views under the merged Ideas / Notes section
+Object.defineProperty(window, 'contentMode', {
+  get(){ return contentMode; },
+  set(v){ contentMode = v; },
+  configurable: true
+});
+Object.defineProperty(window, 'selectedIdeaId', {
+  get(){ return selectedIdeaId; },
+  set(v){ selectedIdeaId = v; },
+  configurable: true
+});
 function getContentTabState(){
   return {
     mode: contentMode,

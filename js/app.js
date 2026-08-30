@@ -176,7 +176,13 @@ const TABS = [
   {id:'trips', label:'Tour Mode', icon:'planeTop', hint:'Tour Mode — your live tour dashboard'},
   {id:'ideas', label:'Ideas', icon:'idea', hint:'Ideas & notes — content and free-form text'},
 ];
+window.TABS = TABS;
 let overlay = null; // {type, id} for detail views on top of a tab
+Object.defineProperty(window, 'overlay', {
+  get(){ return overlay; },
+  set(v){ overlay = v; },
+  configurable: true
+});
 let navStack = []; // history of overlays for proper Back behaviour
 const NAV_KEY = 'operate_nav';
 /* Remember exactly where the user is (tab + open detail + history + scroll) so
@@ -1305,6 +1311,11 @@ const MAKE_ITINERARY_FULL_WEBHOOK_URL = 'https://hook.eu2.make.com/p2f3yp4wj7795
 const MAKE_ITINERARY_DECISION_WEBHOOK_URL = 'https://hook.eu2.make.com/s9nhy6yvevqj0h8wg51wv57m1acwd3fg';
 /* showId -> { status:'uploading'|'done'|'error', message:string } while full OCR runs */
 let itineraryFullUploadByShow = {};
+Object.defineProperty(window, 'itineraryFullUploadByShow', {
+  get(){ return itineraryFullUploadByShow; },
+  set(v){ itineraryFullUploadByShow = v; },
+  configurable: true
+});
 /* Itinerary id currently open on the show-basics review sheet (awaiting confirm/cancel). */
 let itineraryReviewActiveId = null;
 /* Prevents ghost taps (e.g. after file picker) from auto-cancelling the review. */
@@ -2390,6 +2401,11 @@ function viewFinance(){
    GLOBAL SEARCH (overlay)
    ============================================================ */
 let searchQ='';
+Object.defineProperty(window, 'searchQ', {
+  get(){ return searchQ; },
+  set(v){ searchQ = v; },
+  configurable: true
+});
 function viewSearch(){
   const q=searchQ.trim().toLowerCase();
   let ev=[],tr=[],id=[],nt=[];
@@ -2598,7 +2614,13 @@ function shareInvoice(id){
    CONTACTS HUB — reusable, tagged (ABOSS weak point)
    ============================================================ */
 const ROLES = {Promoter:'#ff375f', Driver:'#32d74b', Agent:'#6d5efc', Manager:'#0a84ff', Venue:'#ff9f0a', Label:'#40cbe0', Other:'#8b7dff'};
+window.ROLES = ROLES;
 let contactFilter='all';
+Object.defineProperty(window, 'contactFilter', {
+  get(){ return contactFilter; },
+  set(v){ contactFilter = v; },
+  configurable: true
+});
 function setContactFilter(k){
   contactFilter = k || 'all';
   haptic();

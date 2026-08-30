@@ -4,6 +4,7 @@ const MIGRATION_PREFIX = 'operate_supabase_migrated:';
 const BUCKET = STORAGE_BUCKET;
 /* Boarding pass uploads: photos, PDFs, and real Apple Wallet .pkpass files. */
 const PASS_FILE_ACCEPT = 'image/*,application/pdf,.pkpass,application/vnd.apple.pkpass';
+window.PASS_FILE_ACCEPT = PASS_FILE_ACCEPT;
 
 let currentOrgId = null;
 let dbRemoteLoading = false;

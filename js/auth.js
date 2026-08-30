@@ -1,5 +1,10 @@
 /* Magic-link auth gate — app runs local-only until signed in (when Supabase configured) */
 let authUser = null;
+Object.defineProperty(window, 'authUser', {
+  get(){ return authUser; },
+  set(v){ authUser = v; },
+  configurable: true
+});
 let authBootDone = false;
 
 function authRequired(){

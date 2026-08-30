@@ -4,6 +4,11 @@
 let showFilter = 'upcoming';
 let showSearch = '';
 let showsMode = 'shows'; // 'shows' | 'tours' — the two views under the merged Shows / Tours section
+Object.defineProperty(window, 'showsMode', {
+  get(){ return showsMode; },
+  set(v){ showsMode = v; },
+  configurable: true
+});
 function getShowsListState(){
   return { mode: showsMode, filter: showFilter, search: showSearch };
 }

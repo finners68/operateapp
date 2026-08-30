@@ -1559,3 +1559,26 @@ function migrate(){
   if(store.events.some(e=>(e.kind==='travel'||e.kind==='stay') && e.showId===undefined)) assignLogistics();
   db.write(store);
 }
+
+/* React islands read globals via window.* — const/let are NOT on window. */
+(function exposeOperateStateGlobals(){
+  const w = window;
+  Object.defineProperty(w, 'store', {
+    get(){ return store; },
+    set(v){ store = v; },
+    configurable: true
+  });
+  w.ICON = ICON;
+  w.CATS = CATS;
+  w.IDEA_TYPES = IDEA_TYPES;
+  w.PRIO = PRIO;
+  w.DRIVER_JOURNEYS = DRIVER_JOURNEYS;
+  w.MONTHS = MONTHS;
+  w.MON = MON;
+  w.DOW = DOW;
+  w.CURSYM = CURSYM;
+  w.money = money;
+  w.sel = sel;
+  w.ACCOUNT_TYPES = ACCOUNT_TYPES;
+})();
+
