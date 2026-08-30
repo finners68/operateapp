@@ -176,7 +176,7 @@ function showListRow(e){
     : `<div class="ic show-date-ic" style="background:${col}22;color:${col}">—</div>`;
   return `<div class="row show-row" onclick="openView('event','${e.id}')">
     ${dateIc}
-    <div class="body">${showListTitleHtml(e, statusTag)}<span>${detail}</span></div>
+    <div class="body"><b>${showListTitleHtml(e, statusTag)}</b><span>${detail}</span></div>
     <button type="button" class="header-btn show-row-edit" onclick="event.stopPropagation();eventMenu('${e.id}')" title="Edit show">${ICON.edit(16)}</button>
     <div class="trail"><span style="font-size:12px;font-weight:600">${esc(relDay(e.date))}</span>${ICON.chevR(15)}</div>
   </div>`;
