@@ -299,6 +299,7 @@ function viewHome(){
               ${homeShortcut(`go('shows')`, ICON.music(18), 'var(--accent-2)', 'Shows')}
               ${homeShortcut(`go('trips')`, ICON.trips(18), 'var(--pink)', 'Tours')}
               ${homeShortcut(`openView('itinerary')`, ICON.file(18), 'var(--blue)', 'Itinerary')}
+              ${homeShortcut(`sheetCalendarUpload()`, ICON.calendar(18), 'var(--green)', 'Upload calendar')}
             </div>
           </div>
           <div class="home-sc-group">

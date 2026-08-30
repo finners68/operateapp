@@ -232,6 +232,7 @@ export default function HomePage(){
                   <HomeShortcut onClick={() => call('go', 'shows')} icon="music" color="var(--accent-2)" label="Shows" />
                   <HomeShortcut onClick={() => call('go', 'trips')} icon="trips" color="var(--pink)" label="Tours" />
                   <HomeShortcut onClick={() => call('openView', 'itinerary')} icon="file" color="var(--blue)" label="Itinerary" />
+                  <HomeShortcut onClick={() => call('sheetCalendarUpload')} icon="calendar" color="var(--green)" label="Upload calendar" />
                 </div>
               </div>
               <div className="home-sc-group">

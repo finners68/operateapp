@@ -56,6 +56,26 @@ export function CalendarItemSheet({id,item}){
   return <><Field label="Date" id="it-date" type="date" value={e.date}/>{travel?<><Field label="Travel mode"><div className="seg" id="it-icon">{icons.map(([k,l])=><button type="button" data-v={k} className={(e.icon||'plane')===k?'on':''} key={k} onClick={x=>call('segPick',x.currentTarget)}>{l}</button>)}</div></Field><Field label="Flight number (optional)" id="it-code" value={e.flightNo} placeholder="KL1008"/>{(e.icon||'plane')==='car'?<Field label="Driver / company name" id="it-driver-name" value={e.driverName} placeholder="Marco"/>:null}<div className="row-2"><Field label="From" id="it-from" value={e.from} placeholder="AMS"/><Field label="To" id="it-to" value={e.to} placeholder="ZTH"/></div><div className="row-2"><Field label="Departure" id="it-start" type="time" value={e.start}/><Field label="Arrival" id="it-end" type="time" value={e.end}/></div>{(e.icon||'plane')==='car'?<><Field label="Driver phone" id="it-phone" type="tel" value={e.phone}/><Field label="WhatsApp (if different)" id="it-wa" type="tel" value={e.whatsapp}/></>:null}</>:null}{stay?<><Field label="Hotel name" id="it-place" value={e.place} placeholder="Hilton"/><Field label="Address" id="it-addr" value={e.addr} placeholder="Hotel address"/><Field label="Check-in" id="it-info" value={(e.info||'').replace(/^Check-in:\s*/i,'')} placeholder="14:00"/><Field label="Booking reference" id="it-ref" value={e.bookingRef} placeholder="Confirmation number"/></>:null}<button className="btn" onClick={()=>call('saveItem',id)}>Save</button><Spacer/><button className="btn danger" onClick={()=>call('delItem',id)}><Icon name="trash" size={15}/> Delete</button><Spacer/></>;
 }
 
+export function CalendarUploadSheet(){
+  return <>
+    <p className="sheet-lede">Upload one or more calendar screenshots. They are sent straight to Make for processing.</p>
+    <label className="btn" style={{ marginTop: 8 }}>
+      <Icon name="image" size={18} /> Choose screenshots
+      <input
+        type="file"
+        accept="image/*"
+        multiple
+        hidden
+        onChange={e => call('submitCalendarUpload', e.currentTarget)}
+      />
+    </label>
+    <div className="hint" style={{ textAlign: 'left', padding: '10px 2px 0' }}>
+      Tip: you can select several photos at once.
+    </div>
+    <Spacer />
+  </>;
+}
+
 export function BoardingPassSheet({itemId,passId,flightId='',pass}){
   const p=pass||call('findPassByRef',itemId,passId,flightId)||{},pk=!!(p.kind==='pkpass'||p.mime==='application/vnd.apple.pkpass'),img=p.kind==='image'&&!pk,args=[itemId,passId,flightId];
   return <>{img&&p.data?<div className="thumb" style={{width:'100%',height:180,marginBottom:12}} onClick={()=>call('viewPassImage',...args)}><img src={p.data} alt=""/></div>:<div className="hint" style={{textAlign:'left',padding:'0 2px 12px'}}><Icon name="ticket" size={18}/> {p.name||(pk?'Apple Wallet pass':'Boarding pass')}</div>}{img&&p.data?<button className="btn" onClick={()=>call('viewPassImage',...args)}><Icon name="image" size={16}/> View</button>:null}{pk?<><button className="btn" style={{marginTop:10}} onClick={()=>call('addPassToAppleWallet',...args)}><Icon name="wallet" size={16}/> Add to Apple Wallet</button><div className="hint" style={{textAlign:'left',padding:'8px 2px 0'}}>On iPhone, opening this .pkpass file lets Apple Wallet add it.</div></>:null}<button className="btn secondary" style={{marginTop:10}} onClick={()=>call('downloadPassFile',...args)}><Icon name="file" size={16}/> Download / Open</button>{typeof navigator!=='undefined'&&navigator.share?<button className="btn secondary" style={{marginTop:10}} onClick={()=>call('sharePassFile',...args)}><Icon name="share" size={16}/> Share</button>:null}{!pk?<div className="hint" style={{textAlign:'left',padding:'12px 2px 0'}}>Photos and PDFs cannot be added to Apple Wallet; Wallet requires a signed .pkpass file from the airline.</div>:null}<Spacer/></>;

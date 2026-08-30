@@ -1139,6 +1139,7 @@ let itineraryUploadMode = null; // 'new' | 'existing'
 const MAKE_ITINERARY_WEBHOOK_URL = 'https://hook.eu2.make.com/xgg1tbfi9leurmlcsgndqc5ssaxhjjxu';
 const MAKE_ITINERARY_FULL_WEBHOOK_URL = 'https://hook.eu2.make.com/p2f3yp4wj7795gifd38v5rpepf3syxjt';
 const MAKE_ITINERARY_DECISION_WEBHOOK_URL = 'https://hook.eu2.make.com/s9nhy6yvevqj0h8wg51wv57m1acwd3fg';
+const MAKE_CALENDAR_WEBHOOK_URL = 'https://hook.eu2.make.com/llxseuaiwkm7q6ug0hjpg7e8iqws3eh7';
 /* showId -> { status:'uploading'|'done'|'error', message:string } while full OCR runs */
 let itineraryFullUploadByShow = {};
 Object.defineProperty(window, 'itineraryFullUploadByShow', {

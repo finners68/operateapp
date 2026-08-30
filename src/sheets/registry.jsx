@@ -22,7 +22,7 @@ import {
   IdeaShowPickerSheet, IdeaTripPickerSheet, IdeaAttachSheet, IdeaEditSheet,
   NoteAddChoiceSheet, NoteMoveFolderSheet, TripTimelineOptionsSheet,
   TripEditSheet, TripContactsSheet, CalendarAddLogisticSheet,
-  CalendarItemSheet, BoardingPassSheet,
+  CalendarItemSheet, CalendarUploadSheet, BoardingPassSheet,
   EventMenuSheet, TripMenuSheet, InvoicePickShowSheet, InvoiceAddLineSheet,
   InvoiceMetaSheet, BillingDetailsSheet, ContactViewSheet, ContactEditSheet,
 } from './misc/MiscSheets.jsx';
@@ -81,6 +81,7 @@ export const SHEET_KINDS = Object.freeze({
   'trip.contacts': TripContactsSheet,
   'calendar.addLogistic': CalendarAddLogisticSheet,
   'calendar.item': CalendarItemSheet,
+  'calendar.upload': CalendarUploadSheet,
   'boardingPass.details': BoardingPassSheet,
 
   'menu.event': EventMenuSheet,
