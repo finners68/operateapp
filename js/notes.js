@@ -2,6 +2,9 @@
    NOTES — folders (UUID) + unfiled notes
    ============================================================ */
 let noteSearch = '';
+function setNoteSearchQuiet(v){
+  noteSearch = String(v == null ? '' : v);
+}
 
 function notesSub(){
   const all = sel.notes();
@@ -65,6 +68,18 @@ function notesListBody(){
 }
 
 function refreshNotesList(){
+  if(typeof OperateReact !== 'undefined' && OperateReact){
+    if(typeof OperateReact.isContentTabMounted === 'function' && OperateReact.isContentTabMounted()){
+      if(typeof OperateReact.refreshContentTab === 'function') OperateReact.refreshContentTab();
+      else if(typeof notifyStore === 'function') notifyStore();
+      return;
+    }
+    if(typeof OperateReact.isNoteFolderMounted === 'function' && OperateReact.isNoteFolderMounted()){
+      if(typeof OperateReact.refreshNoteFolder === 'function') OperateReact.refreshNoteFolder();
+      else if(typeof notifyStore === 'function') notifyStore();
+      return;
+    }
+  }
   const list = document.getElementById('notes-list-body');
   if(!list){
     if(typeof renderView === 'function') renderView();
@@ -251,6 +266,11 @@ function assignNoteFolder(noteId, folderId){
   n.updated = nowMs();
   if(typeof persistNoteLocal === 'function') persistNoteLocal(n); else db.write(store);
   if(typeof pushNoteNow === 'function') pushNoteNow(n);
+  if(typeof OperateReact !== 'undefined' && OperateReact && typeof OperateReact.isNoteDetailMounted === 'function' && OperateReact.isNoteDetailMounted()){
+    if(typeof OperateReact.refreshNoteDetail === 'function') OperateReact.refreshNoteDetail();
+    else if(typeof notifyStore === 'function') notifyStore();
+    return;
+  }
   if(typeof refreshNotesList === 'function') refreshNotesList();
   else if(typeof renderView === 'function') renderView();
 }

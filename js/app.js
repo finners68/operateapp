@@ -121,8 +121,16 @@ function initGestures(){
   }, {passive:true});
 }
 function calMoveAnimated(dir){
-  if(!calCursor) return;
+  if(!calCursor){
+    const n=new Date();
+    calCursor={y:n.getFullYear(),m:n.getMonth()};
+  }
+  /* React calendar applies the slide after it re-renders for the new month. */
+  if(typeof window.__calMarkSlide === 'function') window.__calMarkSlide(dir);
   calMove(dir); haptic();
+  if(typeof OperateReact !== 'undefined' && OperateReact && typeof OperateReact.isCalendarMounted === 'function' && OperateReact.isCalendarMounted()){
+    return;
+  }
   const grid = document.querySelector('.cal-grid') || document.querySelector('.cal-month');
   if(grid){ grid.style.animation='none'; void grid.offsetWidth; grid.style.animation = (dir>0?'calSlideR':'calSlideL')+' .26s cubic-bezier(.2,.8,.2,1)'; }
 }
@@ -227,6 +235,13 @@ function activeNavTab(){
   return store.tab;
 }
 function renderNav(){
+  if(typeof OperateReact !== 'undefined' && OperateReact && typeof OperateReact.mountShell === 'function'){
+    OperateReact.mountShell();
+  }
+  if(typeof OperateReact !== 'undefined' && OperateReact && typeof OperateReact.isShellMounted === 'function' && OperateReact.isShellMounted()){
+    if(typeof OperateReact.refreshShell === 'function') OperateReact.refreshShell();
+    return;
+  }
   const active = activeNavTab();
   $('#nav').innerHTML = `
     <div class="nav-brand">
@@ -284,6 +299,18 @@ function renderView(opts={}){
       if(R.unmountShowsList) R.unmountShowsList();
       if(R.unmountHome) R.unmountHome();
       if(R.unmountTripMode) R.unmountTripMode();
+      if(R.unmountTripDetail) R.unmountTripDetail();
+      if(R.unmountCalendar) R.unmountCalendar();
+      if(R.unmountContentTab) R.unmountContentTab();
+      if(R.unmountIdeaDetail) R.unmountIdeaDetail();
+      if(R.unmountNoteDetail) R.unmountNoteDetail();
+      if(R.unmountNoteFolder) R.unmountNoteFolder();
+      if(R.unmountSettings) R.unmountSettings();
+      if(R.unmountSearch) R.unmountSearch();
+      if(R.unmountFinance) R.unmountFinance();
+      if(R.unmountInvoices) R.unmountInvoices();
+      if(R.unmountInvoiceDetail) R.unmountInvoiceDetail();
+      if(R.unmountContacts) R.unmountContacts();
     }
     if(v){
       /* Tab/detail switches should appear instantly — never replay fade/stagger. */
@@ -315,6 +342,66 @@ function renderView(opts={}){
     }
     return paintReact(el => R.mountShow(overlay.id, el));
   }
+  /* Tour / trip detail */
+  if(overlay && overlay.type === 'trip' && R && typeof R.mountTripDetail === 'function'){
+    if(R.isTripDetailMounted && R.isTripDetailMounted() && R.getMountedTripId && R.getMountedTripId() === overlay.id){
+      return refreshReact(R.refreshTripDetail);
+    }
+    return paintReact(el => R.mountTripDetail(overlay.id, el));
+  }
+  /* Idea detail */
+  if(overlay && overlay.type === 'idea' && R && typeof R.mountIdeaDetail === 'function'){
+    if(R.isIdeaDetailMounted && R.isIdeaDetailMounted() && R.getMountedIdeaId && R.getMountedIdeaId() === overlay.id){
+      return refreshReact(R.refreshIdeaDetail);
+    }
+    return paintReact(el => R.mountIdeaDetail(overlay.id, el));
+  }
+  /* Note detail */
+  if(overlay && overlay.type === 'note' && R && typeof R.mountNoteDetail === 'function'){
+    if(R.isNoteDetailMounted && R.isNoteDetailMounted() && R.getMountedNoteId && R.getMountedNoteId() === overlay.id){
+      return refreshReact(R.refreshNoteDetail);
+    }
+    return paintReact(el => R.mountNoteDetail(overlay.id, el));
+  }
+  /* Note folder */
+  if(overlay && overlay.type === 'noteFolder' && R && typeof R.mountNoteFolder === 'function'){
+    if(R.isNoteFolderMounted && R.isNoteFolderMounted() && R.getMountedNoteFolderId && R.getMountedNoteFolderId() === overlay.id){
+      return refreshReact(R.refreshNoteFolder);
+    }
+    return paintReact(el => R.mountNoteFolder(overlay.id, el));
+  }
+  /* Settings */
+  if(overlay && overlay.type === 'settings' && R && typeof R.mountSettings === 'function'){
+    if(R.isSettingsMounted && R.isSettingsMounted()) return refreshReact(R.refreshSettings);
+    return paintReact(el => R.mountSettings(el));
+  }
+  /* Search */
+  if(overlay && overlay.type === 'search' && R && typeof R.mountSearch === 'function'){
+    if(R.isSearchMounted && R.isSearchMounted()) return refreshReact(R.refreshSearch);
+    return paintReact(el => R.mountSearch(el));
+  }
+  /* Finance */
+  if(overlay && overlay.type === 'finance' && R && typeof R.mountFinance === 'function'){
+    if(R.isFinanceMounted && R.isFinanceMounted()) return refreshReact(R.refreshFinance);
+    return paintReact(el => R.mountFinance(el));
+  }
+  /* Invoices list */
+  if(overlay && overlay.type === 'invoices' && R && typeof R.mountInvoices === 'function'){
+    if(R.isInvoicesMounted && R.isInvoicesMounted()) return refreshReact(R.refreshInvoices);
+    return paintReact(el => R.mountInvoices(el));
+  }
+  /* Invoice detail */
+  if(overlay && overlay.type === 'invoice' && R && typeof R.mountInvoiceDetail === 'function'){
+    if(R.isInvoiceDetailMounted && R.isInvoiceDetailMounted() && R.getMountedInvoiceId && R.getMountedInvoiceId() === overlay.id){
+      return refreshReact(R.refreshInvoiceDetail);
+    }
+    return paintReact(el => R.mountInvoiceDetail(overlay.id, el));
+  }
+  /* Contacts */
+  if(overlay && overlay.type === 'contacts' && R && typeof R.mountContacts === 'function'){
+    if(R.isContactsMounted && R.isContactsMounted()) return refreshReact(R.refreshContacts);
+    return paintReact(el => R.mountContacts(el));
+  }
   /* Shows list tab */
   if(!overlay && store.tab === 'shows' && R && typeof R.mountShowsList === 'function'){
     if(R.isShowsListMounted && R.isShowsListMounted()) return refreshReact(R.refreshShowsList);
@@ -330,6 +417,17 @@ function renderView(opts={}){
     if(R.isTripModeMounted && R.isTripModeMounted()) return refreshReact(R.refreshTripMode);
     return paintReact(el => R.mountTripMode(el));
   }
+  /* Calendar tab */
+  if(!overlay && store.tab === 'calendar' && R && typeof R.mountCalendar === 'function'){
+    if(R.isCalendarMounted && R.isCalendarMounted()) return refreshReact(R.refreshCalendar);
+    return paintReact(el => R.mountCalendar(el));
+  }
+  /* Ideas / Notes tab */
+  if(!overlay && (store.tab === 'ideas' || store.tab === 'notes') && R && typeof R.mountContentTab === 'function'){
+    if(store.tab === 'notes'){ store.tab = 'ideas'; contentMode = 'notes'; }
+    if(R.isContentTabMounted && R.isContentTabMounted()) return refreshReact(R.refreshContentTab);
+    return paintReact(el => R.mountContentTab(el));
+  }
 
   /* Leaving React islands — tear down before other screens paint. */
   if(R){
@@ -339,6 +437,18 @@ function renderView(opts={}){
       if(R.unmountShowsList && R.isShowsListMounted && R.isShowsListMounted()) R.unmountShowsList();
       if(R.unmountHome && R.isHomeMounted && R.isHomeMounted()) R.unmountHome();
       if(R.unmountTripMode && R.isTripModeMounted && R.isTripModeMounted()) R.unmountTripMode();
+      if(R.unmountTripDetail && R.isTripDetailMounted && R.isTripDetailMounted()) R.unmountTripDetail();
+      if(R.unmountCalendar && R.isCalendarMounted && R.isCalendarMounted()) R.unmountCalendar();
+      if(R.unmountContentTab && R.isContentTabMounted && R.isContentTabMounted()) R.unmountContentTab();
+      if(R.unmountIdeaDetail && R.isIdeaDetailMounted && R.isIdeaDetailMounted()) R.unmountIdeaDetail();
+      if(R.unmountNoteDetail && R.isNoteDetailMounted && R.isNoteDetailMounted()) R.unmountNoteDetail();
+      if(R.unmountNoteFolder && R.isNoteFolderMounted && R.isNoteFolderMounted()) R.unmountNoteFolder();
+      if(R.unmountSettings && R.isSettingsMounted && R.isSettingsMounted()) R.unmountSettings();
+      if(R.unmountSearch && R.isSearchMounted && R.isSearchMounted()) R.unmountSearch();
+      if(R.unmountFinance && R.isFinanceMounted && R.isFinanceMounted()) R.unmountFinance();
+      if(R.unmountInvoices && R.isInvoicesMounted && R.isInvoicesMounted()) R.unmountInvoices();
+      if(R.unmountInvoiceDetail && R.isInvoiceDetailMounted && R.isInvoiceDetailMounted()) R.unmountInvoiceDetail();
+      if(R.unmountContacts && R.isContactsMounted && R.isContactsMounted()) R.unmountContacts();
     }
   }
 
@@ -454,6 +564,13 @@ function syncSeg(segId, activeKey){
 /* Persistent floating + button — anchored to the app frame so it never scrolls away.
    Its action follows the current tab; hidden where there's nothing to add. */
 function setFab(){
+  if(typeof OperateReact !== 'undefined' && OperateReact && typeof OperateReact.mountShell === 'function'){
+    OperateReact.mountShell();
+  }
+  if(typeof OperateReact !== 'undefined' && OperateReact && typeof OperateReact.isShellMounted === 'function' && OperateReact.isShellMounted()){
+    if(typeof OperateReact.refreshShell === 'function') OperateReact.refreshShell();
+    return;
+  }
   const fab = document.getElementById('fab');
   if(!fab) return;
   if(!fab.dataset.init){ fab.innerHTML = ICON.plus(26); fab.dataset.init='1'; }
@@ -477,6 +594,15 @@ let sheetReturnStack = [];
 function openSheet(title, bodyHTML, opts={}){
   closeSheet(true, { noReturn: true });
   if(opts.clearReturn) sheetReturnStack = [];
+
+  if(typeof OperateReact !== 'undefined' && OperateReact && typeof OperateReact.mountShell === 'function'){
+    OperateReact.mountShell();
+  }
+  if(typeof OperateReact !== 'undefined' && OperateReact && typeof OperateReact.chromeOpenSheet === 'function'
+      && typeof OperateReact.isShellMounted === 'function' && OperateReact.isShellMounted()){
+    OperateReact.chromeOpenSheet(title, bodyHTML, opts);
+    return;
+  }
 
   const app = $('#app');
   const scrim = $('#scrim');
@@ -507,6 +633,19 @@ function closeSheet(instant, opts={}){
   const scrim = $('#scrim');
   closeDateTimePicker(true);
   const ret = (!opts.noReturn && !instant) ? sheetReturnStack.pop() : null;
+
+  if(typeof OperateReact !== 'undefined' && OperateReact && typeof OperateReact.chromeCloseSheet === 'function'
+      && typeof OperateReact.isShellMounted === 'function' && OperateReact.isShellMounted()){
+    const finish = ()=>{
+      if(scrim) scrim.classList.remove('on');
+      if(app) app.classList.remove('sheet-open');
+      sheetEl = null;
+      if(ret) setTimeout(()=>reopenSheetReturn(ret), 0);
+    };
+    OperateReact.chromeCloseSheet(!!instant, finish);
+    return;
+  }
+
   if(!sheetEl){
     scrim.classList.remove('on');
     if(app) app.classList.remove('sheet-open');
@@ -2354,9 +2493,18 @@ function viewSearch(){
     <div class="spacer"></div>
   </div>`;
 }
-function openSearch(){ searchQ=''; openView('search'); setTimeout(()=>{ const el=$('#search-input'); if(el) el.focus(); },120); }
+function openSearch(){ searchQ=''; openView('search'); }
 let searchT;
-function debouncedSearch(){ clearTimeout(searchT); searchT=setTimeout(()=>{ const el=$('#search-input'); const pos=el?el.selectionStart:0; renderView(); const n=$('#search-input'); if(n){n.focus(); try{n.setSelectionRange(pos,pos);}catch(e){}} },140); }
+function debouncedSearch(){
+  clearTimeout(searchT);
+  searchT=setTimeout(()=>{
+    if(typeof OperateReact !== 'undefined' && OperateReact && typeof OperateReact.isSearchMounted === 'function' && OperateReact.isSearchMounted()){
+      if(typeof OperateReact.refreshSearch === 'function') OperateReact.refreshSearch();
+      return;
+    }
+    const el=$('#search-input'); const pos=el?el.selectionStart:0; renderView(); const n=$('#search-input'); if(n){n.focus(); try{n.setSelectionRange(pos,pos);}catch(e){}}
+  },140);
+}
 
 /* ============================================================
    INVOICING — compliant sequential numbering, multi-currency
@@ -2533,6 +2681,16 @@ function shareInvoice(id){
    ============================================================ */
 const ROLES = {Promoter:'#ff375f', Driver:'#32d74b', Agent:'#6d5efc', Manager:'#0a84ff', Venue:'#ff9f0a', Label:'#40cbe0', Other:'#8b7dff'};
 let contactFilter='all';
+function setContactFilter(k){
+  contactFilter = k || 'all';
+  haptic();
+  if(typeof OperateReact !== 'undefined' && OperateReact && typeof OperateReact.isContactsMounted === 'function' && OperateReact.isContactsMounted()){
+    if(typeof OperateReact.refreshContacts === 'function') OperateReact.refreshContacts();
+    else if(typeof notifyStore === 'function') notifyStore();
+    return;
+  }
+  renderView();
+}
 function viewContacts(){
   const all = store.contacts.slice().sort((a,b)=>a.name.localeCompare(b.name));
   const roles = [...new Set(all.map(c=>c.role))];

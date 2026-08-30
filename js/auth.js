@@ -7,6 +7,20 @@ function authRequired(){
 }
 
 function showAuthSheet(){
+  if(typeof OperateReact !== 'undefined' && OperateReact && typeof OperateReact.mountShell === 'function'){
+    OperateReact.mountShell();
+  }
+  const allowed = typeof getAllowedEmail === 'function' ? getAllowedEmail() : '';
+  if(typeof OperateReact !== 'undefined' && OperateReact && typeof OperateReact.chromeShowAuth === 'function'
+      && typeof OperateReact.isShellMounted === 'function' && OperateReact.isShellMounted()){
+    OperateReact.chromeShowAuth({
+      email: allowed || '',
+      emailReadOnly: !!allowed,
+      msg: '',
+      msgKind: '',
+    });
+    return;
+  }
   prefillAuthEmail();
   const el = document.getElementById('authSheet');
   if(el) el.classList.add('on');
@@ -14,11 +28,21 @@ function showAuthSheet(){
 }
 
 function hideAuthSheet(){
+  if(typeof OperateReact !== 'undefined' && OperateReact && typeof OperateReact.chromeHideAuth === 'function'
+      && typeof OperateReact.isShellMounted === 'function' && OperateReact.isShellMounted()){
+    OperateReact.chromeHideAuth();
+    return;
+  }
   document.getElementById('authSheet')?.classList.remove('on');
   document.getElementById('app')?.classList.remove('auth-locked');
 }
 
 function setAuthMsg(msg, isErr){
+  if(typeof OperateReact !== 'undefined' && OperateReact && typeof OperateReact.chromeSetAuthMsg === 'function'
+      && typeof OperateReact.isShellMounted === 'function' && OperateReact.isShellMounted()){
+    OperateReact.chromeSetAuthMsg(msg, !!isErr);
+    return;
+  }
   const m = document.getElementById('auth-msg');
   if(!m) return;
   m.textContent = msg || '';

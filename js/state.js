@@ -643,9 +643,19 @@ function logisticRowHtml(l){
 function haptic(){ if(navigator.vibrate) try{navigator.vibrate(8);}catch(e){} }
 let toastT;
 function toast(msg, icon='check'){
+  haptic();
+  if(typeof OperateReact !== 'undefined' && OperateReact && typeof OperateReact.mountShell === 'function'){
+    OperateReact.mountShell();
+  }
+  if(typeof OperateReact !== 'undefined' && OperateReact && typeof OperateReact.chromeToast === 'function'
+      && typeof OperateReact.isShellMounted === 'function' && OperateReact.isShellMounted()){
+    OperateReact.chromeToast(msg, icon);
+    return;
+  }
   const t = $('#toast');
+  if(!t) return;
   t.innerHTML = `<span class="tic">${ICON[icon]?ICON[icon](18):''}</span>${esc(msg)}`;
-  t.classList.add('on'); haptic();
+  t.classList.add('on');
   clearTimeout(toastT); toastT = setTimeout(()=>t.classList.remove('on'), 2100);
 }
 function pad(n){ return String(n).padStart(2,'0'); }
@@ -1125,6 +1135,15 @@ function renderLock(purpose){
   const title = isSetup? 'Create a passcode' : (purpose==='app'?'Operate locked':'Finance locked');
   const sub = isSetup? 'Enter a 4-digit passcode' : 'Enter your passcode to continue';
   const bio = !isSetup && s.biometric;
+  if(typeof OperateReact !== 'undefined' && OperateReact && typeof OperateReact.mountShell === 'function'){
+    OperateReact.mountShell();
+  }
+  if(typeof OperateReact !== 'undefined' && OperateReact && typeof OperateReact.chromeShowLock === 'function'
+      && typeof OperateReact.isShellMounted === 'function' && OperateReact.isShellMounted()){
+    OperateReact.chromeShowLock({ purpose, title, sub, bio: !!bio, pinLen: 0, err: false });
+    if(bio) setTimeout(()=>biometricUnlock(true), 350);
+    return;
+  }
   const el=$('#lock');
   el.innerHTML = `
     <div class="lock-logo"><svg width="42" height="42" viewBox="0 0 1024 1024" fill="none" stroke="#fff" stroke-linecap="round"><circle cx="512" cy="512" r="232" stroke-width="72"/><path d="M 446 512 L 578 512" stroke-width="46"/></svg></div>
@@ -1149,14 +1168,39 @@ function pinKey(n){
   if(pinBuf.length===4) setTimeout(pinSubmit, 120);
 }
 function pinDel(){ pinBuf=pinBuf.slice(0,-1); paintDots(); }
-function paintDots(){ const d=$('#pin-dots'); if(!d) return; [...d.children].forEach((c,i)=>c.classList.toggle('f', i<pinBuf.length)); }
+function paintDots(){
+  if(typeof OperateReact !== 'undefined' && OperateReact && typeof OperateReact.chromeUpdateLock === 'function'
+      && typeof OperateReact.isShellMounted === 'function' && OperateReact.isShellMounted()){
+    OperateReact.chromeUpdateLock({ pinLen: pinBuf.length, err: false });
+    return;
+  }
+  const d=$('#pin-dots'); if(!d) return; [...d.children].forEach((c,i)=>c.classList.toggle('f', i<pinBuf.length));
+}
 function pinSubmit(){
   const s=store.settings.security;
   if(pinPurpose==='setup'){
-    if(pinSetupFirst===null){ pinSetupFirst=pinBuf; pinBuf=''; paintDots();
-      $('#lock .lock-title').textContent='Confirm passcode'; $('#lock .lock-sub').textContent='Re-enter to confirm'; return; }
+    if(pinSetupFirst===null){
+      pinSetupFirst=pinBuf; pinBuf=''; paintDots();
+      if(typeof OperateReact !== 'undefined' && OperateReact && typeof OperateReact.chromeUpdateLock === 'function'
+          && typeof OperateReact.isShellMounted === 'function' && OperateReact.isShellMounted()){
+        OperateReact.chromeUpdateLock({ title:'Confirm passcode', sub:'Re-enter to confirm', pinLen:0 });
+      } else {
+        const t=$('#lock .lock-title'); const u=$('#lock .lock-sub');
+        if(t) t.textContent='Confirm passcode'; if(u) u.textContent='Re-enter to confirm';
+      }
+      return;
+    }
     if(pinBuf===pinSetupFirst){ s.pin=pinHash(pinBuf); s.enabled=true; persist('settings'); pinSetupFirst=null; closeLock(); toast('Passcode set','check'); if(pinResolve){pinResolve(true);pinResolve=null;} }
-    else { pinSetupFirst=null; pinBuf=''; shakeDots(); $('#lock .lock-title').textContent='Create a passcode'; $('#lock .lock-sub').textContent="Didn't match — try again"; }
+    else {
+      pinSetupFirst=null; pinBuf=''; shakeDots();
+      if(typeof OperateReact !== 'undefined' && OperateReact && typeof OperateReact.chromeUpdateLock === 'function'
+          && typeof OperateReact.isShellMounted === 'function' && OperateReact.isShellMounted()){
+        OperateReact.chromeUpdateLock({ title:'Create a passcode', sub:"Didn't match — try again", pinLen:0 });
+      } else {
+        const t=$('#lock .lock-title'); const u=$('#lock .lock-sub');
+        if(t) t.textContent='Create a passcode'; if(u) u.textContent="Didn't match — try again";
+      }
+    }
     return;
   }
   if(pinHash(pinBuf)===s.pin){
@@ -1166,8 +1210,23 @@ function pinSubmit(){
   } else { pinBuf=''; shakeDots(); }
 }
 let pinSetupFirst=null;
-function shakeDots(){ const d=$('#pin-dots'); if(d){ d.classList.add('err'); setTimeout(()=>{d.classList.remove('err'); paintDots();},400); } }
-function closeLock(){ $('#lock').classList.remove('on'); $('#lock').innerHTML=''; }
+function shakeDots(){
+  if(typeof OperateReact !== 'undefined' && OperateReact && typeof OperateReact.chromeUpdateLock === 'function'
+      && typeof OperateReact.isShellMounted === 'function' && OperateReact.isShellMounted()){
+    OperateReact.chromeUpdateLock({ err: true, pinLen: 0 });
+    setTimeout(()=>{ if(typeof OperateReact.chromeUpdateLock === 'function') OperateReact.chromeUpdateLock({ err: false, pinLen: pinBuf.length }); }, 400);
+    return;
+  }
+  const d=$('#pin-dots'); if(d){ d.classList.add('err'); setTimeout(()=>{d.classList.remove('err'); paintDots();},400); }
+}
+function closeLock(){
+  if(typeof OperateReact !== 'undefined' && OperateReact && typeof OperateReact.chromeHideLock === 'function'
+      && typeof OperateReact.isShellMounted === 'function' && OperateReact.isShellMounted()){
+    OperateReact.chromeHideLock();
+    return;
+  }
+  $('#lock').classList.remove('on'); $('#lock').innerHTML='';
+}
 function lockFinanceNow(){ session.financeUnlocked=false; if(store.settings.security.scope==='app') session.appUnlocked=false; overlay=null; store.tab='home'; render(); toast('Finance locked','lock'); }
 function requireUnlock(purpose, cb){
   if(purpose==='finance' && !financeLockActive()){ cb(); return; }

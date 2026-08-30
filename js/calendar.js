@@ -109,7 +109,25 @@ function viewCalendar(){
   </div>`;
 }
 let calGridOpen = true;
-function toggleCalGrid(){ calGridOpen=!calGridOpen; haptic(); renderView(); }
+function getCalendarState(){
+  const now = new Date();
+  if(!calCursor) calCursor = {y:now.getFullYear(), m:now.getMonth()};
+  return { y: calCursor.y, m: calCursor.m, sel: calSel, gridOpen: calGridOpen };
+}
+function reactCalendarLive(){
+  return typeof OperateReact !== 'undefined'
+    && OperateReact
+    && typeof OperateReact.isCalendarMounted === 'function'
+    && OperateReact.isCalendarMounted();
+}
+function refreshCalendarView(){
+  if(reactCalendarLive()){
+    if(typeof OperateReact.refreshCalendar === 'function') OperateReact.refreshCalendar();
+    return;
+  }
+  renderView();
+}
+function toggleCalGrid(){ calGridOpen=!calGridOpen; haptic(); refreshCalendarView(); }
 /* Past shows — everything that finished more than 24h ago, newest first. */
 function viewPastShows(){
   const past=store.events.filter(showPassed).sort((a,b)=> (b.date||'').localeCompare(a.date||''));
@@ -442,10 +460,17 @@ function delItem(id){ const gone=store.events.find(x=>x.id===id); store.events=s
   const logScope = gone && gone.kind === 'stay' ? 'hotel_bookings' : (gone && gone.kind === 'marker' ? 'schedule_items' : 'journeys');
   persist(logScope, id); closeSheet(); renderView(); toast('Deleted','trash'); }
 let calSel = null;
-function calMove(d){ calCursor.m+=d; if(calCursor.m<0){calCursor.m=11;calCursor.y--;} if(calCursor.m>11){calCursor.m=0;calCursor.y++;} calSel=null; renderView(); }
-function calToday(){ const n=new Date(); calCursor={y:n.getFullYear(),m:n.getMonth()}; calSel=null; renderView(); }
-function selectCalDay(ds){ calSel = (calSel===ds?null:ds); haptic(); renderView(); }
-function clearCalSel(){ calSel=null; renderView(); }
+function calMove(d){
+  if(!calCursor){ const n=new Date(); calCursor={y:n.getFullYear(),m:n.getMonth()}; }
+  calCursor.m+=d;
+  if(calCursor.m<0){calCursor.m=11;calCursor.y--;}
+  if(calCursor.m>11){calCursor.m=0;calCursor.y++;}
+  calSel=null;
+  refreshCalendarView();
+}
+function calToday(){ const n=new Date(); calCursor={y:n.getFullYear(),m:n.getMonth()}; calSel=null; refreshCalendarView(); }
+function selectCalDay(ds){ calSel = (calSel===ds?null:ds); haptic(); refreshCalendarView(); }
+function clearCalSel(){ calSel=null; refreshCalendarView(); }
 
 function eventRow(e){
   const st = e.status==='confirmed'?'confirmed':e.status==='hold'?'hold':e.status==='cancelled'?'cancelled':'past';

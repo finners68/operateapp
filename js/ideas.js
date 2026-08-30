@@ -5,12 +5,36 @@ let ideaFilter = 'all';
 let selectedIdeaId = null;
 var ideasStale = false; // true once the tab has rendered — suppresses the entrance animation on re-render so nothing jumps
 let contentMode = 'ideas'; // 'ideas' | 'notes' — the two views under the merged Ideas / Notes section
+function getContentTabState(){
+  return {
+    mode: contentMode,
+    ideaFilter,
+    noteSearch: (typeof noteSearch !== 'undefined' ? noteSearch : ''),
+    selectedIdeaId
+  };
+}
+function reactContentLive(){
+  return typeof OperateReact !== 'undefined'
+    && OperateReact
+    && typeof OperateReact.isContentTabMounted === 'function'
+    && OperateReact.isContentTabMounted();
+}
+function refreshContentTabView(){
+  if(reactContentLive()){
+    if(typeof OperateReact.refreshContentTab === 'function') OperateReact.refreshContentTab();
+    if(typeof setFab === 'function') setFab();
+    return true;
+  }
+  return false;
+}
 function setContentMode(m){
   if(contentMode===m) return;
   contentMode=m;
   ideasStale=false;
   haptic();
   if(typeof saveNavState==='function') saveNavState();
+  deselectIdea();
+  if(refreshContentTabView()) return;
   if(typeof swapContentModePanel==='function' && swapContentModePanel()) return;
   renderView();
 }
@@ -107,14 +131,20 @@ function ideasListBody(){
     return `<div class="idea-grid${SA}">${list.map(ideaCard).join('')}</div>`;
   }
 }
-function setIdeaFilter(k){ ideaFilter=k; haptic(); renderView(); }
+function setIdeaFilter(k){ ideaFilter=k; haptic(); if(refreshContentTabView()) return; renderView(); }
 /* Tap a card to select it in place — no navigation. A floating bar with
    Edit / Done / Delete appears; tap the same card (or ✕) to deselect. */
 function toggleIdeaSelect(ev, id){
   if(ev && ev.target && ev.target.closest && ev.target.closest('.idea-sel-btn')) return;
-  if(ev) ev.stopPropagation();
+  if(ev && typeof ev.stopPropagation === 'function') ev.stopPropagation();
   if(selectedIdeaId===id){ deselectIdea(); return; }
   selectedIdeaId = id;
+  if(reactContentLive()){
+    if(typeof notifyStore === 'function') notifyStore();
+    showIdeaActionBar(id);
+    haptic();
+    return;
+  }
   document.querySelectorAll('.idea.sel').forEach(c=>c.classList.remove('sel'));
   const card = document.querySelector(`.idea[data-idea="${id}"]`);
   if(card) card.classList.add('sel');
@@ -122,10 +152,12 @@ function toggleIdeaSelect(ev, id){
   haptic();
 }
 function deselectIdea(){
+  const had = selectedIdeaId;
   selectedIdeaId = null;
   document.querySelectorAll('.idea.sel').forEach(c=>c.classList.remove('sel'));
   const bar = document.getElementById('idea-actionbar');
   if(bar) bar.remove();
+  if(had && reactContentLive() && typeof notifyStore === 'function') notifyStore();
 }
 function showIdeaActionBar(id){
   const i = store.ideas.find(x=>x.id===id);
