@@ -204,20 +204,7 @@ function viewNote(id){
    ============================================================ */
 function sheetNoteAddChoice(folderId){
   const noteAction = folderId ? `sheetNote('${folderId}')` : 'sheetNote()';
-  openSheet('Add', `
-    <div class="card flush">
-      <div class="row" onclick="closeSheet();${noteAction}">
-        <div class="ic" style="background:var(--blue-soft);color:var(--blue)">${ICON.note(17)}</div>
-        <div class="body"><b>Note</b><span>${folderId ? 'New note in this folder' : 'New unfiled note'}</span></div>
-        ${ICON.chevR(15)}
-      </div>
-      <div class="row" onclick="closeSheet();promptCreateNoteFolder()">
-        <div class="ic" style="background:var(--card-2);color:var(--text-2)">${ICON.folder(17)}</div>
-        <div class="body"><b>Folder</b><span>Group notes together</span></div>
-        ${ICON.chevR(15)}
-      </div>
-    </div>
-  `);
+  openSheetReact('Add', 'note.addChoice', { folderId });
 }
 
 function sheetNote(folderId){
@@ -305,11 +292,7 @@ function sheetMoveNoteToFolder(noteId){
       ${n.folderId===f.id ? '<span class="tag">Current</span>' : ICON.chevR(15)}
     </div>`));
 
-  openSheet('Move to folder', `
-    <div class="card flush">${rows.join('')}</div>
-    <div class="spacer"></div>
-    <button class="btn secondary" onclick="closeSheet();promptNewFolderForNote('${noteId}')">${ICON.folder(16)} New folder…</button>
-  `);
+  openSheetReact('Move to folder', 'note.moveFolder', { noteId, folders });
 }
 
 function promptNewFolderForNote(noteId){

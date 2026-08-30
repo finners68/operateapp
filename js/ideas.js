@@ -272,14 +272,7 @@ function openIdeaShowPicker(iid){
   ideaShowPickSearch = '';
   ideaShowPickCtx = { iid };
   const i = store.ideas.find(x=>x.id===iid);
-  openSheet('Link to a show', `
-    <div class="searchbar"><span class="ic">${ICON.search(18)}</span><input id="idea-show-pick-search" placeholder="Search venue or city" value="" oninput="ideaShowPickSearch=this.value;debouncedIdeaShowPick()"></div>
-    <div class="field" style="margin-top:10px"><label>Show</label>
-      <select id="idea-show-pick-select" class="input">${ideaShowSelectOptionsHtml('', i?.eventId||null)}</select>
-    </div>
-    <button class="btn" onclick="confirmIdeaShowPick()">Link show</button>
-    <div class="spacer"></div>
-  `);
+  openSheetReact('Link to a show', 'idea.showPicker', { iid, selectedId: i?.eventId || null });
   setTimeout(()=>{ const el=document.getElementById('idea-show-pick-search'); if(el) el.focus(); }, 320);
 }
 
@@ -334,7 +327,7 @@ function attachIdeaTo(iid, kind){
   } else {
     const trips=sel.trips().filter(t=>!t.archived);
     if(!trips.length){ toast('No trips yet','x'); return; }
-    openSheet('Use on which trip?', `<div class="card flush">${trips.map(t=>`<div class="row" onclick="doAttachIdea('${iid}','trip','${t.id}')"><div class="ic" style="background:${CATS[t.color]||CATS.purple}22;color:${CATS[t.color]||CATS.purple}">${ICON.bag(17)}</div><div class="body"><b>${esc(t.name)}</b><span>${sel.tripEvents(t.id).length} shows</span></div>${ICON.chevR(15)}</div>`).join('')}</div><div class="spacer"></div>`);
+    openSheetReact('Use on which trip?', 'idea.tripPicker', { iid, trips });
   }
 }
 function doAttachIdea(iid, kind, id){
@@ -345,36 +338,14 @@ function doAttachIdea(iid, kind, id){
 function detachIdea(iid){ const i=store.ideas.find(x=>x.id===iid); i.eventId=null; i.tripId=null; persist('ideas', iid); renderView(); toast('Unlinked','check'); }
 function attachIdeaPickForEvent(eid){
   const avail=sel.ideas().filter(i=>i.eventId!==eid);
-  openSheet('Add a content idea', `
-    ${avail.length?`<div class="card flush" style="margin-bottom:12px">${avail.map(i=>{const t=IDEA_TYPES[i.type]||IDEA_TYPES.other;return `<div class="row" onclick="doAttachIdea('${i.id}','event','${eid}')"><div class="ic" style="background:${t.color}22;color:${t.color}">${ICON[t.icon](16)}</div><div class="body"><b>${esc(i.title)}</b><span>${t.label}${i.eventId||i.tripId?' · linked elsewhere':''}</span></div>${ICON.plus(15)}</div>`;}).join('')}</div>`:'<div class="hint" style="padding:6px 2px 12px">No other ideas yet.</div>'}
-    <button class="btn secondary" onclick="closeSheet(); sheetIdea()">${ICON.plus(15)} New idea</button><div class="spacer"></div>
-  `);
+  openSheetReact('Add a content idea', 'idea.attach', { eid, ideas: avail });
 }
 /* ============================================================
    IDEA — create / edit
    ============================================================ */
 function sheetIdea(iid){
   const i = iid? store.ideas.find(x=>x.id===iid):null;
-  openSheet(iid?'Edit idea':'New idea', `
-    <div class="field"><label>Idea</label><textarea id="id-title" class="textarea" style="min-height:70px" placeholder="What's the concept?">${esc(i?i.title:'')}</textarea></div>
-    <div class="field"><label>Type</label>
-      <div class="swatches" id="id-type" style="gap:8px;flex-wrap:wrap">
-        ${Object.entries(IDEA_TYPES).map(([k,v])=>`<button class="chip ${(i?i.type:'reel')===k?'on':''}" data-v="${k}" onclick="chipPick(this)" style="${(i?i.type:'reel')===k?`background:${v.color};color:#fff;border-color:${v.color}`:''}">${v.label}</button>`).join('')}
-      </div>
-    </div>
-    <div class="field"><label>Priority</label>
-      <div class="seg" id="id-prio">
-        ${[['high','High'],['med','Medium'],['low','Low']].map(([k,l])=>`<button data-v="${k}" class="${(i?i.prio:'med')===k?'on':''}" onclick="segPick(this)">${l}</button>`).join('')}
-      </div>
-    </div>
-    <div class="field"><label>Details</label><textarea id="id-note" class="textarea" style="min-height:64px" placeholder="Script, references, notes…">${esc(i?(i.note||''):'')}</textarea></div>
-    <div class="field"><label>Link to a show</label>
-      <div class="searchbar"><span class="ic">${ICON.search(18)}</span><input id="id-event-search" placeholder="Search venue or city" value="" oninput="debouncedIdeaEventSelect()"></div>
-      <select id="id-event" class="input">${ideaShowSelectOptionsHtml('', i&&i.eventId?i.eventId:null)}</select>
-    </div>
-    <button class="btn" id="id-save" onclick="saveIdea('${iid||''}')">${iid?'Save':'Add idea'}</button>
-    <div class="spacer"></div>
-  `);
+  openSheetReact(iid?'Edit idea':'New idea', 'idea.edit', { iid, idea: i });
 }
 function chipPick(el){ el.parentElement.querySelectorAll('.chip').forEach(c=>{c.classList.remove('on');c.style.cssText='';}); el.classList.add('on'); const col=IDEA_TYPES[el.dataset.v].color; el.style.cssText=`background:${col};color:#fff;border-color:${col}`; haptic(); }
 function getChip(id){ const el=document.querySelector('#'+id+' .chip.on'); return el?el.dataset.v:'reel'; }

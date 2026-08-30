@@ -64,3 +64,14 @@ export function setAuthState(next){
   authState = Object.assign({}, authState, next);
   notifyChrome();
 }
+
+/* ---- Fullscreen image viewer ---- */
+export let viewerState = { open: false, src: '' };
+
+export function setViewerState(next){
+  viewerState = Object.assign({}, viewerState, next);
+  notifyChrome();
+}
+
+/* Sheet React body: bodyKind + bodyProps (bodyHTML kept for fallback). */
+/* sheetState shape: { title, bodyHTML, bodyKind, bodyProps, opts, open, closing, key } */

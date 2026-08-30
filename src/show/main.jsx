@@ -16,9 +16,13 @@ import FinancePage from '../finance/FinancePage.jsx';
 import InvoicesPage from '../finance/InvoicesPage.jsx';
 import InvoiceDetailPage from '../finance/InvoiceDetailPage.jsx';
 import ContactsPage from '../contacts/ContactsPage.jsx';
+import PastShowsPage from '../calendar/PastShowsPage.jsx';
+import StatsPage from '../stats/StatsPage.jsx';
+import ItineraryPage from '../itinerary/ItineraryPage.jsx';
+import WrappedPage from '../wrapped/WrappedPage.jsx';
 import { NavBar, FabInner, ToastHost, LockHost, AuthHost, ShellOverlays } from '../shell/AppShell.jsx';
 import {
-  setSheetState, setToastState, setLockState, setAuthState, sheetState,
+  setSheetState, setToastState, setLockState, setAuthState, setViewerState, sheetState,
 } from '../shell/chromeState.js';
 import { notifyStore, call } from './bridge.js';
 
@@ -48,6 +52,10 @@ let invoicesRoot = null;
 let invoiceRoot = null;
 let mountedInvoiceId = null;
 let contactsRoot = null;
+let pastShowsRoot = null;
+let statsRoot = null;
+let itineraryRoot = null;
+let wrappedRoot = null;
 
 export function unmountAllIslands(){
   unmountShow();
@@ -66,6 +74,10 @@ export function unmountAllIslands(){
   unmountInvoices();
   unmountInvoiceDetail();
   unmountContacts();
+  unmountPastShows();
+  unmountStats();
+  unmountItinerary();
+  unmountWrapped();
 }
 
 function clearOthers(...keep){
@@ -86,6 +98,10 @@ function clearOthers(...keep){
     invoices: unmountInvoices,
     invoice: unmountInvoiceDetail,
     contacts: unmountContacts,
+    pastShows: unmountPastShows,
+    stats: unmountStats,
+    itinerary: unmountItinerary,
+    wrapped: unmountWrapped,
   };
   Object.keys(all).forEach(k => {
     if(!keep.includes(k)) all[k]();
@@ -290,6 +306,50 @@ export function unmountContacts(){ if(contactsRoot){ try{ contactsRoot.unmount()
 export function isContactsMounted(){ return !!contactsRoot; }
 export function refreshContacts(){ notifyStore(); }
 
+export function mountPastShows(el){
+  if(!el) return;
+  clearOthers('pastShows');
+  if(pastShowsRoot){ notifyStore(); return; }
+  pastShowsRoot = createRoot(el);
+  paint(pastShowsRoot, <PastShowsPage />);
+}
+export function unmountPastShows(){ if(pastShowsRoot){ try{ pastShowsRoot.unmount(); }catch(_){} } pastShowsRoot = null; }
+export function isPastShowsMounted(){ return !!pastShowsRoot; }
+export function refreshPastShows(){ notifyStore(); }
+
+export function mountStats(el){
+  if(!el) return;
+  clearOthers('stats');
+  if(statsRoot){ notifyStore(); return; }
+  statsRoot = createRoot(el);
+  paint(statsRoot, <StatsPage />);
+}
+export function unmountStats(){ if(statsRoot){ try{ statsRoot.unmount(); }catch(_){} } statsRoot = null; }
+export function isStatsMounted(){ return !!statsRoot; }
+export function refreshStats(){ notifyStore(); }
+
+export function mountItinerary(el){
+  if(!el) return;
+  clearOthers('itinerary');
+  if(itineraryRoot){ notifyStore(); return; }
+  itineraryRoot = createRoot(el);
+  paint(itineraryRoot, <ItineraryPage />);
+}
+export function unmountItinerary(){ if(itineraryRoot){ try{ itineraryRoot.unmount(); }catch(_){} } itineraryRoot = null; }
+export function isItineraryMounted(){ return !!itineraryRoot; }
+export function refreshItinerary(){ notifyStore(); }
+
+export function mountWrapped(el){
+  if(!el) return;
+  clearOthers('wrapped');
+  if(wrappedRoot){ notifyStore(); return; }
+  wrappedRoot = createRoot(el);
+  paint(wrappedRoot, <WrappedPage />);
+}
+export function unmountWrapped(){ if(wrappedRoot){ try{ wrappedRoot.unmount(); }catch(_){} } wrappedRoot = null; }
+export function isWrappedMounted(){ return !!wrappedRoot; }
+export function refreshWrapped(){ notifyStore(); }
+
 /* ---------- Persistent chrome (nav, fab, toast, lock, auth, sheets) ---------- */
 let shellMounted = false;
 let navRoot = null;
@@ -347,6 +407,22 @@ export function chromeOpenSheet(title, bodyHTML, opts = {}){
     key: sheetKey,
     title: title || '',
     bodyHTML: bodyHTML || '',
+    bodyKind: null,
+    bodyProps: null,
+    opts: opts || {},
+    open: true,
+    closing: false,
+  });
+}
+
+export function chromeOpenSheetReact(title, bodyKind, bodyProps = {}, opts = {}){
+  sheetKey += 1;
+  setSheetState({
+    key: sheetKey,
+    title: title || '',
+    bodyHTML: '',
+    bodyKind: bodyKind || null,
+    bodyProps: bodyProps || {},
     opts: opts || {},
     open: true,
     closing: false,
@@ -369,6 +445,14 @@ export function chromeCloseSheet(instant, onDone){
   }
   setSheetState(Object.assign({}, sheetState, { closing: true }));
   setTimeout(finish, 280);
+}
+
+export function chromeOpenViewer(src){
+  setViewerState({ open: true, src: src || '' });
+}
+
+export function chromeCloseViewer(){
+  setViewerState({ open: false, src: '' });
 }
 
 export function chromeShowLock(state){

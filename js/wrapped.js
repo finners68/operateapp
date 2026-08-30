@@ -230,6 +230,13 @@ function wrappedCSS(){ return `<style>
 
 /* ---- story controller ---- */
 let wrState = null;
+/* React WrappedPage calls this before wrDrawMapAnimated so map helpers have wrState. */
+function prepareWrappedMap(){
+  const root = document.getElementById('wrapped-root');
+  if(!root) return;
+  const slides = [...root.querySelectorAll('.wr-slide')];
+  wrState = { i: 2, n: slides.length, slides, timer: null, mapDone: false };
+}
 function initWrapped(){
   const root = document.getElementById('wrapped-root');
   if(!root) return;

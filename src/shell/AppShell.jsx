@@ -4,9 +4,10 @@ import { getStore, subscribeStore, call, g } from '../show/bridge.js';
 import { Icon } from '../show/ui.jsx';
 import {
   subscribeChrome, getChromeSeq,
-  sheetState, toastState, lockState, authState,
+  sheetState, toastState, lockState, authState, viewerState,
   setAuthState,
 } from './chromeState.js';
+import { resolveSheetBody } from '../sheets/registry.jsx';
 
 function useStoreTick(){
   return useSyncExternalStore(
@@ -154,12 +155,13 @@ export function SheetHost(){
     if(actionBtn && typeof opts.action === 'string' && opts.action){
       actionBtn.setAttribute('onclick', opts.action);
     }
-  }, [sheet?.key, sheet?.open, sheet?.bodyHTML, sheet?.opts]);
+  }, [sheet?.key, sheet?.open, sheet?.bodyHTML, sheet?.bodyKind, sheet?.bodyProps, sheet?.opts]);
 
   if(!sheet || !sheet.open || !app) return null;
 
   const opts = sheet.opts || {};
   const full = !!opts.full;
+  const reactBody = sheet.bodyKind ? resolveSheetBody(sheet.bodyKind, sheet.bodyProps || {}) : null;
 
   return createPortal(
     <div ref={sheetRef} className={`sheet${full ? ' full' : ''}${shown && !sheet.closing ? ' on' : ''}`}>
@@ -187,10 +189,11 @@ export function SheetHost(){
           </div>
         </>
       )}
-      <div
-        className="sheet-body"
-        dangerouslySetInnerHTML={{ __html: sheet.bodyHTML || '' }}
-      />
+      <div className="sheet-body">
+        {reactBody || (
+          <div dangerouslySetInnerHTML={{ __html: sheet.bodyHTML || '' }} />
+        )}
+      </div>
     </div>,
     app
   );
@@ -293,6 +296,32 @@ export function AuthHost(){
   );
 }
 
+export function ViewerHost(){
+  useChromeTick();
+  const V = viewerState;
+  useEffect(() => {
+    const el = document.getElementById('viewer');
+    if(!el) return;
+    el.classList.toggle('on', !!V.open);
+  }, [V.open]);
+
+  const host = typeof document !== 'undefined' ? document.getElementById('viewer') : null;
+  if(!host || !V.open) return null;
+
+  return createPortal(
+    <>
+      <button type="button" className="close" onClick={() => call('closeViewer')}>✕</button>
+      <img id="viewer-img" src={V.src || ''} alt="" />
+    </>,
+    host
+  );
+}
+
 export function ShellOverlays(){
-  return <SheetHost />;
+  return (
+    <>
+      <SheetHost />
+      <ViewerHost />
+    </>
+  );
 }

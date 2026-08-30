@@ -296,16 +296,7 @@ async function sheetBoardingPass(itemId, passId, flightId){
   const preview = isImg && p.data
     ? `<div class="thumb" style="width:100%;height:180px;margin-bottom:12px" onclick="viewPassImage(${args})"><img src="${esc(p.data)}" alt=""></div>`
     : `<div class="hint" style="text-align:left;padding:0 2px 12px">${ICON.ticket(18)} ${name}</div>`;
-  openSheet('Boarding pass', `
-    ${preview}
-    ${isImg && p.data ? `<button class="btn" onclick="viewPassImage(${args})">${ICON.image(16)} View</button>` : ''}
-    ${pk ? `<button class="btn" style="margin-top:10px" onclick="addPassToAppleWallet(${args})">${ICON.wallet(16)} Add to Apple Wallet</button>
-      <div class="hint" style="text-align:left;padding:8px 2px 0">This is a real .pkpass file. On iPhone, opening it lets Apple Wallet add the pass.</div>` : ''}
-    <button class="btn secondary" style="margin-top:10px" onclick="downloadPassFile(${args})">${ICON.file(16)} Download / Open</button>
-    ${navigator.share ? `<button class="btn secondary" style="margin-top:10px" onclick="sharePassFile(${args})">${ICON.share(16)} Share</button>` : ''}
-    ${!pk ? `<div class="hint" style="text-align:left;padding:12px 2px 0">Photos and PDFs can’t be added to Apple Wallet from Operate. Wallet needs a special signed .pkpass file from the airline (not the same as Apple Pay for payments).</div>` : ''}
-    <div class="spacer"></div>
-  `);
+  openSheetReact('Boarding pass', 'boardingPass.details', { itemId, passId, flightId, pass: p });
 }
 async function viewPassImage(itemId, passId, flightId){
   const p = findPassByRef(itemId, passId, flightId);

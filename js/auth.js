@@ -189,19 +189,7 @@ async function createInvite(email, role){
   return location.origin + location.pathname + '?invite=' + data.invite_token;
 }
 function sheetInviteCrew(){
-  openSheet('Invite crew', `
-    <div class="field"><label>Email</label><input id="inv-email" type="email" class="input" placeholder="crew@example.com" autocomplete="email"></div>
-    <div class="field"><label>Role</label>
-      <div class="seg" id="inv-role">
-        <button data-v="crew" class="on" onclick="segPick(this)">Crew</button>
-        <button data-v="manager" onclick="segPick(this)">Manager</button>
-      </div>
-    </div>
-    <div class="hint" style="text-align:left;padding:2px 2px 10px;line-height:1.5">Crew can update day-of details (checklists, timeline, logistics, notes, ideas). Managers can edit everything.</div>
-    <button class="btn" id="inv-make" onclick="doCreateInvite()">Create invite link</button>
-    <div id="inv-out" style="margin-top:12px"></div>
-    <div class="spacer"></div>
-  `);
+  openSheetReact('Invite crew', 'auth.invite', {});
 }
 function confirmDeleteCloudData(){
   confirmSheet('Delete all cloud data?', 'Organisation deletion is not yet available in the V2 schema. Sign out to stop syncing, or contact support to remove cloud data.', 'OK', ()=>{}, false);
@@ -285,20 +273,11 @@ async function authBoot(){
 
 function sheetAccount(){
   if(!isSupabaseConfigured()){
-    openSheet('Account', `<div class="hint" style="text-align:left;padding:2px 2px 16px;line-height:1.5">Cloud sync is not configured. Copy <code>js/config.example.js</code> to <code>js/config.js</code> and add your Supabase credentials.</div><div class="spacer"></div>`);
+    openSheetReact('Account', 'auth.account', { mode: 'unconfigured', message: 'Cloud sync is not configured. Copy js/config.example.js to js/config.js and add your Supabase credentials.' });
     return;
   }
   if(isDevHardwireMode()){
-    openSheet('Account & sync', `
-      <div class="card" style="padding:15px;margin-bottom:6px;text-align:center">
-        <div style="font-size:11.5px;color:var(--text-3);font-weight:700;text-transform:uppercase;letter-spacing:.08em">Dev mode</div>
-        <div style="font-size:16px;font-weight:700;margin-top:4px">No sign-in</div>
-        <div style="font-size:13px;color:var(--text-2);margin-top:4px" id="sync-status">${syncStatusLabel()}</div>
-      </div>
-      <div class="hint" style="text-align:left;padding:8px 2px 14px;line-height:1.5">All tour data syncs to the shared dev org. Anyone with the app URL can read and write.</div>
-      <button class="btn secondary" onclick="syncPullNow()">${ICON.reminder(16)} Refresh now</button>
-      <div class="spacer"></div>
-    `);
+    openSheetReact('Account & sync', 'auth.account', { mode: 'dev', statusLabel: syncStatusLabel() });
     return;
   }
   if(!isAuthRequired() && !authUser){
@@ -308,31 +287,12 @@ function sheetAccount(){
         : `<div class="hint" style="text-align:left;padding:2px 2px 14px;line-height:1.5">Sign in once to sync with the dev org. The app stays usable without signing in.</div>`;
       const emailVal = getAllowedEmail() || '';
       const emailReadonly = emailVal ? ' readonly' : '';
-      openSheet('Account & sync', `
-        ${lockHint}
-        <div class="field"><label>Email</label><input id="auth-email" type="email" class="input" placeholder="you@example.com" autocomplete="email"${emailVal ? ` value="${esc(emailVal)}"` : ''}${emailReadonly}></div>
-        <p id="auth-msg" class="auth-msg"></p>
-        <button class="btn" id="auth-send" onclick="sendMagicLink()">Send magic link</button>
-        <div class="spacer"></div>
-      `);
+      openSheetReact('Account & sync', 'auth.account', { mode: 'signin', allowedEmail: emailVal, singleAccount: isSingleAccountMode(), message: isSingleAccountMode() ? `This app syncs to one account only${emailVal ? ` (${emailVal})` : ''}. Sign in to load and save tour data.` : 'Sign in once to sync with the dev org. The app stays usable without signing in.' });
       return;
     }
-    openSheet('Account', `<div class="hint" style="text-align:left;padding:2px 2px 16px;line-height:1.5">Cloud sync is not enabled yet. Your tour data stays on this device.</div><div class="spacer"></div>`);
+    openSheetReact('Account', 'auth.account', { mode: 'disabled' });
     return;
   }
   const email = authUser?.email || 'Not signed in';
-  openSheet('Account & sync', `
-    <div class="card" style="padding:15px;margin-bottom:6px;text-align:center">
-      <div style="font-size:11.5px;color:var(--text-3);font-weight:700;text-transform:uppercase;letter-spacing:.08em">Signed in as</div>
-      <div style="font-size:16px;font-weight:700;margin-top:4px">${esc(email)}</div>
-      <div style="font-size:13px;color:var(--text-2);margin-top:4px" id="sync-status">${syncStatusLabel()}</div>
-    </div>
-    <div class="hint" style="text-align:left;padding:8px 2px 14px;line-height:1.5">${isSingleAccountMode() ? 'Tour data syncs to the single linked account only.' : 'Your tour data syncs across devices signed into the same org. Invite crew to collaborate — crew can update day-of details, managers can edit everything.'}</div>
-    ${isSingleAccountMode() ? '' : `<button class="btn secondary" onclick="sheetInviteCrew()">${ICON.users(16)} Invite crew</button>`}
-    <button class="btn secondary" style="margin-top:10px" onclick="syncPullNow()">${ICON.reminder(16)} Refresh now</button>
-    <button class="btn secondary" style="margin-top:10px" onclick="exportData()">${ICON.file(16)} Export my data</button>
-    <button class="btn danger" style="margin-top:10px" onclick="signOut()">${ICON.x(16)} Sign out</button>
-    <button class="btn danger" style="margin-top:10px" onclick="confirmDeleteCloudData()">${ICON.trash(16)} Delete all cloud data</button>
-    <div class="spacer"></div>
-  `);
+  openSheetReact('Account & sync', 'auth.account', { mode: 'signedIn', email, statusLabel: syncStatusLabel(), singleAccount: isSingleAccountMode() });
 }

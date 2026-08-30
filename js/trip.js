@@ -360,14 +360,7 @@ function timelineStepOptions(runKey, stepId){
   const run=runOf(runKey); if(!run) return;
   const s=runTimeline(run).find(x=>x.id===stepId); if(!s) return;
   const bits=[s.time?esc(s.time):'', s.sub?esc(s.sub):''].filter(Boolean).join(' · ');
-  openSheet(s.title||'Timeline step', `
-    ${bits?`<p class="sheet-lede">${bits}</p>`:''}
-    <button type="button" class="btn" onclick="closeSheet();editTimelineStep('${runKey}','${jsAttr(stepId)}')">${ICON.edit(16)} Edit</button>
-    <button type="button" class="btn secondary" style="margin-top:10px" onclick="closeSheet();completeRunStep('${runKey}','${jsAttr(stepId)}')">${s.done?ICON.x(16)+' Mark not done':ICON.check(16)+' Mark done'}</button>
-    <div class="spacer"></div>
-    <button type="button" class="btn secondary" onclick="closeSheet()">Cancel</button>
-    <div class="spacer"></div>
-  `);
+  openSheetReact(s.title||'Timeline step', 'trip.timelineOptions', { runKey, stepId, step: s });
 }
 function editTimelineStep(runKey, stepId){
   const run=runOf(runKey); if(!run) return;
@@ -590,17 +583,7 @@ function toggleLegDone(runKey, showId){
 function sheetTrip(tid){
   const t = tid? sel.trip(tid):null;
   const swatches = Object.entries(CATS).map(([k,v])=>`<div class="sw" style="background:${v}" data-cat="${k}" onclick="pickCat(this)"></div>`).join('');
-  openSheet(tid?'Edit trip':'New trip', `
-    <div class="field"><label>Trip name</label><input id="tr-name" class="input" placeholder="e.g. Europe Weekend" value="${esc(t?t.name:'')}"></div>
-    <div class="row-2">
-      <div class="field"><label>Start</label><input id="tr-start" type="date" class="input" value="${t?t.startDate||'':''}"></div>
-      <div class="field"><label>End</label><input id="tr-end" type="date" class="input" value="${t?t.endDate||'':''}"></div>
-    </div>
-    <div class="field"><label>Colour</label><div class="swatches" id="tr-cat">${swatches}</div></div>
-    ${tid?'':`<div class="hint" style="text-align:left;padding:2px 2px 6px">A default packing checklist will be added — you can edit it after.</div>`}
-    <button class="btn" id="tr-save" onclick="saveTrip('${tid||''}')">${tid?'Save changes':'Create trip'}</button>
-    <div class="spacer"></div>
-  `);
+  openSheetReact(tid?'Edit trip':'New trip', 'trip.edit', { tid, trip: t });
   setTimeout(()=>{ const cat=t?t.color:'pink'; const el=document.querySelector(`#tr-cat .sw[data-cat="${cat}"]`); if(el) el.classList.add('on'); },40);
 }
 function saveTrip(tid){
@@ -653,7 +636,7 @@ function openTourContacts(runKey){
       ${(c.whatsapp||c.phone)?`<button class="header-btn" style="width:34px;height:34px;align-self:center" onclick="whatsapp('${jsAttr(c.whatsapp||c.phone)}')">${ICON.chat(15)}</button>`:''}
       ${c.phone?`<button class="header-btn" style="width:34px;height:34px;align-self:center" onclick="callNumber('${jsAttr(c.phone)}')">${ICON.phone(15)}</button>`:''}
     </div>`).join('')}</div>`).join('');
-  openSheet('Key contacts', body+'<div class="spacer"></div>');
+  openSheetReact('Key contacts', 'trip.contacts', { runKey, contacts: list, grouped: multi });
 }
 function completeRunStep(runKey, stepId){
   let done = null;

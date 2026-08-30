@@ -317,45 +317,7 @@ function toggleLogisticAddFields(){
 }
 function addLogisticFor(showId){
   const e=sel.event(showId);
-  openSheet('Add to journey', `
-    <div class="field"><label>Type</label><div class="seg" id="al-kind">
-      ${[['travel','Flight / transfer'],['stay','Hotel']].map(([k,l],i)=>`<button type="button" data-v="${k}" class="${i===0?'on':''}" onclick="segPick(this);toggleLogisticAddFields()">${l}</button>`).join('')}
-    </div></div>
-    <div id="al-travel-fields">
-      <div class="field"><label>Travel mode</label><div class="seg" id="al-icon">
-        ${[['plane','Flight'],['car','Driver'],['ferry','Ferry'],['walk','Walk']].map(([k,l],i)=>`<button type="button" data-v="${k}" class="${i===0?'on':''}" onclick="segPick(this);toggleLogisticAddFields()">${l}</button>`).join('')}
-      </div></div>
-      <div class="field"><label>Flight number (optional)</label><input id="al-code" class="input" placeholder="KL1008"></div>
-      <div class="row-2">
-        <div class="field"><label>From</label><input id="al-from" class="input" placeholder="AMS"></div>
-        <div class="field"><label>To</label><input id="al-to" class="input" placeholder="ZTH"></div>
-      </div>
-      <div class="row-2">
-        <div class="field picker-field" onclick="openInputPicker('al-start')">
-          <label>Departure</label>
-          <input id="al-start" type="time" class="input" onclick="event.stopPropagation();openInputPicker('al-start')">
-        </div>
-        <div class="field picker-field" onclick="openInputPicker('al-end')">
-          <label>Arrival</label>
-          <input id="al-end" type="time" class="input" onclick="event.stopPropagation();openInputPicker('al-end')">
-        </div>
-      </div>
-      <div class="field" id="al-driver-name-wrap" style="display:none"><label>Driver / company name</label><input id="al-driver-name" class="input" placeholder="e.g. Marco · Uber"></div>
-    </div>
-    <div id="al-stay-fields" style="display:none">
-      <div class="field"><label>Hotel name</label><input id="al-place" class="input" placeholder="e.g. Hilton"></div>
-      <div class="field"><label>Address</label><input id="al-addr" class="input" placeholder="Street, city"></div>
-      <div class="field picker-field" onclick="openInputPicker('al-checkin')">
-        <label>Check-in time</label>
-        <input id="al-checkin" type="time" class="input" onclick="event.stopPropagation();openInputPicker('al-checkin')">
-      </div>
-    </div>
-    <div class="field picker-field" onclick="openInputPicker('al-date')">
-      <label>Date</label>
-      <input id="al-date" type="date" class="input" value="${e?e.date:''}" onclick="event.stopPropagation();openInputPicker('al-date')">
-    </div>
-    <button class="btn" onclick="saveLogisticFor('${showId}')">Add</button><div class="spacer"></div>
-  `);
+  openSheetReact('Add to journey', 'calendar.addLogistic', { showId, event: e });
   setTimeout(toggleLogisticAddFields, 30);
 }
 function saveLogisticFor(showId){
@@ -393,40 +355,7 @@ function openItem(id){
   normalizeLogisticItem(e);
   const label = e.kind==='travel'?'Travel':e.kind==='stay'?'Stay':'Note';
   const iconOpts = ['plane','car','ferry','walk','bed'];
-  openSheet(label, `
-    <div class="field picker-field" onclick="openInputPicker('it-date')">
-      <label>Date</label>
-      <input id="it-date" type="date" class="input" value="${e.date}" onclick="event.stopPropagation();openInputPicker('it-date')">
-    </div>
-    ${e.kind==='travel'?`
-      <div class="field"><label>Travel mode</label><div class="seg" id="it-icon">${iconOpts.slice(0,4).map(ic=>`<button type="button" data-v="${ic}" class="${(e.icon||'plane')===ic?'on':''}" onclick="segPick(this)">${ic==='plane'?'Flight':ic==='car'?'Driver':ic==='ferry'?'Ferry':'Walk'}</button>`).join('')}</div></div>
-      <div class="field"><label>Flight number (optional)</label><input id="it-code" class="input" value="${esc(e.flightNo||'')}" placeholder="KL1008"></div>
-      ${(e.icon||'plane')==='car'?`<div class="field"><label>Driver / company name</label><input id="it-driver-name" class="input" value="${esc(e.driverName||'')}" placeholder="Marco"></div>`:''}
-      <div class="row-2">
-        <div class="field"><label>From</label><input id="it-from" class="input" value="${esc(e.from||'')}" placeholder="AMS"></div>
-        <div class="field"><label>To</label><input id="it-to" class="input" value="${esc(e.to||'')}" placeholder="ZTH"></div>
-      </div>
-      <div class="row-2">
-        <div class="field picker-field" onclick="openInputPicker('it-start')">
-          <label>Departure</label>
-          <input id="it-start" type="time" class="input" value="${e.start||''}" onclick="event.stopPropagation();openInputPicker('it-start')">
-        </div>
-        <div class="field picker-field" onclick="openInputPicker('it-end')">
-          <label>Arrival</label>
-          <input id="it-end" type="time" class="input" value="${e.end||''}" onclick="event.stopPropagation();openInputPicker('it-end')">
-        </div>
-      </div>
-      ${isDriverItem(e)?`<div class="field"><label>Driver phone</label><input id="it-phone" type="tel" class="input" value="${esc(e.phone||'')}" placeholder="+34 600 000 000"></div>
-      <div class="field"><label>WhatsApp (if different)</label><input id="it-wa" type="tel" class="input" value="${esc(e.whatsapp||'')}"></div>`:''}`:''}
-    ${e.kind==='stay'?`<div class="field"><label>Hotel name</label><input id="it-place" class="input" value="${esc(e.place||'')}" placeholder="Hilton"></div>
-      <div class="field"><label>Address</label><input id="it-addr" class="input" value="${esc(e.addr||'')}" placeholder="Hotel address"></div>
-      <div class="field"><label>Check-in</label><input id="it-info" class="input" value="${esc((e.info||'').replace(/^Check-in:\s*/i,''))}" placeholder="14:00"></div>
-      <div class="field"><label>Booking reference</label><input id="it-ref" class="input" value="${esc(e.bookingRef||'')}" placeholder="Confirmation number"></div>`:''}
-    <button class="btn" onclick="saveItem('${id}')">Save</button>
-    <div class="spacer"></div>
-    <button class="btn danger" onclick="delItem('${id}')">${ICON.trash(15)} Delete</button>
-    <div class="spacer"></div>
-  `);
+  openSheetReact(label, 'calendar.item', { id, item: e });
 }
 function saveItem(id){
   const e=store.events.find(x=>x.id===id); if(!e) return;

@@ -919,49 +919,7 @@ function sheetEvent(eid){
     </div>
     <div class="field"><label>Internal notes</label><textarea id="ev-notes" class="textarea" placeholder="Team-only notes">${esc(e.notes||'')}</textarea></div>
   ` : '';
-  openSheet(eid?'Edit show':'New show', `
-    <div class="dhero sheet-event-preview" id="ev-preview" style="background:linear-gradient(155deg,${initC}33,var(--card) 65%);border-color:${initC}44">
-      <div class="cat-bar" style="background:${initC}"></div>
-      <div class="sheet-event-tone" style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:${initC}">${eid?'Edit show':'New show'}</div>
-      <div id="ev-preview-venue" style="font-size:20px;font-weight:800;margin-top:4px">${esc(e?e.venue:'Venue name')}</div>
-    </div>
-    <div class="field"><label>Venue</label><input id="ev-venue" class="input" placeholder="e.g. Shelter" value="${esc(e?e.venue:'')}" oninput="updateEventPreviewVenue()"></div>
-    <div class="field"><label>Address</label><input id="ev-addr" class="input" placeholder="Street and number" value="${esc(e?e.venueAddr||'':'')}"></div>
-    <div class="field"><label>Address line 2</label><input id="ev-addr2" class="input" placeholder="Building, floor, unit (optional)" value="${esc(e?e.venueAddr2||'':'')}"></div>
-    <div class="row-2">
-      <div class="field"><label>City</label><input id="ev-city" class="input" placeholder="Amsterdam" value="${esc(e?e.city:'')}"></div>
-      <div class="field"><label>Region</label><input id="ev-region" class="input" placeholder="North Holland" value="${esc(e?e.venueRegion||'':'')}"></div>
-    </div>
-    <div class="row-2">
-      <div class="field"><label>Postcode</label><input id="ev-postcode" class="input" placeholder="1012 AB" value="${esc(e?e.venuePostcode||'':'')}"></div>
-      <div class="field"><label>Country</label><input id="ev-country" class="input" placeholder="Netherlands" value="${esc(e?e.country:'')}"></div>
-    </div>
-    <div class="field picker-field" onclick="openInputPicker('ev-date')">
-      <label>Date</label>
-      <input id="ev-date" type="date" class="input" value="${defDate}" onclick="event.stopPropagation();openInputPicker('ev-date')">
-    </div>
-    <div class="row-2">
-      <div class="field picker-field" onclick="openInputPicker('ev-set')">
-        <label>Set time</label>
-        <input id="ev-set" type="time" class="input" value="${e?e.setTime:'23:00'}" onclick="event.stopPropagation();openInputPicker('ev-set')">
-      </div>
-      <div class="field picker-field" onclick="openInputPicker('ev-arr')">
-        <label>Arrival</label>
-        <input id="ev-arr" type="time" class="input" value="${e?e.arrival:''}" onclick="event.stopPropagation();openInputPicker('ev-arr')">
-      </div>
-    </div>
-    <div class="field"><label>Status</label>
-      <div class="seg" id="ev-status">
-        ${['confirmed','hold','cancelled'].map(s=>`<button data-v="${s}" class="${(e?e.status:'confirmed')===s?'on':''}" onclick="segPick(this)">${s[0].toUpperCase()+s.slice(1)}</button>`).join('')}
-      </div>
-    </div>
-    <div class="field"><label>Content to capture</label><input id="ev-content" class="input" placeholder="e.g. 2x reels · crowd clip" value="${esc(e?e.content:'')}"></div>
-    ${editExtras}
-    <div class="field"><label>Colour</label><div class="swatches" id="ev-cat">${swatches}</div></div>
-    ${eid?`<button type="button" class="btn secondary" style="margin-bottom:10px" onclick="closeSheet(true,{noReturn:true});sheetReturnStack=[];eventMenu('${eid}')">${ICON.edit(16)} All show sections…</button>`:''}
-    <button class="btn" id="ev-save" onclick="saveEvent('${eid||''}')">${eid?'Save changes':'Add show'}</button>
-    <div class="spacer"></div>
-  `);
+  openSheetReact(eid?'Edit show':'New show', 'show.event', { eid });
   /* Set tone after the sheet starts opening — avoid style thrash mid-slide. */
   if(sheetEl){
     sheetEl.style.setProperty('--sheet-tone', initC);
@@ -1046,33 +1004,7 @@ function offerAssign(eid){ /* shows auto-group into tours — nothing to assign 
 function sheetHotel(eid){
   const e=sel.event(eid); const h=e.hotel||{};
   const conf = typeof hotelBookingRef === 'function' ? hotelBookingRef(h) : (h.conf || h.bookingRef || '');
-  openSheet('Hotel', `
-    <div class="field"><label>Hotel name</label><input id="ho-name" class="input" value="${esc(h.name||'')}" placeholder="Kimpton De Witt"></div>
-    <div class="field"><label>Address</label><input id="ho-addr" class="input" value="${esc(h.address||'')}" placeholder="Street and number"></div>
-    <div class="field"><label>Address line 2</label><input id="ho-addr2" class="input" value="${esc(h.address2||'')}" placeholder="Building, floor, unit (optional)"></div>
-    <div class="row-2">
-      <div class="field"><label>City</label><input id="ho-city" class="input" value="${esc(h.city||'')}" placeholder="${esc(e.city||'Amsterdam')}"></div>
-      <div class="field"><label>Region</label><input id="ho-region" class="input" value="${esc(h.region||'')}" placeholder="North Holland"></div>
-    </div>
-    <div class="row-2">
-      <div class="field"><label>Postcode</label><input id="ho-post" class="input" value="${esc(h.postcode||'')}" placeholder="1012 AB"></div>
-      <div class="field"><label>Country</label><input id="ho-country" class="input" value="${esc(h.country||e.country||'')}" placeholder="Netherlands"></div>
-    </div>
-    ${e.city||e.country?`<div class="hint" style="padding:0 2px 8px">No postcode? Maps still uses the hotel name${e.city?' in '+esc(e.city):''}${e.country?', '+esc(e.country):''}.</div>`:''}
-    <div class="row-2">
-      <div class="field"><label>Phone</label><input id="ho-phone" type="tel" class="input" value="${esc(h.phone||'')}" placeholder="+31 20 123 4567"></div>
-      <div class="field"><label>Email</label><input id="ho-email" type="email" class="input" value="${esc(h.email||'')}" placeholder="reservations@hotel.com"></div>
-    </div>
-    <div class="row-2">
-      <div class="field"><label>Check in</label><input id="ho-in" type="date" class="input" value="${h.checkin||e.date||''}"></div>
-      <div class="field"><label>Check out</label><input id="ho-out" type="date" class="input" value="${h.checkout||''}"></div>
-    </div>
-    <div class="field"><label>Confirmation #</label><input id="ho-conf" class="input" value="${esc(conf)}" placeholder="Booking reference"></div>
-    <div class="field"><label>Room notes</label><textarea id="ho-notes" class="textarea" placeholder="Late checkout, floor, etc.">${esc(h.notes||'')}</textarea></div>
-    <button class="btn" id="ho-save" onclick="saveHotel('${eid}')">Save hotel</button>
-    ${(e.hotel&&passEditable())?`<button class="btn danger" style="margin-top:10px" onclick="removeHotel('${eid}')">${ICON.trash(16)} Remove hotel</button>`:''}
-    <div class="spacer"></div>
-  `);
+  openSheetReact('Hotel', 'show.hotel', { eid });
 }
 function saveHotel(eid){
   const e=sel.event(eid);
@@ -1109,20 +1041,7 @@ function sheetFlight(eid, fid){
   /* From the editor with no flight id: show existing flights first. */
   if(!fid){
     if(flights.length){
-      openSheet('Flights', `
-        <p class="sheet-lede">Flights already on this show — tap one to edit route, gate and passengers.</p>
-        <div class="card flush">${flights.map(f=>{
-          const route = (f.from||f.to) ? `${esc(f.from||'?')} → ${esc(f.to||'?')}` : 'Route not set';
-          const bits = [f.code?esc(f.code):'', f.gate?('Gate '+esc(f.gate)):'', f.terminal?('Term '+esc(f.terminal)):'', f.fstatus?esc(f.fstatus):''].filter(Boolean).join(' · ');
-          return `<div class="row" onclick="sheetReturnStack.push({kind:'showFlights',id:'${eid}'});sheetFlight('${eid}','${f.id}')">
-            <div class="ic">${ICON.plane(18)}</div>
-            <div class="body"><b>${esc(f.code||'Flight')}</b><span>${route}${bits?' · '+bits:''}</span></div>
-            ${ICON.chevR(15)}
-          </div>`;
-        }).join('')}</div>
-        <button type="button" class="btn secondary" style="margin-top:14px" onclick="sheetReturnStack.push({kind:'showFlights',id:'${eid}'});sheetFlight('${eid}','__new__')">${ICON.plus(16)} Add flight</button>
-        <div class="spacer"></div>
-      `, { full: true });
+      openSheetReact('Flights', 'show.flightsList', { eid, flights }, { full: true });
       return;
     }
   }
@@ -1136,41 +1055,11 @@ function sheetFlight(eid, fid){
   const paxList = editing
     ? (flightPassengers(f).length ? flightPassengers(f) : [{id:uid('pax'), name:'', seat:'', passes:[]}])
     : [{id:uid('pax'), name:'', seat:'', passes:[]}];
-  openSheet(editing?'Edit flight':'Add flight', `
-    <div class="field"><label>Flight number</label><input id="fl-code" class="input" value="${esc(f&&f.code||'')}" placeholder="KL1008"></div>
-    <div class="row-2">
-      <div class="field"><label>From</label><input id="fl-from" class="input" value="${esc(f&&f.from||'')}" placeholder="LHR"></div>
-      <div class="field"><label>To</label><input id="fl-to" class="input" value="${esc(f&&f.to||'')}" placeholder="AMS"></div>
-    </div>
-    <div class="row-2">
-      <div class="field picker-field" onclick="openInputPicker('fl-dep-date')">
-        <label>Date</label>
-        <input id="fl-dep-date" type="date" class="input" value="${esc(parsed.date||fallbackDate)}" onclick="event.stopPropagation();openInputPicker('fl-dep-date')">
-      </div>
-      <div class="field picker-field" onclick="openInputPicker('fl-dep-time')">
-        <label>Departs</label>
-        <input id="fl-dep-time" type="time" class="input" value="${esc(parsed.time||'')}" onclick="event.stopPropagation();openInputPicker('fl-dep-time')">
-      </div>
-    </div>
-    <div class="block-title" style="margin:6px 2px 8px">Day-of flight info</div>
-    <div class="row-2">
-      <div class="field"><label>Terminal</label><input id="fl-term" class="input" value="${esc(f&&f.terminal||'')}" placeholder="2"></div>
-      <div class="field"><label>Gate</label><input id="fl-gate" class="input" value="${esc(f&&f.gate||'')}" placeholder="B12"></div>
-    </div>
-    <div class="row-2">
-      <div class="field"><label>Status</label><input id="fl-status" class="input" value="${esc(f&&f.fstatus||'')}" placeholder="On time / Boarding"></div>
-      <div class="field"><label>Delay</label><input id="fl-delay" class="input" value="${esc(f&&f.delay||'')}" placeholder="+25 min"></div>
-    </div>
-    <div class="field"><label>Journey notes</label><textarea id="fl-notes" class="textarea" style="min-height:72px" placeholder="Connection tips, meeting point, baggage…">${esc(f&&f.notes||'')}</textarea></div>
-    <div class="field"><label>Passengers</label>
-      <div id="fl-pax-list">${paxList.map((p,i)=>flightSheetPaxRow(p,i,eid,f&&f.id)).join('')}</div>
-      <button type="button" class="btn secondary" style="margin-top:8px" onclick="addFlightPaxRow('${eid}','${f&&f.id||''}')">${ICON.plus(15)} Add person</button>
-      <div class="hint" style="padding:8px 2px 0">Same flight for everyone — each person has their own seat and boarding pass.</div>
-    </div>
-    <button class="btn" id="fl-save" onclick="saveFlight('${eid}','${editing?fid:''}')">${editing?'Save flight':'Add flight'}</button>
-    ${editing?`<button type="button" class="btn danger" style="margin-top:10px" onclick="confirmRemoveFlight('${eid}','${f.id}')">${ICON.trash(16)} Remove flight</button>`:''}
-    <div class="spacer"></div>
-  `);
+  openSheetReact(editing?'Edit flight':'Add flight', 'show.flight', { eid, fid: editing ? f.id : '' });
+}
+function openFlightFromList(eid, fid){
+  sheetReturnStack.push({kind:'showFlights', id:eid});
+  sheetFlight(eid, fid);
 }
 function flightSheetPaxRow(pax, idx, eid, fid){
   const pid = pax.id || uid('pax');
@@ -1362,12 +1251,7 @@ function contactDriver(eid){
   const e=sel.event(eid); const d=(e&&e.driver)||{};
   const phone=d.phone||''; const wa=d.whatsapp||d.phone||'';
   if(!phone && !wa){ sheetDriver(eid); return; }
-  openSheet('Contact driver', `
-    ${d.name?`<div class="hint" style="text-align:left;padding:0 2px 12px">${esc(d.name)}${d.pickup?' · '+esc(d.pickup):''}</div>`:''}
-    ${phone?`<button class="btn" onclick="callNumber('${jsAttr(phone)}')">${ICON.phone(17)} Call</button>`:''}
-    ${wa?`<button class="btn secondary" style="margin-top:10px" onclick="whatsapp('${jsAttr(wa)}')">${ICON.chat(17)} Message on WhatsApp</button>`:''}
-    <div class="spacer"></div>
-  `);
+  openSheetReact('Contact driver', 'show.contactDriver', { eid, driver: d });
 }
 /* Transport chooser for a show — lists every driver contact and no-grounds
    entry with WhatsApp/Call/Uber, so a show's transport surfaces in Trip Mode. */
@@ -1386,7 +1270,7 @@ function showTransport(eid){
       ${wa?`<button class="header-btn" style="width:34px;height:34px;align-self:center" onclick="whatsapp('${jsAttr(wa)}')">${ICON.chat(16)}</button>`:''}
       ${d.phone?`<button class="header-btn" style="width:34px;height:34px;align-self:center" onclick="callNumber('${jsAttr(d.phone)}')">${ICON.phone(16)}</button>`:''}</div>`;
   }).join('');
-  openSheet('Transport', `<div class="card flush">${rows}</div><div class="spacer"></div>`);
+  openSheetReact('Transport', 'show.transportList', { eid });
 }
 /* Contact the promoter — WhatsApp first (avoids a laptop trying to FaceTime),
    with Call as a fallback. Same pattern applies on every show. */
@@ -1394,12 +1278,7 @@ function contactPromoter(eid){
   const e=sel.event(eid); const p=(e&&e.promoter)||{};
   const phone=p.phone||''; const wa=p.whatsapp||p.phone||'';
   if(!phone && !wa){ sheetPromoter(eid); return; }
-  openSheet('Contact artist liaison', `
-    ${p.name?`<div class="hint" style="text-align:left;padding:0 2px 12px">${esc(p.name)}</div>`:''}
-    ${wa?`<button class="btn" onclick="whatsapp('${jsAttr(wa)}')">${ICON.chat(17)} Message on WhatsApp</button>`:''}
-    ${phone?`<button class="btn secondary" style="margin-top:10px" onclick="callNumber('${jsAttr(phone)}')">${ICON.phone(17)} Call</button>`:''}
-    <div class="spacer"></div>
-  `);
+  openSheetReact('Contact artist liaison', 'show.liaison', { eid, liaison: p });
 }
 /* Set a reminder notification for a show's set. */
 function sheetReminder(eid){
@@ -1411,23 +1290,7 @@ function sheetReminder(eid){
   const warn = (typeof notifSupported!=='function'||!notifSupported()) ? `Notifications aren't supported here — reminders show only while Operate is open.`
     : (Notification.permission==='denied' ? `Notifications are blocked. Enable them for Operate in your phone/browser settings to be pinged when the app is closed.`
     : (!triggersSupported() ? `On this device reminders fire while Operate is open or backgrounded; delivery when fully closed isn't guaranteed (common on iPhone).` : ''));
-  openSheet('Set a reminder', `
-    ${existing?`<div class="hint" style="padding:0 2px 12px">A reminder is already set for this show. Pick a new time to replace it, or remove it below.</div>`:''}
-    <div class="field"><label>What to remind you of</label><input id="rem-note" class="input" placeholder="e.g. Bring your USB · check monitors" value="${existing?esc(existing.label||''):''}"></div>
-    ${base!=null?`
-      ${opt(0,'At set time')}
-      ${opt(30,'30 min before set')}
-      ${opt(60,'1 hour before set')}
-      ${opt(120,'2 hours before set')}
-      ${opt(180,'3 hours before set')}
-    `:`<div class="hint" style="padding:0 2px 10px">Add a set time to the show for set-relative reminders.</div>`}
-    ${morningAt&&morningAt>now?`<button type="button" class="btn secondary" style="margin-bottom:8px" onclick="setShowReminder('${eid}',${morningAt},'Morning of show')">${ICON.reminder(15)} On the morning · 9am</button>`:''}
-    <div class="field" style="margin-top:6px"><label>Custom time</label><input id="rem-when" type="datetime-local" class="input"></div>
-    <button type="button" class="btn" onclick="setShowReminderCustom('${eid}')">Set custom reminder</button>
-    ${existing?`<button type="button" class="btn danger" style="margin-top:10px" onclick="clearShowReminder('${eid}')">${ICON.trash(16)} Remove reminder</button>`:''}
-    ${warn?`<div class="hint" style="padding:12px 2px 0;line-height:1.4">${warn}</div>`:''}
-    <div class="spacer"></div>
-  `);
+  openSheetReact('Set a reminder', 'show.reminder', { eid, existing, morningAt, warning: warn });
 }
 function setShowReminder(eid, atMs, label){
   const noteEl=document.getElementById('rem-note'); const note=noteEl?noteEl.value.trim():'';
@@ -1499,21 +1362,7 @@ function sheetFlightInfo(id){
   }
   const e=store.events.find(x=>x.id===id); if(!e) return;
   const has = e.flightNo||e.gate||e.terminal||e.fstatus||e.delay;
-  openSheet('Flight info', `
-    <div class="field"><label>Flight number</label><input id="fi-no" class="input" value="${esc(e.flightNo||'')}" placeholder="KL1008"></div>
-    <div class="row-2">
-      <div class="field"><label>Terminal</label><input id="fi-term" class="input" value="${esc(e.terminal||'')}" placeholder="2"></div>
-      <div class="field"><label>Gate</label><input id="fi-gate" class="input" value="${esc(e.gate||'')}" placeholder="B12"></div>
-    </div>
-    <div class="row-2">
-      <div class="field"><label>Status</label><input id="fi-status" class="input" value="${esc(e.fstatus||'')}" placeholder="On time / Boarding / Delayed"></div>
-      <div class="field"><label>Delay</label><input id="fi-delay" class="input" value="${esc(e.delay||'')}" placeholder="+25 min"></div>
-    </div>
-    <div class="hint" style="padding:6px 2px">Enter what you know now — in Phase 2 this auto-updates from live flight data.</div>
-    <button class="btn" id="fi-save" onclick="saveFlightInfo('${id}')">Save flight info</button>
-    ${(has&&passEditable())?`<button class="btn danger" style="margin-top:10px" onclick="clearFlightInfo('${id}')">${ICON.trash(15)} Clear flight info</button>`:''}
-    <div class="spacer"></div>
-  `);
+  openSheetReact('Flight info', 'show.flightInfo', { id });
 }
 function saveFlightInfo(id){
   const e=store.events.find(x=>x.id===id); if(!e) return;
@@ -1530,30 +1379,7 @@ function sheetDriver(eid, idx){
   const d = editing ? list[idx] : {};
   const none = !!d.noGround;
   const chips = DRIVER_JOURNEYS.map(j=>`<button type="button" class="chip" onclick="document.getElementById('dr-journey').value='${j}';haptic()">${j}</button>`).join('');
-  openSheet(editing?'Edit transport':'Add transport', `
-    <div class="field"><label>Journey (optional)</label>
-      <input id="dr-journey" class="input" value="${esc(d.journey||'')}" placeholder="e.g. Hotel → Airport">
-      <div class="chips" style="margin-top:8px">${chips}</div>
-    </div>
-    <div class="field"><label>Time (optional)</label><input id="dr-time" type="time" class="input" value="${esc(d.time||'')}"></div>
-    <div class="field"><label>Arrangement</label>
-      <div class="seg" id="dr-mode">
-        <button type="button" data-v="driver" class="${none?'':'on'}" onclick="segPick(this);drModeToggle()">Driver contact</button>
-        <button type="button" data-v="none" class="${none?'on':''}" onclick="segPick(this);drModeToggle()">No grounds · Uber/Taxi</button>
-      </div>
-    </div>
-    <div id="dr-none-hint" class="hint" style="${none?'':'display:none;'}padding:2px 2px 12px">No ground transport provided for this journey — book an Uber or taxi.</div>
-    <div id="dr-contact" style="${none?'display:none':''}">
-      <div class="field"><label>Name</label><input id="dr-name" class="input" value="${esc(d.name||'')}" placeholder="Jan"></div>
-      <div class="field"><label>Phone</label><input id="dr-phone" type="tel" class="input" value="${esc(d.phone||'')}" placeholder="+31 6 12345678"></div>
-      <div class="field"><label>WhatsApp (if different)</label><input id="dr-wa" type="tel" class="input" value="${esc(d.whatsapp||'')}" placeholder="+31 6 12345678"></div>
-      <div class="field"><label>Pickup location</label><input id="dr-pick" class="input" value="${esc(d.pickup||'')}" placeholder="Schiphol Arrivals"></div>
-      <div class="field"><label>Notes</label><input id="dr-notes" class="input" value="${esc(d.notes||'')}" placeholder="Vehicle, plate, etc."></div>
-    </div>
-    <button class="btn" id="dr-save" onclick="saveDriver('${eid}',${editing?idx:'null'})">${editing?'Save':'Add'}</button>
-    ${(editing&&passEditable())?`<button class="btn danger" style="margin-top:10px" onclick="removeDriver('${eid}',${idx})">${ICON.trash(16)} Remove</button>`:''}
-    <div class="spacer"></div>
-  `);
+  openSheetReact(editing?'Edit transport':'Add transport', 'show.transport', { eid, idx });
 }
 function drModeToggle(){
   const none = getSeg('dr-mode')==='none';
@@ -1578,21 +1404,7 @@ function saveDriver(eid, idx){
 }
 function sheetVenueAddr(eid){
   const e=sel.event(eid); if(!e) return;
-  openSheet('Venue', `
-    <div class="field"><label>Venue name</label><input id="va-venue" class="input" value="${esc(e.venue||'')}" placeholder="Venue name"></div>
-    <div class="field"><label>Address</label><input id="va-addr" class="input" value="${esc(e.venueAddr||'')}" placeholder="Street and number"></div>
-    <div class="field"><label>Address line 2</label><input id="va-addr2" class="input" value="${esc(e.venueAddr2||'')}" placeholder="Building, floor, unit (optional)"></div>
-    <div class="row-2">
-      <div class="field"><label>City</label><input id="va-city" class="input" value="${esc(e.city||'')}" placeholder="Amsterdam"></div>
-      <div class="field"><label>Region</label><input id="va-region" class="input" value="${esc(e.venueRegion||'')}" placeholder="North Holland"></div>
-    </div>
-    <div class="row-2">
-      <div class="field"><label>Postcode</label><input id="va-postcode" class="input" value="${esc(e.venuePostcode||'')}" placeholder="1012 AB"></div>
-      <div class="field"><label>Country</label><input id="va-country" class="input" value="${esc(e.country||'')}" placeholder="Netherlands"></div>
-    </div>
-    <button class="btn" id="va-save" onclick="saveVenueAddr('${eid}')">Save</button>
-    <div class="spacer"></div>
-  `);
+  openSheetReact('Venue', 'show.venue', { eid });
 }
 function saveVenueAddr(eid){
   const e=sel.event(eid); if(!e) return;
@@ -1609,15 +1421,7 @@ function saveVenueAddr(eid){
 }
 function sheetPromoter(eid){
   const e=sel.event(eid); const p=e.promoter||{};
-  openSheet('Artist Liaison', `
-    <div class="field"><label>Name</label><input id="pr-name" class="input" value="${esc(p.name||'')}" placeholder="Lena"></div>
-    <div class="field"><label>Phone</label><input id="pr-phone" type="tel" class="input" value="${esc(p.phone||'')}" placeholder="+31 6 99887766"></div>
-    <div class="field"><label>WhatsApp (if different)</label><input id="pr-wa" type="tel" class="input" value="${esc(p.whatsapp&&p.whatsapp!==p.phone?p.whatsapp:'')}" placeholder="Same as phone if left blank"></div>
-    <div class="hint" style="padding:2px 2px 8px">Leave WhatsApp blank to use the phone number for both.</div>
-    <button class="btn" id="pr-save" onclick="savePromoter('${eid}')">Save contact</button>
-    ${(e.promoter&&passEditable())?`<button class="btn danger" style="margin-top:10px" onclick="removePromoter('${eid}')">${ICON.trash(16)} Remove contact</button>`:''}
-    <div class="spacer"></div>
-  `);
+  openSheetReact('Artist Liaison', 'show.artistLiaison', { eid });
 }
 function savePromoter(eid){
   const e=sel.event(eid); const name=val('pr-name');
@@ -1644,29 +1448,7 @@ function sheetAdvance(eid){
       ${roTimeFieldHtml(s.time, 'ro-t-'+i)}
       <div class="field"><input class="input ro-l" value="${esc(s.label||s.title||'')}" placeholder="Soundcheck / Set / Curfew"></div>
     </div>`).join('');
-  openSheet('Show-day details', `
-    <div class="field"><label>Stage / area</label><input id="ad-stage" class="input" value="${esc(a.stage||'')}" placeholder="Temple stage"></div>
-    <div class="field"><label>Running order</label><div id="ad-ro">${roInputs}</div>
-      <button class="btn secondary" style="padding:9px;margin-top:6px" onclick="addRoRow()">${ICON.plus(14)} Add time</button></div>
-    <div class="row-2">
-      <div class="field"><label>Access / arrival</label><input id="ad-access" class="input" value="${esc(a.access||'')}" placeholder="15:00 via Gate C"></div>
-      <div class="field"><label>Sound check</label><input id="ad-sc" class="input" value="${esc(a.soundcheck||'')}" placeholder="16:30"></div>
-    </div>
-    <div class="row-2">
-      <div class="field"><label>Curfew</label><input id="ad-curfew" class="input" value="${esc(a.curfew||'')}" placeholder="23:00"></div>
-      <div class="field"><label>Dressing room</label><input id="ad-dr" class="input" value="${esc(a.dressingRoom||'')}" placeholder="Cabin 4, shared"></div>
-    </div>
-    <div class="field"><label>Guest list</label><input id="ad-gl" class="input" value="${esc(a.guestlist||'')}" placeholder="+4, email by Thu"></div>
-    <div class="field"><label>Catering / rider</label><input id="ad-cat" class="input" value="${esc(a.catering||'')}" placeholder="Backstage catering, rider in DR"></div>
-    <div class="row-2">
-      <div class="field"><label>Parking</label><input id="ad-park" class="input" value="${esc(a.parking||'')}" placeholder="Artist lot P2"></div>
-      <div class="field"><label>WiFi</label><input id="ad-wifi" class="input" value="${esc(a.wifi||'')}" placeholder="SSID / pass"></div>
-    </div>
-    <div class="field"><label>Navigation address</label><input id="ad-nav" class="input" value="${esc(a.navAddr||'')}" placeholder="Gate for artist entrance (if different)"></div>
-    <div class="field"><label>Remarks</label><textarea id="ad-rem" class="textarea" placeholder="Anything else from the advance sheet…">${esc(a.remarks||'')}</textarea></div>
-    <button class="btn" id="ad-save" onclick="saveAdvance('${eid}')">Save details</button>
-    <div class="spacer"></div>
-  `);
+  openSheetReact('Show-day details', 'show.dayDetails', { eid });
 }
 function addRoRow(){
   const wrap=$('#ad-ro'); if(!wrap) return;
@@ -1770,18 +1552,7 @@ function sheetEventContact(eid,cid){
     ),
     `<option value="__other__" ${selected==='__other__'?'selected':''}>Other</option>`
   ].join('');
-  openSheet(cid?'Edit contact':'Add contact', `
-    <div class="field"><label>Name</label><input id="ct-name" class="input" value="${esc(c.name||'')}" placeholder="Alex"></div>
-    <div class="field"><label>Role</label>
-      <select id="ct-role" class="input" onchange="toggleEventContactRoleOther()">${roleOpts}</select>
-    </div>
-    <div class="field" id="ct-role-other-wrap" style="${otherHidden}"><label>Custom role</label><input id="ct-role-other" class="input" value="${esc(otherVal)}" placeholder="e.g. Stage manager"></div>
-    <div class="field"><label>Phone</label><input id="ct-phone" type="tel" class="input" value="${esc(c.phone||'')}" placeholder="+44 7…"></div>
-    <div class="field"><label>WhatsApp (if different)</label><input id="ct-wa" type="tel" class="input" value="${esc(c.whatsapp||'')}"></div>
-    <button class="btn" id="ct-save" onclick="saveEventContact('${eid}','${cid||''}')">Save contact</button>
-    ${cid?`<button class="btn danger" style="margin-top:10px" onclick="delEventContact('${eid}','${cid}')">${ICON.trash(16)} Remove</button>`:''}
-    <div class="spacer"></div>
-  `);
+  openSheetReact(cid?'Edit contact':'Add contact', 'show.contact', { eid, cid });
 }
 function resolveEventContactRole(){
   const pick = rawVal('ct-role');
@@ -1818,12 +1589,7 @@ function sheetShowChecklist(eid){
   const rows = e.checklist.length
     ? `<div class="card flush">${e.checklist.map(i=>`<div class="check ${i.done?'done':''}" data-id="${esc(i.id)}"><div class="box" onclick="toggleEventCheck('${eid}','${i.id}')">${ICON.check(15)}</div><div class="lbl" onclick="toggleEventCheck('${eid}','${i.id}')">${esc(i.label)}</div><button class="del" onclick="delEventCheck('${eid}','${i.id}')">${ICON.x(16)}</button></div>`).join('')}</div>`
     : `<div class="hint" style="padding:8px 4px 12px">No items yet — add what you need to prep.</div>`;
-  openSheet('Checklist', `
-    ${rows}
-    <div class="field" style="margin-top:12px"><label>New item</label><input id="ck-new" class="input" placeholder="e.g. Track ID list"></div>
-    <button type="button" class="btn" onclick="addEventCheckFromSheet('${eid}')">${ICON.plus(16)} Add item</button>
-    <div class="spacer"></div>
-  `, { full: true });
+  openSheetReact('Checklist', 'show.checklist', { eid });
 }
 function sheetShowTimeline(eid){
   const e = sel.event(eid);
@@ -1834,30 +1600,13 @@ function sheetShowTimeline(eid){
   const rows = tl.length
     ? `<div class="card flush">${tl.map(s=>timelineStepRow(e,s,{edit:true})).join('')}</div>`
     : `<div class="hint" style="padding:8px 4px 12px">Add a flight, hotel, transport or set time on this show — those steps appear here automatically.</div>`;
-  openSheet('Day timeline', `
-    <p class="sheet-lede">${autoN?autoN+' from show info': 'No auto steps yet'}${customN?` · ${customN} custom`:''}. Tick items off as you go, or add your own.</p>
-    ${rows}
-    <button type="button" class="btn secondary" style="margin-top:12px" onclick="sheetShowTimelineStep('${eid}')">${ICON.plus(16)} Add custom step</button>
-    <div class="spacer"></div>
-  `, { full: true });
+  openSheetReact('Day timeline', 'show.timeline', { eid });
 }
 function sheetShowTimelineStep(eid, sid){
   const e = sel.event(eid);
   const existing = sid && e ? (e.timeline||[]).find(x=>x.id===sid) : null;
   sheetReturnStack.push({ kind:'showTimeline', id:eid });
-  openSheet(existing?'Edit custom step':'Add custom step', `
-    <div class="row-2">
-      <div class="field picker-field" style="flex:0 0 40%" onclick="openInputPicker('est-time')">
-        <label>Time</label>
-        <input id="est-time" type="time" class="input" value="${esc(existing&&existing.time||'')}" onclick="event.stopPropagation();openInputPicker('est-time')">
-      </div>
-      <div class="field"><label>What</label><input id="est-title" class="input" value="${esc(existing&&existing.title||'')}" placeholder="Soundcheck"></div>
-    </div>
-    <div class="field"><label>Detail (optional)</label><input id="est-sub" class="input" value="${esc(existing&&existing.sub||'')}" placeholder="Venue, note…"></div>
-    <button class="btn" id="est-save" onclick="saveShowTimelineStep('${eid}','${sid||''}')">${existing?'Save step':'Add step'}</button>
-    ${existing?`<button type="button" class="btn danger" style="margin-top:10px" onclick="delShowTimelineStep('${eid}','${sid}')">${ICON.trash(16)} Remove</button>`:''}
-    <div class="spacer"></div>
-  `);
+  openSheetReact(existing?'Edit custom step':'Add custom step', 'show.timelineStep', { eid, sid });
 }
 function saveShowTimelineStep(eid, sid){
   const e = sel.event(eid);
@@ -1923,18 +1672,7 @@ function delShowTimelineStep(eid,sid){
   toast('Step removed','trash');
 }
 function sheetTimelineStep(tid){
-  openSheet('Add timeline step', `
-    <div class="row-2">
-      <div class="field picker-field" style="flex:0 0 40%" onclick="openInputPicker('ts-time')">
-        <label>Time</label>
-        <input id="ts-time" type="time" class="input" onclick="event.stopPropagation();openInputPicker('ts-time')">
-      </div>
-      <div class="field"><label>What</label><input id="ts-title" class="input" placeholder="Soundcheck"></div>
-    </div>
-    <div class="field"><label>Detail (optional)</label><input id="ts-sub" class="input" placeholder="Venue, note…"></div>
-    <button class="btn" id="ts-save" onclick="saveTimelineStep('${tid}')">Add step</button>
-    <div class="spacer"></div>
-  `);
+  openSheetReact('Add timeline step', 'show.timelineAdd', { tid });
 }
 function saveTimelineStep(tid){
   const t=sel.trip(tid); const time=rawVal('ts-time'); const title=val('ts-title');
@@ -1946,12 +1684,7 @@ function saveTimelineStep(tid){
   }, 'Step added');
 }
 function sheetEmergency(tid){
-  openSheet('Emergency contact', `
-    <div class="field"><label>Name</label><input id="em-name" class="input" placeholder="Manager — Alex"></div>
-    <div class="field"><label>Phone</label><input id="em-phone" type="tel" class="input" placeholder="+44 7700 900123"></div>
-    <button class="btn" id="em-save" onclick="saveEmergency('${tid}')">Add contact</button>
-    <div class="spacer"></div>
-  `);
+  openSheetReact('Emergency contact', 'show.emergency', { tid });
 }
 function saveEmergency(tid){
   const t=sel.trip(tid); const name=val('em-name');
@@ -1967,28 +1700,7 @@ function moneyBlock(e){
 function sheetFinance(eid){
   const e=sel.event(eid); const f=e.finance||{};
   const curs = Object.keys(store.settings.fx);
-  openSheet('Deal', `
-    <div class="row-2">
-      <div class="field" style="flex:1.4"><label>Fee</label><input id="fi-fee" type="number" inputmode="decimal" class="input" value="${f.fee||''}" placeholder="8000"></div>
-      <div class="field"><label>Currency</label><select id="fi-cur" class="input">${curs.map(c=>`<option value="${c}" ${(f.currency||store.settings.baseCurrency)===c?'selected':''}>${c}</option>`).join('')}</select></div>
-    </div>
-    <div class="field"><label>Deal type</label>
-      <div class="seg" id="fi-deal">${['Guarantee','Guarantee + Bonus','Door split','Fee + Travel'].map((d,i)=>`<button data-v="${esc(d)}" class="${(f.dealType||'Guarantee')===d?'on':''}" onclick="segPick(this)" style="font-size:12px">${d}</button>`).join('')}</div>
-    </div>
-    <div class="row-2">
-      <div class="field"><label>Agent commission %</label><input id="fi-comm" type="number" inputmode="decimal" class="input" value="${f.commission||''}" placeholder="10"></div>
-      <div class="field"><label>Per diem</label><input id="fi-pd" type="number" inputmode="decimal" class="input" value="${f.perDiem||''}" placeholder="150"></div>
-    </div>
-    <div class="field"><label>Payment status</label>
-      <div class="seg" id="fi-paid">${[['0','Unpaid'],['1','Paid']].map(([v,l])=>`<button data-v="${v}" class="${(f.paid?'1':'0')===v?'on':''}" onclick="segPick(this)">${l}</button>`).join('')}</div>
-    </div>
-    <div class="field"><label>Fee visibility</label>
-      <div class="seg" id="fi-nd">${[['0','Show fee'],['1','Not disclosed']].map(([v,l])=>`<button data-v="${v}" class="${(f.notDisclosed?'1':'0')===v?'on':''}" onclick="segPick(this)">${l}</button>`).join('')}</div>
-    </div>
-    <button class="btn" id="fi-save" onclick="saveFinance('${eid}')">Save deal</button>
-    <div class="hint" style="text-align:left;padding-top:10px">Foreign fees auto-convert to your base currency (${store.settings.baseCurrency}). Edit rates in Settings.</div>
-    <div class="spacer"></div>
-  `);
+  openSheetReact('Deal', 'show.deal', { eid });
 }
 function saveFinance(eid){
   const e=sel.event(eid); const f=e.finance||{expenses:[]};
@@ -2012,13 +1724,7 @@ function togglePaid(eid){
   toast(e.finance.paid?'Marked paid':'Marked unpaid', e.finance.paid?'check':'money');
 }
 function addExpense(eid){
-  openSheet('Add expense', `
-    <div class="row-2">
-      <div class="field" style="flex:2"><label>What</label><input id="ex-label" class="input" placeholder="Flights, hotel, gear…"></div>
-      <div class="field"><label>Amount</label><input id="ex-amt" type="number" inputmode="decimal" class="input" placeholder="220"></div>
-    </div>
-    <button class="btn" onclick="saveExpense('${eid}')">Add expense</button><div class="spacer"></div>
-  `);
+  openSheetReact('Add expense', 'show.expense', { eid });
 }
 function saveExpense(eid){
   const label=val('ex-label'); const amount=+val('ex-amt')||0;
@@ -2086,16 +1792,7 @@ function previewDaySheet(text, e){
   window.__daysheet = text;
   window.__daysheetEid = e ? e.id : null;
   window.__daysheetTitle = e ? ('Day Sheet — '+(e.venue||'Show')) : 'Day sheet';
-  openSheet('Day sheet', `
-    <div class="card" style="white-space:pre-wrap;font-size:13.5px;line-height:1.55;font-family:ui-monospace,Menlo,monospace;color:var(--text-2);max-height:52dvh;overflow:auto">${esc(text)}</div>
-    <div class="spacer"></div>
-    <div style="display:flex;gap:9px">
-      <button class="btn" style="flex:1" onclick="copyText(window.__daysheet); closeSheet();">${ICON.copy(16)} Copy</button>
-      ${navigator.share?`<button class="btn secondary" style="flex:1" onclick="daySheetShare()">${ICON.share(16)} Share</button>`:''}
-    </div>
-    ${e?`<button class="btn secondary" style="margin-top:9px" onclick="printDaySheet('${e.id}')">${ICON.file(16)} Print / Save as PDF</button>`:''}
-    <div class="spacer"></div>
-  `, {});
+  openSheetReact('Day sheet', 'show.daySheet', { text, eid: e ? e.id : null });
 }
 /* Print / Save-as-PDF a clean day sheet via a hidden iframe (works on mobile
    Safari/Chrome — the OS print dialog offers "Save to Files as PDF"). */

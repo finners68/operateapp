@@ -311,6 +311,10 @@ function renderView(opts={}){
       if(R.unmountInvoices) R.unmountInvoices();
       if(R.unmountInvoiceDetail) R.unmountInvoiceDetail();
       if(R.unmountContacts) R.unmountContacts();
+      if(R.unmountPastShows) R.unmountPastShows();
+      if(R.unmountStats) R.unmountStats();
+      if(R.unmountItinerary) R.unmountItinerary();
+      if(R.unmountWrapped) R.unmountWrapped();
     }
     if(v){
       /* Tab/detail switches should appear instantly — never replay fade/stagger. */
@@ -402,6 +406,26 @@ function renderView(opts={}){
     if(R.isContactsMounted && R.isContactsMounted()) return refreshReact(R.refreshContacts);
     return paintReact(el => R.mountContacts(el));
   }
+  /* Past shows */
+  if(overlay && overlay.type === 'pastshows' && R && typeof R.mountPastShows === 'function'){
+    if(R.isPastShowsMounted && R.isPastShowsMounted()) return refreshReact(R.refreshPastShows);
+    return paintReact(el => R.mountPastShows(el));
+  }
+  /* Tour stats */
+  if(overlay && overlay.type === 'stats' && R && typeof R.mountStats === 'function'){
+    if(R.isStatsMounted && R.isStatsMounted()) return refreshReact(R.refreshStats);
+    return paintReact(el => R.mountStats(el));
+  }
+  /* Itinerary inbox */
+  if(overlay && overlay.type === 'itinerary' && R && typeof R.mountItinerary === 'function'){
+    if(R.isItineraryMounted && R.isItineraryMounted()) return refreshReact(R.refreshItinerary);
+    return paintReact(el => R.mountItinerary(el));
+  }
+  /* Year in review */
+  if(overlay && overlay.type === 'wrapped' && R && typeof R.mountWrapped === 'function'){
+    if(R.isWrappedMounted && R.isWrappedMounted()) return refreshReact(R.refreshWrapped);
+    return paintReact(el => R.mountWrapped(el));
+  }
   /* Shows list tab */
   if(!overlay && store.tab === 'shows' && R && typeof R.mountShowsList === 'function'){
     if(R.isShowsListMounted && R.isShowsListMounted()) return refreshReact(R.refreshShowsList);
@@ -449,12 +473,19 @@ function renderView(opts={}){
       if(R.unmountInvoices && R.isInvoicesMounted && R.isInvoicesMounted()) R.unmountInvoices();
       if(R.unmountInvoiceDetail && R.isInvoiceDetailMounted && R.isInvoiceDetailMounted()) R.unmountInvoiceDetail();
       if(R.unmountContacts && R.isContactsMounted && R.isContactsMounted()) R.unmountContacts();
+      if(R.unmountPastShows && R.isPastShowsMounted && R.isPastShowsMounted()) R.unmountPastShows();
+      if(R.unmountStats && R.isStatsMounted && R.isStatsMounted()) R.unmountStats();
+      if(R.unmountItinerary && R.isItineraryMounted && R.isItineraryMounted()) R.unmountItinerary();
+      if(R.unmountWrapped && R.isWrappedMounted && R.isWrappedMounted()) R.unmountWrapped();
     }
   }
 
+  /* React islands cover every tab/overlay — HTML builders only if the React bundle failed to load. */
   let html = '';
   let afterPaint = null;
-  if(overlay){
+  if(R){
+    html = `<div class="empty" style="margin-top:40px"><b>Could not open this screen</b><span>Try a hard refresh.</span></div>`;
+  } else if(overlay){
     if(overlay.type==='event') html = viewEvent(overlay.id);
     else if(overlay.type==='trip') html = viewTrip(overlay.id);
     else if(overlay.type==='note') html = viewNote(overlay.id);
@@ -627,6 +658,28 @@ function openSheet(title, bodyHTML, opts={}){
   scrim.classList.add('on');
   scrim.onclick = ()=>closeSheet();
   requestAnimationFrame(()=>requestAnimationFrame(()=>s.classList.add('on')));
+}
+/* React sheet body — same open/close chrome, component from registry by bodyKind. */
+function openSheetReact(title, bodyKind, bodyProps, opts={}){
+  closeSheet(true, { noReturn: true });
+  if(opts.clearReturn) sheetReturnStack = [];
+
+  if(typeof OperateReact !== 'undefined' && OperateReact && typeof OperateReact.mountShell === 'function'){
+    OperateReact.mountShell();
+  }
+  if(typeof OperateReact !== 'undefined' && OperateReact && typeof OperateReact.chromeOpenSheetReact === 'function'
+      && typeof OperateReact.isShellMounted === 'function' && OperateReact.isShellMounted()){
+    OperateReact.chromeOpenSheetReact(title, bodyKind, bodyProps || {}, opts);
+    return;
+  }
+  /* Fallback: no React — leave sheet closed rather than invent HTML. */
+  console.warn('openSheetReact: React shell not ready', bodyKind);
+}
+function sheetCallback(key, fn){
+  if(typeof window === 'undefined') return key;
+  window.__sheetCallbacks = window.__sheetCallbacks || {};
+  window.__sheetCallbacks[key] = fn;
+  return key;
 }
 function closeSheet(instant, opts={}){
   const app = $('#app');
@@ -1001,8 +1054,29 @@ function dtConfirmTime(){
 }
 
 /* Fullscreen image viewer */
-function openViewer(src){ $('#viewer-img').src=src; $('#viewer').classList.add('on'); }
-function closeViewer(){ $('#viewer').classList.remove('on'); $('#viewer-img').src=''; }
+function openViewer(src){
+  if(typeof OperateReact !== 'undefined' && OperateReact && typeof OperateReact.mountShell === 'function'){
+    OperateReact.mountShell();
+  }
+  if(typeof OperateReact !== 'undefined' && OperateReact && typeof OperateReact.chromeOpenViewer === 'function'
+      && typeof OperateReact.isShellMounted === 'function' && OperateReact.isShellMounted()){
+    OperateReact.chromeOpenViewer(src);
+    return;
+  }
+  const img = $('#viewer-img');
+  if(img) img.src = src;
+  $('#viewer')?.classList.add('on');
+}
+function closeViewer(){
+  if(typeof OperateReact !== 'undefined' && OperateReact && typeof OperateReact.chromeCloseViewer === 'function'
+      && typeof OperateReact.isShellMounted === 'function' && OperateReact.isShellMounted()){
+    OperateReact.chromeCloseViewer();
+    return;
+  }
+  $('#viewer')?.classList.remove('on');
+  const img = $('#viewer-img');
+  if(img) img.src = '';
+}
 
 /* Simulated async op with loading/success feedback (button lifecycle) */
 function withButton(btn, work, successMsg){
@@ -1037,20 +1111,23 @@ function openMaps(q){ if(!q){toast('No location','x');return;}
    Generic confirm + single-input prompt (styled, no native dialogs)
    ============================================================ */
 function confirmSheet(title, msg, confirmLabel, onConfirm, danger){
-  openSheet(title, `
-    <p style="font-size:15px;color:var(--text-2);line-height:1.5;margin:2px 2px 18px">${esc(msg)}</p>
-    <button class="btn ${danger?'danger':''}" id="confirm-yes">${esc(confirmLabel)}</button>
-    <div class="spacer"></div>
-    <button class="btn secondary" onclick="closeSheet()">Cancel</button>
-  `);
-  setTimeout(()=>{ const b=document.getElementById('confirm-yes'); if(b) b.onclick=()=>{ closeSheet(); onConfirm(); }; },50);
+  const key = 'confirm_'+Date.now()+'_'+Math.random().toString(36).slice(2,7);
+  sheetCallback(key, onConfirm);
+  openSheetReact(title, 'common.confirm', {
+    msg: msg || '',
+    confirmLabel: confirmLabel || 'Confirm',
+    danger: !!danger,
+    onConfirmKey: key,
+  });
 }
 function promptSheet(title, placeholder, onSave, initial=''){
-  openSheet(title, `
-    <div class="field"><input id="prompt-in" class="input" placeholder="${esc(placeholder)}" value="${esc(initial)}"></div>
-    <button class="btn" onclick="const v=val('prompt-in'); if(v){closeSheet(true,{noReturn:true}); (${onSave})(v); const ret=sheetReturnStack.pop(); if(ret) reopenSheetReturn(ret);} else toast('Type something','x')">Add</button>
-  `);
-  setTimeout(()=>{ const i=document.getElementById('prompt-in'); if(i) i.focus(); },320);
+  const key = 'prompt_'+Date.now()+'_'+Math.random().toString(36).slice(2,7);
+  sheetCallback(key, onSave);
+  openSheetReact(title, 'common.prompt', {
+    placeholder: placeholder || '',
+    initial: initial || '',
+    saveKey: key,
+  });
 }
 
 /* ============================================================
@@ -1274,50 +1351,22 @@ function openItineraryEntry(id){
 }
 function sheetItineraryStart(){
   itineraryUploadMode = null;
-  openSheet('Submit itinerary', `
-    <p class="sheet-lede">First choose what this upload is for — then pick the file.</p>
-    <div class="edit-section-grid">
-      <button type="button" class="edit-section-btn" onclick="beginItineraryNewShow()">${ICON.plus(16)}<span><b>New show</b><small>Upload → send to Make → review basics</small></span></button>
-      <button type="button" class="edit-section-btn" onclick="beginItineraryExistingShow()">${ICON.music(16)}<span><b>Existing show</b><small>Attach a file to a show you already have</small></span></button>
-    </div>
-    <div class="spacer"></div>
-  `);
+  openSheetReact('Submit itinerary', 'itinerary.start', {});
 }
 function beginItineraryNewShow(){
   itineraryUploadMode = 'new';
-  openSheet('New show from itinerary', `
-    <p class="sheet-lede">Upload the itinerary. It is sent straight to Make, then you check the show basics.</p>
-    <label class="btn" style="margin-top:8px">${ICON.plus(18)} Upload &amp; send to Make
-      <input type="file" accept="image/*,application/pdf" multiple style="display:none" onchange="submitItinerary(this,'new')">
-    </label>
-    <div class="spacer"></div>
-  `);
+  openSheetReact('New show from itinerary', 'itinerary.newShow', {});
 }
 function beginItineraryExistingShow(){
   itineraryUploadMode = 'existing';
   const shows = sel.events().slice().sort((a,b)=>(b.date||'').localeCompare(a.date||''));
   if(!shows.length){
-    openSheet('Add to a show', `
-      <div class="empty" style="padding:18px 8px"><div class="ic">${ICON.music(26)}</div><b>No shows yet</b><span>Create a show first, or choose New show instead.</span></div>
-      <button type="button" class="btn secondary" onclick="beginItineraryNewShow()">${ICON.plus(16)} New show from itinerary</button>
-      <div class="spacer"></div>
-    `);
+    openSheetReact('Add to a show', 'itinerary.existingShow', { items: [] });
     return;
   }
   const upcoming = typeof showPassed==='function' ? shows.filter(s=>!showPassed(s)) : shows;
   const list = upcoming.length ? upcoming : shows;
-  openSheet('Existing show', `
-    <p class="sheet-lede">Pick the show, then upload the file. This path only saves the attachment for now.</p>
-    <div class="field"><label>Show</label>
-      <select id="itn-pick-show" class="input">
-        ${list.map(s=>`<option value="${s.id}">${esc(s.venue||'Show')} · ${esc(fmtDate(s.date))}</option>`).join('')}
-      </select>
-    </div>
-    <label class="btn" style="margin-top:8px">${ICON.plus(18)} Upload itinerary
-      <input type="file" accept="image/*,application/pdf" multiple style="display:none" onchange="submitItinerary(this,'existing')">
-    </label>
-    <div class="spacer"></div>
-  `);
+  openSheetReact('Existing show', 'itinerary.existingShow', { items: list });
 }
 function normalizeScanDate(v){
   const s=String(v||'').trim();
@@ -1519,14 +1568,7 @@ async function sendItineraryToMake(id){
     toast('Nothing to send — upload a file first','file');
     return;
   }
-  openSheet('Sending to Make', `
-    <div class="empty" style="padding:28px 10px">
-      <div class="ic">${ICON.file(28)}</div>
-      <b>Sending your file…</b>
-      <span>Posted straight to your Make webhook. Waiting for show basics.</span>
-    </div>
-    <div class="spacer"></div>
-  `);
+  openSheetReact('Sending to Make', 'itinerary.sending', {});
   toast('Sending to Make…','image');
   try{
     const result = await postItineraryFileToMake(it, { stage:'basics' });
@@ -1586,58 +1628,7 @@ function sheetItineraryReview(id){
   if(f.driverName||f.driverPhone) extras.push('transport');
   if(f.soundcheck||f.curfew||f.doors||f.stage||f.guestlist||f.catering) extras.push('advancing');
 
-  openSheet('Show basics', `
-    <div class="dhero sheet-event-preview" id="ev-preview" style="background:linear-gradient(155deg,${initC}33,var(--card) 65%);border-color:${initC}44">
-      <div class="cat-bar" style="background:${initC}"></div>
-      <div class="sheet-event-tone" style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:${initC}">New show from itinerary</div>
-      <div id="ev-preview-venue" style="font-size:20px;font-weight:800;margin-top:4px">${esc(venue||'Venue name')}</div>
-    </div>
-    <div class="field"><label>Venue</label><input id="itn-rev-venue" class="input" placeholder="e.g. Shelter" value="${esc(venue)}" oninput="updateEventPreviewVenue()"></div>
-    <div class="field"><label>Address</label><input id="itn-rev-addr" class="input" placeholder="Street and number" value="${esc(venueAddr)}"></div>
-    <div class="field"><label>Address line 2</label><input id="itn-rev-addr2" class="input" placeholder="Building, floor, unit (optional)" value="${esc(venueAddr2)}"></div>
-    <div class="row-2">
-      <div class="field"><label>City</label><input id="itn-rev-city" class="input" placeholder="Amsterdam" value="${esc(city)}"></div>
-      <div class="field"><label>Region</label><input id="itn-rev-region" class="input" placeholder="North Holland" value="${esc(venueRegion)}"></div>
-    </div>
-    <div class="row-2">
-      <div class="field"><label>Postcode</label><input id="itn-rev-postcode" class="input" placeholder="1012 AB" value="${esc(venuePostcode)}"></div>
-      <div class="field"><label>Country</label><input id="itn-rev-country" class="input" placeholder="Netherlands" value="${esc(country)}"></div>
-    </div>
-    <div class="field picker-field" onclick="openInputPicker('itn-rev-date')">
-      <label>Date</label>
-      <input id="itn-rev-date" type="date" class="input" value="${esc(date)}" onclick="event.stopPropagation();openInputPicker('itn-rev-date')">
-    </div>
-    <div class="row-2">
-      <div class="field picker-field" onclick="openInputPicker('itn-rev-set')">
-        <label>Set time</label>
-        <input id="itn-rev-set" type="time" class="input" value="${esc(setTime)}" onclick="event.stopPropagation();openInputPicker('itn-rev-set')">
-      </div>
-      <div class="field picker-field" onclick="openInputPicker('itn-rev-arr')">
-        <label>Arrival</label>
-        <input id="itn-rev-arr" type="time" class="input" value="${esc(arrival)}" onclick="event.stopPropagation();openInputPicker('itn-rev-arr')">
-      </div>
-    </div>
-    <div class="row-2">
-      <div class="field picker-field" onclick="openInputPicker('itn-rev-end')">
-        <label>End time</label>
-        <input id="itn-rev-end" type="time" class="input" value="${esc(endTime)}" onclick="event.stopPropagation();openInputPicker('itn-rev-end')">
-      </div>
-      <div class="field"><label>Artist</label><input id="itn-rev-artist" class="input" placeholder="${esc(store.settings.artistName||'Artist')}" value="${esc(artist)}"></div>
-    </div>
-    <div class="field"><label>Status</label>
-      <div class="seg" id="itn-rev-status">
-        ${['confirmed','hold','cancelled'].map(s=>`<button data-v="${s}" class="${status===s?'on':''}" onclick="segPick(this)">${s[0].toUpperCase()+s.slice(1)}</button>`).join('')}
-      </div>
-    </div>
-    <div class="field"><label>Content to capture</label><input id="itn-rev-content" class="input" placeholder="e.g. 2x reels · crowd clip" value="${esc(content)}"></div>
-    <div class="field"><label>Internal notes</label><textarea id="itn-rev-notes" class="textarea" placeholder="Team-only notes">${esc(notes)}</textarea></div>
-    <div class="field"><label>Colour</label><div class="swatches" id="itn-rev-cat">${swatches}</div></div>
-    ${extras.length?`<div class="hint" style="text-align:left;padding:4px 2px 10px">Also ready to add after save: <b>${extras.join(', ')}</b></div>`:''}
-    <button class="btn" id="itn-rev-save" onclick="saveItineraryReview('${id}')">Create show</button>
-    <button class="btn secondary" style="margin-top:10px" onclick="scanItineraryForReview('${id}')">${ICON.checkList(15)} Send to Make again</button>
-    <button class="btn danger" style="margin-top:10px" onclick="discardItineraryReview('${id}')">${ICON.trash(15)} Discard upload</button>
-    <div class="spacer"></div>
-  `);
+  openSheetReact('Show basics', 'itinerary.review', { id, fields: f });
   if(sheetEl){
     sheetEl.style.setProperty('--sheet-tone', initC);
     sheetEl.classList.add('sheet-toned');
@@ -1686,12 +1677,7 @@ function abandonItineraryReview(id){
 }
 function discardItineraryReview(id){
   /* Explicit discard always notifies Make. */
-  openSheet('Discard upload?', `
-    <p style="font-size:15px;color:var(--text-2);line-height:1.5;margin:2px 2px 18px">This cancels the itinerary and tells Make not to continue.</p>
-    <button class="btn danger" id="itn-discard-yes">Discard</button>
-    <div class="spacer"></div>
-    <button class="btn secondary" onclick="sheetItineraryReview('${id}')">Keep editing</button>
-  `);
+  openSheetReact('Discard upload?', 'itinerary.discard', { id });
   const scrim = $('#scrim');
   if(scrim) scrim.onclick = null;
   setTimeout(()=>{
@@ -1901,30 +1887,7 @@ function sheetItinerary(id){
   const shows = store.events.filter(e=>(e.kind||'show')==='show').sort((a,b)=>(a.date||'').localeCompare(b.date||''));
   const thumbs=(it.imgs||[]).map(im=>`<div class="thumb" ${im.kind==='image'?`onclick="openViewer('${im.data}')"`:''}>${im.kind==='image'?`<img src="${im.data}">`:`<div class="pdf">${ICON.file(26)}<span>${esc(im.name||'PDF')}</span></div>`}<div class="del-badge" onclick="event.stopPropagation();delItinShot('${id}','${im.id}')">${ICON.x(13)}</div></div>`).join('');
   const linked = it.showId ? sel.event(it.showId) : null;
-  openSheet('Itinerary details', `
-    <div class="field"><label>What is this?</label><input id="itn-src" class="input" value="${esc(it.source||'')}" placeholder="ABOSS itinerary / Google flight status"></div>
-    <div class="row-2">
-      <div class="field picker-field" onclick="openInputPicker('itn-date')">
-        <label>Date</label>
-        <input id="itn-date" type="date" class="input" value="${it.date||''}" onclick="event.stopPropagation();openInputPicker('itn-date')">
-      </div>
-      <div class="field picker-field" onclick="openInputPicker('itn-time')">
-        <label>Time (optional)</label>
-        <input id="itn-time" type="time" class="input" value="${it.time||''}" onclick="event.stopPropagation();openInputPicker('itn-time')">
-      </div>
-    </div>
-    <div class="field"><label>For which show?</label>
-      <select id="itn-show" class="input">${['<option value="">— Not linked —</option>'].concat(shows.map(s=>`<option value="${s.id}" ${it.showId===s.id?'selected':''}>${esc(s.venue)} · ${esc(fmtDate(s.date))}</option>`)).join('')}</select></div>
-    <div class="field"><label>Notes</label><textarea id="itn-note" class="textarea" placeholder="Anything to flag — gate, hotel, key times…">${esc(it.note||'')}</textarea></div>
-    <div class="field"><label>Screenshots</label><div class="thumb-row">${thumbs}<label class="thumb thumb-add">${ICON.plus(22)}<span>Add</span><input type="file" accept="image/*,application/pdf" multiple style="display:none" onchange="addItineraryShots('${id}',this)"></label></div></div>
-    ${!it.showId?`<button class="btn" onclick="scanItineraryForReview('${id}')">${ICON.checkList(16)} Review &amp; create show</button>`
-      :`<button class="btn secondary" id="itn-scan" onclick="scanItinerary('${id}')">${ICON.checkList(16)} Scan &amp; fill missing details</button>
-         <div class="hint" style="text-align:left;padding:6px 2px 2px">Fills only <b>missing</b> details on the linked show.</div>`}
-    <button class="btn secondary" style="margin-top:10px" onclick="saveItinerary('${id}')">Save</button>
-    ${linked?`<button class="btn secondary" style="margin-top:10px" onclick="closeSheet(true,{noReturn:true});openView('event','${linked.id}')">${ICON.music(15)} Open show</button>`:''}
-    <button class="btn danger" style="margin-top:10px" onclick="delItinerary('${id}')">${ICON.trash(15)} Delete submission</button>
-    <div class="spacer"></div>
-  `);
+  openSheetReact('Itinerary details', 'itinerary.details', { id, item: it });
 }
 function saveItinerary(id){
   const it=(store.itineraries||[]).find(x=>x.id===id); if(!it) return;
@@ -2048,37 +2011,10 @@ function removePromoter(eid){ const e=sel.event(eid); if(e){ e.promoter=null; } 
    Menus + delete
    ============================================================ */
 function eventMenu(eid){
-  openSheet('Edit show', `
-    <p class="sheet-lede">Update any part of this show — basics, travel, venue, deal or prep.</p>
-    <div class="edit-section-grid">
-      <button type="button" class="edit-section-btn" onclick="openFromEventMenu('${eid}',()=>sheetEvent('${eid}'))">${ICON.edit(16)}<span><b>Show basics</b><small>Venue, date, times, status</small></span></button>
-      <button type="button" class="edit-section-btn" onclick="openFromEventMenu('${eid}',()=>sheetHotel('${eid}'))">${ICON.bed(16)}<span><b>Hotel</b><small>Stay & confirmation</small></span></button>
-      <button type="button" class="edit-section-btn" onclick="openFromEventMenu('${eid}',()=>sheetFlight('${eid}'))">${ICON.plane(16)}<span><b>Flights</b><small>Route, gate, seats & passes</small></span></button>
-      <button type="button" class="edit-section-btn" onclick="openFromEventMenu('${eid}',()=>sheetDriver('${eid}'))">${ICON.car(16)}<span><b>Transport</b><small>Driver, Uber or taxi</small></span></button>
-      <button type="button" class="edit-section-btn" onclick="openFromEventMenu('${eid}',()=>sheetPromoter('${eid}'))">${ICON.users(16)}<span><b>Artist Liaison</b><small>Show-day contact</small></span></button>
-      <button type="button" class="edit-section-btn" onclick="openFromEventMenu('${eid}',()=>sheetAdvance('${eid}'))">${ICON.file(16)}<span><b>Show-day details</b><small>Stage, catering, access</small></span></button>
-      <button type="button" class="edit-section-btn" onclick="openFromEventMenu('${eid}',()=>sheetFinance('${eid}'))">${ICON.coins(16)}<span><b>Deal</b><small>Fee, expenses, paid</small></span></button>
-      <button type="button" class="edit-section-btn" onclick="openFromEventMenu('${eid}',()=>sheetShowTimeline('${eid}'))">${ICON.clock(16)}<span><b>Day timeline</b><small>Schedule steps</small></span></button>
-      <button type="button" class="edit-section-btn" onclick="openFromEventMenu('${eid}',()=>sheetShowChecklist('${eid}'))">${ICON.checkList(16)}<span><b>Checklist</b><small>Prep tasks</small></span></button>
-      <button type="button" class="edit-section-btn" onclick="openFromEventMenu('${eid}',()=>sheetEventContact('${eid}'))">${ICON.users(16)}<span><b>Key contact</b><small>Extra people</small></span></button>
-    </div>
-    <div class="spacer"></div>
-    <button class="btn secondary" onclick="closeSheet(true,{noReturn:true}); sheetReturnStack=[]; startTripFromShow('${eid}')">${ICON.play(16)} Start Trip Mode</button>
-    <div class="spacer"></div>
-    <button class="btn danger" onclick="closeSheet(true,{noReturn:true}); sheetReturnStack=[]; confirmDeleteEvent('${eid}')">${ICON.trash(16)} Delete show</button>
-    <div class="spacer"></div>
-  `, { full: true, clearReturn: true });
+  openSheetReact('Edit show', 'menu.event', { eid }, { full: true, clearReturn: true });
 }
 function tripMenu(tid){
-  openSheet('Trip options', `
-    <button class="btn secondary" onclick="closeSheet(); sheetTrip('${tid}')">${ICON.edit(16)} Edit trip</button>
-    <div class="spacer"></div>
-    ${sel.trip(tid).archived?`<button class="btn secondary" onclick="closeSheet(); unarchiveTrip('${tid}')">${ICON.archive(16)} Unarchive</button>`
-      :`<button class="btn secondary" onclick="closeSheet(); confirmCompleteTrip('${tid}')">${ICON.flag(16)} Complete & archive</button>`}
-    <div class="spacer"></div>
-    <button class="btn danger" onclick="closeSheet(); confirmDeleteTrip('${tid}')">${ICON.trash(16)} Delete trip</button>
-    <div class="spacer"></div>
-  `);
+  openSheetReact('Trip options', 'menu.trip', { tid });
 }
 function confirmDeleteEvent(eid){ confirmSheet('Delete show?','This removes the show and its details permanently.','Delete',()=>{ store.events=store.events.filter(e=>e.id!==eid); persist('shows', eid); back(); toast('Show deleted','trash'); }, true); }
 function confirmDeleteTrip(tid){ confirmSheet('Delete trip?','Shows in this trip are kept, but the trip itself is removed.','Delete trip',()=>{ store.events.forEach(e=>{ if(e.tripId===tid) e.tripId=null; }); if(store.activeTripId===tid) store.activeTripId=null; store.trips=store.trips.filter(t=>t.id!==tid); persist('tours', tid); back(); toast('Trip deleted','trash'); }, true); }
@@ -2328,15 +2264,11 @@ function viewStats(){
 }
 function setAccountType(k){ store.settings.accountType=k; haptic(); persist('settings'); renderView(); toast(ACCOUNT_TYPES[k].label,'check'); }
 function editHomeAirport(){
-  openSheet('Home airport', `
-    <div class="field"><label>Airport code (IATA)</label><input id="ha-code" class="input" style="text-transform:uppercase" maxlength="4" value="${esc(store.settings.homeAirport||'AMS')}" placeholder="AMS"></div>
-    <div class="hint" style="text-align:left;padding:2px 2px 12px">A tour ends whenever a flight brings you back here. Change this and tours regroup automatically.</div>
-    <button class="btn" onclick="store.settings.homeAirport=(val('ha-code')||'AMS').toUpperCase();if(store.settings.baseCurrencyAuto!==false)store.settings.baseCurrency=homeCurrency();persist('settings');closeSheet();renderView();toast('Home airport set','check')">Save</button><div class="spacer"></div>
-  `);
+  openSheetReact('Home airport', 'settings.homeAirport', { value: store.settings.homeAirport });
   setTimeout(()=>{const i=document.getElementById('ha-code');if(i)i.focus();},300);
 }
 function editProfileName(){
-  openSheet('Your name', `<div class="field"><label>Name / act</label><input id="pf-name" class="input" value="${esc(store.settings.artistName==='You'?'':store.settings.artistName)}" placeholder="Your DJ / act name"></div><button class="btn" onclick="store.settings.artistName=val('pf-name')||'You';persist('settings');closeSheet();renderView();toast('Saved','check')">Save</button><div class="spacer"></div>`);
+  openSheetReact('Your name', 'settings.profileName', { value: store.settings.artistName === 'You' ? '' : store.settings.artistName });
   setTimeout(()=>{const i=document.getElementById('pf-name');if(i)i.focus();},300);
 }
 function uploadHomeHeader(input){ toast('Uploading photo…','image'); readFile(input, att=>{ if(att.kind!=='image'){ toast('Pick an image','x'); return; } store.settings.homeHeader=att.data; persist('settings'); persist('user_preferences'); renderView(); toast('Header photo set','check');
@@ -2352,15 +2284,7 @@ function toggleBiometric(){ const sec=store.settings.security; sec.biometric=!se
 function changePasscode(){ pinSetupFirst=null; pinResolve=()=>{ toast('Passcode changed','check'); renderView(); }; renderLock('setup'); }
 function sheetCurrency(){
   const s=store.settings;
-  openSheet('Currency & rates', `
-    <div class="field"><label>Base currency</label>
-      <select id="set-base" class="input">${Object.keys(s.fx).map(c=>`<option value="${c}" ${s.baseCurrency===c?'selected':''}>${c} (${CURSYM[c]||c})</option>`).join('')}</select>
-      <div class="hint" style="text-align:left;padding:6px 2px">All earnings roll up into this currency.</div></div>
-    <div class="field"><label>Exchange rates (value of 1 unit in ${s.baseCurrency})</label>
-      <div id="set-rates">${Object.entries(s.fx).filter(([c])=>c!==s.baseCurrency).map(([c,v])=>`<div style="display:flex;align-items:center;gap:10px;margin-bottom:8px"><span style="width:52px;font-weight:700;color:var(--text-2)">${c}</span><input class="input" data-cur="${c}" type="number" step="0.0001" inputmode="decimal" value="${v}" style="flex:1;padding:9px 12px"></div>`).join('')}</div>
-    </div>
-    <button class="btn" id="set-save" onclick="saveCurrency()">Save rates</button><div class="spacer"></div>
-  `);
+  openSheetReact('Currency & rates', 'settings.currency', { settings: s });
 }
 function saveCurrency(){
   const base=rawVal('set-base')||store.settings.baseCurrency;
@@ -2371,7 +2295,7 @@ function saveCurrency(){
 }
 function sheetPacking(){
   const s=store.settings;
-  openSheet('Default packing list', `<div class="field"><label>One item per line</label><textarea id="set-pack" class="textarea" style="min-height:200px">${esc((s.packingTemplate||[]).join('\n'))}</textarea><div class="hint" style="text-align:left;padding:6px 2px">Added to every new trip.</div></div><button class="btn" onclick="store.settings.packingTemplate=rawVal('set-pack').split('\\n').map(x=>x.trim()).filter(Boolean);persist('settings');closeSheet();renderView();toast('Saved','check')">Save list</button><div class="spacer"></div>`);
+  openSheetReact('Default packing list', 'settings.packing', { items: s.packingTemplate || [] });
 }
 function exportData(){
   const blob=new Blob([JSON.stringify(store,null,2)],{type:'application/json'});
@@ -2573,7 +2497,21 @@ function invRow(inv){
 function pickEventForInvoice(){
   const evs=sel.events().filter(e=>(e.finance&&e.finance.fee>0));
   if(!evs.length){ toast('Add a deal to a show first','x'); return; }
-  openSheet('Invoice which show?', `<div class="card flush">${evs.map(e=>{ const has=store.invoices.some(iv=>iv.eventId===e.id); return `<div class="row" onclick="closeSheet(); ${has?`openView('invoice','${store.invoices.find(iv=>iv.eventId===e.id).id}')`:`createInvoiceFromEvent('${e.id}')`}"><div class="ic" style="background:var(--blue-soft);color:var(--blue)">${ICON.money(17)}</div><div class="body"><b>${esc(e.venue)}</b><span>${esc(e.city)} · ${fmtMoney(e.finance.fee,e.finance.currency)}${has?' · invoiced':''}</span></div>${ICON.chevR(15)}</div>`; }).join('')}</div><div class="spacer"></div>`);
+  openSheetReact('Invoice which show?', 'invoice.pickShow', {});
+}
+function addInvLine(id){ openSheetReact('Add line', 'invoice.addLine', { id }); }
+function invoiceMenu(id){
+  openSheetReact('Invoice', 'invoice.meta', { id });
+}
+function openBilling(invId){
+  openSheetReact('Your billing details', 'invoice.billing', { invId: invId || '' });
+}
+function contactCard(id){
+  const c=store.contacts.find(x=>x.id===id); if(!c) return;
+  openSheetReact(c.name, 'contact.view', { id });
+}
+function sheetContact(id){
+  openSheetReact(id?'Edit contact':'New contact', 'contact.edit', { id: id || '' });
 }
 function viewInvoice(id){
   const inv=store.invoices.find(x=>x.id===id); if(!inv) return backStub();
@@ -2622,30 +2560,10 @@ function viewInvoice(id){
   </div>`;
 }
 function setInvStatus(id,st){ const inv=store.invoices.find(x=>x.id===id); inv.status=st; if(st==='paid'){ const e=sel.event(inv.eventId); if(e&&e.finance) e.finance.paid=true; } haptic(); persist('invoices', id); renderView(); toast('Marked '+st, st==='paid'?'check':'receipt'); }
-function addInvLine(id){ openSheet('Add line', `<div class="row-2"><div class="field" style="flex:2"><label>Description</label><input id="il-label" class="input" placeholder="Travel, extra set…"></div><div class="field"><label>Amount</label><input id="il-amt" type="number" inputmode="decimal" class="input"></div></div><button class="btn" onclick="saveInvLine('${id}')">Add</button><div class="spacer"></div>`); }
 function saveInvLine(id){ const inv=store.invoices.find(x=>x.id===id); const label=val('il-label')||'Item'; inv.lines.push({label, amount:+val('il-amt')||0}); persist('invoices', id); closeSheet(); renderView(); }
 function delInvLine(id,idx){ const inv=store.invoices.find(x=>x.id===id); if(inv.lines.length<=1){ toast('Keep at least one line','x'); return;} inv.lines.splice(idx,1); persist('invoices', id); renderView(); }
-function invoiceMenu(id){ const inv=store.invoices.find(x=>x.id===id);
-  openSheet('Invoice', `
-    <div class="field"><label>Bill to (client)</label><input id="iv-client" class="input" value="${esc(inv.client)}"></div>
-    <div class="field"><label>Client address</label><textarea id="iv-caddr" class="textarea" style="min-height:60px">${esc(inv.clientAddr||'')}</textarea></div>
-    <div class="row-2"><div class="field"><label>Issue date</label><input id="iv-date" type="date" class="input" value="${inv.date}"></div><div class="field"><label>Terms (days)</label><input id="iv-terms" type="number" class="input" value="${inv.terms||14}"></div></div>
-    <button class="btn" onclick="saveInvoiceMeta('${id}')">Save</button><div class="spacer"></div>
-  `);
-}
 function saveInvoiceMeta(id){ const inv=store.invoices.find(x=>x.id===id); inv.client=val('iv-client')||inv.client; inv.clientAddr=val('iv-caddr'); inv.date=rawVal('iv-date')||inv.date; inv.terms=+val('iv-terms')||14; persist('invoices', id); closeSheet(); renderView(); toast('Invoice updated','receipt'); }
 function confirmDeleteInvoice(id){ confirmSheet('Delete invoice?','The number won\'t be reused.','Delete',()=>{ store.invoices=store.invoices.filter(x=>x.id!==id); persist('invoices', id); back(); toast('Invoice deleted','trash'); }, true); }
-function openBilling(invId){
-  const b=store.settings.billing;
-  openSheet('Your billing details', `
-    <div class="field"><label>Name / business</label><input id="bl-name" class="input" value="${esc(b.name||'')}" placeholder="Your legal / act name"></div>
-    <div class="field"><label>Address</label><textarea id="bl-addr" class="textarea" style="min-height:70px" placeholder="Billing address">${esc(b.address||'')}</textarea></div>
-    <div class="row-2"><div class="field"><label>VAT / Tax ID</label><input id="bl-tax" class="input" value="${esc(b.taxId||'')}"></div><div class="field"><label>Email</label><input id="bl-email" type="email" class="input" value="${esc(b.email||'')}"></div></div>
-    <div class="field"><label>Payment details (IBAN / account)</label><input id="bl-iban" class="input" value="${esc(b.iban||'')}" placeholder="IBAN or bank details"></div>
-    <div class="row-2"><div class="field"><label>Invoice prefix</label><input id="bl-prefix" class="input" value="${esc(store.settings.invoicePrefix)}"></div><div class="field"><label>Default terms (days)</label><input id="bl-terms" type="number" class="input" value="${store.settings.invoiceTerms||14}"></div></div>
-    <button class="btn" onclick="saveBilling('${invId||''}')">Save details</button><div class="spacer"></div>
-  `);
-}
 function saveBilling(invId){
   store.settings.billing={name:val('bl-name'),address:val('bl-addr'),taxId:val('bl-tax'),email:val('bl-email'),iban:val('bl-iban')};
   store.settings.invoicePrefix=val('bl-prefix')||'AHQ'; store.settings.invoiceTerms=+val('bl-terms')||14;
@@ -2724,42 +2642,6 @@ function contactRow(c){
       ${c.whatsapp||c.phone?`<button class="header-btn" style="width:34px;height:34px" onclick="event.stopPropagation();whatsapp('${jsAttr(c.whatsapp||c.phone)}')">${ICON.chat(15)}</button>`:''}
     </div>
   </div>`;
-}
-function contactCard(id){
-  const c=store.contacts.find(x=>x.id===id); const col=ROLES[c.role]||ROLES.Other;
-  openSheet(c.name, `
-    <div style="display:flex;align-items:center;gap:13px;margin-bottom:16px">
-      <div style="width:54px;height:54px;border-radius:16px;background:${col}22;color:${col};display:flex;align-items:center;justify-content:center;font-weight:800;font-size:22px">${esc((c.name||'?').trim()[0]||'?').toUpperCase()}</div>
-      <div><div style="font-size:19px;font-weight:750">${esc(c.name)}</div><div style="color:var(--text-2);font-weight:600"><span class="tag" style="background:${col}22;color:${col}">${esc(c.role)}</span>${c.company?' '+esc(c.company):''}</div></div>
-    </div>
-    <div class="act-grid" style="grid-template-columns:repeat(4,1fr);margin-bottom:16px">
-      <button class="act" onclick="callNumber('${jsAttr(c.phone||'')}')"><div class="ic" style="background:var(--green-soft);color:var(--green)">${ICON.phone(19)}</div><span>Call</span></button>
-      <button class="act" onclick="whatsapp('${jsAttr(c.whatsapp||c.phone||'')}')"><div class="ic" style="background:var(--green-soft);color:var(--green)">${ICON.chat(19)}</div><span>WhatsApp</span></button>
-      <button class="act" onclick="${c.email?`window.location.href='mailto:${c.email}'`:`toast('No email','x')`}"><div class="ic" style="background:var(--blue-soft);color:var(--blue)">${ICON.note(19)}</div><span>Email</span></button>
-      <button class="act" onclick="copyText('${jsAttr(c.phone||'')}')"><div class="ic" style="background:var(--card-2);color:var(--text-2)">${ICON.copy(19)}</div><span>Copy</span></button>
-    </div>
-    ${c.phone?`<div class="info-line" style="border:1px solid var(--stroke);border-radius:12px;margin-bottom:8px" onclick="copyText('${jsAttr(c.phone)}')"><div class="ic">${ICON.phone(16)}</div><div class="tx"><div class="k">Phone</div><div class="v">${esc(c.phone)}</div></div></div>`:''}
-    ${c.email?`<div class="info-line" style="border:1px solid var(--stroke);border-radius:12px;margin-bottom:8px" onclick="copyText('${jsAttr(c.email)}')"><div class="ic">${ICON.note(16)}</div><div class="tx"><div class="k">Email</div><div class="v">${esc(c.email)}</div></div></div>`:''}
-    ${c.notes?`<div class="info-line" style="border:1px solid var(--stroke);border-radius:12px;margin-bottom:8px"><div class="ic">${ICON.edit(16)}</div><div class="tx"><div class="k">Notes</div><div class="v" style="font-size:14px">${esc(c.notes)}</div></div></div>`:''}
-    <div class="spacer"></div>
-    <div class="btn-row"><button class="btn secondary" onclick="sheetContact('${c.id}')">${ICON.edit(15)} Edit</button><button class="btn danger" style="flex:0 0 auto" onclick="delContact('${c.id}')">${ICON.trash(15)}</button></div>
-    <div class="spacer"></div>
-  `);
-}
-function sheetContact(id){
-  const c = id? store.contacts.find(x=>x.id===id):null;
-  openSheet(id?'Edit contact':'New contact', `
-    <div class="field"><label>Name</label><input id="co-name" class="input" value="${esc(c?c.name:'')}" placeholder="Full name"></div>
-    <div class="row-2">
-      <div class="field"><label>Role</label><select id="co-role" class="input">${Object.keys(ROLES).map(r=>`<option ${(c?c.role:'Promoter')===r?'selected':''}>${r}</option>`).join('')}</select></div>
-      <div class="field"><label>Company</label><input id="co-company" class="input" value="${esc(c?c.company:'')}" placeholder="Club / agency"></div>
-    </div>
-    <div class="field"><label>Phone</label><input id="co-phone" type="tel" class="input" value="${esc(c?c.phone:'')}"></div>
-    <div class="field"><label>WhatsApp (if different)</label><input id="co-wa" type="tel" class="input" value="${esc(c?c.whatsapp:'')}"></div>
-    <div class="field"><label>Email</label><input id="co-email" type="email" class="input" value="${esc(c?c.email:'')}"></div>
-    <div class="field"><label>Notes</label><textarea id="co-notes" class="textarea" style="min-height:60px">${esc(c?c.notes:'')}</textarea></div>
-    <button class="btn" id="co-save" onclick="saveContact('${id||''}')">${id?'Save':'Add contact'}</button><div class="spacer"></div>
-  `);
 }
 function saveContact(id){
   const name=val('co-name'); if(!name){ toast('Add a name','x'); return; }
