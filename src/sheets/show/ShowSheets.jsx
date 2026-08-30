@@ -36,9 +36,11 @@ export function ShowEventSheet({ eid, event }){
     <div className="dhero sheet-event-preview" id="ev-preview" style={{ background:`linear-gradient(155deg,${color}33,var(--card) 65%)`, borderColor:`${color}44` }}>
       <div className="cat-bar" style={{ background:color }} />
       <div className="sheet-event-tone" style={{ fontSize:12,fontWeight:700,textTransform:'uppercase',letterSpacing:'.06em',color }}>{eid?'Edit show':'New show'}</div>
-      <div id="ev-preview-venue" style={{fontSize:20,fontWeight:800,marginTop:4}}>{e?.venue || 'Venue name'}</div>
+      <div id="ev-preview-venue" style={{fontSize:20,fontWeight:800,marginTop:4}}>{e?.eventName || e?.venue || 'Event name'}</div>
+      {e?.eventName && e?.venue ? <div style={{fontSize:13,opacity:.75,marginTop:2}}>{e.venue}</div> : null}
     </div>
-    <Field label="Venue" id="ev-venue" value={e?.venue} placeholder="e.g. Shelter" onInput={() => call('updateEventPreviewVenue')} />
+    <Field label="Event name" id="ev-event-name" value={e?.eventName} placeholder="e.g. Parklife, Support slot" onInput={() => call('updateEventPreviewVenue')} />
+    <Field label="Venue name" id="ev-venue" value={e?.venue} placeholder="e.g. Shelter" onInput={() => call('updateEventPreviewVenue')} />
     <Field label="Address" id="ev-addr" value={e?.venueAddr} placeholder="Street and number" />
     <Field label="Address line 2" id="ev-addr2" value={e?.venueAddr2} placeholder="Building, floor, unit (optional)" />
     <div className="row-2"><Field label="City" id="ev-city" value={e?.city} placeholder="Amsterdam" /><Field label="Region" id="ev-region" value={e?.venueRegion} placeholder="North Holland" /></div>

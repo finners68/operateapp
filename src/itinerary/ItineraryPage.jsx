@@ -1,5 +1,5 @@
 import { useSyncExternalStore } from 'react';
-import { call, esc, fmtDate, getEvent, getStore, subscribeStore } from '../api/operate.js';
+import { call, esc, fmtDate, getEvent, getStore, showTitle, subscribeStore } from '../api/operate.js';
 import { Icon } from '../show/ui.jsx';
 
 function useStoreTick(){
@@ -25,7 +25,7 @@ function ItinCard({ it }){
           <b style={{ fontSize: 15.5 }}>{esc(it.source || 'Itinerary')}</b>
           <div style={{ fontSize: 13, color: 'var(--text-2)', marginTop: 2 }}>
             {pending ? 'Review show basics' : (when || 'No date set')}
-            {show ? ` · ${esc(show.venue)}` : ''}
+            {show ? ` · ${esc(showTitle(show))}` : ''}
           </div>
           {pending ? (
             <div style={{ fontSize: 12.5, color: 'var(--accent-2)', marginTop: 4, fontWeight: 650 }}>

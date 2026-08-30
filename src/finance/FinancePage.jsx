@@ -1,5 +1,5 @@
 import { useSyncExternalStore } from 'react';
-import { call, fmtBase, fmtMoney, getMoney, getSel, getStore, pad, relDay, subscribeStore, toBase } from '../api/operate.js';
+import { call, fmtBase, fmtMoney, getMoney, getSel, getStore, pad, relDay, showTitle, subscribeStore, toBase } from '../api/operate.js';
 import { Icon } from '../show/ui.jsx';
 
 function useStoreTick(){
@@ -129,7 +129,7 @@ export default function FinancePage(){
                     <Icon name="money" size={17} />
                   </div>
                   <div className="body">
-                    <b>{e.venue}</b>
+                    <b>{showTitle(e)}</b>
                     <span>{e.city} · {relDay ? relDay(e.date) : e.date} · {c.paid ? 'Paid' : 'Unpaid'}</span>
                   </div>
                   <div className="trail">{fmtMoney ? fmtMoney(c.net, c.cur) : c.net}<Icon name="chevR" size={15} /></div>

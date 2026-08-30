@@ -557,7 +557,8 @@ async function pushToSupabaseV2(orgId, dirtyIn){
     for(const s of shows){
       /* Resolve/collapse show id before venue lookup so keys stay stable. */
       v2ResolveShowId(s);
-      if(!s.venue && !s.city) continue;
+      const hasVenue = !!(String(s.venue || '').trim() || s.city || s.venueAddr);
+      if(!hasVenue) continue;
       const vid = v2ResolveVenueIdForShow(s);
       venueIdByShow[s.id] = vid;
       const existingVenue = (store.v2?.venues || []).find(v => v.id === vid);
@@ -587,6 +588,7 @@ async function pushToSupabaseV2(orgId, dirtyIn){
       primary_artist_id: s.artist ? defaultArtistId : null,
       venue_id: venueIdByShow[sid] || cached?.venue_id || null,
       venue_name: s.venue || null,
+      event_name: s.eventName || null,
       show_date: s.date,
       show_status: V2_SHOW_STATUS_FROM_STORE[s.status] || 'confirmed',
       color_key: s.color || null,

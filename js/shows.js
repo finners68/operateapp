@@ -82,7 +82,7 @@ function showsListBody(){
   else if(showFilter === 'past') list = all.filter(showPassed);
   else if(showFilter === 'confirmed' || showFilter === 'hold' || showFilter === 'cancelled') list = all.filter(e => e.status === showFilter);
   if(showFilter === 'past') list.sort((a,b) => (b.date||'').localeCompare(a.date||''));
-  if(q) list = list.filter(e => `${e.venue||''} ${e.city||''} ${e.country||''} ${e.date||''}`.toLowerCase().includes(q));
+  if(q) list = list.filter(e => `${e.eventName||''} ${e.venue||''} ${e.city||''} ${e.country||''} ${e.date||''}`.toLowerCase().includes(q));
   if(!list.length){
     return `<div class="empty"><div class="ic">${ICON.music(28)}</div><b>${q?'No matches':'No shows here'}</b><span>${q?'Try another search term.':showFilter==='past'?'Past shows appear 24h after they finish.':'Tap + to add a venue, date and set time — then open the show for flights and hotels.'}</span>${q?'':`<button class="btn" style="margin-top:14px;max-width:240px" onclick="sheetEvent()">${ICON.plus(18)} Add show</button>`}</div>`;
   }
@@ -176,7 +176,7 @@ function showListRow(e){
     : `<div class="ic show-date-ic" style="background:${col}22;color:${col}">—</div>`;
   return `<div class="row show-row" onclick="openView('event','${e.id}')">
     ${dateIc}
-    <div class="body"><b>${esc(e.venue||'Untitled show')}${statusTag}</b><span>${detail}</span></div>
+    <div class="body"><b>${esc(showTitle(e))}${statusTag}</b><span>${detail}</span></div>
     <button type="button" class="header-btn show-row-edit" onclick="event.stopPropagation();eventMenu('${e.id}')" title="Edit show">${ICON.edit(16)}</button>
     <div class="trail"><span style="font-size:12px;font-weight:600">${esc(relDay(e.date))}</span>${ICON.chevR(15)}</div>
   </div>`;
@@ -948,9 +948,10 @@ function applyEventSheetColor(cat){
   }
 }
 function updateEventPreviewVenue(){
-  const v = val('ev-venue') || val('itn-rev-venue') || 'Venue name';
+  const eventName = val('ev-event-name') || val('itn-rev-event-name') || '';
+  const venue = val('ev-venue') || val('itn-rev-venue') || '';
   const el = document.getElementById('ev-preview-venue');
-  if(el) el.textContent = v;
+  if(el) el.textContent = eventName || venue || 'Event name';
 }
 function pickCat(el){
   el.parentElement.querySelectorAll('.sw').forEach(s=>s.classList.remove('on'));
@@ -963,9 +964,11 @@ function getSeg(id){ const el=document.querySelector('#'+id+' button.on'); retur
 function getCat(id){ const el=document.querySelector('#'+id+' .sw.on'); return el?el.dataset.cat:'purple'; }
 
 function saveEvent(eid){
+  const eventName = val('ev-event-name');
   const venue = val('ev-venue');
-  if(!venue){ toast('Add a venue name','x'); return; }
+  if(!eventName && !venue){ toast('Add an event name or venue name','x'); return; }
   const data = {
+    eventName,
     venue,
     venueAddr: val('ev-addr'),
     venueAddr2: val('ev-addr2'),
@@ -1745,7 +1748,7 @@ function delExpense(eid,xid){ const e=sel.event(eid); e.finance.expenses=e.finan
 function buildDaySheet(e){
   const c = money.eventCalc(e);
   const L=[];
-  L.push(`🎧 DAY SHEET — ${e.venue||'Show'}`);
+  L.push(`🎧 DAY SHEET — ${showTitle(e,'Show')}`);
   L.push(`${e.city||''}${e.country?', '+e.country:''} · ${fmtDateLong(e.date)}`);
   L.push('');
   L.push('⏱ SCHEDULE');
@@ -1796,7 +1799,7 @@ function shareDaySheet(eid){
 function previewDaySheet(text, e){
   window.__daysheet = text;
   window.__daysheetEid = e ? e.id : null;
-  window.__daysheetTitle = e ? ('Day Sheet — '+(e.venue||'Show')) : 'Day sheet';
+  window.__daysheetTitle = e ? ('Day Sheet — '+showTitle(e,'Show')) : 'Day sheet';
   openSheetReact('Day sheet', 'show.daySheet', { text, eid: e ? e.id : null });
 }
 /* Print / Save-as-PDF a clean day sheet via a hidden iframe (works on mobile
@@ -1805,7 +1808,7 @@ function printDaySheet(eid){
   const e=sel.event(eid); if(!e) return;
   const artist=(store.settings&&store.settings.artistName&&store.settings.artistName!=='You')?store.settings.artistName:'';
   const body=esc(buildDaySheet(e));
-  const html=`<!doctype html><html><head><meta charset="utf-8"><title>${esc('Day Sheet — '+(e.venue||'Show'))}</title>
+  const html=`<!doctype html><html><head><meta charset="utf-8"><title>${esc('Day Sheet — '+showTitle(e,'Show'))}</title>
     <style>
       @page{margin:18mm}
       *{box-sizing:border-box}
@@ -1816,7 +1819,7 @@ function printDaySheet(eid){
       pre{white-space:pre-wrap;font:13px/1.55 ui-monospace,Menlo,Consolas,monospace;color:#222;margin:0}
       .ft{margin-top:20px;color:#888;font-size:11px}
     </style></head><body>
-    <div class="hd"><h1>${esc(e.venue||'Show')}</h1><div class="sub">${esc([artist,e.city,e.country,fmtDateLong(e.date)].filter(Boolean).join(' · '))}</div></div>
+    <div class="hd"><h1>${esc(showTitle(e,'Show'))}</h1><div class="sub">${esc([artist,e.venue&&e.eventName?e.venue:null,e.city,e.country,fmtDateLong(e.date)].filter(Boolean).join(' · '))}</div></div>
     <pre>${body}</pre>
     <div class="ft">Generated by Operate</div>
     </body></html>`;

@@ -1,5 +1,5 @@
 import { useSyncExternalStore, useEffect } from 'react';
-import { call, fmtDate, fmtDateLong, getCats, getStore, pad, parseDT, relDay, subscribeStore, tickCountdowns } from '../api/operate.js';
+import { call, fmtDate, fmtDateLong, getCats, getStore, pad, parseDT, relDay, showTitle, subscribeStore, tickCountdowns } from '../api/operate.js';
 import { Icon, LegacyHtml, isOpen, setFold } from '../show/ui.jsx';
 
 function useStoreTick(){
@@ -64,7 +64,7 @@ function TripLegRow({ show, index, nextShow }){
       </div>
       <div className="body">
         <b>
-          {show.venue}{' '}
+          {showTitle(show)}{' '}
           {isNext ? <span className="tag hold" style={{ marginLeft: 4 }}>Next</span> : null}
         </b>
         <span>

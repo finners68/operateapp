@@ -1234,7 +1234,8 @@ function blankShowFromBasics(basics){
     id: uid('evt'),
     artist: basics.artist || store.settings.artistName,
     tripId: null,
-    venue: basics.venue||'New show',
+    eventName: basics.eventName||'',
+    venue: basics.venue||'',
     venueAddr: basics.venueAddr||'',
     venueAddr2: basics.venueAddr2||'',
     venueRegion: basics.venueRegion||'',
@@ -1537,11 +1538,13 @@ function discardItineraryReview(id){
 }
 async function saveItineraryReview(id){
   const it=(store.itineraries||[]).find(x=>x.id===id); if(!it) return;
+  const eventName=val('itn-rev-event-name');
   const venue=val('itn-rev-venue');
   const date=rawVal('itn-rev-date');
-  if(!venue){ toast('Add a venue name','x'); return; }
+  if(!eventName && !venue){ toast('Add an event name or venue name','x'); return; }
   if(!date){ toast('Add a show date','x'); return; }
   const basics={
+    eventName,
     venue,
     venueAddr: val('itn-rev-addr'),
     venueAddr2: val('itn-rev-addr2'),
@@ -1743,6 +1746,10 @@ function addItineraryShots(id,input){
 function applyScanToShow(e, f){
   if(!e || !f) return [];
   const filled=[];
+  if(!e.eventName && (f.eventName||f.event_name||f.event||f.name)) {
+    e.eventName = f.eventName||f.event_name||f.event||f.name;
+    filled.push('event name');
+  }
   if(!e.venue    && (f.venue||f.venueName)) { e.venue=f.venue||f.venueName; filled.push('venue'); }
   const scannedDate=normalizeScanDate(f.date);
   if(!e.date     && scannedDate)     { e.date=scannedDate;            filled.push('date'); }

@@ -1,5 +1,5 @@
 import { Icon } from '../../show/ui.jsx';
-import { call, fmtDate, getCats, getStore } from '../../api/operate.js';
+import { call, fmtDate, getCats, getStore, showTitle } from '../../api/operate.js';
 
 const Field=({label,id,value='',placeholder,type='text',children})=><div className="field"><label>{label}</label>{children||<input id={id} type={type} className="input" defaultValue={value||''} placeholder={placeholder}/>}</div>;
 const Spacer=()=> <div className="spacer"/>;
@@ -19,7 +19,7 @@ export function ItineraryNewShowSheet(){
 export function ItineraryExistingShowSheet({items}){
   const list=items||shows();
   if(!list.length) return <><div className="empty" style={{padding:'18px 8px'}}><div className="ic"><Icon name="music" size={26}/></div><b>No shows yet</b><span>Create a show first, or choose New show instead.</span></div><button className="btn secondary" onClick={()=>call('beginItineraryNewShow')}><Icon name="plus" size={16}/> New show from itinerary</button><Spacer/></>;
-  return <><p className="sheet-lede">Pick the show, then upload the file. This path only saves the attachment for now.</p><Field label="Show"><select id="itn-pick-show" className="input">{list.map(s=><option key={s.id} value={s.id}>{s.venue||'Show'} · {fmtDate(s.date)}</option>)}</select></Field><label className="btn" style={{marginTop:8}}><Icon name="plus" size={18}/> Upload itinerary<input type="file" accept="image/*,application/pdf" multiple hidden onChange={e=>call('submitItinerary',e.currentTarget,'existing')}/></label><Spacer/></>;
+  return <><p className="sheet-lede">Pick the show, then upload the file. This path only saves the attachment for now.</p><Field label="Show"><select id="itn-pick-show" className="input">{list.map(s=><option key={s.id} value={s.id}>{showTitle(s)} · {fmtDate(s.date)}</option>)}</select></Field><label className="btn" style={{marginTop:8}}><Icon name="plus" size={18}/> Upload itinerary<input type="file" accept="image/*,application/pdf" multiple hidden onChange={e=>call('submitItinerary',e.currentTarget,'existing')}/></label><Spacer/></>;
 }
 export function ItinerarySendingSheet(){
   return <><div className="empty" style={{padding:'28px 10px'}}><div className="ic"><Icon name="file" size={28}/></div><b>Sending your file…</b><span>Posted straight to your Make webhook. Waiting for show basics.</span></div><Spacer/></>;
@@ -30,11 +30,14 @@ export function ItineraryReviewSheet({id,fields}){
   const it=itinerary(id),f=fields||it.scanFields||{},settings=store().settings||{};
   const normalDate=call('normalizeScanDate',f.date), normalTime=v=>call('normalizeScanTime',v)||'';
   const now=new Date(),today=`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
-  const venue=f.venue||f.venueName||'',date=normalDate||it.date||today,status=f.status||'confirmed',cat=f.color||'purple';
+  const venue=f.venue||f.venueName||'';
+  const eventName=f.eventName||f.event_name||f.event||f.name||'';
+  const date=normalDate||it.date||today,status=f.status||'confirmed',cat=f.color||'purple';
   const color=(getCats()||{})[cat]||'#7c3aed';
   return <>
-    <div className="dhero sheet-event-preview" id="ev-preview" style={{background:`linear-gradient(155deg,${color}33,var(--card) 65%)`,borderColor:`${color}44`}}><div className="cat-bar" style={{background:color}}/><div className="sheet-event-tone" style={{fontSize:12,fontWeight:700,textTransform:'uppercase',letterSpacing:'.06em',color}}>New show from itinerary</div><div id="ev-preview-venue" style={{fontSize:20,fontWeight:800,marginTop:4}}>{venue||'Venue name'}</div></div>
-    <Field label="Venue" id="itn-rev-venue" value={venue} placeholder="e.g. Shelter"/>
+    <div className="dhero sheet-event-preview" id="ev-preview" style={{background:`linear-gradient(155deg,${color}33,var(--card) 65%)`,borderColor:`${color}44`}}><div className="cat-bar" style={{background:color}}/><div className="sheet-event-tone" style={{fontSize:12,fontWeight:700,textTransform:'uppercase',letterSpacing:'.06em',color}}>New show from itinerary</div><div id="ev-preview-venue" style={{fontSize:20,fontWeight:800,marginTop:4}}>{eventName||venue||'Event name'}</div>{eventName&&venue?<div style={{fontSize:13,opacity:.75,marginTop:2}}>{venue}</div>:null}</div>
+    <Field label="Event name" id="itn-rev-event-name" value={eventName} placeholder="e.g. Parklife, Support slot"/>
+    <Field label="Venue name" id="itn-rev-venue" value={venue} placeholder="e.g. Shelter"/>
     <Field label="Address" id="itn-rev-addr" value={f.venueAddress||f.venueAddr} placeholder="Street and number"/>
     <Field label="Address line 2" id="itn-rev-addr2" value={f.venueAddress2||f.venueAddr2} placeholder="Building, floor, unit (optional)"/>
     <div className="row-2"><Field label="City" id="itn-rev-city" value={f.city} placeholder="Amsterdam"/><Field label="Region" id="itn-rev-region" value={f.venueRegion||f.region} placeholder="North Holland"/></div>

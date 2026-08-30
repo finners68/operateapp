@@ -1,5 +1,5 @@
 import { useSyncExternalStore, useRef, useEffect, useState } from 'react';
-import { call, fmtDate, getCats, getMon, getMonths, getSel, getShowsListState, getStore, iconHtml, notifyStore, pad, parseDT, relDay, showPassed, subscribeStore } from '../api/operate.js';
+import { call, fmtDate, getCats, getMon, getMonths, getSel, getShowsListState, getStore, iconHtml, notifyStore, pad, parseDT, relDay, showPassed, showTitle, subscribeStore } from '../api/operate.js';
 import { Icon } from '../show/ui.jsx';
 
 function useStoreTick(){
@@ -46,7 +46,7 @@ function ShowRow({ show }){
         <div className="ic show-date-ic" style={{ background: `${col}22`, color: col }}>—</div>
       )}
       <div className="body">
-        <b>{show.venue || 'Untitled show'}{statusTag}</b>
+        <b>{showTitle(show)}{statusTag}</b>
         <span>{detail}</span>
       </div>
       <button
@@ -74,7 +74,7 @@ function filteredShows(filter, search){
   else if(filter === 'past') list = all.filter(e => showPassed && showPassed(e));
   else if(filter === 'confirmed' || filter === 'hold' || filter === 'cancelled') list = all.filter(e => e.status === filter);
   if(filter === 'past') list.sort((a, b) => String(b.date || '').localeCompare(String(a.date || '')));
-  if(q) list = list.filter(e => `${e.venue || ''} ${e.city || ''} ${e.country || ''} ${e.date || ''}`.toLowerCase().includes(q));
+  if(q) list = list.filter(e => `${e.eventName || ''} ${e.venue || ''} ${e.city || ''} ${e.country || ''} ${e.date || ''}`.toLowerCase().includes(q));
   return { all, list };
 }
 

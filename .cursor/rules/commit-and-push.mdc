@@ -1,0 +1,12 @@
+---
+description: Always commit and push completed work unless the user says otherwise
+alwaysApply: true
+---
+
+# Commit and push by default
+
+After finishing a coherent set of changes (feature, fix, or milestone), **commit and push to the current branch** unless the user explicitly says not to (e.g. “don’t push”, “keep it local”, “commit only”).
+
+- Follow the repo’s git safety rules (no force-push to main/master, no amending pushed commits, no secrets).
+- Prefer one clear commit per finished unit of work.
+- Tell the user the commit hash/message and that it was pushed.

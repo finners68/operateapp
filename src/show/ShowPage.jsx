@@ -1,5 +1,5 @@
 import { useSyncExternalStore } from 'react';
-import { call, fmtDate, getCats, getEvent, getSel, getStore, iconHtml, pad, relDay, subscribeStore } from '../api/operate.js';
+import { call, fmtDate, getCats, getEvent, getSel, getStore, iconHtml, pad, relDay, showTitle, subscribeStore } from '../api/operate.js';
 import { Group, Icon } from './ui.jsx';
 import { UploadBanner, QuickLinks } from './Banner.jsx';
 import TravelGroup from './Travel.jsx';
@@ -106,9 +106,12 @@ export default function ShowPage({ showId }){
           <div className="show-hero-eyebrow">
             <Icon name="music" size={12} /> Show · {relDay ? relDay(show.date) : show.date}
           </div>
-          <h1 className="show-hero-title">{show.venue || 'Untitled show'}</h1>
+          <h1 className="show-hero-title">{showTitle(show)}</h1>
           <div className="show-hero-location">
-            <Icon name="pin" size={14} /> {show.city || 'City TBA'}{show.country ? `, ${show.country}` : ''}
+            <Icon name="pin" size={14} />{' '}
+            {show.eventName && show.venue
+              ? [show.venue, show.city, show.country].filter(Boolean).join(' · ')
+              : `${show.city || 'City TBA'}${show.country ? `, ${show.country}` : ''}`}
           </div>
           <div className="show-stats">
             <div className="show-stat">

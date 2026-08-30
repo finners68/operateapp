@@ -1,5 +1,5 @@
 import { useSyncExternalStore, useEffect, useRef, useState } from 'react';
-import { call, getSearchQ, getSel, getStore, pad, subscribeStore } from '../api/operate.js';
+import { call, getSearchQ, getSel, getStore, pad, showTitle, subscribeStore } from '../api/operate.js';
 import { Icon } from '../show/ui.jsx';
 
 function useStoreTick(){
@@ -28,7 +28,7 @@ export default function SearchPage(){
   let ev = [], tr = [], id = [], nt = [];
   if(query){
     ev = (sel?.events ? sel.events() : []).filter(e =>
-      `${e.venue || ''} ${e.city || ''} ${e.country || ''} ${e.promoter?.name || ''}`.toLowerCase().includes(query)
+      `${e.eventName || ''} ${e.venue || ''} ${e.city || ''} ${e.country || ''} ${e.promoter?.name || ''}`.toLowerCase().includes(query)
     );
     tr = (call('runs') || []).filter(r =>
       String(r.title || '').toLowerCase().includes(query) || (r.cities || []).join(' ').toLowerCase().includes(query)

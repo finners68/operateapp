@@ -379,6 +379,8 @@ CREATE TABLE public.shows (
     venue_id uuid,
     -- Mirrored from venues.venue_name (kept in sync both ways by trigger).
     venue_name text,
+    -- Festival / billing / public name for the booking (separate from venue).
+    event_name text,
     show_date date NOT NULL,
     show_status text NOT NULL DEFAULT 'confirmed'
         CHECK (show_status IN ('draft', 'hold', 'confirmed', 'cancelled')),

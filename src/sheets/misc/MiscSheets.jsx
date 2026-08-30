@@ -1,11 +1,11 @@
 import { Icon } from '../../show/ui.jsx';
-import { call, fmtMoney, getCats, getIdeaTypes, getRoles, getSel, getStore } from '../../api/operate.js';
+import { call, fmtMoney, getCats, getIdeaTypes, getRoles, getSel, getStore, showTitle } from '../../api/operate.js';
 
 const Spacer=()=> <div className="spacer"/>;
 const Field=({label,id,value='',placeholder,type='text',inputMode,children})=><div className="field"><label>{label}</label>{children||<input id={id} type={type} inputMode={inputMode} className="input" defaultValue={value||''} placeholder={placeholder}/>}</div>;
 const store=()=>getStore()||{};
 const events=()=>store().events||[];
-const eventOptions=()=><><option value="">— Not linked —</option>{events().filter(e=>(e.kind||'show')==='show').map(e=><option key={e.id} value={e.id}>{e.venue||'Untitled show'} · {[e.city,e.country].filter(Boolean).join(', ')}</option>)}</>;
+const eventOptions=()=><><option value="">— Not linked —</option>{events().filter(e=>(e.kind||'show')==='show').map(e=><option key={e.id} value={e.id}>{showTitle(e)} · {[e.city,e.country].filter(Boolean).join(', ')}</option>)}</>;
 
 export function IdeaShowPickerSheet({iid,selectedId}){
   const idea=(store().ideas||[]).find(x=>x.id===iid);
@@ -137,7 +137,7 @@ export function InvoicePickShowSheet(){
             >
               <div className="ic" style={{ background: 'var(--blue-soft)', color: 'var(--blue)' }}><Icon name="money" size={17} /></div>
               <div className="body">
-                <b>{e.venue}</b>
+                <b>{showTitle(e)}</b>
                 <span>{e.city} · {fmtMoney(e.finance.fee, e.finance.currency)}{inv ? ' · invoiced' : ''}</span>
               </div>
               <Icon name="chevR" size={15} />
