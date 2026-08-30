@@ -1359,6 +1359,72 @@ function resolveOperateOrgId(){
   }
   return '';
 }
+
+/* ============================================================
+   Calendar screenshot upload → Make webhook
+   ============================================================ */
+function sheetCalendarUpload(){
+  openSheetReact('Upload calendar', 'calendar.upload', {});
+}
+function submitCalendarUpload(input){
+  toast('Reading…','image');
+  readFiles(input, async imgs=>{
+    const images = (imgs || []).filter(im => im && im.kind === 'image' && im.data);
+    if(!images.length){
+      toast('Add at least one screenshot','x');
+      return;
+    }
+    closeSheet(true);
+    toast(images.length === 1 ? 'Sending screenshot…' : `Sending ${images.length} screenshots…`,'image');
+    const result = await postCalendarScreenshotsToMake(images);
+    if(result.error){
+      toast(itineraryScanErrorToast(result.error),'x');
+      return;
+    }
+    toast(images.length === 1 ? 'Calendar sent' : `Sent ${images.length} screenshots`,'check');
+  });
+}
+async function postCalendarScreenshotsToMake(images){
+  const list = (images || []).filter(im => im && im.data);
+  if(!list.length) return { error:'no_file' };
+  const form = new FormData();
+  const orgId = resolveOperateOrgId();
+  form.append('organisation_id', orgId);
+  form.append('artist', (store.settings && store.settings.artistName) || '');
+  form.append('file_count', String(list.length));
+  form.append('uploaded_at', new Date().toISOString());
+  let attached = 0;
+  list.forEach((file, i) => {
+    const blob = dataUrlToBlob(file.data);
+    if(!blob) return;
+    const name = file.name || `calendar-${i + 1}.jpg`;
+    const mime = file.mime || blob.type || 'image/jpeg';
+    form.append('file', blob, name);
+    form.append('file_' + (i + 1), blob, name);
+    form.append('filename_' + (i + 1), name);
+    form.append('contentType_' + (i + 1), mime);
+    attached += 1;
+  });
+  if(!attached) return { error:'bad_file' };
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 90000);
+  try{
+    const res = await fetch(MAKE_CALENDAR_WEBHOOK_URL, {
+      method: 'POST',
+      body: form,
+      signal: controller.signal
+    });
+    const text = await res.text().catch(() => '');
+    if(!res.ok) return { error:'make_failed', status:res.status, raw:text };
+    return { ok:true, raw:text };
+  }catch(err){
+    if(err && err.name === 'AbortError') return { error:'make_timeout' };
+    return { error:'scan_failed', detail:String(err && err.message || err || '') };
+  }finally{
+    clearTimeout(timer);
+  }
+}
+
 /* POST the uploaded file straight to Make. Basics + full use different webhooks. */
 async function postItineraryFileToMake(it, opts={}){
   const file=(it.imgs||[]).find(im=>im.kind==='image') || (it.imgs||[])[0];
