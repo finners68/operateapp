@@ -1552,7 +1552,10 @@ function sheetItineraryReview(id){
   if(f.driverName||f.driverPhone) extras.push('transport');
   if(f.soundcheck||f.curfew||f.doors||f.stage||f.guestlist||f.catering) extras.push('advancing');
 
-  openSheetReact('Show basics', 'itinerary.review', { id, fields: f });
+  openSheetReact('Show basics', 'itinerary.review', { id, fields: f }, {
+    closeHandler: 'abandonItineraryReview',
+    closeArg: id
+  });
   if(sheetEl){
     sheetEl.style.setProperty('--sheet-tone', initC);
     sheetEl.classList.add('sheet-toned');

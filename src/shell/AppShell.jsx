@@ -181,7 +181,10 @@ export function SheetHost(){
           <div className="grabber" />
           <div className="sheet-head">
             <div className="sheet-title">{sheet.title}</div>
-            <button type="button" className="header-btn" style={{ width: 32, height: 32 }} onClick={() => call('closeSheet')}>
+            <button type="button" className="header-btn" style={{ width: 32, height: 32 }} onClick={() => {
+              if(opts.closeHandler) call(opts.closeHandler, opts.closeArg);
+              else call('closeSheet');
+            }}>
               <Icon name="x" size={18} />
             </button>
           </div>
