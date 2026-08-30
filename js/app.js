@@ -1340,6 +1340,18 @@ function normalizeMakeFields(payload){
     if(v==null) return;
     if(typeof v==='string' || typeof v==='number' || typeof v==='boolean') out[k]=String(v);
   });
+  /* Canonical keys the review sheet / save path expect. */
+  const pick = (...keys) => {
+    for(const k of keys){
+      const v = out[k];
+      if(v != null && String(v).trim()) return String(v).trim();
+    }
+    return '';
+  };
+  const eventName = pick('eventName', 'event_name', 'EventName', 'event name');
+  if(eventName) out.eventName = eventName;
+  const venue = pick('venue', 'venueName', 'venue_name', 'Venue');
+  if(venue) out.venue = venue;
   return out;
 }
 function resolveOperateOrgId(){
@@ -1813,8 +1825,8 @@ function addItineraryShots(id,input){
 function applyScanToShow(e, f){
   if(!e || !f) return [];
   const filled=[];
-  if(!e.eventName && (f.eventName||f.event_name||f.event||f.name)) {
-    e.eventName = f.eventName||f.event_name||f.event||f.name;
+  if(!e.eventName && (f.eventName||f.event_name||f.EventName)) {
+    e.eventName = f.eventName||f.event_name||f.EventName;
     filled.push('event name');
   }
   if(!e.venue    && (f.venue||f.venueName)) { e.venue=f.venue||f.venueName; filled.push('venue'); }

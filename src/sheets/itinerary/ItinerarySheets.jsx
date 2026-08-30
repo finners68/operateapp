@@ -1,7 +1,7 @@
 import { Icon } from '../../show/ui.jsx';
 import { call, fmtDate, getCats, getStore, showTitle } from '../../api/operate.js';
 
-const Field=({label,id,value='',placeholder,type='text',children})=><div className="field"><label>{label}</label>{children||<input id={id} type={type} className="input" defaultValue={value||''} placeholder={placeholder}/>}</div>;
+const Field=({label,id,value='',placeholder,type='text',children,...rest})=><div className="field"><label>{label}</label>{children||<input id={id} type={type} className="input" defaultValue={value||''} placeholder={placeholder} {...rest}/>}</div>;
 const Spacer=()=> <div className="spacer"/>;
 const store=()=>getStore()||{};
 const itinerary=id=>(store().itineraries||[]).find(x=>x.id===id)||{};
@@ -36,8 +36,8 @@ export function ItineraryReviewSheet({id,fields}){
   const color=(getCats()||{})[cat]||'#7c3aed';
   return <>
     <div className="dhero sheet-event-preview" id="ev-preview" style={{background:`linear-gradient(155deg,${color}33,var(--card) 65%)`,borderColor:`${color}44`}}><div className="cat-bar" style={{background:color}}/><div className="sheet-event-tone" style={{fontSize:12,fontWeight:700,textTransform:'uppercase',letterSpacing:'.06em',color}}>New show from itinerary</div><div id="ev-preview-venue" style={{fontSize:20,fontWeight:800,marginTop:4}}>{eventName||venue||'Event name'}</div>{eventName&&venue?<div style={{fontSize:13,opacity:.75,marginTop:2}}>{venue}</div>:null}</div>
-    <Field label="Event name" id="itn-rev-event-name" value={eventName} placeholder="e.g. Parklife, Support slot"/>
-    <Field label="Venue name" id="itn-rev-venue" value={venue} placeholder="e.g. Shelter"/>
+    <Field label="Event name" id="itn-rev-event-name" value={eventName} placeholder="e.g. Parklife, Support slot" onInput={()=>call('updateEventPreviewVenue')}/>
+    <Field label="Venue name" id="itn-rev-venue" value={venue} placeholder="e.g. Shelter" onInput={()=>call('updateEventPreviewVenue')}/>
     <Field label="Address" id="itn-rev-addr" value={f.venueAddress||f.venueAddr} placeholder="Street and number"/>
     <Field label="Address line 2" id="itn-rev-addr2" value={f.venueAddress2||f.venueAddr2} placeholder="Building, floor, unit (optional)"/>
     <div className="row-2"><Field label="City" id="itn-rev-city" value={f.city} placeholder="Amsterdam"/><Field label="Region" id="itn-rev-region" value={f.venueRegion||f.region} placeholder="North Holland"/></div>
