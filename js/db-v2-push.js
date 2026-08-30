@@ -114,8 +114,16 @@ async function v2GetMemberRole(sb, orgId){
 }
 
 /* UUID-primary upsert. Classification tags may still set legacy_id. */
+const _v2IdRemaps = new Map(); /* `${table}:${oldId}` -> newId for this push */
+
+function v2ClearIdRemaps(){ _v2IdRemaps.clear(); }
+function v2ResolvedId(table, id){
+  if(!id) return id;
+  return _v2IdRemaps.get(table + ':' + id) || id;
+}
 function v2RemapLocalEntityId(table, oldId, newId){
   if(!store || !oldId || !newId || oldId === newId) return;
+  _v2IdRemaps.set(table + ':' + oldId, newId);
   if(table === 'shows'){
     (store.events || []).forEach(e => {
       if(e && e.id === oldId) e.id = newId;
@@ -124,7 +132,7 @@ function v2RemapLocalEntityId(table, oldId, newId){
       if(it && it.showId === oldId) it.showId = newId;
     });
     if(store.activeShowId === oldId) store.activeShowId = newId;
-    if(overlay && overlay.type === 'event' && overlay.id === oldId) overlay.id = newId;
+    if(typeof overlay !== 'undefined' && overlay && overlay.type === 'event' && overlay.id === oldId) overlay.id = newId;
     if(store._dirty && store._dirty.shows instanceof Set){
       if(store._dirty.shows.has(oldId)){
         store._dirty.shows.delete(oldId);
@@ -132,9 +140,14 @@ function v2RemapLocalEntityId(table, oldId, newId){
       }
     }
   }
-  if(table === 'venues' && store.v2 && Array.isArray(store.v2.shows)){
-    store.v2.shows.forEach(sh => {
-      if(sh && sh.venue_id === oldId) sh.venue_id = newId;
+  if(table === 'venues'){
+    if(store.v2 && Array.isArray(store.v2.shows)){
+      store.v2.shows.forEach(sh => {
+        if(sh && sh.venue_id === oldId) sh.venue_id = newId;
+      });
+    }
+    (store.events || []).forEach(e => {
+      if(e && e._venueId === oldId) e._venueId = newId;
     });
   }
   if(table === 'tours'){
@@ -143,6 +156,26 @@ function v2RemapLocalEntityId(table, oldId, newId){
   }
   if(table === 'artists'){
     (store.artists || []).forEach(a => { if(a && a.id === oldId) a.id = newId; });
+  }
+}
+
+/* Drop FKs that don't belong to this org — otherwise PostgREST returns 409. */
+async function v2OrgScopedFk(sb, table, orgId, id){
+  if(!id || !isUuid(id)) return null;
+  const resolved = v2ResolvedId(table, id);
+  const localList = store?.v2?.[table];
+  if(Array.isArray(localList)){
+    const local = localList.find(r => r && r.id === resolved);
+    if(local){
+      if(local.organisation_id && local.organisation_id !== orgId) return null;
+      return resolved;
+    }
+  }
+  try{
+    const { data } = await sb.from(table).select('id').eq('id', resolved).eq('organisation_id', orgId).maybeSingle();
+    return data ? resolved : null;
+  }catch(e){
+    return null;
   }
 }
 
@@ -207,8 +240,9 @@ async function v2UpsertById(sb, table, orgId, rowOrRows){
     return data || [];
   }catch(e){
     const msg = String(e && e.message || e);
-    /* 409 = id already taken (often cross-org). Remint once and retry. */
-    if(/\b409\b|duplicate key|conflict/i.test(msg)){
+    /* 409 / duplicate / FK conflict: remint once and retry. */
+    if(/\b409\b|duplicate key|conflict|foreign key|23503|23505/i.test(msg)
+        || (e.cause && (e.cause.code === '23505' || e.cause.code === '23503' || e.cause.code === '409'))){
       payload.forEach(row => {
         const oldId = row.id;
         row.id = newUuid();
@@ -395,6 +429,7 @@ async function v2UpsertPk(sb, table, row, onConflict){
 async function pushToSupabaseV2(orgId, dirtyIn){
   const sb = getSupabase();
   if(!sb || !orgId || !store) return null;
+  v2ClearIdRemaps();
 
   let dirty = dirtyIn ? cloneDirty(dirtyIn) : cloneDirty(store._dirty);
   /* Empty dirty = no-op (never invent a full-tour rewrite here). Full sync is
@@ -646,29 +681,36 @@ async function pushToSupabaseV2(orgId, dirtyIn){
     }
     if(venueRows.length) await v2UpsertById(sb, 'venues', orgId, venueRows);
 
-    const showRows = shows.map(s => {
+    const showRows = [];
+    for(const s of shows){
       const sid = v2ResolveShowId(s);
       const cached = (store.v2?.shows || []).find(sh => sh.id === sid);
-      return {
-      id: sid,
-      organisation_id: orgId,
-      legacy_id: cached?.legacy_id || null,
-      tour_id: (s.tripId && isUuid(s.tripId)) ? s.tripId : null,
-      primary_artist_id: s.artist ? defaultArtistId : null,
-      venue_id: venueIdByShow[sid] || cached?.venue_id || null,
-      venue_name: s.venue || null,
-      event_name: s.eventName || null,
-      show_date: s.date,
-      show_status: V2_SHOW_STATUS_FROM_STORE[s.status] || 'confirmed',
-      color_key: s.color || null,
-      venue_arrival_time: s.arrival || null,
-      set_start_time: s.setTime || null,
-      set_end_time: s.endTime || null,
-      internal_notes: s.notes || null,
-      content_plan: s.content || null,
-      is_set_done: !!s.setDone
-    };
-    });
+      const rawVenueId = v2ResolvedId('venues', venueIdByShow[sid] || cached?.venue_id || null);
+      const rawTourId = (s.tripId && isUuid(s.tripId)) ? v2ResolvedId('tours', s.tripId) : null;
+      const rawArtistId = s.artist ? v2ResolvedId('artists', defaultArtistId) : null;
+      const venueId = await v2OrgScopedFk(sb, 'venues', orgId, rawVenueId);
+      const tourId = await v2OrgScopedFk(sb, 'tours', orgId, rawTourId);
+      const artistId = await v2OrgScopedFk(sb, 'artists', orgId, rawArtistId);
+      showRows.push({
+        id: sid,
+        organisation_id: orgId,
+        legacy_id: cached?.legacy_id || null,
+        tour_id: tourId,
+        primary_artist_id: artistId,
+        venue_id: venueId,
+        venue_name: s.venue || null,
+        event_name: s.eventName || null,
+        show_date: s.date,
+        show_status: V2_SHOW_STATUS_FROM_STORE[s.status] || 'confirmed',
+        color_key: s.color || null,
+        venue_arrival_time: s.arrival || null,
+        set_start_time: s.setTime || null,
+        set_end_time: s.endTime || null,
+        internal_notes: s.notes || null,
+        content_plan: s.content || null,
+        is_set_done: !!s.setDone
+      });
+    }
     if(showRows.length) await v2UpsertById(sb, 'shows', orgId, showRows);
   }
 

@@ -931,10 +931,32 @@ async function pushToSupabase(orgId){
     if(typeof syncRetryDelay !== 'undefined') syncRetryDelay = 0;
   }catch(e){
     console.error('pushToSupabase', e);
+    const msg = (e && e.message) ? String(e.message) : 'Sync failed';
+    const code = e && e.cause && (e.cause.code || e.cause.status);
+    const poisoned = /duplicate key|conflict|foreign key|23503|23505|\b409\b/i.test(msg)
+      || code === '23503' || code === '23505' || code === 409 || code === '409';
+    /* Poisoned dirty (cross-org IDs / bad FKs) retries forever. Drop it and
+       reload this org from cloud so sync can recover. */
+    if(poisoned && typeof clearDirty === 'function'){
+      clearDirty();
+      if(typeof syncDirty !== 'undefined') syncDirty = false;
+      try{
+        if(typeof loadFromSupabase === 'function') await loadFromSupabase(orgId);
+      }catch(loadErr){
+        console.warn('sync recovery reload failed', loadErr);
+      }
+      syncSetStatus('synced');
+      syncMarkLastSync();
+      lastPushAt = Date.now();
+      if(typeof syncRetryDelay !== 'undefined') syncRetryDelay = 0;
+      if(typeof toast === 'function'){
+        toast('Cloud sync recovered. Re-save any edit that didn’t stick.', 'x');
+      }
+      return;
+    }
     syncSetStatus('error');
     if(typeof syncDirty !== 'undefined') syncDirty = true;
     if(typeof scheduleSyncRetry === 'function') scheduleSyncRetry();
-    const msg = (e && e.message) ? String(e.message) : 'Sync failed';
     const now = Date.now();
     if(!pushToSupabase._lastToastAt || now - pushToSupabase._lastToastAt > 20000){
       pushToSupabase._lastToastAt = now;
