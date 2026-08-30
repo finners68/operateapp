@@ -84,6 +84,7 @@ export function showTitle(e, fallback){
   if(!e) return fallback || 'Untitled show';
   const eventName = String(e.eventName || '').trim();
   const venue = String(e.venue || '').trim();
+  if(eventName && venue) return `${eventName} - ${venue}`;
   return eventName || venue || fallback || 'Untitled show';
 }
 export function fmtDate(...a){ const fn = w('fmtDate'); return typeof fn === 'function' ? fn(...a) : (a[0] || ''); }

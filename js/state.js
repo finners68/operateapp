@@ -424,23 +424,19 @@ function commit(){ persistAll(); render(); }
 /* ---------- Utilities ---------- */
 const $ = sel => document.querySelector(sel);
 const esc = s => (s==null?'':String(s)).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-/* Plain-text headline: event name, else venue (selects / day sheets / etc.). */
+/* Plain-text headline: "event - venue" when both exist. */
 function showTitle(e, fallback){
   if(!e) return fallback || 'Untitled show';
   const eventName = String(e.eventName || '').trim();
   const venue = String(e.venue || '').trim();
+  if(eventName && venue) return `${eventName} - ${venue}`;
   return eventName || venue || fallback || 'Untitled show';
 }
-/* Same title line as before: "event venue", with venue quieter. */
+/* Same bold title line as showTitle (optional status HTML after the name). */
 function showListTitleHtml(e, statusHtml){
   if(!e) return esc('Untitled show');
-  const eventName = String(e.eventName || '').trim();
-  const venue = String(e.venue || '').trim();
   const tag = statusHtml || '';
-  if(eventName && venue){
-    return `${esc(eventName)}${tag} <span class="show-list-venue">${esc(venue)}</span>`;
-  }
-  return `${esc(eventName || venue || 'Untitled show')}${tag}`;
+  return `${esc(showTitle(e))}${tag}`;
 }
 /* Escape a value that is interpolated as a JS *string literal* inside a
    double-quoted inline handler, e.g. onclick="fn('${jsAttr(x)}')".

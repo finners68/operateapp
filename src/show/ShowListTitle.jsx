@@ -1,19 +1,10 @@
-/** Same title line as before: "event venue", with venue quieter. */
+import { showTitle } from '../api/operate.js';
+
+/** Same bold title line: "event - venue" when both exist. */
 export function ShowListTitle({ show, statusTag = null, fallback = 'Untitled show' }){
-  if(!show) return fallback;
-  const eventName = String(show.eventName || '').trim();
-  const venue = String(show.venue || '').trim();
-  if(eventName && venue){
-    return (
-      <>
-        {eventName}{statusTag}{' '}
-        <span className="show-list-venue">{venue}</span>
-      </>
-    );
-  }
   return (
     <>
-      {eventName || venue || fallback}
+      {showTitle(show, fallback)}
       {statusTag}
     </>
   );
