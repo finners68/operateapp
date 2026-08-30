@@ -276,6 +276,60 @@ async function authBoot(){
   });
 }
 
+async function listOrganisationsForUser(){
+  const sb = getSupabase();
+  const user = authUser || (typeof getAuthUser === 'function' ? await getAuthUser() : null);
+  if(!sb || !user) return [];
+  const { data, error } = await sb.from(V2_TABLES.members)
+    .select('organisation_id, organisations(organisation_name)')
+    .eq('user_id', user.id);
+  if(error || !data) return [];
+  return data.map(row => ({
+    id: row.organisation_id,
+    name: (row.organisations && row.organisations.organisation_name) || 'Organisation'
+  })).filter(o => o.id).sort((a, b) => a.name.localeCompare(b.name));
+}
+
+async function switchOrganisation(orgId){
+  const nextId = String(orgId || '').trim();
+  if(!nextId) return;
+  if(nextId === String(currentOrgId || '')) return;
+
+  const orgs = await listOrganisationsForUser();
+  const match = orgs.find(o => o.id === nextId);
+  if(!match){
+    toast('You do not have access to that organisation', 'x');
+    return;
+  }
+
+  try{
+    if(typeof flushDirtyNow === 'function' && typeof syncActive === 'function' && syncActive()){
+      await flushDirtyNow();
+    }
+  }catch(e){
+    console.warn('flush before org switch', e);
+  }
+
+  if(typeof syncTeardown === 'function') syncTeardown();
+  setStoredOrgId(nextId);
+
+  try{
+    toast('Switching organisation…');
+    await loadFromSupabase(nextId);
+    const name = await fetchOrganisationName(nextId);
+    if(store && name) store.organisationName = name;
+    if(typeof startRealtime === 'function') startRealtime(nextId);
+    if(typeof syncSetStatus === 'function') syncSetStatus('synced');
+    if(typeof syncMarkLastSync === 'function') syncMarkLastSync();
+    if(typeof renderView === 'function') renderView();
+    sheetAccount();
+    toast('Switched to ' + (name || match.name), 'check');
+  }catch(e){
+    console.error('switchOrganisation', e);
+    toast('Could not switch organisation', 'x');
+  }
+}
+
 function sheetAccount(){
   if(!isSupabaseConfigured()){
     openSheetReact('Account', 'auth.account', { mode: 'unconfigured', message: 'Cloud sync is not configured. Copy js/config.example.js to js/config.js and add your Supabase credentials.' });
@@ -294,7 +348,7 @@ function sheetAccount(){
         singleAccount: isSingleAccountMode(),
         message: isSingleAccountMode()
           ? `This app syncs to one account only${emailVal ? ` (${emailVal})` : ''}. Sign in to load and save tour data.`
-          : 'Sign in with your email. Each account loads its own organisation (for example JAKE or FIN).'
+          : 'Sign in with your email, then pick JAKE or FIN from the organisation list.'
       });
       return;
     }
@@ -304,24 +358,23 @@ function sheetAccount(){
   const email = authUser?.email || 'Not signed in';
   const orgId = currentOrgId || (store && store.organisationId) || null;
   const cachedName = (store && store.organisationName) || '';
-  openSheetReact('Account & sync', 'auth.account', {
-    mode: 'signedIn',
-    email,
-    orgName: cachedName,
-    statusLabel: syncStatusLabel(),
-    singleAccount: isSingleAccountMode()
-  });
-  if(typeof fetchOrganisationName === 'function' && orgId && !cachedName){
-    fetchOrganisationName(orgId).then(name => {
-      if(!name) return;
-      if(store) store.organisationName = name;
-      openSheetReact('Account & sync', 'auth.account', {
-        mode: 'signedIn',
-        email,
-        orgName: name,
-        statusLabel: syncStatusLabel(),
-        singleAccount: isSingleAccountMode()
-      });
-    }).catch(()=>{});
-  }
+  const openSignedIn = (orgName, orgs) => {
+    openSheetReact('Account & sync', 'auth.account', {
+      mode: 'signedIn',
+      email,
+      orgName: orgName || '',
+      orgId: orgId || '',
+      orgs: orgs || [],
+      statusLabel: syncStatusLabel(),
+      singleAccount: isSingleAccountMode()
+    });
+  };
+  openSignedIn(cachedName, []);
+  Promise.all([
+    cachedName || !orgId ? Promise.resolve(cachedName) : fetchOrganisationName(orgId),
+    listOrganisationsForUser()
+  ]).then(([name, orgs]) => {
+    if(name && store) store.organisationName = name;
+    openSignedIn(name || cachedName, orgs);
+  }).catch(()=>{});
 }

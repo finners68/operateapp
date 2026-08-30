@@ -63,12 +63,11 @@ Each signed-in email loads its own organisation. Do **not** set a fixed org id.
 
 Accounts (operate-dev):
 
-| Email | Organisation |
-|-------|----------------|
-| `jakepr1@outlook.com` | **JAKE** (existing tour data) |
-| `finlayhare68@hotmail.com` | **FIN** (new empty org) |
+| Email | Can switch between |
+|-------|--------------------|
+| either signed-in account | **JAKE** and **FIN** (selection list in Settings → Account) |
 
-Open app → Settings → Account → sign in with the matching email → magic link → Account shows **Organisation · JAKE** or **FIN**.
+Both accounts are owners on both organisations so you can switch from the list without signing out.
 
 ### Option C — Single-org with magic link (legacy)
 
