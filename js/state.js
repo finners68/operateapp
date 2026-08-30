@@ -431,17 +431,16 @@ function showTitle(e, fallback){
   const venue = String(e.venue || '').trim();
   return eventName || venue || fallback || 'Untitled show';
 }
-/* Overview lists: same bold title line, venue tucked beside it more quietly. */
+/* Overview lists: bold event name, quieter venue to the right. */
 function showListTitleHtml(e, statusHtml){
-  if(!e) return esc('Untitled show');
+  if(!e) return `<span class="show-list-event">${esc('Untitled show')}</span>`;
   const eventName = String(e.eventName || '').trim();
   const venue = String(e.venue || '').trim();
   const tag = statusHtml || '';
-  const primary = esc(eventName || venue || 'Untitled show');
   if(eventName && venue){
-    return `${primary}${tag} <span class="show-list-venue">${esc(venue)}</span>`;
+    return `<span class="show-list-event">${esc(eventName)}</span>${tag}<span class="show-list-venue">${esc(venue)}</span>`;
   }
-  return `${primary}${tag}`;
+  return `<span class="show-list-event">${esc(eventName || venue || 'Untitled show')}</span>${tag}`;
 }
 /* Escape a value that is interpolated as a JS *string literal* inside a
    double-quoted inline handler, e.g. onclick="fn('${jsAttr(x)}')".
