@@ -994,12 +994,11 @@ img{-webkit-touch-callout:none;}
 .ag-show-b b .show-list-venue,
 .ag-show-b .show-list-venue{
   display:inline !important;
-  font-size:0.9em;
+  font-size:inherit;
   font-weight:500;
   opacity:0.55;
   color:inherit;
-  margin-top:0 !important;
-  margin-left:0.35em;
+  margin:0 !important;
   white-space:nowrap;
 }
 .ag-loc{font-size:10.5px;font-weight:800;opacity:.8;letter-spacing:.04em;flex-shrink:0;}
@@ -1042,12 +1041,11 @@ img{-webkit-touch-callout:none;}
 b .show-list-venue,
 .show-list-venue{
   display:inline !important;
-  font-size:0.9em;
+  font-size:inherit;
   font-weight:500;
   opacity:0.55;
   color:inherit;
-  margin-top:0 !important;
-  margin-left:0.35em;
+  margin:0 !important;
   white-space:nowrap;
   overflow:visible;
   text-overflow:clip;
