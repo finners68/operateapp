@@ -176,7 +176,7 @@ function showListRow(e){
     : `<div class="ic show-date-ic" style="background:${col}22;color:${col}">—</div>`;
   return `<div class="row show-row" onclick="openView('event','${e.id}')">
     ${dateIc}
-    <div class="body"><b>${esc(showTitle(e))}${statusTag}</b><span>${detail}</span></div>
+    <div class="body">${showListTitleHtml(e, statusTag)}<span>${detail}</span></div>
     <button type="button" class="header-btn show-row-edit" onclick="event.stopPropagation();eventMenu('${e.id}')" title="Edit show">${ICON.edit(16)}</button>
     <div class="trail"><span style="font-size:12px;font-weight:600">${esc(relDay(e.date))}</span>${ICON.chevR(15)}</div>
   </div>`;
@@ -819,7 +819,8 @@ function viewEvent(id){
         ${trip?`<span class="tag" style="background:${c}22;color:${c}" onclick="openView('trip','${trip.id}')">${esc(trip.name)}</span>`:''}
       </div>
       <div class="show-hero-eyebrow">${ICON.music(12)} Show · ${esc(relDay(e.date))}</div>
-      <h1 class="show-hero-title">${esc(e.venue||'Untitled show')}</h1>
+      <h1 class="show-hero-title">${esc(e.eventName||e.venue||'Untitled show')}</h1>
+      ${e.eventName&&e.venue?`<div class="show-hero-venue-line">${ICON.pin(14)} ${esc(e.venue)}</div>`:''}
       <div class="show-hero-location">${ICON.pin(14)} ${esc(e.city||'City TBA')}${e.country?', '+esc(e.country):''}</div>
       <div class="show-stats">
         <div class="show-stat"><span class="show-stat-k">Date</span><span class="show-stat-v">${esc(fmtDate(e.date))}</span></div>

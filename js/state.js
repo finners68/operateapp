@@ -424,14 +424,23 @@ function commit(){ persistAll(); render(); }
 /* ---------- Utilities ---------- */
 const $ = sel => document.querySelector(sel);
 const esc = s => (s==null?'':String(s)).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-/* List/calendar title: "Event - Venue" when both exist. */
+/* Plain-text headline: event name, else venue (selects / day sheets / etc.). */
 function showTitle(e, fallback){
   if(!e) return fallback || 'Untitled show';
   const eventName = String(e.eventName || '').trim();
   const venue = String(e.venue || '').trim();
-  if(eventName && venue) return `${eventName} - ${venue}`;
-  if(eventName || venue) return eventName || venue;
-  return fallback || 'Untitled show';
+  return eventName || venue || fallback || 'Untitled show';
+}
+/* Overview lists: event name + optional glassy venue chip (HTML). */
+function showListTitleHtml(e, statusHtml){
+  if(!e) return esc('Untitled show');
+  const eventName = String(e.eventName || '').trim();
+  const venue = String(e.venue || '').trim();
+  const tag = statusHtml || '';
+  if(eventName && venue){
+    return `<span class="show-list-title"><span class="show-list-event">${esc(eventName)}</span>${tag}<span class="show-list-venue">${esc(venue)}</span></span>`;
+  }
+  return `<span class="show-list-title"><span class="show-list-event">${esc(eventName || venue || 'Untitled show')}</span>${tag}</span>`;
 }
 /* Escape a value that is interpolated as a JS *string literal* inside a
    double-quoted inline handler, e.g. onclick="fn('${jsAttr(x)}')".
@@ -1590,5 +1599,6 @@ function migrate(){
   w.sel = sel;
   w.ACCOUNT_TYPES = ACCOUNT_TYPES;
   w.showTitle = showTitle;
+  w.showListTitleHtml = showListTitleHtml;
 })();
 

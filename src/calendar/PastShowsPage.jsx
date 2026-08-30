@@ -1,6 +1,7 @@
 import { useSyncExternalStore } from 'react';
-import { call, esc, getCats, getStore, relDay, showPassed, showTitle, subscribeStore } from '../api/operate.js';
+import { call, esc, getCats, getStore, relDay, showPassed, subscribeStore } from '../api/operate.js';
 import { Icon } from '../show/ui.jsx';
+import { ShowListTitle } from '../show/ShowListTitle.jsx';
 
 function useStoreTick(){
   return useSyncExternalStore(
@@ -44,7 +45,7 @@ export default function PastShowsPage(){
                     <Icon name="music" size={18} />
                   </div>
                   <div className="body">
-                    <b>{esc(showTitle(e))}</b>
+                    <b><ShowListTitle show={e} /></b>
                     <span>
                       {esc(e.city)}{e.country ? `, ${esc(e.country)}` : ''} · {e.setTime ? esc(e.setTime) : '—'}
                     </span>

@@ -1,6 +1,7 @@
 import { useSyncExternalStore, useRef, useEffect, useState } from 'react';
-import { call, fmtDate, getCats, getMon, getMonths, getSel, getShowsListState, getStore, iconHtml, notifyStore, pad, parseDT, relDay, showPassed, showTitle, subscribeStore } from '../api/operate.js';
+import { call, fmtDate, getCats, getMon, getMonths, getSel, getShowsListState, getStore, iconHtml, notifyStore, pad, parseDT, relDay, showPassed, subscribeStore } from '../api/operate.js';
 import { Icon } from '../show/ui.jsx';
+import { ShowListTitle } from '../show/ShowListTitle.jsx';
 
 function useStoreTick(){
   return useSyncExternalStore(
@@ -46,7 +47,7 @@ function ShowRow({ show }){
         <div className="ic show-date-ic" style={{ background: `${col}22`, color: col }}>—</div>
       )}
       <div className="body">
-        <b>{showTitle(show)}{statusTag}</b>
+        <b><ShowListTitle show={show} statusTag={statusTag} /></b>
         <span>{detail}</span>
       </div>
       <button

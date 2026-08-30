@@ -1,5 +1,5 @@
 import { useSyncExternalStore, useEffect } from 'react';
-import { call, countdown, flightHasDetails, fmtDate, getCats, getIdeaTypes, getSel, getStore, pad, parseDT, relDay, showTitle, subscribeStore, tickCountdowns, timeAgo } from '../api/operate.js';
+import { call, countdown, flightHasDetails, fmtDate, getCats, getIdeaTypes, getSel, getStore, pad, parseDT, relDay, subscribeStore, tickCountdowns, timeAgo } from '../api/operate.js';
 import { Icon } from '../show/ui.jsx';
 
 function useStoreTick(){
@@ -65,7 +65,8 @@ function NextShowHero({ show }){
   return (
     <div className="hero tap nextshow" onClick={() => call('openView', 'event', show.id)}>
       <div className="hero-label"><Icon name="music" size={14} /> Next show · {relDay ? relDay(show.date) : show.date}</div>
-      <div className="hero-venue">{showTitle(show)}</div>
+      <div className="hero-venue">{show.eventName || show.venue}</div>
+      {show.eventName && show.venue ? <div className="hero-venue-sub"><Icon name="pin" size={13} /> {show.venue}</div> : null}
       <div className="hero-city">
         <Icon name="pin" size={14} /> {show.city}{show.country ? `, ${show.country}` : ''}
       </div>

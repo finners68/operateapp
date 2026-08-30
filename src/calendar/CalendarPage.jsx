@@ -1,6 +1,7 @@
 import { useSyncExternalStore, useEffect, useRef } from 'react';
-import { call, getCalendarState, getCats, getDow, getMonths, getSel, getStore, itemSort, parseDT, relDay, showPassed, showTitle, subscribeStore } from '../api/operate.js';
+import { call, getCalendarState, getCats, getDow, getMonths, getSel, getStore, itemSort, parseDT, relDay, showPassed, subscribeStore } from '../api/operate.js';
 import { Icon } from '../show/ui.jsx';
+import { ShowListTitle } from '../show/ShowListTitle.jsx';
 
 function useStoreTick(){
   return useSyncExternalStore(
@@ -49,7 +50,7 @@ function ShowBlock({ e }){
   return (
     <div className="ag-show" style={{ background: c }} onClick={() => call('openView', 'event', e.id)}>
       <div className="ag-show-b">
-        <b>{showTitle(e, 'Show')}</b>
+        <b><ShowListTitle show={e} fallback="Show" /></b>
         <span>{time}</span>
       </div>
       <div className="ag-loc">LOC</div>
