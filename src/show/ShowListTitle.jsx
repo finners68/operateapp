@@ -1,4 +1,4 @@
-/** Overview: bold event name, quieter venue to the right. */
+/** Same title line as before: "event venue", with venue quieter. */
 export function ShowListTitle({ show, statusTag = null, fallback = 'Untitled show' }){
   if(!show) return fallback;
   const eventName = String(show.eventName || '').trim();
@@ -6,15 +6,14 @@ export function ShowListTitle({ show, statusTag = null, fallback = 'Untitled sho
   if(eventName && venue){
     return (
       <>
-        <span className="show-list-event">{eventName}</span>
-        {statusTag}
+        {eventName}{statusTag}{' '}
         <span className="show-list-venue">{venue}</span>
       </>
     );
   }
   return (
     <>
-      <span className="show-list-event">{eventName || venue || fallback}</span>
+      {eventName || venue || fallback}
       {statusTag}
     </>
   );
