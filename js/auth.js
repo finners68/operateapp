@@ -287,17 +287,41 @@ function sheetAccount(){
   }
   if(!isAuthRequired() && !authUser){
     if(isSyncEnabled()){
-      const lockHint = isSingleAccountMode()
-        ? `<div class="hint" style="text-align:left;padding:2px 2px 14px;line-height:1.5">This app syncs to one account only${getAllowedEmail() ? ` (${esc(getAllowedEmail())})` : ''}. Sign in to load and save tour data.</div>`
-        : `<div class="hint" style="text-align:left;padding:2px 2px 14px;line-height:1.5">Sign in once to sync with the dev org. The app stays usable without signing in.</div>`;
       const emailVal = getAllowedEmail() || '';
-      const emailReadonly = emailVal ? ' readonly' : '';
-      openSheetReact('Account & sync', 'auth.account', { mode: 'signin', allowedEmail: emailVal, singleAccount: isSingleAccountMode(), message: isSingleAccountMode() ? `This app syncs to one account only${emailVal ? ` (${emailVal})` : ''}. Sign in to load and save tour data.` : 'Sign in once to sync with the dev org. The app stays usable without signing in.' });
+      openSheetReact('Account & sync', 'auth.account', {
+        mode: 'signin',
+        allowedEmail: emailVal,
+        singleAccount: isSingleAccountMode(),
+        message: isSingleAccountMode()
+          ? `This app syncs to one account only${emailVal ? ` (${emailVal})` : ''}. Sign in to load and save tour data.`
+          : 'Sign in with your email. Each account loads its own organisation (for example JAKE or FIN).'
+      });
       return;
     }
     openSheetReact('Account', 'auth.account', { mode: 'disabled' });
     return;
   }
   const email = authUser?.email || 'Not signed in';
-  openSheetReact('Account & sync', 'auth.account', { mode: 'signedIn', email, statusLabel: syncStatusLabel(), singleAccount: isSingleAccountMode() });
+  const orgId = currentOrgId || (store && store.organisationId) || null;
+  const cachedName = (store && store.organisationName) || '';
+  openSheetReact('Account & sync', 'auth.account', {
+    mode: 'signedIn',
+    email,
+    orgName: cachedName,
+    statusLabel: syncStatusLabel(),
+    singleAccount: isSingleAccountMode()
+  });
+  if(typeof fetchOrganisationName === 'function' && orgId && !cachedName){
+    fetchOrganisationName(orgId).then(name => {
+      if(!name) return;
+      if(store) store.organisationName = name;
+      openSheetReact('Account & sync', 'auth.account', {
+        mode: 'signedIn',
+        email,
+        orgName: name,
+        statusLabel: syncStatusLabel(),
+        singleAccount: isSingleAccountMode()
+      });
+    }).catch(()=>{});
+  }
 }

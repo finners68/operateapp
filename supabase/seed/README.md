@@ -1,3 +1,31 @@
+# Organisations — JAKE and FIN
+
+Two organisations are set up on **operate-dev**:
+
+| Organisation | Owner email | Notes |
+|--------------|-------------|--------|
+| **JAKE** | `jakepr1@outlook.com` | Existing tour data (renamed from Operate Dev) |
+| **FIN** | `finlayhare68@hotmail.com` | New empty organisation |
+
+SQL: [`../migrations/010_two_orgs_jake_and_fin.sql`](../migrations/010_two_orgs_jake_and_fin.sql)
+
+## Netlify
+
+For multi-org, keep only:
+
+| Key | Value |
+|-----|-------|
+| `SUPABASE_URL` | project URL |
+| `SUPABASE_ANON_KEY` | anon key |
+| `SYNC_ENABLED` | `true` |
+| `REQUIRE_AUTH` | `false` or `true` |
+
+**Remove** `OPERATE_DEV_MODE`, `OPERATE_ORG_ID`, `OPERATE_ALLOWED_USER_ID`, and `OPERATE_ALLOWED_EMAIL`. Those force a single shared org / single account.
+
+Redeploy after changing env vars. Sign in with the matching email; Settings → Account shows the organisation name.
+
+---
+
 # Dev seed — single org, single account
 
 Run [`dev_single_org.sql`](dev_single_org.sql) in Supabase SQL Editor.

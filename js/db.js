@@ -486,6 +486,7 @@ async function uploadFileDataUrl(dataUrl, showLegacyId, fileRole, legacyId, pare
 }
 
 async function ensureOrgForUser(){
+  /* Dev hardwire only: one shared org, no sign-in. Not used for multi-org. */
   if(isDevHardwireMode()){
     const fixed = getFixedOrgId();
     setStoredOrgId(fixed);
@@ -495,31 +496,25 @@ async function ensureOrgForUser(){
   const sb = getSupabase();
   const user = await getAuthUser();
   if(!sb || !user) throw new Error('no_auth');
-  if(getAllowedUserId() && !isAllowedUser(user)) throw new Error('wrong_user');
+  if(!isAllowedUser(user)) throw new Error('wrong_user');
 
-  const fixed = getFixedOrgId();
-  if(fixed){
-    const { data: ok } = await sb.from(V2_TABLES.members).select('organisation_id')
-      .eq('organisation_id', fixed).eq('user_id', user.id).maybeSingle();
-    if(!ok) throw new Error('not_linked_to_dev_org');
-    setStoredOrgId(fixed);
-    return fixed;
-  }
-
+  /* Membership decides the org. OPERATE_ORG_ID is only for hardwire mode above —
+     otherwise Jake/Fin each land on their own organisation. */
   const stored = getStoredOrgId();
   if(stored){
     const { data: ok } = await sb.from(V2_TABLES.members).select('organisation_id')
       .eq('organisation_id', stored).eq('user_id', user.id).maybeSingle();
-    if(ok) { currentOrgId = stored; return stored; }
+    if(ok){ currentOrgId = stored; return stored; }
   }
 
   const { data: memberships } = await sb.from(V2_TABLES.members)
-    .select('organisation_id').eq('user_id', user.id).limit(1);
+    .select('organisation_id').eq('user_id', user.id).order('created_at', { ascending: true }).limit(1);
   if(memberships && memberships.length){
     setStoredOrgId(memberships[0].organisation_id);
     return memberships[0].organisation_id;
   }
 
+  /* Single-account lock leftover: refuse auto-create if still configured. */
   if(getAllowedUserId() || getFixedOrgId()) throw new Error('not_linked_to_dev_org');
 
   let newOrgId = null;
@@ -540,6 +535,23 @@ async function ensureOrgForUser(){
 
   setStoredOrgId(newOrgId);
   return newOrgId;
+}
+
+async function fetchOrganisationName(orgId){
+  if(!orgId) return '';
+  const sb = getSupabase();
+  if(!sb) return '';
+  const { data } = await sb.from(V2_TABLES.organisations)
+    .select('organisation_name').eq('id', orgId).maybeSingle();
+  const name = (data && data.organisation_name) || '';
+  if(name){
+    if(typeof window !== 'undefined'){
+      window.__operateOrgNameCache = window.__operateOrgNameCache || {};
+      window.__operateOrgNameCache[orgId] = name;
+    }
+    if(store && store.organisationId === orgId) store.organisationName = name;
+  }
+  return name;
 }
 
 /* Instant notepad write-through. Does not wait for the full tour sync queue. */
@@ -966,9 +978,11 @@ async function bootstrapRemoteData(){
     if(!error) cloudEmpty = !count;
     else console.warn('bootstrap show count failed — preferring cloud load', error);
   }
-  /* Prefer cloud. Only seed-push when cloud is empty and local V2 cache has events. */
+  /* Prefer cloud. Only seed-push when cloud is empty AND local cache already
+     belongs to this org — never upload another org's local tour by mistake. */
   const localIsV2 = !!(local && local.v2);
-  const pushLocal = localIsV2 && local?.events?.length && cloudEmpty &&
+  const localMatchesOrg = !!(local && local.organisationId && local.organisationId === orgId);
+  const pushLocal = localIsV2 && local?.events?.length && cloudEmpty && localMatchesOrg &&
     (!isMigrated(orgId) || isDevHardwireMode());
   if(pushLocal){
     store = local;
@@ -985,4 +999,10 @@ async function bootstrapRemoteData(){
     await loadFromSupabase(orgId);
     markMigrated(orgId);
   }
+  try{
+    if(typeof fetchOrganisationName === 'function'){
+      const name = await fetchOrganisationName(orgId);
+      if(store && name) store.organisationName = name;
+    }
+  }catch(e){}
 }

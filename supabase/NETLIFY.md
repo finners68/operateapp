@@ -48,7 +48,29 @@ Do **not** set `OPERATE_ALLOWED_USER_ID` / `OPERATE_ALLOWED_EMAIL` in this mode.
 
 See [`seed/README.md`](seed/README.md) for details.
 
-### Option B — Single-org with magic link
+### Option B — Multi-org (JAKE + FIN)
+
+Each signed-in email loads its own organisation. Do **not** set a fixed org id.
+
+| Key | Value |
+|-----|-------|
+| `SYNC_ENABLED` | `true` |
+| `REQUIRE_AUTH` | `false` (or `true` to force sign-in before use) |
+| `OPERATE_DEV_MODE` | remove / unset |
+| `OPERATE_ORG_ID` | remove / unset |
+| `OPERATE_ALLOWED_USER_ID` | remove / unset |
+| `OPERATE_ALLOWED_EMAIL` | remove / unset |
+
+Accounts (operate-dev):
+
+| Email | Organisation |
+|-------|----------------|
+| `jakepr1@outlook.com` | **JAKE** (existing tour data) |
+| `finlayhare68@hotmail.com` | **FIN** (new empty org) |
+
+Open app → Settings → Account → sign in with the matching email → magic link → Account shows **Organisation · JAKE** or **FIN**.
+
+### Option C — Single-org with magic link (legacy)
 
 1. Run [`seed/dev_single_org.sql`](seed/dev_single_org.sql) in Supabase SQL Editor
 2. Link your test user as `owner` on that org
@@ -57,6 +79,8 @@ See [`seed/README.md`](seed/README.md) for details.
 5. Local tour data uploads to Postgres; edits sync in background
 
 Only the configured user can sync. Other accounts are signed out immediately and cannot push changes.
+
+> Prefer **Option B** when more than one organisation is in use.
 
 ## 3. Deploy
 
