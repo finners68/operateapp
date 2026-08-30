@@ -865,7 +865,11 @@ img{-webkit-touch-callout:none;}
 .stagger>*:nth-child(7){animation-delay:.26s;}
 /* Background sync remounts must not replay entrance motion or re-animate folds. */
 #view.quiet-paint .stagger>*,
-#view.quiet-paint .fade-in{animation:none!important;}
+#view.quiet-paint .fade-in{
+  animation:none!important;
+  opacity:1!important;
+  transform:none!important;
+}
 #view.quiet-paint .fold-body,
 #view.quiet-paint .show-group-fold,
 #view.quiet-paint .show-subsection-fold{transition:none!important;}
