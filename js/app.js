@@ -2032,8 +2032,10 @@ function viewSettings(){
     <div class="set-title">Account</div>
     <div class="set-group">
       <div class="set-row tap" onclick="sheetAccount()"><div class="ic" style="background:${syncActive()?'var(--green-soft)':'var(--card-2)'};color:${syncActive()?'var(--green)':'var(--text-2)'}">${ICON.globe(17)}</div>
-        <div class="body"><b>${isDevHardwireMode() ? 'Dev mode' : (authUser ? esc(authUser.email) : (isSyncEnabled() ? 'Sign in to sync' : (isAuthRequired() ? 'Sign in & sync' : 'Local only')))}</b><span id="sync-row-sub">${syncStatusLabel()}</span></div>
-        <div class="trail">Manage ${ICON.chevR(15)}</div></div>
+        <div class="body"><b>${isDevHardwireMode()
+          ? esc((store && store.organisationName) || (typeof getHardcodedOrgName === 'function' && currentOrgId ? getHardcodedOrgName(currentOrgId) : '') || 'Organisation')
+          : (authUser ? esc(authUser.email) : (isSyncEnabled() ? 'Sign in to sync' : (isAuthRequired() ? 'Sign in & sync' : 'Local only')))}</b><span id="sync-row-sub">${syncStatusLabel()}</span></div>
+        <div class="trail">${isDevHardwireMode() ? 'Switch' : 'Manage'} ${ICON.chevR(15)}</div></div>
     </div>
 
     <div class="set-title">Data</div>

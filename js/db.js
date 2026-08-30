@@ -486,11 +486,14 @@ async function uploadFileDataUrl(dataUrl, showLegacyId, fileRole, legacyId, pare
 }
 
 async function ensureOrgForUser(){
-  /* Dev hardwire only: one shared org, no sign-in. Not used for multi-org. */
+  /* No-login mode: pick stored hardcoded org, or default to the first (JAKE). */
   if(isDevHardwireMode()){
-    const fixed = getFixedOrgId();
-    setStoredOrgId(fixed);
-    return fixed;
+    const orgs = getHardcodedOrgs();
+    const stored = getStoredOrgId();
+    const match = orgs.find(o => o.id === stored) || orgs[0];
+    setStoredOrgId(match.id);
+    if(store) store.organisationName = match.name;
+    return match.id;
   }
 
   const sb = getSupabase();
@@ -498,8 +501,7 @@ async function ensureOrgForUser(){
   if(!sb || !user) throw new Error('no_auth');
   if(!isAllowedUser(user)) throw new Error('wrong_user');
 
-  /* Membership decides the org. OPERATE_ORG_ID is only for hardwire mode above —
-     otherwise Jake/Fin each land on their own organisation. */
+  /* Membership decides the org when signed in. */
   const stored = getStoredOrgId();
   if(stored){
     const { data: ok } = await sb.from(V2_TABLES.members).select('organisation_id')
@@ -514,7 +516,6 @@ async function ensureOrgForUser(){
     return memberships[0].organisation_id;
   }
 
-  /* Single-account lock leftover: refuse auto-create if still configured. */
   if(getAllowedUserId() || getFixedOrgId()) throw new Error('not_linked_to_dev_org');
 
   let newOrgId = null;
@@ -539,6 +540,11 @@ async function ensureOrgForUser(){
 
 async function fetchOrganisationName(orgId){
   if(!orgId) return '';
+  const hardcoded = typeof getHardcodedOrgName === 'function' ? getHardcodedOrgName(orgId) : '';
+  if(hardcoded){
+    if(store && store.organisationId === orgId) store.organisationName = hardcoded;
+    return hardcoded;
+  }
   const sb = getSupabase();
   if(!sb) return '';
   const { data } = await sb.from(V2_TABLES.organisations)

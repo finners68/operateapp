@@ -5,10 +5,6 @@ window.OPERATE_CONFIG = {
   SUPABASE_ANON_KEY: 'YOUR-ANON-KEY',
   REQUIRE_AUTH: false,
   SYNC_ENABLED: true,
-  // Multi-org (JAKE / FIN): leave OPERATE_ORG_ID unset so each signed-in
-  // account loads the organisation they belong to.
-  // OPERATE_DEV_MODE: true, // only for single shared org without sign-in
-  // OPERATE_ORG_ID: 'uuid', // hardwire one org — do not use with multi-org
-  // OPERATE_ALLOWED_USER_ID: 'uuid', // locks the app to one user — remove for multi-org
-  // OPERATE_ALLOWED_EMAIL: 'you@example.com',
+  // With SYNC_ENABLED + REQUIRE_AUTH false, the app uses hardcoded JAKE / FIN
+  // organisations and a Settings → Organisation picker (no sign-in).
 };

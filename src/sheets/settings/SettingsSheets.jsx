@@ -29,9 +29,35 @@ export function AuthInviteSheet(){
 }
 export function AuthAccountSheet({mode,email,statusLabel,message,singleAccount=false,allowedEmail='',orgName='',orgId='',orgs=[]}) {
   if(mode==='unconfigured'||mode==='disabled') return <><div className="hint" style={{textAlign:'left',padding:'2px 2px 16px',lineHeight:1.5}}>{message|| (mode==='unconfigured'?'Cloud sync is not configured. Add your Supabase credentials to enable it.':'Cloud sync is not enabled yet. Your tour data stays on this device.')}</div><Spacer/></>;
-  if(mode==='dev') return <><div className="card" style={{padding:15,marginBottom:6,textAlign:'center'}}><div style={{fontSize:11.5,color:'var(--text-3)',fontWeight:700,textTransform:'uppercase',letterSpacing:'.08em'}}>Dev mode</div><div style={{fontSize:16,fontWeight:700,marginTop:4}}>No sign-in</div><div id="sync-status" style={{fontSize:13,color:'var(--text-2)',marginTop:4}}>{statusLabel||call('syncStatusLabel')}</div></div><div className="hint" style={{textAlign:'left',padding:'8px 2px 14px',lineHeight:1.5}}>All tour data syncs to the shared dev organisation.</div><button className="btn secondary" onClick={()=>call('syncPullNow')}><Icon name="reminder" size={16}/> Refresh now</button><Spacer/></>;
-  if(mode==='signin') return <><div className="hint" style={{textAlign:'left',padding:'2px 2px 14px',lineHeight:1.5}}>{message||'Sign in to load and save tour data.'}</div><Field label="Email" id="auth-email" type="email" value={allowedEmail} placeholder="you@example.com" autoComplete="email" readOnly={!!allowedEmail}/><p id="auth-msg" className="auth-msg"/><button className="btn" id="auth-send" onClick={()=>call('sendMagicLink')}>Send magic link</button><Spacer/></>;
   const orgOptions = Array.isArray(orgs) ? orgs : [];
+  if(mode==='orgSwitch' || mode==='dev'){
+    return <>
+      <div className="card" style={{padding:15,marginBottom:6,textAlign:'center'}}>
+        <div style={{fontSize:11.5,color:'var(--text-3)',fontWeight:700,textTransform:'uppercase',letterSpacing:'.08em'}}>Organisation</div>
+        <div style={{fontSize:16,fontWeight:700,marginTop:4}}>{orgName || 'Choose workspace'}</div>
+        <div id="sync-status" style={{fontSize:13,color:'var(--text-2)',marginTop:4}}>{statusLabel||call('syncStatusLabel')}</div>
+      </div>
+      <Field label="Switch organisation">
+        <select
+          id="acct-org"
+          className="input"
+          key={orgId || 'org'}
+          defaultValue={orgId || orgOptions[0]?.id || ''}
+          onChange={e => call('switchOrganisation', e.target.value)}
+        >
+          {orgOptions.map(o => (
+            <option key={o.id} value={o.id}>{o.name}</option>
+          ))}
+        </select>
+      </Field>
+      <div className="hint" style={{textAlign:'left',padding:'8px 2px 14px',lineHeight:1.5}}>
+        JAKE and FIN are always available. Pick one to view and edit that workspace — no sign-in needed.
+      </div>
+      <button className="btn secondary" onClick={()=>call('syncPullNow')}><Icon name="reminder" size={16}/> Refresh now</button>
+      <Spacer/>
+    </>;
+  }
+  if(mode==='signin') return <><div className="hint" style={{textAlign:'left',padding:'2px 2px 14px',lineHeight:1.5}}>{message||'Sign in to load and save tour data.'}</div><Field label="Email" id="auth-email" type="email" value={allowedEmail} placeholder="you@example.com" autoComplete="email" readOnly={!!allowedEmail}/><p id="auth-msg" className="auth-msg"/><button className="btn" id="auth-send" onClick={()=>call('sendMagicLink')}>Send magic link</button><Spacer/></>;
   return <>
     <div className="card" style={{padding:15,marginBottom:6,textAlign:'center'}}>
       <div style={{fontSize:11.5,color:'var(--text-3)',fontWeight:700,textTransform:'uppercase',letterSpacing:'.08em'}}>Signed in as</div>
@@ -57,7 +83,7 @@ export function AuthAccountSheet({mode,email,statusLabel,message,singleAccount=f
     ) : null}
     <div className="hint" style={{textAlign:'left',padding:'8px 2px 14px',lineHeight:1.5}}>
       {orgOptions.length > 1
-        ? 'Pick JAKE or FIN above to switch workspaces. Your data stays separate for each organisation.'
+        ? 'Pick an organisation above to switch workspaces.'
         : 'Your tour data syncs across signed-in devices for this organisation only.'}
     </div>
     {!singleAccount ? <button className="btn secondary" onClick={()=>call('sheetInviteCrew')}><Icon name="users" size={16}/> Invite crew</button> : null}

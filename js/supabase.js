@@ -53,6 +53,25 @@ function getFixedOrgId(){
   return id;
 }
 
+/* Temporary: two hardcoded workspaces, no login. */
+function getHardcodedOrgs(){
+  const fromConfig = OPERATE_CONFIG && OPERATE_CONFIG.OPERATE_ORGS;
+  if(Array.isArray(fromConfig) && fromConfig.length){
+    return fromConfig
+      .map(o => ({ id: String(o.id || '').trim(), name: String(o.name || '').trim() }))
+      .filter(o => o.id && o.name && !o.id.includes('YOUR-ORG'));
+  }
+  return [
+    { id: '1ba17032-5bb2-4310-afa7-3a6fc5e94df4', name: 'JAKE' },
+    { id: 'e8fc13af-4b2d-4eed-a5ef-92fd703b03e5', name: 'FIN' }
+  ];
+}
+
+function getHardcodedOrgName(orgId){
+  const hit = getHardcodedOrgs().find(o => o.id === orgId);
+  return hit ? hit.name : '';
+}
+
 function getAllowedUserId(){
   const id = OPERATE_CONFIG && OPERATE_CONFIG.OPERATE_ALLOWED_USER_ID;
   if(!id || typeof id !== 'string' || id.includes('YOUR-USER')) return null;
@@ -69,14 +88,12 @@ function isSingleAccountMode(){
   return !!(getFixedOrgId() && getAllowedUserId());
 }
 
-/* Dev-hardwire (no sign-in, shared org). Enabled only when OPERATE_DEV_MODE
-   is explicitly true with a fixed OPERATE_ORG_ID — including Netlify production
-   when those env vars are set intentionally. */
+/* No-login dual-org mode: sync on, auth not required, JAKE/FIN hardcoded. */
 function isDevHardwireMode(){
   return isSupabaseConfigured()
-    && OPERATE_CONFIG.OPERATE_DEV_MODE === true
-    && !!getFixedOrgId()
-    && isSyncEnabled();
+    && isSyncEnabled()
+    && !isAuthRequired()
+    && getHardcodedOrgs().length > 0;
 }
 
 function isAllowedUser(user){

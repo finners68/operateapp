@@ -22,9 +22,14 @@ function syncActive(){
 
 function syncStatusLabel(){
   if(!isSupabaseConfigured()) return 'Local only';
-  if(isDevHardwireMode() && !currentOrgId) return 'Dev · connecting…';
-  if(isDevHardwireMode() && syncStatus === 'synced') return 'Dev · synced' + (syncLastSync ? ' · ' + timeAgo(syncLastSync) : '');
-  if(isDevHardwireMode() && currentOrgId) return 'Dev · connected';
+  const orgLabel = (typeof getHardcodedOrgName === 'function' && currentOrgId)
+    ? getHardcodedOrgName(currentOrgId)
+    : ((store && store.organisationName) || '');
+  if(isDevHardwireMode() && !currentOrgId) return 'Connecting…';
+  if(isDevHardwireMode() && syncStatus === 'synced'){
+    return (orgLabel || 'Synced') + (syncLastSync ? ' · ' + timeAgo(syncLastSync) : '');
+  }
+  if(isDevHardwireMode() && currentOrgId) return (orgLabel || 'Connected');
   if(!currentOrgId) return (isAuthRequired() || isSyncEnabled()) ? 'Sign in to sync' : 'Local only';
   if(syncStatus === 'syncing') return 'Syncing…';
   if(syncStatus === 'error') return (typeof syncDirty!=='undefined' && syncDirty) ? 'Not saved — will retry' : 'Sync error';

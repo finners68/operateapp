@@ -277,6 +277,10 @@ async function authBoot(){
 }
 
 async function listOrganisationsForUser(){
+  if(typeof isDevHardwireMode === 'function' && isDevHardwireMode()
+      && typeof getHardcodedOrgs === 'function'){
+    return getHardcodedOrgs();
+  }
   const sb = getSupabase();
   const user = authUser || (typeof getAuthUser === 'function' ? await getAuthUser() : null);
   if(!sb || !user) return [];
@@ -298,7 +302,7 @@ async function switchOrganisation(orgId){
   const orgs = await listOrganisationsForUser();
   const match = orgs.find(o => o.id === nextId);
   if(!match){
-    toast('You do not have access to that organisation', 'x');
+    toast('That organisation is not available', 'x');
     return;
   }
 
@@ -314,16 +318,15 @@ async function switchOrganisation(orgId){
   setStoredOrgId(nextId);
 
   try{
-    toast('Switching organisation…');
+    toast('Switching to ' + match.name + '…');
     await loadFromSupabase(nextId);
-    const name = await fetchOrganisationName(nextId);
-    if(store && name) store.organisationName = name;
+    if(store) store.organisationName = match.name;
     if(typeof startRealtime === 'function') startRealtime(nextId);
     if(typeof syncSetStatus === 'function') syncSetStatus('synced');
     if(typeof syncMarkLastSync === 'function') syncMarkLastSync();
     if(typeof renderView === 'function') renderView();
     sheetAccount();
-    toast('Switched to ' + (name || match.name), 'check');
+    toast('Showing ' + match.name, 'check');
   }catch(e){
     console.error('switchOrganisation', e);
     toast('Could not switch organisation', 'x');
@@ -336,7 +339,18 @@ function sheetAccount(){
     return;
   }
   if(isDevHardwireMode()){
-    openSheetReact('Account & sync', 'auth.account', { mode: 'dev', statusLabel: syncStatusLabel() });
+    const orgs = typeof getHardcodedOrgs === 'function' ? getHardcodedOrgs() : [];
+    const orgId = currentOrgId || (store && store.organisationId) || (orgs[0] && orgs[0].id) || '';
+    const orgName = (store && store.organisationName)
+      || (typeof getHardcodedOrgName === 'function' ? getHardcodedOrgName(orgId) : '')
+      || '';
+    openSheetReact('Organisation', 'auth.account', {
+      mode: 'orgSwitch',
+      orgId,
+      orgName,
+      orgs,
+      statusLabel: syncStatusLabel()
+    });
     return;
   }
   if(!isAuthRequired() && !authUser){
@@ -348,7 +362,7 @@ function sheetAccount(){
         singleAccount: isSingleAccountMode(),
         message: isSingleAccountMode()
           ? `This app syncs to one account only${emailVal ? ` (${emailVal})` : ''}. Sign in to load and save tour data.`
-          : 'Sign in with your email, then pick JAKE or FIN from the organisation list.'
+          : 'Sign in with your email, then pick an organisation.'
       });
       return;
     }

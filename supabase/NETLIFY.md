@@ -48,26 +48,20 @@ Do **not** set `OPERATE_ALLOWED_USER_ID` / `OPERATE_ALLOWED_EMAIL` in this mode.
 
 See [`seed/README.md`](seed/README.md) for details.
 
-### Option B — Multi-org (JAKE + FIN)
+### Option B — Hardcoded JAKE + FIN (no login)
 
-Each signed-in email loads its own organisation. Do **not** set a fixed org id.
+The app always shows **JAKE** and **FIN** in Settings → Organisation. No magic link.
 
 | Key | Value |
 |-----|-------|
 | `SYNC_ENABLED` | `true` |
-| `REQUIRE_AUTH` | `false` (or `true` to force sign-in before use) |
-| `OPERATE_DEV_MODE` | remove / unset |
-| `OPERATE_ORG_ID` | remove / unset |
-| `OPERATE_ALLOWED_USER_ID` | remove / unset |
-| `OPERATE_ALLOWED_EMAIL` | remove / unset |
+| `REQUIRE_AUTH` | `false` |
+| `OPERATE_ORG_ID` | remove |
+| `OPERATE_ALLOWED_USER_ID` | remove |
+| `OPERATE_ALLOWED_EMAIL` | remove |
+| `OPERATE_DEV_MODE` | optional / unused |
 
-Accounts (operate-dev):
-
-| Email | Can switch between |
-|-------|--------------------|
-| either signed-in account | **JAKE** and **FIN** (selection list in Settings → Account) |
-
-Both accounts are owners on both organisations so you can switch from the list without signing out.
+Org IDs are hardcoded in the app. Apply [`migrations/011_hardwire_anon_jake_and_fin.sql`](migrations/011_hardwire_anon_jake_and_fin.sql) so both orgs sync without sign-in.
 
 ### Option C — Single-org with magic link (legacy)
 
@@ -79,7 +73,7 @@ Both accounts are owners on both organisations so you can switch from the list w
 
 Only the configured user can sync. Other accounts are signed out immediately and cannot push changes.
 
-> Prefer **Option B** when more than one organisation is in use.
+> Prefer **Option B** for the current two-workspace setup.
 
 ## 3. Deploy
 
