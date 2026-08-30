@@ -1,5 +1,5 @@
 import { useSyncExternalStore } from 'react';
-import { getStore, subscribeStore, call, g } from '../show/bridge.js';
+import { call, getAccountTypes, getAuthUser, getStore, pad, subscribeStore } from '../api/operate.js';
 import { Icon } from '../show/ui.jsx';
 
 function useStoreTick(){
@@ -44,12 +44,12 @@ export default function SettingsPage(){
   const sec = s.security || {};
   const secOn = !!call('secOn');
   const scopeLabel = !secOn ? 'Off' : sec.scope === 'app' ? 'Whole app' : 'Finance only';
-  const types = g('ACCOUNT_TYPES') || {};
+  const types = getAccountTypes() || {};
   const acct = call('acct') || { label: '' };
   const backLabel = call('overlayBackLabel') || 'Back';
   const sidebarHidden = !!call('isSidebarHidden');
   const syncOn = !!call('syncActive');
-  const authUser = g('authUser');
+  const authUser = getAuthUser();
   const accountTitle = call('isDevHardwireMode')
     ? 'Dev mode'
     : (authUser?.email

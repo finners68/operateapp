@@ -1,5 +1,5 @@
 import { Icon } from '../../show/ui.jsx';
-import { call, g, getEvent, getStore } from '../../show/bridge.js';
+import { call, getCats, getDaySheetText, getDriverJourneys, getEvent, getPassFileAccept, getStore, parseDT } from '../../api/operate.js';
 
 const Field = ({ label, id, value = '', placeholder, type = 'text', className = 'input', children, ...rest }) => (
   <div className="field">
@@ -19,7 +19,7 @@ const Seg = ({ id, values, selected, onPick }) => (
   })}</div>
 );
 const Swatches = ({ id, selected = 'purple' }) => {
-  const cats = g('CATS') || {};
+  const cats = getCats() || {};
   return <div className="swatches" id={id}>{Object.entries(cats).map(([key, color]) =>
     <div key={key} className={`sw${key === selected ? ' on' : ''}`} style={{ background: color }} data-cat={key} onClick={e => call('pickCat', e.currentTarget)} />
   )}</div>;
@@ -31,7 +31,7 @@ export function ShowEventSheet({ eid, event }){
   const now = new Date();
   const date = e?.date || `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
   const cat = e?.color || 'purple';
-  const color = (g('CATS') || {})[cat] || '#7c3aed';
+  const color = (getCats() || {})[cat] || '#7c3aed';
   return <>
     <div className="dhero sheet-event-preview" id="ev-preview" style={{ background:`linear-gradient(155deg,${color}33,var(--card) 65%)`, borderColor:`${color}44` }}>
       <div className="cat-bar" style={{ background:color }} />
@@ -89,7 +89,7 @@ function PaxRow({ pax, eid, fid }){
   const pid=pax.id || call('uid','pax') || `pax-${Math.random()}`;
   return <div className="fl-pax-row" data-pax-id={pid} style={{border:'1px solid var(--stroke)',borderRadius:12,padding:12,marginBottom:8}}>
     <div className="row-2"><Field label="Name"><input className="input fl-pax-name" defaultValue={pax.name||''} placeholder="Passenger name"/></Field><Field label="Seat"><input className="input fl-pax-seat" defaultValue={pax.seat||''} placeholder="4A"/></Field></div>
-    {fid?<label className="btn secondary" style={{marginTop:8,display:'inline-flex'}}><Icon name="ticket" size={15}/> Boarding pass<input type="file" accept={g('PASS_FILE_ACCEPT')||'image/*,application/pdf'} hidden onChange={e=>call('uploadPass',eid,fid,e.currentTarget,pid)}/></label>:<div className="hint" style={{padding:'6px 2px 0'}}>Save the flight first to attach boarding passes.</div>}
+    {fid?<label className="btn secondary" style={{marginTop:8,display:'inline-flex'}}><Icon name="ticket" size={15}/> Boarding pass<input type="file" accept={getPassFileAccept()||'image/*,application/pdf'} hidden onChange={e=>call('uploadPass',eid,fid,e.currentTarget,pid)}/></label>:<div className="hint" style={{padding:'6px 2px 0'}}>Save the flight first to attach boarding passes.</div>}
     <button type="button" className="btn secondary" style={{marginTop:8}} onClick={e=>call('removeFlightPaxFromSheet',e.currentTarget,eid,fid||'',pid)}><Icon name="trash" size={14}/> Remove person</button>
   </div>;
 }
@@ -150,7 +150,7 @@ export function ShowFlightInfoSheet({ id, item }){
 
 export function ShowTransportSheet({ eid, idx, driver, journeys }){
   const list=call('showDrivers',eventOf({eid}))||[]; const d=driver || (idx!=null?list[idx]:null) || {}; const none=!!d.noGround;
-  const presets=journeys || g('DRIVER_JOURNEYS') || [];
+  const presets=journeys || getDriverJourneys() || [];
   return <><Field label="Journey (optional)" id="dr-journey" value={d.journey} placeholder="e.g. Hotel → Airport"><><input id="dr-journey" className="input" defaultValue={d.journey||''} placeholder="e.g. Hotel → Airport"/><div className="chips" style={{marginTop:8}}>{presets.map(j=><button type="button" className="chip" key={j} onClick={()=>{const el=document.getElementById('dr-journey');if(el)el.value=j;call('haptic')}}>{j}</button>)}</div></></Field>
     <Field label="Time (optional)" id="dr-time" type="time" value={d.time}/><Field label="Arrangement"><Seg id="dr-mode" values={[['driver','Driver contact'],['none','No grounds · Uber/Taxi']]} selected={none?'none':'driver'} onPick={()=>call('drModeToggle')}/></Field>
     <div id="dr-none-hint" className="hint" style={{display:none?'':'none',padding:'2px 2px 12px'}}>No ground transport provided for this journey — book an Uber or taxi.</div>
@@ -174,4 +174,4 @@ export function ShowTimelineAddSheet({tid}){return <><div className="row-2"><Fie
 export function ShowEmergencySheet({tid}){return <><Field label="Name" id="em-name" placeholder="Manager — Alex"/><Field label="Phone" id="em-phone" type="tel" placeholder="+44 7700 900123"/><button className="btn" id="em-save" onClick={()=>call('saveEmergency',tid)}>Add contact</button><Spacer /></>;}
 export function ShowDealSheet({eid,finance}){const e=eventOf({eid}),f=finance||e.finance||{},s=getStore()?.settings||{},currencies=Object.keys(s.fx||{});return <><div className="row-2"><Field label="Fee" id="fi-fee" type="number" inputMode="decimal" value={f.fee} placeholder="8000"/><Field label="Currency"><select id="fi-cur" className="input" defaultValue={f.currency||s.baseCurrency}>{currencies.map(c=><option key={c}>{c}</option>)}</select></Field></div><Field label="Deal type"><Seg id="fi-deal" values={['Guarantee','Guarantee + Bonus','Door split','Fee + Travel']} selected={f.dealType||'Guarantee'}/></Field><div className="row-2"><Field label="Agent commission %" id="fi-comm" type="number" inputMode="decimal" value={f.commission} placeholder="10"/><Field label="Per diem" id="fi-pd" type="number" inputMode="decimal" value={f.perDiem} placeholder="150"/></div><Field label="Payment status"><Seg id="fi-paid" values={[['0','Unpaid'],['1','Paid']]} selected={f.paid?'1':'0'}/></Field><Field label="Fee visibility"><Seg id="fi-nd" values={[['0','Show fee'],['1','Not disclosed']]} selected={f.notDisclosed?'1':'0'}/></Field><button className="btn" id="fi-save" onClick={()=>call('saveFinance',eid)}>Save deal</button><div className="hint" style={{textAlign:'left',paddingTop:10}}>Foreign fees auto-convert to {s.baseCurrency}.</div><Spacer /></>;}
 export function ShowExpenseSheet({eid}){return <><div className="row-2"><Field label="What" id="ex-label" placeholder="Flights, hotel, gear…"/><Field label="Amount" id="ex-amt" type="number" inputMode="decimal" placeholder="220"/></div><button className="btn" onClick={()=>call('saveExpense',eid)}>Add expense</button><Spacer /></>;}
-export function ShowDaySheet({eid,text,share=true}){const value=text ?? g('__daysheet') ?? '';return <><div className="card" style={{whiteSpace:'pre-wrap',fontSize:13.5,lineHeight:1.55,fontFamily:'ui-monospace,Menlo,monospace',color:'var(--text-2)',maxHeight:'52dvh',overflow:'auto'}}>{value}</div><Spacer/><div style={{display:'flex',gap:9}}><button className="btn" style={{flex:1}} onClick={()=>{call('copyText',value);call('closeSheet')}}><Icon name="copy" size={16}/> Copy</button>{share&&typeof navigator!=='undefined'&&navigator.share?<button className="btn secondary" style={{flex:1}} onClick={()=>call('daySheetShare')}><Icon name="share" size={16}/> Share</button>:null}</div>{eid?<button className="btn secondary" style={{marginTop:9}} onClick={()=>call('printDaySheet',eid)}><Icon name="file" size={16}/> Print / Save as PDF</button>:null}<Spacer /></>;}
+export function ShowDaySheet({eid,text,share=true}){const value=text ?? getDaySheetText() ?? '';return <><div className="card" style={{whiteSpace:'pre-wrap',fontSize:13.5,lineHeight:1.55,fontFamily:'ui-monospace,Menlo,monospace',color:'var(--text-2)',maxHeight:'52dvh',overflow:'auto'}}>{value}</div><Spacer/><div style={{display:'flex',gap:9}}><button className="btn" style={{flex:1}} onClick={()=>{call('copyText',value);call('closeSheet')}}><Icon name="copy" size={16}/> Copy</button>{share&&typeof navigator!=='undefined'&&navigator.share?<button className="btn secondary" style={{flex:1}} onClick={()=>call('daySheetShare')}><Icon name="share" size={16}/> Share</button>:null}</div>{eid?<button className="btn secondary" style={{marginTop:9}} onClick={()=>call('printDaySheet',eid)}><Icon name="file" size={16}/> Print / Save as PDF</button>:null}<Spacer /></>;}

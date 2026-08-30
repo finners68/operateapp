@@ -1,5 +1,5 @@
 import { useSyncExternalStore } from 'react';
-import { getStore, subscribeStore, call, g } from '../show/bridge.js';
+import { call, fmtBase, fmtDate, fmtMoney, getStore, pad, parseDT, subscribeStore, toBase } from '../api/operate.js';
 import { Icon } from '../show/ui.jsx';
 
 function useStoreTick(){
@@ -40,12 +40,6 @@ export default function InvoiceDetailPage({ invoiceId }){
 
   const b = store?.settings?.billing || {};
   const total = call('invTotal', inv) || 0;
-  const parseDT = g('parseDT');
-  const pad = g('pad') || ((n) => String(n).padStart(2, '0'));
-  const fmtDate = g('fmtDate');
-  const fmtMoney = g('fmtMoney');
-  const fmtBase = g('fmtBase');
-  const toBase = g('toBase');
   const base = store?.settings?.baseCurrency;
   let due = '';
   const d = parseDT ? parseDT(inv.date) : null;

@@ -1,5 +1,5 @@
 import { useSyncExternalStore } from 'react';
-import { getStore, subscribeStore, call, g } from '../show/bridge.js';
+import { call, esc, getCats, getStore, relDay, showPassed, subscribeStore } from '../api/operate.js';
 import { Icon } from '../show/ui.jsx';
 
 function useStoreTick(){
@@ -13,13 +13,11 @@ function useStoreTick(){
 export default function PastShowsPage(){
   useStoreTick();
   const store = getStore();
-  const cats = g('CATS') || {};
+  const cats = getCats() || {};
   const past = (store?.events || [])
-    .filter(e => !!call('showPassed', e))
+    .filter(e => !!showPassed(e))
     .sort((a, b) => (b.date || '').localeCompare(a.date || ''));
   const backLabel = call('overlayBackLabel') || 'Back';
-  const esc = g('esc') || (s => String(s ?? ''));
-  const relDay = g('relDay') || (() => '');
 
   return (
     <>

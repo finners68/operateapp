@@ -1,12 +1,11 @@
 import { Icon } from '../../show/ui.jsx';
-import { call, g, getStore } from '../../show/bridge.js';
+import { call, fmtDate, getCats, getStore } from '../../api/operate.js';
 
 const Field=({label,id,value='',placeholder,type='text',children})=><div className="field"><label>{label}</label>{children||<input id={id} type={type} className="input" defaultValue={value||''} placeholder={placeholder}/>}</div>;
 const Spacer=()=> <div className="spacer"/>;
 const store=()=>getStore()||{};
 const itinerary=id=>(store().itineraries||[]).find(x=>x.id===id)||{};
 const shows=()=> (store().events||[]).filter(e=>(e.kind||'show')==='show');
-const fmtDate=v=>call('fmtDate',v)||v||'';
 
 export function ItineraryStartSheet(){
   return <><p className="sheet-lede">First choose what this upload is for — then pick the file.</p><div className="edit-section-grid">
@@ -32,7 +31,7 @@ export function ItineraryReviewSheet({id,fields}){
   const normalDate=call('normalizeScanDate',f.date), normalTime=v=>call('normalizeScanTime',v)||'';
   const now=new Date(),today=`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
   const venue=f.venue||f.venueName||'',date=normalDate||it.date||today,status=f.status||'confirmed',cat=f.color||'purple';
-  const color=(g('CATS')||{})[cat]||'#7c3aed';
+  const color=(getCats()||{})[cat]||'#7c3aed';
   return <>
     <div className="dhero sheet-event-preview" id="ev-preview" style={{background:`linear-gradient(155deg,${color}33,var(--card) 65%)`,borderColor:`${color}44`}}><div className="cat-bar" style={{background:color}}/><div className="sheet-event-tone" style={{fontSize:12,fontWeight:700,textTransform:'uppercase',letterSpacing:'.06em',color}}>New show from itinerary</div><div id="ev-preview-venue" style={{fontSize:20,fontWeight:800,marginTop:4}}>{venue||'Venue name'}</div></div>
     <Field label="Venue" id="itn-rev-venue" value={venue} placeholder="e.g. Shelter"/>
@@ -46,7 +45,7 @@ export function ItineraryReviewSheet({id,fields}){
     <Field label="Status"><div className="seg" id="itn-rev-status">{statuses.map(s=><button type="button" data-v={s} className={status===s?'on':''} key={s} onClick={e=>call('segPick',e.currentTarget)}>{s[0].toUpperCase()+s.slice(1)}</button>)}</div></Field>
     <Field label="Content to capture" id="itn-rev-content" value={f.content} placeholder="e.g. 2x reels · crowd clip"/>
     <div className="field"><label>Internal notes</label><textarea id="itn-rev-notes" className="textarea" defaultValue={f.notes||f.remarks||''} placeholder="Team-only notes"/></div>
-    <Field label="Colour"><div className="swatches" id="itn-rev-cat">{Object.entries(g('CATS')||{}).map(([k,v])=><div className={`sw${k===cat?' on':''}`} style={{background:v}} data-cat={k} key={k} onClick={e=>call('pickCat',e.currentTarget)}/>)}</div></Field>
+    <Field label="Colour"><div className="swatches" id="itn-rev-cat">{Object.entries(getCats()||{}).map(([k,v])=><div className={`sw${k===cat?' on':''}`} style={{background:v}} data-cat={k} key={k} onClick={e=>call('pickCat',e.currentTarget)}/>)}</div></Field>
     <button className="btn" id="itn-rev-save" onClick={()=>call('saveItineraryReview',id)}>Create show</button>
     <button className="btn secondary" style={{marginTop:10}} onClick={()=>call('scanItineraryForReview',id)}><Icon name="checkList" size={15}/> Send to Make again</button>
     <button className="btn danger" style={{marginTop:10}} onClick={()=>call('discardItineraryReview',id)}><Icon name="trash" size={15}/> Discard upload</button><Spacer/>

@@ -1,5 +1,5 @@
 import { useSyncExternalStore } from 'react';
-import { getStore, subscribeStore, call, g } from '../show/bridge.js';
+import { call, fmtBase, fmtMoney, getMoney, getSel, getStore, pad, relDay, subscribeStore, toBase } from '../api/operate.js';
 import { Icon } from '../show/ui.jsx';
 
 function useStoreTick(){
@@ -13,9 +13,9 @@ function useStoreTick(){
 export default function FinancePage(){
   useStoreTick();
   const store = getStore();
-  const sel = g('sel');
+  const sel = getSel();
   const all = sel?.events ? sel.events() : [];
-  const money = g('money');
+  const money = getMoney();
   const s = money?.summary ? money.summary(all) : {};
   const base = store?.settings?.baseCurrency || '';
   const upcoming = sel?.upcoming ? sel.upcoming() : [];
@@ -24,10 +24,6 @@ export default function FinancePage(){
   const locked = secOn && store?.settings?.security?.scope !== 'off';
   const invCount = (store?.invoices || []).length;
   const backLabel = call('overlayBackLabel') || 'Back';
-  const fmtBase = g('fmtBase');
-  const fmtMoney = g('fmtMoney');
-  const toBase = g('toBase');
-  const relDay = g('relDay');
   const byCur = s.byCur || {};
 
   return (

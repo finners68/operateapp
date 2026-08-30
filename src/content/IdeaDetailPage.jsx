@@ -1,5 +1,5 @@
 import { useSyncExternalStore } from 'react';
-import { getStore, subscribeStore, call, g } from '../show/bridge.js';
+import { call, getIdeaTypes, getPrio, getSel, getStore, pad, relDay, subscribeStore, timeAgo } from '../api/operate.js';
 import { Icon } from '../show/ui.jsx';
 
 function useStoreTick(){
@@ -38,12 +38,10 @@ export default function IdeaDetailPage({ ideaId }){
   const idea = (store?.ideas || []).find(x => x.id === ideaId);
   if(!idea) return <MissingIdea />;
 
-  const types = g('IDEA_TYPES') || {};
-  const PRIO = g('PRIO') || {};
+  const types = getIdeaTypes() || {};
+  const PRIO = getPrio() || {};
   const t = types[idea.type] || types.other || { label: 'Idea', color: 'var(--accent-2)', icon: 'idea' };
-  const timeAgo = g('timeAgo');
-  const relDay = g('relDay');
-  const sel = g('sel');
+  const sel = getSel();
   const linkedShow = idea.eventId && sel?.event ? sel.event(idea.eventId) : null;
 
   return (

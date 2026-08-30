@@ -1,5 +1,5 @@
 import { useSyncExternalStore, useEffect, useRef } from 'react';
-import { getStore, subscribeStore, call, g } from '../show/bridge.js';
+import { call, getCalendarState, getCats, getDow, getMonths, getSel, getStore, itemSort, parseDT, relDay, showPassed, subscribeStore } from '../api/operate.js';
 import { Icon } from '../show/ui.jsx';
 
 function useStoreTick(){
@@ -11,7 +11,7 @@ function useStoreTick(){
 }
 
 function calState(){
-  const fn = g('getCalendarState');
+  const fn = getCalendarState;
   if(typeof fn === 'function') return fn();
   const now = new Date();
   return { y: now.getFullYear(), m: now.getMonth(), sel: null, gridOpen: true };
@@ -34,7 +34,7 @@ function todayStr(){
 
 function eventsByDate(){
   const byDate = {};
-  const sel = g('sel');
+  const sel = getSel();
   const list = sel?.events ? sel.events() : [];
   list.forEach(e => {
     if(!e?.date) return;
@@ -82,10 +82,7 @@ function AgendaItem({ e }){
 
 function MonthAgenda({ y, m, sel, today }){
   const store = getStore();
-  const parseDT = g('parseDT');
-  const showPassed = g('showPassed');
-  const itemSort = g('itemSort');
-  const DOW = g('DOW') || [];
+  const DOW = getDow() || [];
   const days = {};
   (store?.events || []).forEach(e => {
     if(e.kind === 'travel' || e.kind === 'stay') return;
@@ -130,9 +127,9 @@ function MonthAgenda({ y, m, sel, today }){
 }
 
 function CalGrid({ y, m, sel, today }){
-  const MONTHS = g('MONTHS') || [];
-  const DOW = g('DOW') || [];
-  const CATS = g('CATS') || {};
+  const MONTHS = getMonths() || [];
+  const DOW = getDow() || [];
+  const CATS = getCats() || {};
   const first = new Date(y, m, 1);
   const startDow = first.getDay();
   const daysInMonth = new Date(y, m + 1, 0).getDate();
@@ -189,7 +186,7 @@ function CalGrid({ y, m, sel, today }){
 }
 
 function CalCollapsedStrip({ y, m }){
-  const MONTHS = g('MONTHS') || [];
+  const MONTHS = getMonths() || [];
   return (
     <div className="card tap cal-grid-collapsed-strip" onClick={() => call('toggleCalGrid')}>
       <div style={{ color: 'var(--accent-2)' }}><Icon name="calendar" size={18} /></div>
@@ -206,14 +203,12 @@ function CalCollapsedStrip({ y, m }){
 export default function CalendarPage(){
   useStoreTick();
   const { y, m, sel, gridOpen } = calState();
-  const MONTHS = g('MONTHS') || [];
+  const MONTHS = getMonths() || [];
   const today = todayStr();
-  const selApi = g('sel');
+  const selApi = getSel();
   const showCount = selApi?.events ? selApi.events().length : 0;
   const store = getStore();
-  const showPassed = g('showPassed');
   const pastN = (store?.events || []).filter(e => showPassed && showPassed(e)).length;
-  const relDay = g('relDay');
   const calSub = showCount
     ? `${showCount} show${showCount !== 1 ? 's' : ''} · tap a day to filter the list`
     : 'Tap + to add a show · swipe the calendar to change month';

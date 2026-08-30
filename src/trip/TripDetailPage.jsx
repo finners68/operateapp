@@ -1,5 +1,5 @@
 import { useSyncExternalStore } from 'react';
-import { getStore, subscribeStore, call, g } from '../show/bridge.js';
+import { call, getStore, pad, subscribeStore } from '../api/operate.js';
 import { Icon } from '../show/ui.jsx';
 import { TripDashboard } from './TripModePage.jsx';
 

@@ -1,5 +1,5 @@
 import { useSyncExternalStore } from 'react';
-import { getStore, subscribeStore, call, g } from '../show/bridge.js';
+import { call, getContactFilter, getRoles, getStore, pad, subscribeStore } from '../api/operate.js';
 import { Icon } from '../show/ui.jsx';
 
 function useStoreTick(){
@@ -11,7 +11,7 @@ function useStoreTick(){
 }
 
 function ContactRow({ c }){
-  const ROLES = g('ROLES') || {};
+  const ROLES = getRoles() || {};
   const col = ROLES[c.role] || ROLES.Other || 'var(--accent-2)';
   const initial = ((c.name || '?').trim()[0] || '?').toUpperCase();
   return (
@@ -40,7 +40,7 @@ function ContactRow({ c }){
 export default function ContactsPage(){
   useStoreTick();
   const store = getStore();
-  const filter = (typeof g('contactFilter') !== 'undefined' ? g('contactFilter') : 'all') || 'all';
+  const filter = (getContactFilter()) || 'all';
   const all = (store?.contacts || []).slice().sort((a, b) => String(a.name || '').localeCompare(String(b.name || '')));
   const roles = [...new Set(all.map(c => c.role).filter(Boolean))];
   const list = filter === 'all' ? all : all.filter(c => c.role === filter);

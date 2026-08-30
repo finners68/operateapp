@@ -1,5 +1,5 @@
 import { useSyncExternalStore } from 'react';
-import { getStore, subscribeStore, call, g } from '../show/bridge.js';
+import { call, getSel, getStore, pad, subscribeStore, timeAgo } from '../api/operate.js';
 import { Icon } from '../show/ui.jsx';
 
 function useStoreTick(){
@@ -11,7 +11,6 @@ function useStoreTick(){
 }
 
 function NoteRow({ note }){
-  const timeAgo = g('timeAgo');
   const preview = (note.body || '').split('\n').filter(Boolean)[0] || 'No additional text';
   return (
     <div className="note-row" onClick={() => call('openView', 'note', note.id)}>
@@ -49,7 +48,7 @@ function MissingFolder(){
 
 export default function NoteFolderPage({ folderId }){
   useStoreTick();
-  const sel = g('sel');
+  const sel = getSel();
   const folder = sel?.noteFolder ? sel.noteFolder(folderId) : null;
   if(!folder) return <MissingFolder />;
   const list = sel?.notesInFolder ? sel.notesInFolder(folderId) : [];

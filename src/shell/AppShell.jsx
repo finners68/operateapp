@@ -1,6 +1,6 @@
 import { useSyncExternalStore, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { getStore, subscribeStore, call, g } from '../show/bridge.js';
+import { activeNavTab, call, enhanceDateTimeFields, getContentMode, getOverlay, getStore, getTabs, subscribeStore } from '../api/operate.js';
 import { Icon } from '../show/ui.jsx';
 import {
   subscribeChrome, getChromeSeq,
@@ -22,14 +22,12 @@ function useChromeTick(){
 }
 
 function activeTab(){
-  const fn = g('activeNavTab');
-  if(typeof fn === 'function') return fn();
-  return getStore()?.tab || 'home';
+  return activeNavTab();
 }
 
 export function NavBar(){
   useStoreTick();
-  const tabs = g('TABS') || [];
+  const tabs = getTabs() || [];
   const active = activeTab();
 
   return (
@@ -58,13 +56,13 @@ export function NavBar(){
 }
 
 function fabAction(){
-  const overlay = g('overlay');
+  const overlay = getOverlay();
   const store = getStore();
   if(!overlay){
     const tab = store?.tab;
     if(tab === 'shows' || tab === 'calendar') return () => call('sheetEvent');
     if(tab === 'ideas'){
-      const mode = g('contentMode');
+      const mode = getContentMode();
       return mode === 'notes'
         ? () => call('sheetNoteAddChoice')
         : () => call('sheetIdea');
@@ -148,7 +146,7 @@ export function SheetHost(){
   useEffect(() => {
     if(!sheet?.open || !sheetRef.current) return;
     if(typeof window !== 'undefined') window.sheetEl = sheetRef.current;
-    const enhance = g('enhanceDateTimeFields');
+    const enhance = enhanceDateTimeFields;
     if(typeof enhance === 'function') enhance(sheetRef.current);
     const actionBtn = sheetRef.current.querySelector('#sheet-action');
     const opts = sheet.opts || {};

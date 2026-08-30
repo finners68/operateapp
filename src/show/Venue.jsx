@@ -1,4 +1,4 @@
-import { call } from './bridge.js';
+import { call } from '../api/operate.js';
 import { Subsection, EmptyTap, FieldTx, Icon } from './ui.jsx';
 
 function AdvRow({ icon, label, value, extra }){

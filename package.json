@@ -1,7 +1,7 @@
 {
   "name": "operate",
   "private": true,
-  "description": "Operate — touring operations PWA. Vanilla shell + React show-page island.",
+  "description": "Operate — touring operations PWA. React app (HashRouter) + vanilla persist/sync engine.",
   "type": "module",
   "scripts": {
     "check": "node scripts/check-syntax.mjs",
@@ -11,7 +11,8 @@
   },
   "dependencies": {
     "react": "^19.2.8",
-    "react-dom": "^19.2.8"
+    "react-dom": "^19.2.8",
+    "react-router-dom": "^7.18.3"
   },
   "devDependencies": {
     "@vitejs/plugin-react": "^6.1.1",

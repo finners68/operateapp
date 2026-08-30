@@ -1,4 +1,4 @@
-import { call, g, getStore } from './bridge.js';
+import { call, fmtBase, fmtMoney, getMoney, getStore } from '../api/operate.js';
 import { Icon } from './ui.jsx';
 
 export default function DealGroup({ show }){
@@ -16,14 +16,11 @@ export default function DealGroup({ show }){
     );
   }
 
-  const money = g('money');
+  const money = getMoney();
   const c = money && money.eventCalc ? money.eventCalc(show) : { gross: 0, cur: 'EUR', paid: false, net: 0 };
   const store = getStore();
   const base = store?.settings?.baseCurrency;
   const showBase = c.cur && base && c.cur !== base;
-  const fmtMoney = g('fmtMoney');
-  const fmtBase = g('fmtBase');
-
   if(!c.gross){
     return (
       <div className="card tap" style={{ textAlign: 'center', color: 'var(--text-3)', padding: 16 }} onClick={() => call('sheetFinance', show.id)}>

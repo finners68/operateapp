@@ -1,5 +1,5 @@
 import { useSyncExternalStore } from 'react';
-import { getStore, subscribeStore, call, g } from '../show/bridge.js';
+import { call, esc, getStore, pad, subscribeStore } from '../api/operate.js';
 import { Icon } from '../show/ui.jsx';
 
 function useStoreTick(){
@@ -31,7 +31,6 @@ export default function StatsPage(){
   const st = call('computeStats') || {};
   const y = st.year || {};
   const EARTH = 40075;
-  const esc = g('esc') || (s => String(s ?? ''));
   const kmVal = y.km > 0 ? `${y.km.toLocaleString()} km` : '—';
   const kmSub = y.km >= EARTH
     ? `≈ ${(y.km / EARTH).toFixed(1)}× around the world`

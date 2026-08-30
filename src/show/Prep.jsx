@@ -1,4 +1,4 @@
-import { call, g, getStore } from './bridge.js';
+import { call, getIdeaTypes, getStore } from '../api/operate.js';
 import { Subsection, EmptyTap, Icon } from './ui.jsx';
 
 function openTimelineStep(show, s){
@@ -117,7 +117,7 @@ export function Notes({ show }){
 export function ContentBlock({ show }){
   const store = getStore();
   const linked = (store?.ideas || []).filter(x => x.eventId === show.id);
-  const types = g('IDEA_TYPES') || {};
+  const types = getIdeaTypes() || {};
   const has = !!(show.content || linked.length);
 
   return (

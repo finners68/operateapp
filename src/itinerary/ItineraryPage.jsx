@@ -1,5 +1,5 @@
 import { useSyncExternalStore } from 'react';
-import { getStore, subscribeStore, call, g, getEvent } from '../show/bridge.js';
+import { call, esc, fmtDate, getEvent, getStore, subscribeStore } from '../api/operate.js';
 import { Icon } from '../show/ui.jsx';
 
 function useStoreTick(){
@@ -11,8 +11,6 @@ function useStoreTick(){
 }
 
 function ItinCard({ it }){
-  const esc = g('esc') || (s => String(s ?? ''));
-  const fmtDate = g('fmtDate') || (d => d || '');
   const show = it.showId ? getEvent(it.showId) : null;
   const pending = !!(it.scanFields && !it.showId);
   const when = (it.date ? fmtDate(it.date) : '') + (it.time ? ` · ${it.time}` : '');

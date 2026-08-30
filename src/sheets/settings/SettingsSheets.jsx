@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { Icon } from '../../show/ui.jsx';
-import { call, g, getStore } from '../../show/bridge.js';
+import { call, getCursym, getStore } from '../../api/operate.js';
 
 const Spacer=()=> <div className="spacer"/>;
 const Field=({label,id,value='',placeholder,type='text',children,...rest})=><div className="field"><label>{label}</label>{children||<input id={id} type={type} className="input" defaultValue={value||''} placeholder={placeholder} {...rest}/>}</div>;
@@ -17,7 +17,7 @@ export function SettingsProfileNameSheet({value}){
 }
 export function SettingsCurrencySheet({settings}){
   const s=settings||getStore()?.settings||{}, currencies=Object.keys(s.fx||{});
-  return <><Field label="Base currency"><select id="set-base" className="input" defaultValue={s.baseCurrency}>{currencies.map(c=><option value={c} key={c}>{c} {(g('CURSYM')||{})[c]?`(${g('CURSYM')[c]})`:''}</option>)}</select><div className="hint" style={{textAlign:'left',padding:'6px 2px'}}>All earnings roll up into this currency.</div></Field><div className="field"><label>Exchange rates (value of 1 unit in {s.baseCurrency})</label><div id="set-rates">{currencies.filter(c=>c!==s.baseCurrency).map(c=><div key={c} style={{display:'flex',alignItems:'center',gap:10,marginBottom:8}}><span style={{width:52,fontWeight:700,color:'var(--text-2)'}}>{c}</span><input className="input" data-cur={c} type="number" step="0.0001" inputMode="decimal" defaultValue={s.fx[c]} style={{flex:1,padding:'9px 12px'}}/></div>)}</div></div><button className="btn" id="set-save" onClick={()=>call('saveCurrency')}>Save rates</button><Spacer/></>;
+  return <><Field label="Base currency"><select id="set-base" className="input" defaultValue={s.baseCurrency}>{currencies.map(c=><option value={c} key={c}>{c} {(getCursym()||{})[c]?`(${getCursym()[c]})`:''}</option>)}</select><div className="hint" style={{textAlign:'left',padding:'6px 2px'}}>All earnings roll up into this currency.</div></Field><div className="field"><label>Exchange rates (value of 1 unit in {s.baseCurrency})</label><div id="set-rates">{currencies.filter(c=>c!==s.baseCurrency).map(c=><div key={c} style={{display:'flex',alignItems:'center',gap:10,marginBottom:8}}><span style={{width:52,fontWeight:700,color:'var(--text-2)'}}>{c}</span><input className="input" data-cur={c} type="number" step="0.0001" inputMode="decimal" defaultValue={s.fx[c]} style={{flex:1,padding:'9px 12px'}}/></div>)}</div></div><button className="btn" id="set-save" onClick={()=>call('saveCurrency')}>Save rates</button><Spacer/></>;
 }
 export function SettingsPackingSheet({items}){
   const list=items||getStore()?.settings?.packingTemplate||[];

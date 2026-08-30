@@ -1,5 +1,5 @@
 import { useSyncExternalStore, useEffect } from 'react';
-import { getStore, subscribeStore, call, g } from '../show/bridge.js';
+import { call, fmtDate, fmtDateLong, getCats, getStore, pad, parseDT, relDay, subscribeStore, tickCountdowns } from '../api/operate.js';
 import { Icon, LegacyHtml, isOpen, setFold } from '../show/ui.jsx';
 
 function useStoreTick(){
@@ -57,7 +57,6 @@ function TripLegRow({ show, index, nextShow }){
   const bg = isNext ? { background: 'rgba(255,159,10,0.13)' } : undefined;
   const icBg = show.setDone ? 'rgba(50,215,75,0.18)' : isNext ? 'rgba(255,159,10,0.22)' : 'rgba(255,255,255,0.05)';
   const icCol = show.setDone ? 'var(--green)' : isNext ? 'var(--orange)' : 'var(--text-3)';
-  const fmtDate = g('fmtDate');
   return (
     <div className="row" style={bg} onClick={() => call('openView', 'event', show.id)}>
       <div className="ic" style={{ background: icBg, color: icCol, fontWeight: 800, fontSize: 13 }}>
@@ -80,7 +79,7 @@ function TripLegRow({ show, index, nextShow }){
 
 /** Shared live tour dashboard — used by Tour Mode tab (and matches tripBody). */
 export function TripDashboard({ run, compactHeader = false }){
-  const CATS = g('CATS') || {};
+  const CATS = getCats() || {};
   const c = CATS[run.color] || CATS.green || '#32d74b';
   const active = call('activeRun')?.key === run.key;
   const tl = call('runTimeline', run) || [];
@@ -91,9 +90,6 @@ export function TripDashboard({ run, compactHeader = false }){
     ? (call('stepShow', nextStep) || run.shows.find(s => !s.setDone))
     : null;
   const contacts = call('tourContacts', run) || [];
-  const fmtDate = g('fmtDate');
-  const fmtDateLong = g('fmtDateLong');
-  const relDay = g('relDay');
   const dayHtml = call('dayTimeline', run.key, run) || '';
   const pillsHtml = nextStep ? (call('stepPills', nextStep) || '') : '';
   const flightWidget = nextStep?.ref && nextStep.kind === 'travel' && (nextStep.ref.icon || 'plane') === 'plane'
@@ -215,7 +211,6 @@ export function TripDashboard({ run, compactHeader = false }){
 function pickTourRun(){
   const all = call('runs') || [];
   if(!all.length) return null;
-  const parseDT = g('parseDT');
   const today = new Date(); today.setHours(0, 0, 0, 0);
   return call('activeRun')
     || all.find(x => {
@@ -228,7 +223,7 @@ function pickTourRun(){
 export default function TripModePage(){
   const tick = useStoreTick();
   useEffect(() => {
-    const fn = g('tickCountdowns');
+    const fn = tickCountdowns;
     if(typeof fn === 'function') try{ fn(); }catch(_){}
   }, [tick]);
 
@@ -260,7 +255,6 @@ export default function TripModePage(){
 
   const r = pickTourRun();
   const active = call('activeRun') && call('activeRun').key === r.key;
-  const parseDT = g('parseDT');
   const today = new Date(); today.setHours(0, 0, 0, 0);
   const upcoming = all.filter(x => {
     const end = parseDT ? parseDT(x.end) : null;

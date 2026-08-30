@@ -1,5 +1,5 @@
 import { useSyncExternalStore, useRef, useEffect, useState } from 'react';
-import { getStore, subscribeStore, call, g, iconHtml } from '../show/bridge.js';
+import { call, fmtDate, getCats, getMon, getMonths, getSel, getShowsListState, getStore, iconHtml, notifyStore, pad, parseDT, relDay, showPassed, subscribeStore } from '../api/operate.js';
 import { Icon } from '../show/ui.jsx';
 
 function useStoreTick(){
@@ -11,7 +11,7 @@ function useStoreTick(){
 }
 
 function listState(){
-  const fn = g('getShowsListState');
+  const fn = getShowsListState;
   if(typeof fn === 'function') return fn();
   return { mode: 'shows', filter: 'upcoming', search: '' };
 }
@@ -24,12 +24,9 @@ function PageIntro({ id, title, body }){
 }
 
 function ShowRow({ show }){
-  const CATS = g('CATS') || {};
+  const CATS = getCats() || {};
   const col = CATS[show.color] || CATS.purple || '#6d5efc';
-  const fmtDate = g('fmtDate');
-  const relDay = g('relDay');
-  const parseDT = g('parseDT');
-  const MON = g('MON') || [];
+  const MON = getMon() || [];
   const d = parseDT ? parseDT(show.date) : null;
   const meta = [show.city, show.country].filter(Boolean).join(', ');
   const timeBit = show.setTime ? `${show.setTime}${show.endTime ? ` – ${show.endTime}` : ''}` : '—';
@@ -69,11 +66,10 @@ function ShowRow({ show }){
 }
 
 function filteredShows(filter, search){
-  const sel = g('sel');
+  const sel = getSel();
   const all = sel?.events ? sel.events() : [];
   const q = String(search || '').toLowerCase().trim();
   let list = all.slice();
-  const showPassed = g('showPassed');
   if(filter === 'upcoming') list = all.filter(e => !(showPassed && showPassed(e)) && e.status !== 'cancelled');
   else if(filter === 'past') list = all.filter(e => showPassed && showPassed(e));
   else if(filter === 'confirmed' || filter === 'hold' || filter === 'cancelled') list = all.filter(e => e.status === filter);
@@ -83,8 +79,7 @@ function filteredShows(filter, search){
 }
 
 function groupByMonth(list){
-  const parseDT = g('parseDT');
-  const MONTHS = g('MONTHS') || [];
+  const MONTHS = getMonths() || [];
   const out = [];
   let cur = null;
   list.forEach(e => {
@@ -131,11 +126,9 @@ function ShowsBody({ filter, search }){
 }
 
 function RunCard({ run }){
-  const CATS = g('CATS') || {};
+  const CATS = getCats() || {};
   const c = CATS[run.color] || CATS.green || '#32d74b';
   const active = call('activeRun')?.key === run.key;
-  const fmtDate = g('fmtDate');
-  const relDay = g('relDay');
   return (
     <div
       className="card tap"
@@ -167,9 +160,8 @@ function RunCard({ run }){
 }
 
 function RunRow({ run }){
-  const CATS = g('CATS') || {};
+  const CATS = getCats() || {};
   const c = CATS[run.color] || CATS.green || '#32d74b';
-  const fmtDate = g('fmtDate');
   return (
     <div className="row" onClick={() => call('openView', 'trip', run.key)}>
       <div className="ic" style={{ background: `${c}22`, color: c }}><Icon name="trips" size={18} /></div>
@@ -183,7 +175,6 @@ function RunRow({ run }){
 }
 
 function ToursBody(){
-  const parseDT = g('parseDT');
   const all = call('runs') || [];
   const today = new Date(); today.setHours(0, 0, 0, 0);
   const upcoming = all.filter(r => {
@@ -226,9 +217,8 @@ function ToursBody(){
 }
 
 function SearchAndChips({ filter, search, onSearch }){
-  const sel = g('sel');
+  const sel = getSel();
   const all = sel?.events ? sel.events() : [];
-  const showPassed = g('showPassed');
   const upcomingN = all.filter(e => !(showPassed && showPassed(e)) && e.status !== 'cancelled').length;
   const chips = [
     { k: 'upcoming', l: `Upcoming · ${upcomingN}` },
@@ -275,9 +265,8 @@ export default function ShowsListPage(){
   useStoreTick();
   const { mode, filter, search } = listState();
   const isTours = mode === 'tours';
-  const sel = g('sel');
+  const sel = getSel();
   const all = sel?.events ? sel.events() : [];
-  const showPassed = g('showPassed');
   const upcomingN = all.filter(e => !(showPassed && showPassed(e)) && e.status !== 'cancelled').length;
   const tourN = (call('runs') || []).length;
   const title = isTours ? 'Tours' : 'Shows';
@@ -288,7 +277,7 @@ export default function ShowsListPage(){
     call('setShowSearchQuiet', v);
     clearTimeout(searchTimer.current);
     searchTimer.current = setTimeout(() => {
-      const n = g('notifyStore');
+      const n = notifyStore;
       if(typeof n === 'function') n();
       else if(typeof window !== 'undefined' && window.OperateReact?.refreshShowsList) window.OperateReact.refreshShowsList();
     }, 120);

@@ -1,4 +1,4 @@
-import { call, g } from './bridge.js';
+import { call, flightHasDetails, fmtDate, legSort } from '../api/operate.js';
 import { Subsection, EmptyTap, SourceLabel, LegacyHtml, FieldTx, DetailTx, Icon } from './ui.jsx';
 
 function legsOf(showId){
@@ -6,7 +6,7 @@ function legsOf(showId){
 }
 
 function byLegSort(a, b){
-  const sort = g('legSort');
+  const sort = legSort;
   return typeof sort === 'function' ? sort(a, b) : 0;
 }
 
@@ -36,7 +36,7 @@ function transferLegs(show){
 
 function manualFlights(show){
   return (show.flights || []).filter(f => {
-    const fn = g('flightHasDetails');
+    const fn = flightHasDetails;
     return typeof fn !== 'function' || fn(f);
   });
 }
@@ -93,7 +93,6 @@ function Hotel({ show }){
   const legs = stayLegs(show);
   const h = show.hotel;
   const has = !!(legs.length || h);
-  const fmtDate = g('fmtDate');
   const addr = h
     ? (call('formatHotelAddress', h)
       || [h.address, h.postcode].filter(Boolean).join(', '))

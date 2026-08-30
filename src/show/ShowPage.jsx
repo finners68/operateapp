@@ -1,5 +1,5 @@
 import { useSyncExternalStore } from 'react';
-import { getEvent, getStore, subscribeStore, call, iconHtml, g } from './bridge.js';
+import { call, fmtDate, getCats, getEvent, getSel, getStore, iconHtml, pad, relDay, subscribeStore } from '../api/operate.js';
 import { Group, Icon } from './ui.jsx';
 import { UploadBanner, QuickLinks } from './Banner.jsx';
 import TravelGroup from './Travel.jsx';
@@ -63,19 +63,15 @@ export default function ShowPage({ showId }){
   }
   if(typeof window.migrateShowFlightInfo === 'function') window.migrateShowFlightInfo(show);
 
-  const CATS = g('CATS') || {};
+  const CATS = getCats() || {};
   const c = CATS[show.color] || CATS.purple || '#6d5efc';
-  const trip = show.tripId && g('sel')?.trip ? g('sel').trip(show.tripId) : null;
+  const trip = show.tripId && getSel()?.trip ? getSel().trip(show.tripId) : null;
   const backLabel = trip ? trip.name : (call('overlayBackLabel') || 'Back');
 
   const travelSummary = call('travelGroupSummary', show) || '';
   const venueSummary = call('venueGroupSummary', show) || '';
   const dealSummary = call('dealGroupSummary', show) || '';
   const prepSummary = call('prepGroupSummary', show) || '';
-
-  const fmtDate = g('fmtDate');
-  const relDay = g('relDay');
-
   return (
     <>
       <div className="detail-top">

@@ -1,4 +1,4 @@
-import { notifyStore, call, iconHtml, g } from './bridge.js';
+import { call, getPassFileAccept, iconHtml, isOpen as foldIsOpen, notifyStore } from '../api/operate.js';
 
 export function Icon({ name, size = 16 }){
   return <span dangerouslySetInnerHTML={{ __html: iconHtml(name, size) }} />;
@@ -10,9 +10,7 @@ export function LegacyHtml({ html, className }){
 }
 
 export function isOpen(id, def){
-  const fn = g('isOpen');
-  if(typeof fn === 'function') return !!fn(id, def);
-  return !!def;
+  return !!foldIsOpen(id, def);
 }
 
 export function setFold(id, open){
@@ -113,5 +111,5 @@ export function DetailTx({ title, primary, meta }){
 }
 
 export function passAccept(){
-  return g('PASS_FILE_ACCEPT') || 'image/*,application/pdf';
+  return getPassFileAccept() || 'image/*,application/pdf';
 }

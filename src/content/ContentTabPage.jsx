@@ -1,5 +1,5 @@
 import { useSyncExternalStore, useEffect, useRef, useState } from 'react';
-import { getStore, subscribeStore, call, g } from '../show/bridge.js';
+import { call, getContentTabState, getIdeaTypes, getPrio, getSel, getSelectedIdeaId, getStore, notifyStore, pad, subscribeStore, timeAgo } from '../api/operate.js';
 import { Icon } from '../show/ui.jsx';
 
 function useStoreTick(){
@@ -11,7 +11,7 @@ function useStoreTick(){
 }
 
 function contentState(){
-  const fn = g('getContentTabState');
+  const fn = getContentTabState;
   if(typeof fn === 'function') return fn();
   return { mode: 'ideas', ideaFilter: 'all', noteSearch: '', selectedIdeaId: null };
 }
@@ -23,11 +23,11 @@ function PageIntro({ id, title, body }){
 }
 
 function IdeaCard({ idea }){
-  const types = g('IDEA_TYPES') || {};
-  const PRIO = g('PRIO') || {};
+  const types = getIdeaTypes() || {};
+  const PRIO = getPrio() || {};
   const t = types[idea.type] || types.other || { label: 'Idea', color: 'var(--accent-2)', icon: 'idea' };
   const link = call('ideaLinkLabel', idea) || '';
-  const selected = g('selectedIdeaId') === idea.id;
+  const selected = getSelectedIdeaId() === idea.id;
   return (
     <div
       className={`idea ${idea.done ? 'is-done' : ''}${selected ? ' sel' : ''}`}
@@ -57,9 +57,9 @@ function IdeaCard({ idea }){
 }
 
 function IdeasBody({ filter }){
-  const sel = g('sel');
+  const sel = getSel();
   const all = sel?.ideas ? sel.ideas() : [];
-  const types = g('IDEA_TYPES') || {};
+  const types = getIdeaTypes() || {};
   let list = all;
   if(filter === 'active') list = all.filter(i => !i.done);
   else if(filter === 'done') list = all.filter(i => i.done);
@@ -126,9 +126,9 @@ function IdeasBody({ filter }){
 }
 
 function IdeasControls({ filter }){
-  const sel = g('sel');
+  const sel = getSel();
   const all = sel?.ideas ? sel.ideas() : [];
-  const types = g('IDEA_TYPES') || {};
+  const types = getIdeaTypes() || {};
   const typesPresent = [...new Set(all.map(i => i.type))];
   const chips = [
     { k: 'all', l: `All ${all.length}` },
@@ -160,8 +160,7 @@ function IdeasControls({ filter }){
 }
 
 function NoteRow({ note, inFolder = false }){
-  const timeAgo = g('timeAgo');
-  const sel = g('sel');
+  const sel = getSel();
   const preview = (note.body || '').split('\n').filter(Boolean)[0] || 'No additional text';
   const showFolderTag = !inFolder && sel?.noteBelongsToFolder && sel.noteBelongsToFolder(note);
   return (
@@ -180,7 +179,7 @@ function NoteRow({ note, inFolder = false }){
 }
 
 function NotesBody({ search }){
-  const sel = g('sel');
+  const sel = getSel();
   const q = String(search || '').toLowerCase().trim();
   const searching = !!q;
   const folders = sel?.noteFolders ? sel.noteFolders() : [];
@@ -293,7 +292,7 @@ export default function ContentTabPage(){
     call('setNoteSearchQuiet', v);
     clearTimeout(searchTimer.current);
     searchTimer.current = setTimeout(() => {
-      const n = g('notifyStore');
+      const n = notifyStore;
       if(typeof n === 'function') n();
       else if(typeof window !== 'undefined' && window.OperateReact?.refreshContentTab) window.OperateReact.refreshContentTab();
     }, 120);

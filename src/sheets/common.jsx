@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { call } from '../show/bridge.js';
+import { call } from '../api/operate.js';
 
 function callbacks(){
   if(typeof window === 'undefined') return {};

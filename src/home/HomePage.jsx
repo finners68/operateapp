@@ -1,5 +1,5 @@
 import { useSyncExternalStore, useEffect } from 'react';
-import { getStore, subscribeStore, call, g } from '../show/bridge.js';
+import { call, countdown, flightHasDetails, fmtDate, getCats, getIdeaTypes, getSel, getStore, pad, parseDT, relDay, subscribeStore, tickCountdowns, timeAgo } from '../api/operate.js';
 import { Icon } from '../show/ui.jsx';
 
 function useStoreTick(){
@@ -38,15 +38,13 @@ function HomePanel({ title, link, children }){
 
 function NextShowHero({ show }){
   const flight = (show.flights || []).find(f => {
-    const fn = g('flightHasDetails');
+    const fn = flightHasDetails;
     return typeof fn !== 'function' || fn(f);
   });
-  const parseDT = g('parseDT');
   const flightMs = flight && flight.dep && parseDT
     ? parseDT(...String(flight.dep).split(' '))?.getTime()
     : null;
   const setMs = call('setStartMs', show.date, show.setTime);
-  const countdown = g('countdown');
   const cF = flightMs && countdown ? countdown(flightMs) : null;
   const cS = setMs && countdown ? countdown(setMs) : null;
   const flightPass = (show.flights || []).map(f => {
@@ -61,7 +59,6 @@ function NextShowHero({ show }){
   const liaisonReach = show.promoter && (show.promoter.phone || show.promoter.whatsapp);
   const store = getStore();
   const hasRem = (store?.reminders || []).some(r => r.showId === show.id && !r.fired && (r.kind || 'manual') !== 'usb');
-  const relDay = g('relDay');
   const hotelQ = call('hotelMapQuery', show);
   const venueQ = call('venueMapQuery', show);
 
@@ -155,12 +152,12 @@ function TourBanner({ run }){
 export default function HomePage(){
   const tick = useStoreTick();
   useEffect(() => {
-    const fn = g('tickCountdowns');
+    const fn = tickCountdowns;
     if(typeof fn === 'function') try{ fn(); }catch(_){}
   }, [tick]);
 
   const store = getStore();
-  const sel = g('sel');
+  const sel = getSel();
   const run = call('activeRun');
   const show = sel?.nextEvent ? sel.nextEvent() : null;
   const greet = greeting();
@@ -172,16 +169,12 @@ export default function HomePage(){
   const todayChecklist = show?.checklist?.length ? show.checklist : [];
   const ideasWaiting = sel?.ideas ? sel.ideas().filter(i => !i.done).slice(0, 2) : [];
   const recentNotes = sel?.notes ? sel.notes().slice(0, 2) : [];
-  const parseDT = g('parseDT');
   const today0 = new Date(); today0.setHours(0, 0, 0, 0);
   const trips = (call('runs') || []).filter(r => {
     const end = parseDT ? parseDT(r.end) : null;
     return end && end >= today0;
   }).slice(0, 2);
-  const types = g('IDEA_TYPES') || {};
-  const fmtDate = g('fmtDate');
-  const timeAgo = g('timeAgo');
-
+  const types = getIdeaTypes() || {};
   const header = photo ? (
     <div className="home-hero" style={{ backgroundImage: `url('${photo}')` }}>
       <div className="home-hero-actions">
@@ -312,7 +305,7 @@ export default function HomePage(){
               <HomePanel title="Upcoming tours" link={<button type="button" className="home-panel-link" onClick={() => call('goToursList')}>All</button>}>
                 <div className="card flush home-inset">
                   {trips.map(r => {
-                    const CATS = g('CATS') || {};
+                    const CATS = getCats() || {};
                     const c = CATS[r.color] || CATS.green || '#32d74b';
                     return (
                       <div key={r.key} className="row" onClick={() => call('openView', 'trip', r.key)}>

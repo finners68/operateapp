@@ -1,5 +1,5 @@
 import { Icon } from '../../show/ui.jsx';
-import { call, g, getStore } from '../../show/bridge.js';
+import { call, fmtMoney, getCats, getIdeaTypes, getRoles, getSel, getStore } from '../../api/operate.js';
 
 const Spacer=()=> <div className="spacer"/>;
 const Field=({label,id,value='',placeholder,type='text',inputMode,children})=><div className="field"><label>{label}</label>{children||<input id={id} type={type} inputMode={inputMode} className="input" defaultValue={value||''} placeholder={placeholder}/>}</div>;
@@ -12,15 +12,15 @@ export function IdeaShowPickerSheet({iid,selectedId}){
   return <><div className="searchbar"><span className="ic"><Icon name="search" size={18}/></span><input id="idea-show-pick-search" placeholder="Search venue or city" onInput={()=>call('debouncedIdeaShowPick')}/></div><Field label="Show"><select id="idea-show-pick-select" className="input" defaultValue={selectedId||idea?.eventId||''}>{eventOptions(selectedId||idea?.eventId)}</select></Field><button className="btn" onClick={()=>call('confirmIdeaShowPick')}>Link show</button><Spacer/></>;
 }
 export function IdeaTripPickerSheet({iid,trips}){
-  const list=trips||g('sel')?.trips?.()||store().trips||[];
-  return <><div className="card flush">{list.filter(t=>!t.archived).map(t=><div className="row" key={t.id} onClick={()=>call('doAttachIdea',iid,'trip',t.id)}><div className="ic"><Icon name="bag" size={17}/></div><div className="body"><b>{t.name}</b><span>{g('sel')?.tripEvents?.(t.id)?.length||0} shows</span></div><Icon name="chevR" size={15}/></div>)}</div><Spacer/></>;
+  const list=trips||getSel()?.trips?.()||store().trips||[];
+  return <><div className="card flush">{list.filter(t=>!t.archived).map(t=><div className="row" key={t.id} onClick={()=>call('doAttachIdea',iid,'trip',t.id)}><div className="ic"><Icon name="bag" size={17}/></div><div className="body"><b>{t.name}</b><span>{getSel()?.tripEvents?.(t.id)?.length||0} shows</span></div><Icon name="chevR" size={15}/></div>)}</div><Spacer/></>;
 }
 export function IdeaAttachSheet({eid,ideas}){
-  const list=ideas||(store().ideas||[]).filter(i=>i.eventId!==eid), types=g('IDEA_TYPES')||{};
+  const list=ideas||(store().ideas||[]).filter(i=>i.eventId!==eid), types=getIdeaTypes()||{};
   return <>{list.length?<div className="card flush" style={{marginBottom:12}}>{list.map(i=>{const t=types[i.type]||types.other||{};return <div className="row" key={i.id} onClick={()=>call('doAttachIdea',i.id,'event',eid)}><div className="ic"><Icon name={t.icon||'idea'} size={16}/></div><div className="body"><b>{i.title}</b><span>{t.label||i.type}{i.eventId||i.tripId?' · linked elsewhere':''}</span></div><Icon name="plus" size={15}/></div>})}</div>:<div className="hint" style={{padding:'6px 2px 12px'}}>No other ideas yet.</div>}<button className="btn secondary" onClick={()=>{call('closeSheet');call('sheetIdea')}}><Icon name="plus" size={15}/> New idea</button><Spacer/></>;
 }
 export function IdeaEditSheet({iid,idea}){
-  const i=idea||(store().ideas||[]).find(x=>x.id===iid)||{},types=g('IDEA_TYPES')||{};
+  const i=idea||(store().ideas||[]).find(x=>x.id===iid)||{},types=getIdeaTypes()||{};
   return <><div className="field"><label>Idea</label><textarea id="id-title" className="textarea" style={{minHeight:70}} defaultValue={i.title||''} placeholder="What's the concept?"/></div><Field label="Type"><div className="swatches" id="id-type" style={{gap:8,flexWrap:'wrap'}}>{Object.entries(types).map(([k,v])=><button type="button" className={`chip ${(i.type||'reel')===k?'on':''}`} data-v={k} key={k} onClick={e=>call('chipPick',e.currentTarget)}>{v.label}</button>)}</div></Field><Field label="Priority"><div className="seg" id="id-prio">{[['high','High'],['med','Medium'],['low','Low']].map(([k,l])=><button type="button" data-v={k} className={(i.prio||'med')===k?'on':''} key={k} onClick={e=>call('segPick',e.currentTarget)}>{l}</button>)}</div></Field><div className="field"><label>Details</label><textarea id="id-note" className="textarea" style={{minHeight:64}} defaultValue={i.note||''} placeholder="Script, references, notes…"/></div><Field label="Link to a show"><div className="searchbar"><span className="ic"><Icon name="search" size={18}/></span><input id="id-event-search" placeholder="Search venue or city" onInput={()=>call('debouncedIdeaEventSelect')}/></div><select id="id-event" className="input" defaultValue={i.eventId||''}>{eventOptions(i.eventId)}</select></Field><button className="btn" id="id-save" onClick={()=>call('saveIdea',iid||'')}>{iid?'Save':'Add idea'}</button><Spacer/></>;
 }
 
@@ -28,9 +28,9 @@ export function NoteAddChoiceSheet({folderId}){
   return <div className="card flush"><div className="row" onClick={()=>{call('closeSheet');call('sheetNote',folderId)}}><div className="ic"><Icon name="note" size={17}/></div><div className="body"><b>Note</b><span>{folderId?'New note in this folder':'New unfiled note'}</span></div><Icon name="chevR" size={15}/></div><div className="row" onClick={()=>{call('closeSheet');call('promptCreateNoteFolder')}}><div className="ic"><Icon name="folder" size={17}/></div><div className="body"><b>Folder</b><span>Group notes together</span></div><Icon name="chevR" size={15}/></div></div>;
 }
 export function NoteMoveFolderSheet({noteId,folders}){
-  const note=(store().notes||[]).find(x=>x.id===noteId)||{}, list=folders||g('sel')?.noteFolders?.()||store().noteFolders||[];
+  const note=(store().notes||[]).find(x=>x.id===noteId)||{}, list=folders||getSel()?.noteFolders?.()||store().noteFolders||[];
   const row=(id,name,count)=><div className="row" key={id||'none'} onClick={()=>{call('closeSheet');call('assignNoteFolder',noteId,id||null)}}><div className="ic"><Icon name={id?'folder':'note'} size={17}/></div><div className="body"><b>{name}</b><span>{id?`${count||0} notes`:'Keep this note unfiled'}</span></div>{note.folderId===id?<span className="tag">Current</span>:<Icon name="chevR" size={15}/>}</div>;
-  return <><div className="card flush">{row(null,'No folder')}{list.map(f=>row(f.id,f.name||'Folder',g('sel')?.notesInFolder?.(f.id)?.length))}</div><Spacer/><button className="btn secondary" onClick={()=>{call('closeSheet');call('promptNewFolderForNote',noteId)}}><Icon name="folder" size={16}/> New folder…</button></>;
+  return <><div className="card flush">{row(null,'No folder')}{list.map(f=>row(f.id,f.name||'Folder',getSel()?.notesInFolder?.(f.id)?.length))}</div><Spacer/><button className="btn secondary" onClick={()=>{call('closeSheet');call('promptNewFolderForNote',noteId)}}><Icon name="folder" size={16}/> New folder…</button></>;
 }
 
 export function TripTimelineOptionsSheet({runKey,stepId,step}){
@@ -38,7 +38,7 @@ export function TripTimelineOptionsSheet({runKey,stepId,step}){
   return <>{s.time||s.sub?<p className="sheet-lede">{[s.time,s.sub].filter(Boolean).join(' · ')}</p>:null}<button className="btn" onClick={()=>{call('closeSheet');call('editTimelineStep',runKey,stepId)}}><Icon name="edit" size={16}/> Edit</button><button className="btn secondary" style={{marginTop:10}} onClick={()=>{call('closeSheet');call('completeRunStep',runKey,stepId)}}><Icon name={s.done?'x':'check'} size={16}/> {s.done?'Mark not done':'Mark done'}</button><Spacer/><button className="btn secondary" onClick={()=>call('closeSheet')}>Cancel</button><Spacer/></>;
 }
 export function TripEditSheet({tid,trip}){
-  const t=trip||(store().trips||[]).find(x=>x.id===tid)||{},cats=g('CATS')||{};
+  const t=trip||(store().trips||[]).find(x=>x.id===tid)||{},cats=getCats()||{};
   return <><Field label="Trip name" id="tr-name" value={t.name} placeholder="e.g. Europe Weekend"/><div className="row-2"><Field label="Start" id="tr-start" type="date" value={t.startDate}/><Field label="End" id="tr-end" type="date" value={t.endDate}/></div><Field label="Colour"><div className="swatches" id="tr-cat">{Object.entries(cats).map(([k,v])=><div className={`sw${(t.color||'pink')===k?' on':''}`} style={{background:v}} data-cat={k} key={k} onClick={e=>call('pickCat',e.currentTarget)}/>)}</div></Field>{!tid?<div className="hint" style={{textAlign:'left',padding:'2px 2px 6px'}}>A default packing checklist will be added.</div>:null}<button className="btn" id="tr-save" onClick={()=>call('saveTrip',tid||'')}>{tid?'Save changes':'Create trip'}</button><Spacer/></>;
 }
 export function TripContactsSheet({runKey,contacts,grouped=true}){
@@ -118,7 +118,6 @@ export function TripMenuSheet({ tid }){
 }
 
 export function InvoicePickShowSheet(){
-  const fmtMoney = g('fmtMoney') || ((n, c) => String(n));
   const evs = events().filter(e => e.finance && e.finance.fee > 0);
   const invoices = store().invoices || [];
   return (
@@ -204,7 +203,7 @@ export function BillingDetailsSheet({ invId }){
 
 export function ContactViewSheet({ id, contact }){
   const c = contact || (store().contacts || []).find(x => x.id === id) || {};
-  const roles = g('ROLES') || {};
+  const roles = getRoles() || {};
   const col = roles[c.role] || roles.Other || 'var(--accent)';
   const initial = ((c.name || '?').trim()[0] || '?').toUpperCase();
   return (
@@ -240,7 +239,7 @@ export function ContactViewSheet({ id, contact }){
 
 export function ContactEditSheet({ id, contact }){
   const c = contact || (id ? (store().contacts || []).find(x => x.id === id) : null) || {};
-  const roles = Object.keys(g('ROLES') || { Promoter: 1, Other: 1 });
+  const roles = Object.keys(getRoles() || { Promoter: 1, Other: 1 });
   return (
     <>
       <Field label="Name" id="co-name" value={c.name} placeholder="Full name" />

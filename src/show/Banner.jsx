@@ -1,8 +1,8 @@
-import { call, g } from './bridge.js';
+import { call, getItineraryFullUploadByShow, getPassFileAccept, getStore } from '../api/operate.js';
 import { Icon } from './ui.jsx';
 
 export function UploadBanner({ showId }){
-  const map = g('itineraryFullUploadByShow') || {};
+  const map = getItineraryFullUploadByShow() || {};
   const st = map[showId];
   if(!st) return null;
 
@@ -49,7 +49,7 @@ function ActFileTile({ icon, color, label, itemId }){
       <span>{label}</span>
       <input
         type="file"
-        accept={g('PASS_FILE_ACCEPT') || 'image/*,application/pdf'}
+        accept={getPassFileAccept() || 'image/*,application/pdf'}
         style={{ display: 'none' }}
         onChange={e => call('uploadItemPass', itemId, e.target)}
       />
@@ -58,7 +58,7 @@ function ActFileTile({ icon, color, label, itemId }){
 }
 
 export function QuickLinks({ show }){
-  const store = g('store');
+  const store = getStore();
   const items = (store?.events || []).filter(x => x.showId === show.id);
   const flights = items.filter(x => x.kind === 'travel' && (x.icon || 'plane') === 'plane');
   const hotelItem = items.find(x => x.kind === 'stay');

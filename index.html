@@ -53,7 +53,9 @@
 <script src="js/react-show.js"></script>
 <script src="js/pwa.js"></script>
 <script>
-  if(typeof OperateReact !== 'undefined' && OperateReact.mountShell){
+  if(typeof OperateReact !== 'undefined' && OperateReact.mountApp){
+    OperateReact.mountApp();
+  } else if(typeof OperateReact !== 'undefined' && OperateReact.mountShell){
     OperateReact.mountShell();
     if(OperateReact.refreshShell) OperateReact.refreshShell();
   }

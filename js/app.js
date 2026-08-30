@@ -177,6 +177,7 @@ const TABS = [
   {id:'ideas', label:'Ideas', icon:'idea', hint:'Ideas & notes — content and free-form text'},
 ];
 window.TABS = TABS;
+/* saveNavState / activeNavTab / setFab / syncScreenChrome exposed after declarations */
 let overlay = null; // {type, id} for detail views on top of a tab
 Object.defineProperty(window, 'overlay', {
   get(){ return overlay; },
@@ -188,8 +189,19 @@ const NAV_KEY = 'operate_nav';
 /* Remember exactly where the user is (tab + open detail + history + scroll) so
    closing and reopening the app lands on the same screen, not back at a tab root. */
 function saveNavState(){
-  try{ const screen=document.getElementById('screen');
-    localStorage.setItem(NAV_KEY, JSON.stringify({tab:store.tab, overlay, navStack, scrollY:screen?screen.scrollTop:0, showsMode:(typeof showsMode!=='undefined'?showsMode:'shows'), contentMode:(typeof contentMode!=='undefined'?contentMode:'ideas')})); }catch(e){}
+  try{
+    const screen=document.getElementById('screen');
+    const hash = (typeof location !== 'undefined' && location.hash) ? location.hash.replace(/^#/, '') : '';
+    localStorage.setItem(NAV_KEY, JSON.stringify({
+      tab:store.tab,
+      overlay,
+      navStack,
+      hash,
+      scrollY:screen?screen.scrollTop:0,
+      showsMode:(typeof showsMode!=='undefined'?showsMode:'shows'),
+      contentMode:(typeof contentMode!=='undefined'?contentMode:'ideas')
+    }));
+  }catch(e){}
 }
 function loadNavState(){ try{ return JSON.parse(localStorage.getItem(NAV_KEY)||'null'); }catch(e){ return null; } }
 /* Cloud reloads replace `store`. Re-apply the tab/modes the user navigated to
@@ -214,15 +226,39 @@ function restoreNavState(){
   navStack = navStack.filter(o=>!(o&&o.type==='finance' && typeof financeLockActive==='function' && financeLockActive()));
   if(ns.scrollY){ requestAnimationFrame(()=>{ const s=document.getElementById('screen'); if(s) s.scrollTop=ns.scrollY; }); }
 }
-function go(tab){ navStack=[]; overlay=null; store.tab=tab; if(tab==='ideas') ideasStale=false; haptic(); persist('user_preferences'); saveNavState(); render({ resetScroll: true, quiet: true }); }
+function go(tab){
+  navStack=[];
+  overlay=null;
+  store.tab=tab;
+  if(tab==='ideas') ideasStale=false;
+  if(typeof OperateReact !== 'undefined' && OperateReact.nav && typeof OperateReact.nav.goTab === 'function'
+      && OperateReact.isAppMounted && OperateReact.isAppMounted()){
+    OperateReact.nav.goTab(tab);
+    renderNav(); setFab(); syncScreenChrome();
+    return;
+  }
+  haptic(); persist('user_preferences'); saveNavState(); render({ resetScroll: true, quiet: true });
+}
 function openView(type, id){
   if(type==='finance' && financeLockActive()){ requireUnlock('finance', ()=>openView('finance', id)); return; }
+  if(typeof OperateReact !== 'undefined' && OperateReact.nav && typeof OperateReact.nav.navigateTo === 'function'
+      && OperateReact.isAppMounted && OperateReact.isAppMounted()){
+    OperateReact.nav.navigateTo(type, id);
+    renderNav(); setFab(); syncScreenChrome();
+    return;
+  }
   if(overlay) navStack.push(overlay);   // remember where we came from
   overlay={type, id};
   if(type==='event' && id && typeof resetShowFolds==='function') resetShowFolds(id);
   haptic(); saveNavState(); renderView({ resetScroll: true, quiet: true });
 }
 function back(){
+  if(typeof OperateReact !== 'undefined' && OperateReact.nav && typeof OperateReact.nav.goBack === 'function'
+      && OperateReact.isAppMounted && OperateReact.isAppMounted()){
+    OperateReact.nav.goBack();
+    renderNav(); setFab(); syncScreenChrome();
+    return;
+  }
   overlay = navStack.length ? navStack.pop() : null;   // step back one screen, not all the way out
   saveNavState(); renderView({ resetScroll: true, quiet: true });
 }
@@ -240,11 +276,15 @@ function activeNavTab(){
   }
   return store.tab;
 }
+window.activeNavTab = activeNavTab;
+window.saveNavState = saveNavState;
 function renderNav(){
-  if(typeof OperateReact !== 'undefined' && OperateReact && typeof OperateReact.mountShell === 'function'){
+  if(typeof OperateReact !== 'undefined' && OperateReact && typeof OperateReact.mountApp === 'function' && !OperateReact.isAppMounted?.()){
+    OperateReact.mountApp();
+  } else if(typeof OperateReact !== 'undefined' && OperateReact && typeof OperateReact.mountShell === 'function' && !OperateReact.isShellMounted?.()){
     OperateReact.mountShell();
   }
-  if(typeof OperateReact !== 'undefined' && OperateReact && typeof OperateReact.isShellMounted === 'function' && OperateReact.isShellMounted()){
+  if(typeof OperateReact !== 'undefined' && OperateReact && ((OperateReact.isAppMounted && OperateReact.isAppMounted()) || (OperateReact.isShellMounted && OperateReact.isShellMounted()))){
     if(typeof OperateReact.refreshShell === 'function') OperateReact.refreshShell();
     return;
   }
@@ -295,48 +335,12 @@ function viewHtmlLooksSame(live, next){
 function renderView(opts={}){
   const screen = $('#screen');
   const scrollY = opts.resetScroll ? 0 : (opts.scrollY != null ? opts.scrollY : (screen?.scrollTop || 0));
-  const v = $('#view');
   const R = (typeof OperateReact !== 'undefined') ? OperateReact : null;
 
-  function paintReact(mountFn){
-    if(typeof R.unmountAllIslands === 'function') R.unmountAllIslands();
-    else {
-      if(R.unmountShow) R.unmountShow();
-      if(R.unmountShowsList) R.unmountShowsList();
-      if(R.unmountHome) R.unmountHome();
-      if(R.unmountTripMode) R.unmountTripMode();
-      if(R.unmountTripDetail) R.unmountTripDetail();
-      if(R.unmountCalendar) R.unmountCalendar();
-      if(R.unmountContentTab) R.unmountContentTab();
-      if(R.unmountIdeaDetail) R.unmountIdeaDetail();
-      if(R.unmountNoteDetail) R.unmountNoteDetail();
-      if(R.unmountNoteFolder) R.unmountNoteFolder();
-      if(R.unmountSettings) R.unmountSettings();
-      if(R.unmountSearch) R.unmountSearch();
-      if(R.unmountFinance) R.unmountFinance();
-      if(R.unmountInvoices) R.unmountInvoices();
-      if(R.unmountInvoiceDetail) R.unmountInvoiceDetail();
-      if(R.unmountContacts) R.unmountContacts();
-      if(R.unmountPastShows) R.unmountPastShows();
-      if(R.unmountStats) R.unmountStats();
-      if(R.unmountItinerary) R.unmountItinerary();
-      if(R.unmountWrapped) R.unmountWrapped();
-    }
-    if(v){
-      /* Tab/detail switches should appear instantly — never replay fade/stagger. */
-      v.classList.add('quiet-paint');
-      v.innerHTML = '';
-      mountFn(v);
-    }
-    renderNav(); setFab(); syncScreenChrome();
-    if(screen){
-      screen.scrollTop = scrollY;
-      if(opts.quiet) requestAnimationFrame(()=>{ if(screen) screen.scrollTop = scrollY; });
-    }
-    return true;
-  }
-  function refreshReact(refreshFn){
-    if(typeof refreshFn === 'function') refreshFn();
+  /* Phase 2: React HashRouter owns #view. */
+  if(R && typeof R.isAppMounted === 'function' && R.isAppMounted()){
+    if(typeof R.refreshShell === 'function') R.refreshShell();
+    else if(typeof notifyStore === 'function') notifyStore();
     renderNav(); setFab(); syncScreenChrome();
     if(screen){
       screen.scrollTop = scrollY;
@@ -345,199 +349,21 @@ function renderView(opts={}){
     return true;
   }
 
-  /* Show detail */
-  if(overlay && overlay.type === 'event' && R && typeof R.mountShow === 'function'){
-    if(R.isShowMounted && R.isShowMounted() && R.getMountedShowId && R.getMountedShowId() === overlay.id){
-      return refreshReact(R.refreshShow);
-    }
-    return paintReact(el => R.mountShow(overlay.id, el));
-  }
-  /* Tour / trip detail */
-  if(overlay && overlay.type === 'trip' && R && typeof R.mountTripDetail === 'function'){
-    if(R.isTripDetailMounted && R.isTripDetailMounted() && R.getMountedTripId && R.getMountedTripId() === overlay.id){
-      return refreshReact(R.refreshTripDetail);
-    }
-    return paintReact(el => R.mountTripDetail(overlay.id, el));
-  }
-  /* Idea detail */
-  if(overlay && overlay.type === 'idea' && R && typeof R.mountIdeaDetail === 'function'){
-    if(R.isIdeaDetailMounted && R.isIdeaDetailMounted() && R.getMountedIdeaId && R.getMountedIdeaId() === overlay.id){
-      return refreshReact(R.refreshIdeaDetail);
-    }
-    return paintReact(el => R.mountIdeaDetail(overlay.id, el));
-  }
-  /* Note detail */
-  if(overlay && overlay.type === 'note' && R && typeof R.mountNoteDetail === 'function'){
-    if(R.isNoteDetailMounted && R.isNoteDetailMounted() && R.getMountedNoteId && R.getMountedNoteId() === overlay.id){
-      return refreshReact(R.refreshNoteDetail);
-    }
-    return paintReact(el => R.mountNoteDetail(overlay.id, el));
-  }
-  /* Note folder */
-  if(overlay && overlay.type === 'noteFolder' && R && typeof R.mountNoteFolder === 'function'){
-    if(R.isNoteFolderMounted && R.isNoteFolderMounted() && R.getMountedNoteFolderId && R.getMountedNoteFolderId() === overlay.id){
-      return refreshReact(R.refreshNoteFolder);
-    }
-    return paintReact(el => R.mountNoteFolder(overlay.id, el));
-  }
-  /* Settings */
-  if(overlay && overlay.type === 'settings' && R && typeof R.mountSettings === 'function'){
-    if(R.isSettingsMounted && R.isSettingsMounted()) return refreshReact(R.refreshSettings);
-    return paintReact(el => R.mountSettings(el));
-  }
-  /* Search */
-  if(overlay && overlay.type === 'search' && R && typeof R.mountSearch === 'function'){
-    if(R.isSearchMounted && R.isSearchMounted()) return refreshReact(R.refreshSearch);
-    return paintReact(el => R.mountSearch(el));
-  }
-  /* Finance */
-  if(overlay && overlay.type === 'finance' && R && typeof R.mountFinance === 'function'){
-    if(R.isFinanceMounted && R.isFinanceMounted()) return refreshReact(R.refreshFinance);
-    return paintReact(el => R.mountFinance(el));
-  }
-  /* Invoices list */
-  if(overlay && overlay.type === 'invoices' && R && typeof R.mountInvoices === 'function'){
-    if(R.isInvoicesMounted && R.isInvoicesMounted()) return refreshReact(R.refreshInvoices);
-    return paintReact(el => R.mountInvoices(el));
-  }
-  /* Invoice detail */
-  if(overlay && overlay.type === 'invoice' && R && typeof R.mountInvoiceDetail === 'function'){
-    if(R.isInvoiceDetailMounted && R.isInvoiceDetailMounted() && R.getMountedInvoiceId && R.getMountedInvoiceId() === overlay.id){
-      return refreshReact(R.refreshInvoiceDetail);
-    }
-    return paintReact(el => R.mountInvoiceDetail(overlay.id, el));
-  }
-  /* Contacts */
-  if(overlay && overlay.type === 'contacts' && R && typeof R.mountContacts === 'function'){
-    if(R.isContactsMounted && R.isContactsMounted()) return refreshReact(R.refreshContacts);
-    return paintReact(el => R.mountContacts(el));
-  }
-  /* Past shows */
-  if(overlay && overlay.type === 'pastshows' && R && typeof R.mountPastShows === 'function'){
-    if(R.isPastShowsMounted && R.isPastShowsMounted()) return refreshReact(R.refreshPastShows);
-    return paintReact(el => R.mountPastShows(el));
-  }
-  /* Tour stats */
-  if(overlay && overlay.type === 'stats' && R && typeof R.mountStats === 'function'){
-    if(R.isStatsMounted && R.isStatsMounted()) return refreshReact(R.refreshStats);
-    return paintReact(el => R.mountStats(el));
-  }
-  /* Itinerary inbox */
-  if(overlay && overlay.type === 'itinerary' && R && typeof R.mountItinerary === 'function'){
-    if(R.isItineraryMounted && R.isItineraryMounted()) return refreshReact(R.refreshItinerary);
-    return paintReact(el => R.mountItinerary(el));
-  }
-  /* Year in review */
-  if(overlay && overlay.type === 'wrapped' && R && typeof R.mountWrapped === 'function'){
-    if(R.isWrappedMounted && R.isWrappedMounted()) return refreshReact(R.refreshWrapped);
-    return paintReact(el => R.mountWrapped(el));
-  }
-  /* Shows list tab */
-  if(!overlay && store.tab === 'shows' && R && typeof R.mountShowsList === 'function'){
-    if(R.isShowsListMounted && R.isShowsListMounted()) return refreshReact(R.refreshShowsList);
-    return paintReact(el => R.mountShowsList(el));
-  }
-  /* Home tab */
-  if(!overlay && store.tab === 'home' && R && typeof R.mountHome === 'function'){
-    if(R.isHomeMounted && R.isHomeMounted()) return refreshReact(R.refreshHome);
-    return paintReact(el => R.mountHome(el));
-  }
-  /* Tour Mode tab */
-  if(!overlay && store.tab === 'trips' && R && typeof R.mountTripMode === 'function'){
-    if(R.isTripModeMounted && R.isTripModeMounted()) return refreshReact(R.refreshTripMode);
-    return paintReact(el => R.mountTripMode(el));
-  }
-  /* Calendar tab */
-  if(!overlay && store.tab === 'calendar' && R && typeof R.mountCalendar === 'function'){
-    if(R.isCalendarMounted && R.isCalendarMounted()) return refreshReact(R.refreshCalendar);
-    return paintReact(el => R.mountCalendar(el));
-  }
-  /* Ideas / Notes tab */
-  if(!overlay && (store.tab === 'ideas' || store.tab === 'notes') && R && typeof R.mountContentTab === 'function'){
-    if(store.tab === 'notes'){ store.tab = 'ideas'; contentMode = 'notes'; }
-    if(R.isContentTabMounted && R.isContentTabMounted()) return refreshReact(R.refreshContentTab);
-    return paintReact(el => R.mountContentTab(el));
-  }
-
-  /* Leaving React islands — tear down before other screens paint. */
+  /* React bundle present but mountApp not yet called (boot runs before index.html mounts). */
   if(R){
-    if(typeof R.unmountAllIslands === 'function') R.unmountAllIslands();
-    else {
-      if(R.unmountShow && R.isShowMounted && R.isShowMounted()) R.unmountShow();
-      if(R.unmountShowsList && R.isShowsListMounted && R.isShowsListMounted()) R.unmountShowsList();
-      if(R.unmountHome && R.isHomeMounted && R.isHomeMounted()) R.unmountHome();
-      if(R.unmountTripMode && R.isTripModeMounted && R.isTripModeMounted()) R.unmountTripMode();
-      if(R.unmountTripDetail && R.isTripDetailMounted && R.isTripDetailMounted()) R.unmountTripDetail();
-      if(R.unmountCalendar && R.isCalendarMounted && R.isCalendarMounted()) R.unmountCalendar();
-      if(R.unmountContentTab && R.isContentTabMounted && R.isContentTabMounted()) R.unmountContentTab();
-      if(R.unmountIdeaDetail && R.isIdeaDetailMounted && R.isIdeaDetailMounted()) R.unmountIdeaDetail();
-      if(R.unmountNoteDetail && R.isNoteDetailMounted && R.isNoteDetailMounted()) R.unmountNoteDetail();
-      if(R.unmountNoteFolder && R.isNoteFolderMounted && R.isNoteFolderMounted()) R.unmountNoteFolder();
-      if(R.unmountSettings && R.isSettingsMounted && R.isSettingsMounted()) R.unmountSettings();
-      if(R.unmountSearch && R.isSearchMounted && R.isSearchMounted()) R.unmountSearch();
-      if(R.unmountFinance && R.isFinanceMounted && R.isFinanceMounted()) R.unmountFinance();
-      if(R.unmountInvoices && R.isInvoicesMounted && R.isInvoicesMounted()) R.unmountInvoices();
-      if(R.unmountInvoiceDetail && R.isInvoiceDetailMounted && R.isInvoiceDetailMounted()) R.unmountInvoiceDetail();
-      if(R.unmountContacts && R.isContactsMounted && R.isContactsMounted()) R.unmountContacts();
-      if(R.unmountPastShows && R.isPastShowsMounted && R.isPastShowsMounted()) R.unmountPastShows();
-      if(R.unmountStats && R.isStatsMounted && R.isStatsMounted()) R.unmountStats();
-      if(R.unmountItinerary && R.isItineraryMounted && R.isItineraryMounted()) R.unmountItinerary();
-      if(R.unmountWrapped && R.isWrappedMounted && R.isWrappedMounted()) R.unmountWrapped();
-    }
-  }
-
-  /* React islands cover every tab/overlay — HTML builders only if the React bundle failed to load. */
-  let html = '';
-  let afterPaint = null;
-  if(R){
-    html = `<div class="empty" style="margin-top:40px"><b>Could not open this screen</b><span>Try a hard refresh.</span></div>`;
-  } else if(overlay){
-    if(overlay.type==='event') html = viewEvent(overlay.id);
-    else if(overlay.type==='trip') html = viewTrip(overlay.id);
-    else if(overlay.type==='note') html = viewNote(overlay.id);
-    else if(overlay.type==='noteFolder') html = viewNoteFolder(overlay.id);
-    else if(overlay.type==='idea') html = viewIdea(overlay.id);
-    else if(overlay.type==='finance') html = viewFinance();
-    else if(overlay.type==='search') html = viewSearch();
-    else if(overlay.type==='contacts') html = viewContacts();
-    else if(overlay.type==='itinerary') html = viewItinerary();
-    else if(overlay.type==='pastshows') html = viewPastShows();
-    else if(overlay.type==='invoices') html = viewInvoices();
-    else if(overlay.type==='invoice') html = viewInvoice(overlay.id);
-    else if(overlay.type==='settings') html = viewSettings();
-    else if(overlay.type==='stats') html = viewStats();
-    else if(overlay.type==='wrapped'){
-      html = viewWrapped();
-      afterPaint = ()=>{ if(typeof initWrapped==='function') setTimeout(initWrapped, 0); };
-    }
-  } else {
-    const tab = store.tab;
-    if(tab==='home') html = viewHome();
-    else if(tab==='shows') html = viewShows();
-    else if(tab==='calendar') html = viewCalendar();
-    else if(tab==='trips') html = viewToursTab();
-    else if(tab==='ideas' || tab==='notes'){
-      if(tab==='notes'){ store.tab='ideas'; contentMode='notes'; }
-      html = viewContentTab();
-    }
-  }
-  /* Quiet syncs: skip DOM rewrite when the screen would look identical — avoids a visible flash. */
-  if(opts.quiet && v && viewHtmlLooksSame(v.innerHTML, html)){
+    renderNav(); setFab(); syncScreenChrome();
     if(screen) screen.scrollTop = scrollY;
-    return false;
+    return true;
   }
+
+  const v = $('#view');
   if(v){
-    /* Page paints should appear instantly — never replay fade-in / stagger. */
     v.classList.add('quiet-paint');
-    v.innerHTML = html;
+    v.innerHTML = '<div class="empty" style="margin-top:40px"><b>App UI failed to load</b><span>Try a hard refresh.</span></div>';
   }
-  if(afterPaint) afterPaint();
   renderNav(); setFab(); syncScreenChrome();
-  if(screen){
-    screen.scrollTop = scrollY;
-    if(opts.quiet) requestAnimationFrame(()=>{ if(screen) screen.scrollTop = scrollY; });
-  }
-  return true;
+  if(screen) screen.scrollTop = scrollY;
+  return false;
 }
 /* Soft refresh: rewrite the screen without fade/stagger flash. Prefer
    patchCheckRowsById for one-tap toggles when possible. */
@@ -601,10 +427,12 @@ function syncSeg(segId, activeKey){
 /* Persistent floating + button — anchored to the app frame so it never scrolls away.
    Its action follows the current tab; hidden where there's nothing to add. */
 function setFab(){
-  if(typeof OperateReact !== 'undefined' && OperateReact && typeof OperateReact.mountShell === 'function'){
+  if(typeof OperateReact !== 'undefined' && OperateReact && typeof OperateReact.mountApp === 'function' && !OperateReact.isAppMounted?.()){
+    OperateReact.mountApp();
+  } else if(typeof OperateReact !== 'undefined' && OperateReact && typeof OperateReact.mountShell === 'function' && !OperateReact.isShellMounted?.()){
     OperateReact.mountShell();
   }
-  if(typeof OperateReact !== 'undefined' && OperateReact && typeof OperateReact.isShellMounted === 'function' && OperateReact.isShellMounted()){
+  if(typeof OperateReact !== 'undefined' && OperateReact && ((OperateReact.isAppMounted && OperateReact.isAppMounted()) || (OperateReact.isShellMounted && OperateReact.isShellMounted()))){
     if(typeof OperateReact.refreshShell === 'function') OperateReact.refreshShell();
     return;
   }
@@ -621,6 +449,8 @@ function setFab(){
   if(action){ fab.style.display='flex'; fab.setAttribute('onclick', action); }
   else { fab.style.display='none'; fab.removeAttribute('onclick'); }
 }
+window.setFab = setFab;
+window.syncScreenChrome = syncScreenChrome;
 /* ============================================================
    Sheet / modal system
    ============================================================ */

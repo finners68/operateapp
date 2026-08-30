@@ -1,5 +1,5 @@
 import { useSyncExternalStore, useEffect, useRef, useState } from 'react';
-import { subscribeStore, call, g, getStore } from '../show/bridge.js';
+import { call, getSearchQ, getSel, getStore, pad, subscribeStore } from '../api/operate.js';
 import { Icon } from '../show/ui.jsx';
 
 function useStoreTick(){
@@ -12,7 +12,7 @@ function useStoreTick(){
 
 export default function SearchPage(){
   useStoreTick();
-  const [q, setQ] = useState(() => String(g('searchQ') || ''));
+  const [q, setQ] = useState(() => String(getSearchQ() || ''));
   const inputRef = useRef(null);
 
   useEffect(() => {
@@ -24,7 +24,7 @@ export default function SearchPage(){
   }, []);
 
   const query = q.trim().toLowerCase();
-  const sel = g('sel');
+  const sel = getSel();
   let ev = [], tr = [], id = [], nt = [];
   if(query){
     ev = (sel?.events ? sel.events() : []).filter(e =>

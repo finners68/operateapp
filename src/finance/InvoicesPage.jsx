@@ -1,5 +1,5 @@
 import { useSyncExternalStore } from 'react';
-import { getStore, subscribeStore, call, g } from '../show/bridge.js';
+import { call, fmtBase, fmtDate, fmtMoney, getStore, pad, subscribeStore, toBase } from '../api/operate.js';
 import { Icon } from '../show/ui.jsx';
 
 function useStoreTick(){
@@ -11,8 +11,6 @@ function useStoreTick(){
 }
 
 function InvRow({ inv }){
-  const fmtDate = g('fmtDate');
-  const fmtMoney = g('fmtMoney');
   const total = call('invTotal', inv) || 0;
   const stCls = inv.status === 'paid' ? 'confirmed' : inv.status === 'sent' ? 'hold' : 'past';
   return (
@@ -34,8 +32,6 @@ export default function InvoicesPage(){
   useStoreTick();
   const store = getStore();
   const list = (store?.invoices || []).slice().sort((a, b) => String(b.number || '').localeCompare(String(a.number || '')));
-  const toBase = g('toBase');
-  const fmtBase = g('fmtBase');
   const outstanding = list
     .filter(i => i.status !== 'paid')
     .reduce((sum, i) => sum + (toBase ? toBase(call('invTotal', i) || 0, i.currency) : 0), 0);

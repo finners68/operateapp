@@ -1,5 +1,5 @@
 import { useSyncExternalStore } from 'react';
-import { getStore, subscribeStore, call, g } from '../show/bridge.js';
+import { call, getSel, getStore, pad, subscribeStore, timeAgo } from '../api/operate.js';
 import { Icon } from '../show/ui.jsx';
 
 function useStoreTick(){
@@ -35,12 +35,10 @@ function MissingNote(){
 export default function NoteDetailPage({ noteId }){
   useStoreTick();
   const store = getStore();
-  const sel = g('sel');
+  const sel = getSel();
   const note = (sel?.notes ? sel.notes() : []).find(x => x.id === noteId)
     || (store?.notes || []).find(x => x.id === noteId);
   if(!note) return <MissingNote />;
-
-  const timeAgo = g('timeAgo');
   const folderLabel = note.folderId
     ? ((sel?.noteFolder ? sel.noteFolder(note.folderId) : null)?.name || note.folder || 'Folder')
     : 'No folder';
