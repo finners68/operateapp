@@ -995,9 +995,6 @@ img{-webkit-touch-callout:none;}
 .ag-show-b .show-list-venue{
   display:inline !important;
   font-size:inherit;
-  font-weight:500;
-  opacity:0.55;
-  color:inherit;
   margin:0 !important;
   white-space:nowrap;
 }
@@ -1035,22 +1032,36 @@ img{-webkit-touch-callout:none;}
 .shows-month{font-size:12px;font-weight:750;color:var(--text-3);text-transform:uppercase;letter-spacing:.05em;margin:16px 4px 8px;}
 .show-row .show-row-edit{width:34px;height:34px;flex-shrink:0;align-self:center;color:var(--text-3);}
 .show-row .show-row-edit:active{color:var(--accent-2);}
-/* Keep venue on the same title line (row .body span is otherwise display:block). */
+/* Keep venue on the same title line (row .body span is otherwise display:block).
+   Glass chip: frosted pill so venue reads polished without shrinking the type. */
 .row .body b .show-list-venue,
 .row .body .show-list-venue,
 b .show-list-venue,
 .show-list-venue{
   display:inline !important;
   font-size:inherit;
-  font-weight:500;
-  opacity:0.55;
-  color:inherit;
+  font-weight:550;
+  line-height:inherit;
+  font-variant-numeric:normal;
+  vertical-align:baseline;
   margin:0 !important;
+  padding:0.1em 0.42em;
+  border-radius:7px;
   white-space:nowrap;
   overflow:visible;
   text-overflow:clip;
-  line-height:inherit;
-  font-variant-numeric:normal;
+  color:rgba(245,245,247,0.92);
+  background:
+    linear-gradient(165deg, rgba(255,255,255,0.28) 0%, rgba(255,255,255,0.10) 38%, rgba(255,255,255,0.04) 100%);
+  border:1px solid rgba(255,255,255,0.28);
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.45),
+    inset 0 -1px 0 rgba(0,0,0,0.18),
+    0 1px 3px rgba(0,0,0,0.22);
+  backdrop-filter:blur(12px) saturate(160%);
+  -webkit-backdrop-filter:blur(12px) saturate(160%);
+  text-shadow:0 1px 0 rgba(255,255,255,0.22);
+  letter-spacing:0.01em;
 }
 .show-hero-venue-line{
   display:flex;
