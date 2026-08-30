@@ -62,6 +62,19 @@ function ChromePortals(){
     view.innerHTML = '';
     view.dataset.reactOutlet = '1';
   }
+  /* boot() paints a vanilla nav before React loads — clear so we don't get double tabs. */
+  if(nav && !nav.dataset.reactNav){
+    nav.innerHTML = '';
+    nav.dataset.reactNav = '1';
+  }
+  if(fab && !fab.dataset.reactFab){
+    fab.innerHTML = '';
+    fab.dataset.reactFab = '1';
+  }
+  if(toast && !toast.dataset.reactToast){
+    toast.innerHTML = '';
+    toast.dataset.reactToast = '1';
+  }
 
   let overlaysHost = document.getElementById('react-shell-overlays');
   if(app && !overlaysHost){

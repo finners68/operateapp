@@ -284,8 +284,10 @@ function renderNav(){
   } else if(typeof OperateReact !== 'undefined' && OperateReact && typeof OperateReact.mountShell === 'function' && !OperateReact.isShellMounted?.()){
     OperateReact.mountShell();
   }
-  if(typeof OperateReact !== 'undefined' && OperateReact && ((OperateReact.isAppMounted && OperateReact.isAppMounted()) || (OperateReact.isShellMounted && OperateReact.isShellMounted()))){
+  /* React owns #nav once the bundle is present — never write HTML tabs alongside it. */
+  if(typeof OperateReact !== 'undefined' && OperateReact && (typeof OperateReact.mountApp === 'function' || typeof OperateReact.mountShell === 'function')){
     if(typeof OperateReact.refreshShell === 'function') OperateReact.refreshShell();
+    else if(typeof notifyStore === 'function') notifyStore();
     return;
   }
   const active = activeNavTab();
