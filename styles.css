@@ -991,7 +991,17 @@ img{-webkit-touch-callout:none;}
 .ag-show-b{flex:1;min-width:0;}
 .ag-show-b b{font-size:16px;font-weight:750;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--text);}
 .ag-show-b span{font-size:13px;color:var(--text-3);font-weight:600;display:block;margin-top:4px;font-variant-numeric:tabular-nums;}
-.ag-show-b .show-list-venue{display:inline;font-size:0.9em;font-weight:500;opacity:0.55;color:inherit;margin-top:0;}
+.ag-show-b b .show-list-venue,
+.ag-show-b .show-list-venue{
+  display:inline !important;
+  font-size:0.9em;
+  font-weight:500;
+  opacity:0.55;
+  color:inherit;
+  margin-top:0 !important;
+  margin-left:0.35em;
+  white-space:nowrap;
+}
 .ag-loc{font-size:10.5px;font-weight:800;opacity:.8;letter-spacing:.04em;flex-shrink:0;}
 .ag-log{background:var(--card);border:1px solid var(--stroke);border-radius:13px;padding:11px 13px;display:flex;align-items:center;gap:11px;transition:transform .15s,background .15s;}
 .ag-log:active{transform:scale(.98);background:var(--card-press);}
@@ -1026,12 +1036,23 @@ img{-webkit-touch-callout:none;}
 .shows-month{font-size:12px;font-weight:750;color:var(--text-3);text-transform:uppercase;letter-spacing:.05em;margin:16px 4px 8px;}
 .show-row .show-row-edit{width:34px;height:34px;flex-shrink:0;align-self:center;color:var(--text-3);}
 .show-row .show-row-edit:active{color:var(--accent-2);}
-/* Venue sits in the same title line, just quieter than the event name. */
+/* Keep venue on the same title line (row .body span is otherwise display:block). */
+.row .body b .show-list-venue,
+.row .body .show-list-venue,
 b .show-list-venue,
 .show-list-venue{
+  display:inline !important;
   font-size:0.9em;
   font-weight:500;
   opacity:0.55;
+  color:inherit;
+  margin-top:0 !important;
+  margin-left:0.35em;
+  white-space:nowrap;
+  overflow:visible;
+  text-overflow:clip;
+  line-height:inherit;
+  font-variant-numeric:normal;
 }
 .show-hero-venue-line{
   display:flex;
