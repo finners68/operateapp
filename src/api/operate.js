@@ -82,8 +82,11 @@ export function showTitle(e, fallback){
   const fn = w('showTitle');
   if(typeof fn === 'function') return fn(e, fallback);
   if(!e) return fallback || 'Untitled show';
-  const title = String(e.eventName || e.venue || '').trim();
-  return title || fallback || 'Untitled show';
+  const eventName = String(e.eventName || '').trim();
+  const venue = String(e.venue || '').trim();
+  if(eventName && venue) return `${eventName} - ${venue}`;
+  if(eventName || venue) return eventName || venue;
+  return fallback || 'Untitled show';
 }
 export function fmtDate(...a){ const fn = w('fmtDate'); return typeof fn === 'function' ? fn(...a) : (a[0] || ''); }
 export function fmtDateLong(...a){ const fn = w('fmtDateLong'); return typeof fn === 'function' ? fn(...a) : (a[0] || ''); }

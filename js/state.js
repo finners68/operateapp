@@ -424,11 +424,14 @@ function commit(){ persistAll(); render(); }
 /* ---------- Utilities ---------- */
 const $ = sel => document.querySelector(sel);
 const esc = s => (s==null?'':String(s)).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-/* Big title for a show: event name when set, otherwise venue. */
+/* List/calendar title: "Event - Venue" when both exist. */
 function showTitle(e, fallback){
   if(!e) return fallback || 'Untitled show';
-  const title = String(e.eventName || e.venue || '').trim();
-  return title || fallback || 'Untitled show';
+  const eventName = String(e.eventName || '').trim();
+  const venue = String(e.venue || '').trim();
+  if(eventName && venue) return `${eventName} - ${venue}`;
+  if(eventName || venue) return eventName || venue;
+  return fallback || 'Untitled show';
 }
 /* Escape a value that is interpolated as a JS *string literal* inside a
    double-quoted inline handler, e.g. onclick="fn('${jsAttr(x)}')".

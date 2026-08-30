@@ -193,7 +193,7 @@ function showBlock(e){
   const c = e.color==='orange' ? 'var(--orange)' : 'var(--green)';
   const time = e.setTime ? `${e.setTime}${e.endTime?' – '+e.endTime:''}` : 'TBA';
   return `<div class="ag-show" style="background:${c}" onclick="openView('event','${e.id}')">
-    <div class="ag-show-b"><b>${esc(e.venue||e.title||'Show')}</b><span>${time}</span></div>
+    <div class="ag-show-b"><b>${esc(showTitle(e,'Show'))}</b><span>${time}</span></div>
     <div class="ag-loc">LOC</div>
   </div>`;
 }
@@ -406,7 +406,7 @@ function eventRow(e){
   const past = parseDT(e.date) < new Date().setHours(0,0,0,0);
   return `<div class="row" onclick="openView('event','${e.id}')">
     <div class="ic" style="background:${CATS[e.color]||CATS.purple}22;color:${CATS[e.color]||CATS.purple}">${ICON.music(18)}</div>
-    <div class="body"><b>${esc(e.venue||'Untitled show')}</b><span>${esc(e.city)}${e.country?', '+esc(e.country):''} · ${e.setTime?esc(e.setTime):'—'}</span></div>
+    <div class="body"><b>${esc(showTitle(e))}</b><span>${esc(e.city)}${e.country?', '+esc(e.country):''} · ${e.setTime?esc(e.setTime):'—'}</span></div>
     <div class="trail"><span class="dot" style="width:0"></span><span style="font-size:12px">${esc(relDay(e.date))}</span>${ICON.chevR(15)}</div>
   </div>`;
 }
