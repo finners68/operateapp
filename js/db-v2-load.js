@@ -27,42 +27,53 @@ function _mergeDirtyById(cloudRows, prevRows, dirtyIds, patchFn){
 }
 
 async function loadFromSupabaseV2(orgId, sb){
-  const prevEvents = store?.events ? store.events.slice() : [];
-  const prevTab = store?.tab;
-  const prevActiveTrip = store?.activeTripId;
-  const prevActiveShow = store?.activeShowId;
-  const prevPacking = store?.packing || [];
-  const prevReminders = store?.reminders || [];
+  const prevOrgId = store?.organisationId || null;
+  const orgChanged = !!(prevOrgId && orgId && prevOrgId !== orgId);
+  /* Switching JAKE ↔ FIN must not carry the other org's dirty rows — that
+     caused repeated cloud sync 409s when old show IDs already belonged to
+     the previous organisation. */
+  if(orgChanged){
+    clearDirty();
+    if(typeof syncDirty !== 'undefined') syncDirty = false;
+  }
 
-  /* Keep dirty local rows across cloud reload so mid-edit work is not wiped. */
-  const prevNotes = (store?.notes || []).slice();
-  const prevNoteFolders = (store?.noteFolders || []).slice();
-  const prevIdeas = (store?.ideas || []).slice();
-  const prevContacts = (store?.contacts || []).slice();
-  const prevDirtyNotes = _dirtyIdSet('notes');
-  const prevDirtyNoteFolders = _dirtyIdSet('note_folders');
-  const prevDirtyIdeas = _dirtyIdSet('ideas');
-  const prevDirtyContacts = _dirtyIdSet('contacts');
-  const prevDirtyShows = _dirtyIdSet('shows');
-  const prevDirtyJourneys = _dirtyIdSet('journeys');
-  const prevDirtyHotels = _dirtyIdSet('hotel_bookings');
-  const prevDirtyMarkers = _dirtyIdSet('schedule_items');
-  const prevDirtyTours = _dirtyIdSet('tours');
-  const prevTrips = (store?.trips || []).slice();
-  const keepDirtySnap = (typeof cloneDirty === 'function') ? cloneDirty(store?._dirty) : null;
+  const prevEvents = orgChanged ? [] : (store?.events ? store.events.slice() : []);
+  const prevTab = store?.tab;
+  const prevActiveTrip = orgChanged ? null : store?.activeTripId;
+  const prevActiveShow = orgChanged ? null : store?.activeShowId;
+  const prevPacking = orgChanged ? [] : (store?.packing || []);
+  const prevReminders = orgChanged ? [] : (store?.reminders || []);
+
+  /* Keep dirty local rows across cloud reload so mid-edit work is not wiped
+     — but only within the same organisation. */
+  const prevNotes = orgChanged ? [] : (store?.notes || []).slice();
+  const prevNoteFolders = orgChanged ? [] : (store?.noteFolders || []).slice();
+  const prevIdeas = orgChanged ? [] : (store?.ideas || []).slice();
+  const prevContacts = orgChanged ? [] : (store?.contacts || []).slice();
+  const prevDirtyNotes = orgChanged ? new Set() : _dirtyIdSet('notes');
+  const prevDirtyNoteFolders = orgChanged ? new Set() : _dirtyIdSet('note_folders');
+  const prevDirtyIdeas = orgChanged ? new Set() : _dirtyIdSet('ideas');
+  const prevDirtyContacts = orgChanged ? new Set() : _dirtyIdSet('contacts');
+  const prevDirtyShows = orgChanged ? new Set() : _dirtyIdSet('shows');
+  const prevDirtyJourneys = orgChanged ? new Set() : _dirtyIdSet('journeys');
+  const prevDirtyHotels = orgChanged ? new Set() : _dirtyIdSet('hotel_bookings');
+  const prevDirtyMarkers = orgChanged ? new Set() : _dirtyIdSet('schedule_items');
+  const prevDirtyTours = orgChanged ? new Set() : _dirtyIdSet('tours');
+  const prevTrips = orgChanged ? [] : (store?.trips || []).slice();
+  const keepDirtySnap = orgChanged ? null : ((typeof cloneDirty === 'function') ? cloneDirty(store?._dirty) : null);
 
   const v2 = await v2RepoFetchOrg(sb, orgId);
   /* Edits that landed while we were fetching must still win over cloud. */
-  const midDirtyShows = _dirtyIdSet('shows');
-  const midDirtyJourneys = _dirtyIdSet('journeys');
-  const midDirtyHotels = _dirtyIdSet('hotel_bookings');
-  const midDirtyMarkers = _dirtyIdSet('schedule_items');
-  const midDirtyTours = _dirtyIdSet('tours');
-  const midDirtyNotes = _dirtyIdSet('notes');
-  const midDirtyNoteFolders = _dirtyIdSet('note_folders');
-  const midDirtyIdeas = _dirtyIdSet('ideas');
-  const midDirtyContacts = _dirtyIdSet('contacts');
-  const midDirtySnap = (typeof cloneDirty === 'function') ? cloneDirty(store?._dirty) : null;
+  const midDirtyShows = orgChanged ? new Set() : _dirtyIdSet('shows');
+  const midDirtyJourneys = orgChanged ? new Set() : _dirtyIdSet('journeys');
+  const midDirtyHotels = orgChanged ? new Set() : _dirtyIdSet('hotel_bookings');
+  const midDirtyMarkers = orgChanged ? new Set() : _dirtyIdSet('schedule_items');
+  const midDirtyTours = orgChanged ? new Set() : _dirtyIdSet('tours');
+  const midDirtyNotes = orgChanged ? new Set() : _dirtyIdSet('notes');
+  const midDirtyNoteFolders = orgChanged ? new Set() : _dirtyIdSet('note_folders');
+  const midDirtyIdeas = orgChanged ? new Set() : _dirtyIdSet('ideas');
+  const midDirtyContacts = orgChanged ? new Set() : _dirtyIdSet('contacts');
+  const midDirtySnap = orgChanged ? null : ((typeof cloneDirty === 'function') ? cloneDirty(store?._dirty) : null);
   const view = await composeViewFromV2(v2, { prevEvents });
 
   if(view.settings.homeHeader && !view.settings.homeHeader.startsWith('data:') && !view.settings.homeHeader.startsWith('http')){

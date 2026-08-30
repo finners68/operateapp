@@ -935,7 +935,11 @@ async function pushToSupabase(orgId){
     if(typeof syncDirty !== 'undefined') syncDirty = true;
     if(typeof scheduleSyncRetry === 'function') scheduleSyncRetry();
     const msg = (e && e.message) ? String(e.message) : 'Sync failed';
-    if(typeof toast === 'function') toast(msg.length > 80 ? 'Cloud sync failed — see console' : msg, 'x');
+    const now = Date.now();
+    if(!pushToSupabase._lastToastAt || now - pushToSupabase._lastToastAt > 20000){
+      pushToSupabase._lastToastAt = now;
+      if(typeof toast === 'function') toast(msg.length > 80 ? 'Cloud sync failed — see console' : msg, 'x');
+    }
   }finally{
     dbSyncInProgress = false;
     /* Edits that landed after the last loop check (while this flag was still

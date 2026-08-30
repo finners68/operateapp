@@ -315,12 +315,18 @@ async function switchOrganisation(orgId){
   }
 
   if(typeof syncTeardown === 'function') syncTeardown();
+  /* Drop any leftover dirty from the previous org before loading the next. */
+  if(typeof clearDirty === 'function') clearDirty();
+  if(typeof syncDirty !== 'undefined') syncDirty = false;
+  if(store) store._forceFullSync = false;
   setStoredOrgId(nextId);
 
   try{
     toast('Switching to ' + match.name + '…');
     await loadFromSupabase(nextId);
     if(store) store.organisationName = match.name;
+    if(typeof clearDirty === 'function') clearDirty();
+    if(typeof syncDirty !== 'undefined') syncDirty = false;
     if(typeof startRealtime === 'function') startRealtime(nextId);
     if(typeof syncSetStatus === 'function') syncSetStatus('synced');
     if(typeof syncMarkLastSync === 'function') syncMarkLastSync();

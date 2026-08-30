@@ -144,6 +144,29 @@ async function v2UpsertById(sb, table, orgId, rowOrRows){
     byId.set(r.id, r);
   });
   const payload = [...byId.values()];
+  /* Show/venue ids are globally unique. If this id already belongs to another
+     organisation (e.g. leftover JAKE rows while on FIN), mint a new id. */
+  try{
+    const ids = payload.map(r => r.id).filter(Boolean);
+    if(ids.length){
+      const { data: existing } = await sb.from(table).select('id,organisation_id').in('id', ids);
+      const foreign = new Set(
+        (existing || [])
+          .filter(r => r.organisation_id && r.organisation_id !== orgId)
+          .map(r => r.id)
+      );
+      if(foreign.size){
+        payload.forEach(row => {
+          if(foreign.has(row.id)){
+            row.id = newUuid();
+            row.legacy_id = null;
+          }
+        });
+      }
+    }
+  }catch(e){
+    console.warn('org id ownership check', table, e);
+  }
   try{
     const data = await v2RepoUpsert(sb, table, payload, 'id');
     (data || []).forEach(r => { if(r) v2RepoPatchLocal(table, r); });
