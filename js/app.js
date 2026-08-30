@@ -1401,31 +1401,32 @@ function submitCalendarUpload(input){
 async function postCalendarScreenshotsToMake(images){
   const list = (images || []).filter(im => im && im.data);
   if(!list.length) return { error:'no_file' };
-  const form = new FormData();
-  const orgId = resolveOperateOrgId();
-  form.append('organisation_id', orgId);
-  form.append('artist', (store.settings && store.settings.artistName) || '');
-  form.append('file_count', String(list.length));
-  form.append('uploaded_at', new Date().toISOString());
-  let attached = 0;
+  const files = [];
   list.forEach((file, i) => {
-    const blob = dataUrlToBlob(file.data);
-    if(!blob) return;
-    const name = file.name || `calendar-${i + 1}.jpg`;
-    const mime = file.mime || blob.type || 'image/jpeg';
-    form.append('file', blob, name);
-    form.append('file_' + (i + 1), blob, name);
-    form.append('filename_' + (i + 1), name);
-    form.append('contentType_' + (i + 1), mime);
-    attached += 1;
+    const m = String(file.data || '').match(/^data:([^;]+);base64,(.+)$/);
+    if(!m) return;
+    files.push({
+      index: i + 1,
+      filename: file.name || `calendar-${i + 1}.jpg`,
+      contentType: file.mime || m[1] || 'image/jpeg',
+      data: m[2]
+    });
   });
-  if(!attached) return { error:'bad_file' };
+  if(!files.length) return { error:'bad_file' };
+  const payload = {
+    organisation_id: resolveOperateOrgId(),
+    artist: (store.settings && store.settings.artistName) || '',
+    file_count: files.length,
+    uploaded_at: new Date().toISOString(),
+    files
+  };
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 90000);
   try{
     const res = await fetch(MAKE_CALENDAR_WEBHOOK_URL, {
       method: 'POST',
-      body: form,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
       signal: controller.signal
     });
     const text = await res.text().catch(() => '');
