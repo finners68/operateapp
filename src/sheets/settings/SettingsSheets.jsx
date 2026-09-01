@@ -53,7 +53,7 @@ export function AuthAccountSheet({mode,email,statusLabel,message,singleAccount=f
       <div className="hint" style={{textAlign:'left',padding:'8px 2px 14px',lineHeight:1.5}}>
         JAKE and FIN are always available. Pick one to view and edit that workspace — no sign-in needed.
       </div>
-      <button className="btn secondary" onClick={()=>call('syncPullNow')}><Icon name="reminder" size={16}/> Refresh now</button>
+      <button className="btn secondary" onClick={()=>call('refreshFromCloud')}><Icon name="refresh" size={16}/> Refresh now</button>
       <Spacer/>
     </>;
   }
@@ -87,7 +87,7 @@ export function AuthAccountSheet({mode,email,statusLabel,message,singleAccount=f
         : 'Your tour data syncs across signed-in devices for this organisation only.'}
     </div>
     {!singleAccount ? <button className="btn secondary" onClick={()=>call('sheetInviteCrew')}><Icon name="users" size={16}/> Invite crew</button> : null}
-    <button className="btn secondary" style={{marginTop:10}} onClick={()=>call('syncPullNow')}><Icon name="reminder" size={16}/> Refresh now</button>
+    <button className="btn secondary" style={{marginTop:10}} onClick={()=>call('refreshFromCloud')}><Icon name="refresh" size={16}/> Refresh now</button>
     <button className="btn secondary" style={{marginTop:10}} onClick={()=>call('exportData')}><Icon name="file" size={16}/> Export my data</button>
     <button className="btn danger" style={{marginTop:10}} onClick={()=>call('signOut')}><Icon name="x" size={16}/> Sign out</button>
     <button className="btn danger" style={{marginTop:10}} onClick={()=>call('confirmDeleteCloudData')}><Icon name="trash" size={16}/> Delete all cloud data</button>

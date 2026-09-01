@@ -297,17 +297,64 @@ function startRealtime(orgId){
   }
 }
 
-async function syncPullNow(){
-  if(!currentOrgId) return;
+async function syncPullNow(opts){
+  opts = opts || {};
+  if(!currentOrgId){
+    if(!opts.quiet) toast('Nothing to refresh — pick an organisation first', 'x');
+    return false;
+  }
+  if(typeof syncActive === 'function' && !syncActive()){
+    if(!opts.quiet) toast('Cloud sync isn’t available right now', 'x');
+    return false;
+  }
   const ui = captureQuietUi();
+  syncSetStatus('syncing');
   await loadFromSupabase(currentOrgId);
   lastRemotePullAt = Date.now();
   if(typeof applySavedNavToStore === 'function') applySavedNavToStore();
   renderAfterQuietSync(ui);
   syncSetStatus('synced');
   syncMarkLastSync();
-  toast('Updated from cloud', 'check');
+  if(!opts.quiet) toast('Updated from cloud', 'check');
+  return true;
 }
+
+let syncRefreshInFlight = false;
+/* Manual refresh: save any pending edits, then pull the latest cloud data. */
+async function refreshFromCloud(opts){
+  opts = opts || {};
+  if(syncRefreshInFlight) return false;
+  if(!currentOrgId || (typeof syncActive === 'function' && !syncActive())){
+    if(!opts.quiet) toast('Cloud sync isn’t available right now', 'x');
+    return false;
+  }
+  syncRefreshInFlight = true;
+  document.documentElement.classList.add('is-refreshing');
+  const btn = document.getElementById('desktop-refresh');
+  if(btn) btn.classList.add('spinning');
+  document.querySelectorAll('.nav-refresh').forEach(el => el.classList.add('spinning'));
+  syncSetStatus('syncing');
+  try{
+    if(typeof flushDirtyNow === 'function'){
+      try{ await flushDirtyNow(); }catch(e){ console.warn('refresh push', e); }
+    }
+    await syncPullNow({ quiet: !!opts.quiet });
+    if(typeof haptic === 'function') haptic();
+    return true;
+  }catch(e){
+    console.error('refreshFromCloud', e);
+    syncSetStatus('error');
+    if(!opts.quiet) toast('Refresh failed — try again', 'x');
+    return false;
+  }finally{
+    syncRefreshInFlight = false;
+    document.documentElement.classList.remove('is-refreshing');
+    if(btn) btn.classList.remove('spinning');
+    document.querySelectorAll('.nav-refresh').forEach(el => el.classList.remove('spinning'));
+  }
+}
+window.refreshFromCloud = refreshFromCloud;
+window.syncPullNow = syncPullNow;
 
 function syncTeardown(){
   stopRealtime();

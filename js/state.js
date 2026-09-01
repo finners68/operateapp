@@ -79,6 +79,7 @@ const ICON = {
   ferry:     p=>I('<path d="M3 14l1.5 5.5a2 2 0 0 0 1.9 1.5h11.2a2 2 0 0 0 1.9-1.5L22 14M4 14l8-3 8 3M12 4v7M8 8h8"/>',p),
   ban:       p=>I('<circle cx="12" cy="12" r="9"/><path d="M5.6 5.6l12.8 12.8"/>',p),
   walk:      p=>I('<circle cx="13" cy="4" r="1.6"/><path d="M11 21l1.5-6L10 12l1-5 3 3 3 1M8 21l2.5-6"/>',p),
+  refresh:   p=>I('<path d="M21 12a9 9 0 1 1-2.6-6.2"/><path d="M21 3v6h-6"/>',p),
 };
 
 /* Content types for Ideas */

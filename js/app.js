@@ -122,6 +122,100 @@ function initGestures(){
       return;
     }
   }, {passive:true});
+  initPullToRefresh();
+}
+
+function pullRefreshBusyUi(){
+  return !!(
+    (typeof sheetEl !== 'undefined' && sheetEl) ||
+    (typeof dtPickerEl !== 'undefined' && dtPickerEl) ||
+    document.getElementById('viewer')?.classList.contains('on') ||
+    document.getElementById('lock')?.classList.contains('on') ||
+    document.documentElement.classList.contains('is-refreshing')
+  );
+}
+
+function initPullToRefresh(){
+  const screen = document.getElementById('screen');
+  if(!screen || screen.dataset.ptrInit === '1') return;
+  screen.dataset.ptrInit = '1';
+
+  let indicator = document.getElementById('pull-refresh');
+  if(!indicator){
+    indicator = document.createElement('div');
+    indicator.id = 'pull-refresh';
+    indicator.className = 'pull-refresh';
+    indicator.setAttribute('aria-hidden', 'true');
+    indicator.innerHTML = `<div class="pull-refresh-inner"><span class="pull-refresh-icon">${typeof ICON !== 'undefined' ? ICON.refresh(18) : ''}</span><span class="pull-refresh-label">Pull to refresh</span></div>`;
+    screen.insertBefore(indicator, screen.firstChild);
+  }
+
+  const THRESH = 78;
+  let startY = 0;
+  let pulling = false;
+  let armed = false;
+  let dy = 0;
+
+  const isDesktop = () => window.matchMedia('(min-width:900px)').matches;
+  const reset = () => {
+    pulling = false;
+    armed = false;
+    dy = 0;
+    indicator.classList.remove('armed', 'visible', 'loading');
+    indicator.style.setProperty('--pull', '0px');
+    const label = indicator.querySelector('.pull-refresh-label');
+    if(label) label.textContent = 'Pull to refresh';
+  };
+
+  screen.addEventListener('touchstart', (e) => {
+    if(isDesktop() || pullRefreshBusyUi()){ pulling = false; return; }
+    if(e.touches.length !== 1){ pulling = false; return; }
+    if(screen.scrollTop > 2){ pulling = false; return; }
+    startY = e.touches[0].clientY;
+    pulling = true;
+    armed = false;
+    dy = 0;
+  }, { passive: true });
+
+  screen.addEventListener('touchmove', (e) => {
+    if(!pulling || isDesktop() || pullRefreshBusyUi()) return;
+    if(screen.scrollTop > 2){
+      reset();
+      return;
+    }
+    dy = e.touches[0].clientY - startY;
+    if(dy < 10) return;
+    if(e.cancelable) e.preventDefault();
+    const pull = Math.min(dy * 0.55, 110);
+    armed = pull >= THRESH * 0.55;
+    indicator.classList.add('visible');
+    indicator.classList.toggle('armed', armed);
+    indicator.style.setProperty('--pull', pull + 'px');
+    const label = indicator.querySelector('.pull-refresh-label');
+    if(label) label.textContent = armed ? 'Release to refresh' : 'Pull to refresh';
+  }, { passive: false });
+
+  screen.addEventListener('touchend', async () => {
+    if(!pulling) return;
+    const shouldRefresh = armed;
+    pulling = false;
+    if(!shouldRefresh){
+      reset();
+      return;
+    }
+    indicator.classList.add('visible', 'loading', 'armed');
+    indicator.style.setProperty('--pull', '56px');
+    const label = indicator.querySelector('.pull-refresh-label');
+    if(label) label.textContent = 'Refreshing…';
+    try{
+      if(typeof refreshFromCloud === 'function') await refreshFromCloud();
+      else if(typeof syncPullNow === 'function') await syncPullNow();
+    }finally{
+      setTimeout(reset, 280);
+    }
+  }, { passive: true });
+
+  screen.addEventListener('touchcancel', reset, { passive: true });
 }
 function calMoveAnimated(dir){
   if(!calCursor){
@@ -169,6 +263,11 @@ function toggleSidebar(force){
 function initSidebar(){
   const btn = document.getElementById('sidebar-reveal');
   if(btn && !btn.dataset.init){ btn.innerHTML = ICON.chevR(18); btn.dataset.init = '1'; }
+  const refreshBtn = document.getElementById('desktop-refresh');
+  if(refreshBtn && !refreshBtn.dataset.init){
+    refreshBtn.innerHTML = ICON.refresh(18);
+    refreshBtn.dataset.init = '1';
+  }
   applySidebar();
 }
 /* ---------- Navigation ---------- */
@@ -298,6 +397,7 @@ function renderNav(){
     <div class="nav-brand">
       <span class="nav-brand-mark">O</span>
       <span class="nav-brand-name">Operate</span>
+      <button type="button" class="nav-refresh header-btn" onclick="refreshFromCloud()" title="Refresh from cloud">${ICON.refresh(16)}</button>
       <button type="button" class="nav-collapse header-btn" onclick="toggleSidebar(true)" title="Hide sidebar">${ICON.chevL(16)}</button>
     </div>
   ` + TABS.map(t=>`

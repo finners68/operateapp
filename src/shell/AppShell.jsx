@@ -35,6 +35,9 @@ export function NavBar(){
       <div className="nav-brand">
         <span className="nav-brand-mark">O</span>
         <span className="nav-brand-name">Operate</span>
+        <button type="button" className="nav-refresh header-btn" onClick={() => call('refreshFromCloud')} title="Refresh from cloud">
+          <Icon name="refresh" size={16} />
+        </button>
         <button type="button" className="nav-collapse header-btn" onClick={() => call('toggleSidebar', true)} title="Hide sidebar">
           <Icon name="chevL" size={16} />
         </button>

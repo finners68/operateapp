@@ -898,6 +898,48 @@ body{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;}
 input,textarea,[contenteditable="true"],.selectable{-webkit-user-select:text;user-select:text;-webkit-touch-callout:default;}
 img{-webkit-touch-callout:none;}
 #screen{overscroll-behavior:contain;}
+
+/* Mobile pull-to-refresh indicator (hidden on desktop) */
+.pull-refresh{
+  position:absolute;
+  left:0;right:0;
+  top:0;
+  z-index:30;
+  display:flex;
+  justify-content:center;
+  pointer-events:none;
+  opacity:0;
+  transform:translateY(calc(var(--pull, 0px) - 48px));
+  transition:opacity .15s ease;
+}
+.pull-refresh.visible{opacity:1;}
+.pull-refresh-inner{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  margin-top:calc(var(--safe-top) + 8px);
+  padding:8px 14px;
+  border-radius:999px;
+  background:rgba(26,26,32,.92);
+  border:1px solid var(--stroke-strong);
+  color:var(--text-2);
+  font-size:12.5px;
+  font-weight:650;
+  box-shadow:0 8px 24px rgba(0,0,0,.28);
+  backdrop-filter:blur(14px);
+}
+.pull-refresh.armed .pull-refresh-inner{color:var(--text); border-color:color-mix(in srgb, var(--accent-2) 40%, var(--stroke));}
+.pull-refresh-icon{display:flex; color:var(--accent-2);}
+.pull-refresh.loading .pull-refresh-icon svg,
+html.is-refreshing .pull-refresh-icon svg{
+  animation:refresh-spin .8s linear infinite;
+}
+@keyframes refresh-spin{
+  to{ transform:rotate(360deg); }
+}
+@media (min-width:900px){
+  .pull-refresh{display:none !important;}
+}
 .stagger>*{animation:fadeIn .4s both;}
 .stagger>*:nth-child(1){animation-delay:.02s;}
 .stagger>*:nth-child(2){animation-delay:.06s;}
@@ -1156,6 +1198,34 @@ img{-webkit-touch-callout:none;}
     color:var(--text-3);
   }
   .nav-collapse:hover{color:var(--text-2);}
+  .nav-refresh{
+    width:32px;height:32px;flex-shrink:0;
+    color:var(--text-3);
+  }
+  .nav-refresh:hover{color:var(--text-2);}
+  .nav-refresh.spinning svg,
+  .desktop-refresh.spinning svg{
+    animation:refresh-spin .8s linear infinite;
+  }
+
+  .desktop-refresh{display:none;}
+  #app.sidebar-hidden .desktop-refresh{
+    display:flex;
+    position:absolute;
+    top:calc(var(--safe-top) + 16px);
+    right:16px;
+    z-index:45;
+    width:40px;height:40px;
+    border-radius:12px;
+    background:rgba(26,26,32,.94);
+    border:1px solid var(--stroke-strong);
+    align-items:center;
+    justify-content:center;
+    color:var(--text-2);
+    backdrop-filter:blur(16px);
+    box-shadow:0 8px 24px rgba(0,0,0,.35);
+  }
+  #app.sidebar-hidden .desktop-refresh:hover{color:var(--text);filter:brightness(1.08);}
 
   .sidebar-reveal{
     display:none;
