@@ -37,6 +37,9 @@ function boot(){
   document.addEventListener('visibilitychange', ()=>{ if(document.hidden) saveNavState(); else { if(canTick()) tickCountdowns(); if(typeof checkDueReminders==='function') checkDueReminders(); } });
   window.addEventListener('pagehide', saveNavState);
   if(typeof checkDueReminders==='function'){ checkDueReminders(); setInterval(checkDueReminders, 60000); }
+  if(typeof resumeItineraryUploadWatchers === 'function'){
+    setTimeout(()=>{ try{ resumeItineraryUploadWatchers(); }catch(_){} }, 1500);
+  }
 }
 
 const INTRO_KEY = 'operate_intro:';
@@ -1142,13 +1145,40 @@ const MAKE_ITINERARY_WEBHOOK_URL = 'https://hook.eu2.make.com/xgg1tbfi9leurmlcsg
 const MAKE_ITINERARY_FULL_WEBHOOK_URL = 'https://hook.eu2.make.com/p2f3yp4wj7795gifd38v5rpepf3syxjt';
 const MAKE_ITINERARY_DECISION_WEBHOOK_URL = 'https://hook.eu2.make.com/s9nhy6yvevqj0h8wg51wv57m1acwd3fg';
 const MAKE_CALENDAR_WEBHOOK_URL = 'https://hook.eu2.make.com/llxseuaiwkm7q6ug0hjpg7e8iqws3eh7';
-/* showId -> { status:'uploading'|'done'|'error', message:string } while full OCR runs */
+const ITINERARY_UPLOAD_STATE_KEY = 'operate.itineraryFullUpload';
+const ITINERARY_UPLOAD_WATCH_MS = 3500;
+const ITINERARY_UPLOAD_MAX_MS = 8 * 60 * 1000;
+/* showId -> { status, message, itineraryId, baselineScore, startedAt } while full OCR runs */
 let itineraryFullUploadByShow = {};
+try{
+  const raw = localStorage.getItem(ITINERARY_UPLOAD_STATE_KEY);
+  if(raw) itineraryFullUploadByShow = JSON.parse(raw) || {};
+}catch(_){ itineraryFullUploadByShow = {}; }
 Object.defineProperty(window, 'itineraryFullUploadByShow', {
   get(){ return itineraryFullUploadByShow; },
-  set(v){ itineraryFullUploadByShow = v; },
+  set(v){ itineraryFullUploadByShow = v || {}; persistItineraryUploadState(); },
   configurable: true
 });
+const _itineraryUploadWatchTimers = {};
+const _itineraryUploadWatchStarted = {};
+function persistItineraryUploadState(){
+  try{ localStorage.setItem(ITINERARY_UPLOAD_STATE_KEY, JSON.stringify(itineraryFullUploadByShow || {})); }
+  catch(_){}
+}
+function setItineraryUploadState(showId, state){
+  if(!showId) return;
+  if(!state) delete itineraryFullUploadByShow[showId];
+  else {
+    itineraryFullUploadByShow[showId] = Object.assign(
+      {},
+      itineraryFullUploadByShow[showId] || {},
+      state,
+      { updatedAt: Date.now() }
+    );
+  }
+  persistItineraryUploadState();
+  refreshIfViewingShow(showId);
+}
 /* Itinerary id currently open on the show-basics review sheet (awaiting confirm/cancel). */
 let itineraryReviewActiveId = null;
 /* Prevents ghost taps (e.g. after file picker) from auto-cancelling the review. */
@@ -1672,11 +1702,12 @@ async function saveItineraryReview(id){
   const extra = filled.length ? (' · filled '+filled.join(', ')) : '';
   toast('Show created'+extra, 'check');
 
-  itineraryFullUploadByShow[showId] = {
+  setItineraryUploadState(showId, {
     status:'uploading',
-    message:'Saving show to the cloud…'
-  };
-  refreshIfViewingShow(showId);
+    message:'Saving show to the cloud…',
+    title:'Itinerary is being uploaded',
+    itineraryId: id
+  });
 
   let synced = false;
   try{
@@ -1696,13 +1727,20 @@ async function saveItineraryReview(id){
   notifyItineraryDecision(it, 'confirmed', { show_id: finalShowId, cloud_synced: !!synced });
 
   if(!synced){
-    itineraryFullUploadByShow[finalShowId] = {
+    setItineraryUploadState(finalShowId, {
       status:'error',
-      message:'Show confirmed to Make, but cloud sync is still catching up. Tap Retry when online to upload full itinerary details.'
-    };
-    refreshIfViewingShow(finalShowId);
+      title:'Cloud sync still pending',
+      message:'Show confirmed to Make, but cloud sync is still catching up. Tap Retry when online to upload full itinerary details.',
+      itineraryId: id
+    });
     toast('Confirmed to Make — cloud sync still pending', 'x');
     return;
+  }
+
+  if(finalShowId !== showId && itineraryFullUploadByShow[showId]){
+    itineraryFullUploadByShow[finalShowId] = Object.assign({}, itineraryFullUploadByShow[showId], { updatedAt: Date.now() });
+    delete itineraryFullUploadByShow[showId];
+    persistItineraryUploadState();
   }
 
   startItineraryFullUpload(id, finalShowId);
@@ -1711,21 +1749,32 @@ function itineraryFullUploadBanner(showId){
   const st = itineraryFullUploadByShow[showId];
   if(!st) return '';
   if(st.status === 'uploading'){
-    const msg = st.message
-      || 'Uploading itinerary details… Make is filling hotel, travel and the rest into this show.';
-    return `<div class="hint" style="text-align:left;margin:0 0 14px;padding:12px 14px;border-radius:12px;background:rgba(99,102,241,.12);color:var(--text-1);font-weight:650">
-      ${esc(msg)}
+    const title = st.title || 'Itinerary is being uploaded';
+    const msg = st.message || 'Please wait — hotel, travel and the rest are still coming in.';
+    return `<div class="itinerary-upload-bar is-uploading" role="status" aria-live="polite">
+      <span class="itin-upload-pulse" aria-hidden="true"></span>
+      <div class="itin-upload-copy">
+        <span class="itin-upload-title">${esc(title)}</span>
+        <span class="itin-upload-sub">${esc(msg)}</span>
+      </div>
     </div>`;
   }
   if(st.status === 'done'){
-    return `<div class="hint" style="text-align:left;margin:0 0 14px;padding:12px 14px;border-radius:12px;background:rgba(34,197,94,.12);color:var(--text-1);font-weight:650">
-      ${esc(st.message || 'Itinerary details uploaded successfully.')}
+    return `<div class="itinerary-upload-bar is-done" role="status">
+      <div class="itin-upload-copy">
+        <span class="itin-upload-title">${esc(st.title || 'Itinerary uploaded')}</span>
+        <span class="itin-upload-sub">${esc(st.message || 'Details are ready on this show.')}</span>
+      </div>
     </div>`;
   }
   if(st.status === 'error'){
-    return `<div class="hint" style="text-align:left;margin:0 0 14px;padding:12px 14px;border-radius:12px;background:rgba(239,68,68,.12);color:var(--text-1);font-weight:650">
-      ${esc(st.message || 'Couldn’t finish itinerary upload.')}
-      <button type="button" class="link-btn" style="display:inline;margin-left:8px" onclick="retryItineraryFullUpload('${showId}')">Retry</button>
+    return `<div class="itinerary-upload-bar is-error" role="status">
+      <div class="itin-upload-copy">
+        <span class="itin-upload-title">${esc(st.title || 'Upload didn’t finish')}</span>
+        <span class="itin-upload-sub">${esc(st.message || 'Couldn’t finish itinerary upload.')}
+          <button type="button" class="link-btn" style="display:inline;margin-left:8px" onclick="retryItineraryFullUpload('${showId}')">Retry</button>
+        </span>
+      </div>
     </div>`;
   }
   return '';
@@ -1733,68 +1782,259 @@ function itineraryFullUploadBanner(showId){
 function refreshIfViewingShow(showId){
   if(overlay && overlay.type === 'event' && overlay.id === showId && typeof renderView === 'function') renderView();
 }
+function showEnrichmentScoreLocal(showId){
+  const e = (typeof sel !== 'undefined' && sel.event) ? sel.event(showId) : null;
+  if(!e) return 0;
+  const adv = e.advance || {};
+  const advFilled = Object.keys(adv).filter(k => adv[k] != null && String(adv[k]).trim() !== '').length;
+  return (e.flights || []).length * 2
+    + (e.drivers || []).length
+    + (e.hotel ? 3 : 0)
+    + (e.contacts || []).length
+    + (e.timeline || []).length
+    + advFilled
+    + (e.promoter && (e.promoter.phone || e.promoter.name) ? 1 : 0);
+}
+async function queryShowEnrichmentScore(showId){
+  const sb = typeof getSupabase === 'function' ? getSupabase() : null;
+  const orgId = typeof currentOrgId !== 'undefined' ? currentOrgId : null;
+  if(!sb || !orgId || !showId) return showEnrichmentScoreLocal(showId);
+  try{
+    const [journeys, hotels, contacts, schedule] = await Promise.all([
+      sb.from('journeys').select('id', { count:'exact', head:true }).eq('organisation_id', orgId).eq('related_show_id', showId),
+      sb.from('hotel_booking_shows').select('id', { count:'exact', head:true }).eq('organisation_id', orgId).eq('show_id', showId),
+      sb.from('show_contacts').select('id', { count:'exact', head:true }).eq('organisation_id', orgId).eq('show_id', showId),
+      sb.from('schedule_items').select('id', { count:'exact', head:true }).eq('organisation_id', orgId).eq('show_id', showId)
+    ]);
+    return (journeys.count || 0) * 2
+      + (hotels.count || 0) * 3
+      + (contacts.count || 0)
+      + (schedule.count || 0);
+  }catch(e){
+    return showEnrichmentScoreLocal(showId);
+  }
+}
+async function queryPendingImportRow(showId){
+  const sb = typeof getSupabase === 'function' ? getSupabase() : null;
+  const orgId = typeof currentOrgId !== 'undefined' ? currentOrgId : null;
+  if(!sb || !orgId || !showId) return null;
+  try{
+    const { data, error } = await sb.from('pending_show_imports')
+      .select('id,status,decision,show_id,created_at')
+      .eq('organisation_id', orgId)
+      .eq('show_id', showId)
+      .order('created_at', { ascending:false })
+      .limit(1);
+    if(error) return null;
+    return (data && data[0]) || null;
+  }catch(e){
+    return null;
+  }
+}
+function stopItineraryUploadWatch(showId){
+  if(_itineraryUploadWatchTimers[showId]){
+    clearTimeout(_itineraryUploadWatchTimers[showId]);
+    delete _itineraryUploadWatchTimers[showId];
+  }
+}
+async function markItineraryUploadComplete(showId, itineraryId, message){
+  stopItineraryUploadWatch(showId);
+  const it = (store.itineraries || []).find(x => x.id === itineraryId || x.showId === showId);
+  if(it){
+    it.fullUploadDone = true;
+    persist('user_preferences');
+  }
+  if(typeof currentOrgId !== 'undefined' && currentOrgId && typeof loadFromSupabase === 'function'){
+    try{ await loadFromSupabase(currentOrgId); }catch(_){}
+  }
+  setItineraryUploadState(showId, {
+    status:'done',
+    title:'Itinerary uploaded',
+    message: message || 'Details are ready on this show.'
+  });
+  toast(message || 'Itinerary details are ready', 'check');
+  setTimeout(()=>{
+    if(itineraryFullUploadByShow[showId]?.status === 'done'){
+      setItineraryUploadState(showId, null);
+    }
+  }, 10000);
+}
+async function watchItineraryUploadComplete(showId, itineraryId){
+  if(!showId) return;
+  stopItineraryUploadWatch(showId);
+  const st = itineraryFullUploadByShow[showId] || {};
+  const startedAt = st.startedAt || Date.now();
+  const baseline = typeof st.baselineScore === 'number' ? st.baselineScore : showEnrichmentScoreLocal(showId);
+  _itineraryUploadWatchStarted[showId] = true;
+
+  const tick = async () => {
+    const cur = itineraryFullUploadByShow[showId];
+    if(!cur || cur.status !== 'uploading'){
+      stopItineraryUploadWatch(showId);
+      return;
+    }
+    const elapsed = Date.now() - startedAt;
+    try{
+      const row = await queryPendingImportRow(showId);
+      if(row && String(row.status || '').toLowerCase() === 'failed'){
+        setItineraryUploadState(showId, {
+          status:'error',
+          title:'Upload failed',
+          message:'Make reported a problem finishing this itinerary.',
+          itineraryId
+        });
+        stopItineraryUploadWatch(showId);
+        toast('Itinerary upload failed', 'x');
+        return;
+      }
+      if(row && String(row.status || '').toLowerCase() === 'applied'){
+        await markItineraryUploadComplete(showId, itineraryId, 'Itinerary details uploaded successfully.');
+        return;
+      }
+      const score = await queryShowEnrichmentScore(showId);
+      /* Details landed in the cloud — refresh the open show. */
+      if(score >= baseline + 3 || (baseline === 0 && score >= 4 && elapsed > 12000)){
+        await markItineraryUploadComplete(showId, itineraryId, 'Itinerary details uploaded successfully.');
+        return;
+      }
+      if(elapsed > 15000 && typeof currentOrgId !== 'undefined' && currentOrgId && typeof loadFromSupabase === 'function'){
+        try{ await loadFromSupabase(currentOrgId); }catch(_){}
+        refreshIfViewingShow(showId);
+      }
+      setItineraryUploadState(showId, {
+        status:'uploading',
+        title:'Itinerary is being uploaded',
+        message: elapsed > 45000
+          ? 'Still working — please keep this show open. Hotel, travel and contacts will appear when ready.'
+          : 'Please wait — Make is filling hotel, travel and the rest into this show.',
+        itineraryId,
+        baselineScore: baseline,
+        startedAt
+      });
+    }catch(err){
+      console.warn('itinerary upload watch', err);
+    }
+    if(elapsed >= ITINERARY_UPLOAD_MAX_MS){
+      setItineraryUploadState(showId, {
+        status:'error',
+        title:'Still waiting',
+        message:'This is taking longer than usual. Tap Retry, or check Make then come back to this show.',
+        itineraryId,
+        baselineScore: baseline,
+        startedAt
+      });
+      stopItineraryUploadWatch(showId);
+      return;
+    }
+    _itineraryUploadWatchTimers[showId] = setTimeout(tick, ITINERARY_UPLOAD_WATCH_MS);
+  };
+  _itineraryUploadWatchTimers[showId] = setTimeout(tick, 1200);
+}
+function resumeItineraryUploadWatchers(){
+  Object.keys(itineraryFullUploadByShow || {}).forEach(showId => {
+    const st = itineraryFullUploadByShow[showId];
+    if(!st || st.status !== 'uploading') return;
+    const itinId = st.itineraryId || ((store.itineraries || []).find(x => x.showId === showId) || {}).id;
+    watchItineraryUploadComplete(showId, itinId);
+  });
+}
+function onPendingShowImportRealtime(row){
+  if(!row || !row.show_id) return;
+  const showId = row.show_id;
+  const st = itineraryFullUploadByShow[showId];
+  if(!st || st.status !== 'uploading') return;
+  const status = String(row.status || '').toLowerCase();
+  if(status === 'applied'){
+    markItineraryUploadComplete(showId, st.itineraryId, 'Itinerary details uploaded successfully.');
+  } else if(status === 'failed'){
+    stopItineraryUploadWatch(showId);
+    setItineraryUploadState(showId, {
+      status:'error',
+      title:'Upload failed',
+      message:'Make reported a problem finishing this itinerary.',
+      itineraryId: st.itineraryId
+    });
+    toast('Itinerary upload failed', 'x');
+  }
+}
 async function startItineraryFullUpload(itineraryId, showId){
   const it=(store.itineraries||[]).find(x=>x.id===itineraryId);
   if(!it || !showId) return;
   it.showId = showId;
-  itineraryFullUploadByShow[showId] = {
+  const baselineScore = await queryShowEnrichmentScore(showId);
+  setItineraryUploadState(showId, {
     status:'uploading',
-    message:'Uploading itinerary details… Make is filling hotel, travel and the rest into this show.'
-  };
-  refreshIfViewingShow(showId);
+    title:'Itinerary is being uploaded',
+    message:'Please wait — sending the file to Make, then filling hotel, travel and the rest.',
+    itineraryId,
+    baselineScore,
+    startedAt: Date.now()
+  });
+  watchItineraryUploadComplete(showId, itineraryId);
   try{
     const result = await postItineraryFileToMake(it, { stage:'full' });
     if(result.error){
-      itineraryFullUploadByShow[showId] = {
+      stopItineraryUploadWatch(showId);
+      setItineraryUploadState(showId, {
         status:'error',
-        message: itineraryScanErrorToast(result.error)
-      };
-      refreshIfViewingShow(showId);
+        title:'Upload didn’t finish',
+        message: itineraryScanErrorToast(result.error),
+        itineraryId
+      });
       toast(itineraryScanErrorToast(result.error), 'x');
       return;
     }
     const payload = result.payload || {};
     const ok = payload.ok === true || payload.ok === 'true' || payload.success === true || !('ok' in payload && payload.ok === false);
-    const message = payload.message || payload.status || (ok
-      ? 'Itinerary details uploaded successfully.'
-      : 'Make finished but reported a problem.');
     if(!ok){
-      itineraryFullUploadByShow[showId] = { status:'error', message:String(message) };
-      refreshIfViewingShow(showId);
+      stopItineraryUploadWatch(showId);
+      const message = payload.message || payload.status || 'Make finished but reported a problem.';
+      setItineraryUploadState(showId, {
+        status:'error',
+        title:'Upload didn’t finish',
+        message:String(message),
+        itineraryId
+      });
       toast(String(message), 'x');
       return;
     }
-    itineraryFullUploadByShow[showId] = { status:'done', message:String(message) };
-    it.fullUploadDone = true;
-    persist('user_preferences');
-    if(typeof currentOrgId !== 'undefined' && currentOrgId && typeof loadFromSupabase === 'function'){
-      try{ await loadFromSupabase(currentOrgId); }catch(_){}
+    /* HTTP ok only means Make accepted the job. Keep the waiting bar until
+       status=applied (or hotel/travel rows appear) so the show updates for real. */
+    const appliedNow = payload.applied === true
+      || payload.status === 'applied'
+      || String(payload.message || '').toLowerCase().includes('applied');
+    if(appliedNow){
+      await markItineraryUploadComplete(showId, itineraryId, payload.message || 'Itinerary details uploaded successfully.');
+      return;
     }
-    refreshIfViewingShow(showId);
-    toast(String(message), 'check');
-    setTimeout(()=>{
-      if(itineraryFullUploadByShow[showId]?.status === 'done'){
-        delete itineraryFullUploadByShow[showId];
-        refreshIfViewingShow(showId);
-      }
-    }, 8000);
+    setItineraryUploadState(showId, {
+      status:'uploading',
+      title:'Itinerary is being uploaded',
+      message:'File received — please wait while Make fills hotel, travel and the rest into this show.',
+      itineraryId,
+      baselineScore,
+      startedAt: (itineraryFullUploadByShow[showId] && itineraryFullUploadByShow[showId].startedAt) || Date.now()
+    });
   }catch(err){
-    itineraryFullUploadByShow[showId] = {
+    stopItineraryUploadWatch(showId);
+    setItineraryUploadState(showId, {
       status:'error',
-      message: 'Couldn’t reach Make — see browser console'
-    };
-    refreshIfViewingShow(showId);
+      title:'Upload didn’t finish',
+      message: 'Couldn’t reach Make — see browser console',
+      itineraryId
+    });
     toast('Couldn’t reach Make for full upload', 'x');
   }
 }
 async function retryItineraryFullUpload(showId){
   const it=(store.itineraries||[]).find(x=>x.showId===showId);
   if(!it){ toast('Original itinerary not found','x'); return; }
-  itineraryFullUploadByShow[showId] = {
+  setItineraryUploadState(showId, {
     status:'uploading',
-    message:'Saving show to the cloud…'
-  };
-  refreshIfViewingShow(showId);
+    title:'Itinerary is being uploaded',
+    message:'Saving show to the cloud…',
+    itineraryId: it.id
+  });
   let synced = false;
   try{
     if(typeof ensureShowSyncedToCloud === 'function'){
@@ -1806,11 +2046,12 @@ async function retryItineraryFullUpload(showId){
     console.error('retryItineraryFullUpload sync', err);
   }
   if(!synced){
-    itineraryFullUploadByShow[showId] = {
+    setItineraryUploadState(showId, {
       status:'error',
-      message:'Couldn’t save this show to the cloud yet. Retry when you’re online.'
-    };
-    refreshIfViewingShow(showId);
+      title:'Cloud sync needed',
+      message:'Couldn’t save this show to the cloud yet. Retry when you’re online.',
+      itineraryId: it.id
+    });
     toast('Cloud sync needed before Make', 'x');
     return;
   }

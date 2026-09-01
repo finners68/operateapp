@@ -803,15 +803,17 @@ function viewEvent(id){
   const c = CATS[e.color]||CATS.purple;
   const trip = e.tripId? sel.trip(e.tripId):null;
   return `
-  <div class="detail-top"><div class="detail-bar">
-    <button class="back-btn" onclick="back()">${ICON.chevL(20)} ${trip?esc(trip.name):overlayBackLabel()}</button>
-    <div style="display:flex;gap:8px">
-      <button class="header-btn" style="width:36px;height:36px" onclick="shareDaySheet('${e.id}')">${ICON.share(17)}</button>
-      <button class="header-btn" style="width:36px;height:36px" onclick="eventMenu('${e.id}')">${ICON.edit(18)}</button>
+  <div class="detail-top">
+    <div class="detail-bar">
+      <button class="back-btn" onclick="back()">${ICON.chevL(20)} ${trip?esc(trip.name):overlayBackLabel()}</button>
+      <div style="display:flex;gap:8px">
+        <button class="header-btn" style="width:36px;height:36px" onclick="shareDaySheet('${e.id}')">${ICON.share(17)}</button>
+        <button class="header-btn" style="width:36px;height:36px" onclick="eventMenu('${e.id}')">${ICON.edit(18)}</button>
+      </div>
     </div>
-  </div></div>
-  <div class="screen-pad stagger show-detail">
     ${typeof itineraryFullUploadBanner === 'function' ? itineraryFullUploadBanner(e.id) : ''}
+  </div>
+  <div class="screen-pad stagger show-detail">
     <div class="dhero show-hero" style="background:linear-gradient(155deg,${c}33,var(--card) 65%)">
       <div class="cat-bar" style="background:${c}"></div>
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">

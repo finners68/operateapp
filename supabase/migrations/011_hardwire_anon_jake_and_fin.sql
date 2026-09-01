@@ -16,7 +16,8 @@ declare
     'contacts','venues','artists','show_advances','show_financials','show_expenses',
     'invoices','invoice_line_items','packing_lists','packing_list_items',
     'itinerary_submissions','itinerary_submission_files','companies','company_contacts',
-    'show_contacts','tour_contacts','journey_contacts','reminders','organisation_members'
+    'show_contacts','tour_contacts','journey_contacts','reminders','organisation_members',
+    'pending_show_imports'
   ];
 begin
   for r in

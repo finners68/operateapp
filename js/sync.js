@@ -265,7 +265,7 @@ function startRealtime(orgId){
     'shows', 'journeys', 'schedule_items', 'checklist_items', 'tours',
     'organisation_settings', 'files', 'travel_tickets', 'show_files',
     'hotel_bookings', 'ideas', 'notes', 'contacts', 'venues', 'hotels',
-    'show_advances', 'show_contacts', 'hotel_booking_shows'
+    'show_advances', 'show_contacts', 'hotel_booking_shows', 'pending_show_imports'
   ];
 
   realtimeChannel = sb.channel('operate:' + orgId);
@@ -275,9 +275,16 @@ function startRealtime(orgId){
       filter: `organisation_id=eq.${orgId}`
     }, (payload) => {
       try{
-        const row = payload.new || payload.old;
-        if(payload.eventType === 'DELETE' && row?.id) v2RepoRemoveLocal(table, row.id);
-        else if(row?.id) v2RepoPatchLocal(table, row);
+        if(table === 'pending_show_imports'){
+          const row = payload.new || payload.old;
+          if(row && row.show_id && typeof onPendingShowImportRealtime === 'function'){
+            onPendingShowImportRealtime(row);
+          }
+        } else {
+          const row = payload.new || payload.old;
+          if(payload.eventType === 'DELETE' && row?.id) v2RepoRemoveLocal(table, row.id);
+          else if(row?.id) v2RepoPatchLocal(table, row);
+        }
       }catch(e){}
       scheduleLocalRealtimeRefresh();
     });
@@ -285,6 +292,9 @@ function startRealtime(orgId){
   realtimeChannel.subscribe();
   bindFocusReload();
   bindSyncRetry();
+  if(typeof resumeItineraryUploadWatchers === 'function'){
+    setTimeout(()=>{ try{ resumeItineraryUploadWatchers(); }catch(_){} }, 800);
+  }
 }
 
 async function syncPullNow(){

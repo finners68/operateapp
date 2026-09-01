@@ -665,6 +665,49 @@ select.input{appearance:none;-webkit-appearance:none;background-image:url("data:
 .back-btn{display:flex;align-items:center;gap:3px;color:var(--accent-2);font-size:16px;font-weight:600;padding:6px 6px 6px 2px;}
 .back-btn:active{opacity:.55;}
 
+/* Sticky “itinerary uploading” bar on show detail */
+.itinerary-upload-bar{
+  margin:0 14px 10px;
+  padding:12px 14px;
+  border-radius:14px;
+  border:1px solid var(--stroke-strong);
+  display:flex;
+  align-items:flex-start;
+  gap:12px;
+  font-size:14px;
+  font-weight:650;
+  line-height:1.35;
+  color:var(--text-1);
+  background:var(--card);
+}
+.itinerary-upload-bar .itin-upload-copy{flex:1;min-width:0;}
+.itinerary-upload-bar .itin-upload-title{display:block;font-weight:750;letter-spacing:-0.01em;}
+.itinerary-upload-bar .itin-upload-sub{display:block;margin-top:3px;font-size:12.5px;font-weight:600;color:var(--text-3);}
+.itinerary-upload-bar.is-uploading{
+  background:color-mix(in srgb, var(--accent-2) 14%, var(--card));
+  border-color:color-mix(in srgb, var(--accent-2) 35%, var(--stroke));
+}
+.itinerary-upload-bar.is-done{
+  background:color-mix(in srgb, #22c55e 12%, var(--card));
+  border-color:color-mix(in srgb, #22c55e 30%, var(--stroke));
+}
+.itinerary-upload-bar.is-error{
+  background:color-mix(in srgb, #ef4444 12%, var(--card));
+  border-color:color-mix(in srgb, #ef4444 30%, var(--stroke));
+}
+.itinerary-upload-bar .itin-upload-pulse{
+  width:10px;height:10px;border-radius:50%;
+  margin-top:5px;flex-shrink:0;
+  background:var(--accent-2);
+  box-shadow:0 0 0 0 color-mix(in srgb, var(--accent-2) 55%, transparent);
+  animation:itin-upload-pulse 1.4s ease-out infinite;
+}
+@keyframes itin-upload-pulse{
+  0%{box-shadow:0 0 0 0 color-mix(in srgb, var(--accent-2) 50%, transparent);}
+  70%{box-shadow:0 0 0 10px transparent;}
+  100%{box-shadow:0 0 0 0 transparent;}
+}
+
 /* Detail hero banner */
 .dhero{border-radius:var(--radius-lg);padding:20px;position:relative;overflow:hidden;border:1px solid var(--stroke-strong);margin-bottom:6px;}
 .dhero .cat-bar{position:absolute;left:0;top:0;bottom:0;width:5px;}
