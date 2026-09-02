@@ -584,7 +584,7 @@ function driverCard(eid, d, idx){
        ${dest?`<button type="button" class="header-btn" style="width:34px;height:34px" title="Destination" onclick="openMaps('${jsAttr(dest)}')">${ICON.map(16)}</button>`:''}`;
   const head = `<div class="driver-head">
       <div class="driver-title-wrap">
-        <div class="driver-title">${ICON.car(16)} ${(d.from && d.to && typeof groundRouteHtml==='function') ? groundRouteHtml(d.from, d.to) : `<span>${esc(label)}</span>`}</div>
+        <div class="driver-title">${(d.from && d.to && typeof groundRouteHtml==='function') ? groundRouteHtml(d.from, d.to, 'car') : `<span>${ICON.car(16)} ${esc(label)}</span>`}</div>
         ${d.time?`<div class="driver-title-meta">${esc(d.time)}</div>`:''}
       </div>
       <div class="driver-head-actions">
@@ -758,7 +758,7 @@ function dayOverviewStepRow(e, s){
   if(s.kind==='flight' && (s.from||s.to) && typeof flightRouteHtml==='function'){
     titleHtml = flightRouteHtml(s.from, s.to);
   } else if(s.kind==='transport' && (s.from||s.to) && typeof groundRouteHtml==='function'){
-    titleHtml = groundRouteHtml(s.from, s.to);
+    titleHtml = groundRouteHtml(s.from, s.to, s.icon || 'car');
   }
   return `<div class="tl-item ${s.done?'done':''}" data-id="${esc(s.id)}">
     <div class="tl-time">${esc(s.time||'—')}</div>

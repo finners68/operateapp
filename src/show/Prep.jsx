@@ -17,7 +17,7 @@ function TimelineStepTitle({ step }){
     if(html) return <div className="tl-route" dangerouslySetInnerHTML={{ __html: html }} />;
   }
   if(step.kind === 'transport' && (step.from || step.to)){
-    const html = call('groundRouteHtml', step.from, step.to);
+    const html = call('groundRouteHtml', step.from, step.to, step.icon || 'car');
     if(html) return <div className="tl-route" dangerouslySetInnerHTML={{ __html: html }} />;
   }
   return <b>{step.title || 'Step'}</b>;

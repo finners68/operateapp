@@ -780,6 +780,8 @@ select.input{appearance:none;-webkit-appearance:none;background-image:url("data:
   justify-content:center;
   flex-shrink:0;
   color:var(--text-2);
+}
+.flight-route-icon.is-air{
   transform:rotate(90deg);
 }
 .flight-route-icon svg{display:block;}
@@ -793,7 +795,7 @@ select.input{appearance:none;-webkit-appearance:none;background-image:url("data:
   font-weight:750;
 }
 
-/* Non-flight journeys: Hotel ●───● Venue — same fixed connector length */
+/* Legacy ground-route alias kept for old markup; new ground journeys use .flight-route */
 .ground-route{
   display:inline-flex;
   align-items:center;

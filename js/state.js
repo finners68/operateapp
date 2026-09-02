@@ -27,6 +27,7 @@ const ICON = {
   phone:     p=>I('<path d="M4 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L20 13l1 4v3h-3A15 15 0 0 1 4 6Z"/>',p),
   chat:      p=>I('<path d="M21 12a8 8 0 0 1-11.5 7.2L3 21l1.8-6.5A8 8 0 1 1 21 12Z"/>',p),
   car:       p=>I('<path d="M5 11l1.5-4.5A2 2 0 0 1 8.4 5h7.2a2 2 0 0 1 1.9 1.5L19 11M5 11h14v6H5Z"/><circle cx="7.5" cy="17" r="1.5"/><circle cx="16.5" cy="17" r="1.5"/>',p),
+  train:     p=>I('<path d="M4 15h16v3H4Z"/><path d="M6 15V7a3 3 0 0 1 3-3h6a3 3 0 0 1 3 3v8"/><path d="M8 18l-1.5 3M16 18l1.5 3"/><circle cx="9" cy="11" r="1.2"/><circle cx="15" cy="11" r="1.2"/><path d="M9 7h6"/>',p),
   user:      p=>I('<circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 3.5-6 8-6s8 2 8 6"/>',p),
   users:     p=>I('<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c0-3.5 3-5.5 6.5-5.5s6.5 2 6.5 5.5"/><path d="M16 5a3.5 3.5 0 0 1 0 6.5M21.5 20c0-2.8-1.6-4.6-4-5.2"/>',p),
   check:     p=>I('<path d="M20 6 9 17l-5-5"/>',p),
@@ -550,11 +551,13 @@ function logisticTypeLabel(l){
   if(ic==='car') return 'Driver';
   if(ic==='ferry') return 'Ferry';
   if(ic==='walk') return 'Walk';
+  if(ic==='train') return 'Train';
   return 'Transfer';
 }
 function inferIconFromLogisticTitle(title){
   const t = (title||'').toLowerCase();
   if(/ferry|boat/.test(t)) return 'ferry';
+  if(/train|rail/.test(t)) return 'train';
   if(/driver|uber|taxi|transfer/.test(t)) return 'car';
   if(/walk/.test(t)) return 'walk';
   return 'plane';
@@ -568,7 +571,7 @@ function parseLogisticRouteFromLegacy(title){
   return { from: m[1].trim(), to: m[2].trim() };
 }
 function isNormalizedLogisticTitle(title){
-  return ['Flight','Hotel','Driver','Ferry','Walk','Transfer'].includes(title);
+  return ['Flight','Hotel','Driver','Ferry','Walk','Train','Transfer'].includes(title);
 }
 function extractFlightNoFromTitle(title){
   const t = String(title||'');
@@ -668,35 +671,44 @@ function logisticRoute(l){
   if(leg) return `${leg.from} → ${leg.to}`;
   return '';
 }
-/* Visual route: BCN ── ✈ ── MAN (codes from data, plane icon from code). */
-function flightRouteHtml(from, to){
-  const a = String(from || '').trim().toUpperCase() || '?';
-  const b = String(to || '').trim().toUpperCase() || '?';
-  const plane = (typeof ICON !== 'undefined' && ICON.planeTop) ? ICON.planeTop(13) : (ICON.plane ? ICON.plane(13) : '');
-  return `<span class="flight-route" aria-label="${esc(a)} to ${esc(b)}">
+/* Visual route: Place ── icon ── Place (flight uses plane; ground uses car/walk/ferry/train). */
+function journeyRouteModeIcon(mode, size=13){
+  const m = String(mode || 'car').toLowerCase();
+  if(!ICON) return '';
+  if(m==='plane' || m==='flight' || m==='planetop'){
+    return ICON.planeTop ? ICON.planeTop(size) : (ICON.plane ? ICON.plane(size) : '');
+  }
+  if(m==='ferry' || m==='boat') return ICON.ferry ? ICON.ferry(size) : '';
+  if(m==='walk') return ICON.walk ? ICON.walk(size) : '';
+  if(m==='train' || m==='rail') return ICON.train ? ICON.train(size) : (ICON.car ? ICON.car(size) : '');
+  return ICON.car ? ICON.car(size) : '';
+}
+function journeyRouteHtml(from, to, mode){
+  const m = String(mode || 'car').toLowerCase();
+  const isAir = m==='plane' || m==='flight' || m==='planetop';
+  const aRaw = String(from || '').trim();
+  const bRaw = String(to || '').trim();
+  const a = isAir ? (aRaw.toUpperCase() || '?') : (aRaw || '?');
+  const b = isAir ? (bRaw.toUpperCase() || '?') : (bRaw || '?');
+  const icon = journeyRouteModeIcon(isAir ? 'planeTop' : m);
+  return `<span class="flight-route journey-route${isAir?' is-air':''}" aria-label="${esc(a)} to ${esc(b)}">
     <span class="flight-route-code">${esc(a)}</span>
     <span class="flight-route-rail" aria-hidden="true">
       <span class="flight-route-line"></span>
-      <span class="flight-route-icon">${plane}</span>
+      <span class="flight-route-icon${isAir?' is-air':''}">${icon}</span>
       <span class="flight-route-line"></span>
     </span>
     <span class="flight-route-code">${esc(b)}</span>
   </span>`;
 }
+function flightRouteHtml(from, to){
+  return journeyRouteHtml(from, to, 'plane');
+}
 window.flightRouteHtml = flightRouteHtml;
-/* Non-flight journeys: Hotel ●───● Venue */
-function groundRouteHtml(from, to){
-  const a = String(from || '').trim() || '?';
-  const b = String(to || '').trim() || '?';
-  return `<span class="ground-route" aria-label="${esc(a)} to ${esc(b)}">
-    <span class="ground-route-end">${esc(a)}</span>
-    <span class="ground-route-rail" aria-hidden="true">
-      <span class="ground-route-dot"></span>
-      <span class="ground-route-line"></span>
-      <span class="ground-route-dot"></span>
-    </span>
-    <span class="ground-route-end">${esc(b)}</span>
-  </span>`;
+window.journeyRouteHtml = journeyRouteHtml;
+/* Back-compat alias — ground journeys now use the flight-style rail with a mode icon. */
+function groundRouteHtml(from, to, mode){
+  return journeyRouteHtml(from, to, mode || 'car');
 }
 window.groundRouteHtml = groundRouteHtml;
 function logisticTimes(l){
@@ -735,7 +747,7 @@ function logisticRowHtml(l){
   const isGround = l.kind === 'travel' && !isFlight && (l.from || l.to);
   let primary = '';
   if(isFlight && (l.from || l.to)) primary = flightRouteHtml(l.from, l.to);
-  else if(isGround && typeof groundRouteHtml === 'function') primary = groundRouteHtml(l.from, l.to);
+  else if(isGround && typeof groundRouteHtml === 'function') primary = groundRouteHtml(l.from, l.to, l.icon || 'car');
   else if(d.primary) primary = esc(d.primary);
   return detailParts(esc(d.title), primary, d.meta ? esc(d.meta) : '');
 }

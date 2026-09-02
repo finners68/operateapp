@@ -224,7 +224,7 @@ function markBlock(e){
 function logColor(l){
   if(l.kind==='stay') return 'var(--orange)';
   const ic=l.icon||'plane';
-  return ic==='plane'?'var(--blue)':ic==='ferry'?'var(--teal)':ic==='car'?'var(--green)':ic==='walk'?'var(--text-2)':'var(--accent-2)';
+  return ic==='plane'?'var(--blue)':ic==='ferry'?'var(--teal)':ic==='car'?'var(--green)':ic==='train'?'var(--orange)':ic==='walk'?'var(--text-2)':'var(--accent-2)';
 }
 /* Labeled quick-access widgets (logo + text) */
 function jbtn(icon,label,onclick,cls){ return `<button class="jbtn ${cls||''}" onclick="event.stopPropagation();${onclick}">${icon}<span>${esc(label)}</span></button>`; }
@@ -354,7 +354,7 @@ function openItem(id){
   const e=store.events.find(x=>x.id===id); if(!e) return;
   normalizeLogisticItem(e);
   const label = e.kind==='travel'?'Travel':e.kind==='stay'?'Stay':'Note';
-  const iconOpts = ['plane','car','ferry','walk','bed'];
+  const iconOpts = ['plane','car','ferry','train','walk','bed'];
   openSheetReact(label, 'calendar.item', { id, item: e });
 }
 function saveItem(id){

@@ -116,7 +116,7 @@ export function ShowFlightsListSheet({ eid, flights }){
           <span className="flight-route-code">{from}</span>
           <span className="flight-route-rail" aria-hidden="true">
             <span className="flight-route-line"></span>
-            <span className="flight-route-icon"><Icon name="planeTop" size={13}/></span>
+            <span className="flight-route-icon is-air"><Icon name="planeTop" size={13}/></span>
             <span className="flight-route-line"></span>
           </span>
           <span className="flight-route-code">{to}</span>
