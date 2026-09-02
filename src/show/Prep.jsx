@@ -12,15 +12,19 @@ function timelineIcon(kind, icon){
 }
 
 function TimelineStepTitle({ step }){
-  if(step.kind === 'flight' && (step.from || step.to) && typeof window !== 'undefined' && typeof window.flightRouteHtml === 'function'){
-    return (
-      <b
-        className="tl-flight-route"
-        dangerouslySetInnerHTML={{ __html: window.flightRouteHtml(step.from, step.to) }}
-      />
-    );
+  if(step.kind === 'flight' && (step.from || step.to)){
+    const html = call('flightRouteHtml', step.from, step.to);
+    if(html) return <div className="tl-route" dangerouslySetInnerHTML={{ __html: html }} />;
+  }
+  if(step.kind === 'transport' && (step.from || step.to)){
+    const html = call('groundRouteHtml', step.from, step.to);
+    if(html) return <div className="tl-route" dangerouslySetInnerHTML={{ __html: html }} />;
   }
   return <b>{step.title || 'Step'}</b>;
+}
+
+function stepShowsRoute(step){
+  return (step.kind === 'flight' || step.kind === 'transport') && !!(step.from || step.to);
 }
 
 function openTimelineStep(show, s){
@@ -75,13 +79,15 @@ export function DayOverview({ show }){
                 />
               </div>
               <div
-                className={`tl-card ${s.kind === 'set' ? 'is-set' : ''}`}
+                className={`tl-card ${s.kind === 'set' ? 'is-set' : ''}${stepShowsRoute(s) ? ' has-route' : ''}`}
                 role="button"
                 tabIndex={0}
                 onClick={() => openTimelineStep(show, s)}
                 onKeyDown={ev => { if(ev.key === 'Enter' || ev.key === ' '){ ev.preventDefault(); openTimelineStep(show, s); } }}
               >
-                <div className="tl-card-ic"><Icon name={timelineIcon(s.kind, s.icon)} size={16} /></div>
+                {stepShowsRoute(s) ? null : (
+                  <div className="tl-card-ic"><Icon name={timelineIcon(s.kind, s.icon)} size={16} /></div>
+                )}
                 <div className="tl-card-body">
                   <TimelineStepTitle step={s} />
                   {s.sub ? <span>{s.sub}</span> : null}

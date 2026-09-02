@@ -584,7 +584,7 @@ function driverCard(eid, d, idx){
        ${dest?`<button type="button" class="header-btn" style="width:34px;height:34px" title="Destination" onclick="openMaps('${jsAttr(dest)}')">${ICON.map(16)}</button>`:''}`;
   const head = `<div class="driver-head">
       <div class="driver-title-wrap">
-        <div class="driver-title">${ICON.car(16)} <span>${esc(label)}</span></div>
+        <div class="driver-title">${ICON.car(16)} ${(d.from && d.to && typeof groundRouteHtml==='function') ? groundRouteHtml(d.from, d.to) : `<span>${esc(label)}</span>`}</div>
         ${d.time?`<div class="driver-title-meta">${esc(d.time)}</div>`:''}
       </div>
       <div class="driver-head-actions">
@@ -753,15 +753,19 @@ function dayOverviewStepRow(e, s){
     : (!s.auto ? `onclick="sheetShowTimelineStep('${eid}','${s.id}')"` : '');
   const icName = timelineIconName(s.kind, s.icon);
   const icFn = ICON[icName] || ICON.clock;
-  const titleHtml = (s.kind==='flight' && (s.from||s.to) && typeof flightRouteHtml==='function')
-    ? flightRouteHtml(s.from, s.to)
-    : esc(s.title||'Step');
+  const hasRoute = (s.kind==='flight' || s.kind==='transport') && (s.from||s.to);
+  let titleHtml = esc(s.title||'Step');
+  if(s.kind==='flight' && (s.from||s.to) && typeof flightRouteHtml==='function'){
+    titleHtml = flightRouteHtml(s.from, s.to);
+  } else if(s.kind==='transport' && (s.from||s.to) && typeof groundRouteHtml==='function'){
+    titleHtml = groundRouteHtml(s.from, s.to);
+  }
   return `<div class="tl-item ${s.done?'done':''}" data-id="${esc(s.id)}">
     <div class="tl-time">${esc(s.time||'—')}</div>
     <div class="tl-line"><button type="button" class="tl-node" aria-label="${s.done?'Mark not done':'Mark done'}" onclick="event.stopPropagation();toggleShowTimelineStep('${eid}','${s.id}')"></button></div>
-    <div class="tl-card ${s.kind==='set'?'is-set':''}" ${labelClick}>
-      <div class="tl-card-ic">${icFn(16)}</div>
-      <div class="tl-card-body"><b class="tl-flight-route">${titleHtml}</b>${s.sub?`<span>${esc(s.sub)}</span>`:''}</div>
+    <div class="tl-card ${s.kind==='set'?'is-set':''}${hasRoute?' has-route':''}" ${labelClick}>
+      ${hasRoute?'':`<div class="tl-card-ic">${icFn(16)}</div>`}
+      <div class="tl-card-body"><div class="tl-route">${titleHtml}</div>${s.sub?`<span>${esc(s.sub)}</span>`:''}</div>
     </div>
   </div>`;
 }

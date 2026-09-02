@@ -349,6 +349,7 @@ function showDayTimeline(e){
     const id = d.id || ('i'+idx);
     rows.push({
       id:'auto:drv:'+id, auto:true, kind:'transport', icon:'car', refId:id,
+      from:d.from||'', to:d.to||'',
       time:d.time||'', title:label||(d.noGround?'Uber / taxi':(d.name||'Transport')),
       sub:d.noGround?'No grounds':[d.name,d.pickup].filter(Boolean).join(' · ')||'From transport',
       done:!!d.done
@@ -683,6 +684,21 @@ function flightRouteHtml(from, to){
   </span>`;
 }
 window.flightRouteHtml = flightRouteHtml;
+/* Non-flight journeys: Hotel ●───● Venue */
+function groundRouteHtml(from, to){
+  const a = String(from || '').trim() || '?';
+  const b = String(to || '').trim() || '?';
+  return `<span class="ground-route" aria-label="${esc(a)} to ${esc(b)}">
+    <span class="ground-route-end">${esc(a)}</span>
+    <span class="ground-route-rail" aria-hidden="true">
+      <span class="ground-route-dot"></span>
+      <span class="ground-route-line"></span>
+      <span class="ground-route-dot"></span>
+    </span>
+    <span class="ground-route-end">${esc(b)}</span>
+  </span>`;
+}
+window.groundRouteHtml = groundRouteHtml;
 function logisticTimes(l){
   if(l.kind==='stay') return l.info || '';
   if(l.start && l.end) return `${l.start} – ${l.end}`;
@@ -716,9 +732,11 @@ function logisticDisplayLines(l){
 function logisticRowHtml(l){
   const d = logisticDisplayLines(l);
   const isFlight = l.kind === 'travel' && (l.icon || 'plane') === 'plane' && !l.driverName;
-  const primary = isFlight && (l.from || l.to)
-    ? flightRouteHtml(l.from, l.to)
-    : (d.primary ? esc(d.primary) : '');
+  const isGround = l.kind === 'travel' && !isFlight && (l.from || l.to);
+  let primary = '';
+  if(isFlight && (l.from || l.to)) primary = flightRouteHtml(l.from, l.to);
+  else if(isGround && typeof groundRouteHtml === 'function') primary = groundRouteHtml(l.from, l.to);
+  else if(d.primary) primary = esc(d.primary);
   return detailParts(esc(d.title), primary, d.meta ? esc(d.meta) : '');
 }
 function haptic(){ if(navigator.vibrate) try{navigator.vibrate(8);}catch(e){} }

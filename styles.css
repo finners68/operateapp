@@ -771,9 +771,51 @@ select.input{appearance:none;-webkit-appearance:none;background-image:url("data:
   transform:rotate(90deg);
 }
 .flight-route-icon svg{display:block;}
-.info-line-stacked .detail-primary:has(.flight-route){
+.info-line-stacked .detail-primary:has(.flight-route),
+.info-line-stacked .detail-primary:has(.ground-route){
   margin-top:8px;
   color:var(--text);
+}
+
+/* Non-flight journeys: Hotel ●───● Venue */
+.ground-route{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  width:100%;
+  max-width:280px;
+  color:var(--text);
+  font-size:15px;
+  font-weight:750;
+  letter-spacing:-0.01em;
+  line-height:1.15;
+  text-transform:none;
+}
+.ground-route-end{
+  flex:0 1 auto;
+  min-width:0;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+}
+.ground-route-rail{
+  display:flex;
+  align-items:center;
+  gap:0;
+  flex:1 1 auto;
+  min-width:52px;
+}
+.ground-route-dot{
+  width:7px;
+  height:7px;
+  border-radius:50%;
+  background:var(--text-2);
+  flex-shrink:0;
+}
+.ground-route-line{
+  flex:1 1 auto;
+  height:0;
+  border-top:1.5px solid color-mix(in srgb, var(--text-3) 70%, transparent);
 }
 .detail-meta{font-size:13px;font-weight:600;color:var(--text-3);margin-top:5px;line-height:1.35;font-variant-numeric:tabular-nums;}
 .info-line .tx .k{font-size:11px;color:var(--text-3);font-weight:700;text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px;}
@@ -985,8 +1027,26 @@ select.input{appearance:none;-webkit-appearance:none;background-image:url("data:
 }
 .show-detail .flight-pax-wrap .fold-inner{border-top:none;}
 .show-detail .flight-pax-list{padding:0 0 6px;}
-.show-day-timeline .tl-flight-route{display:block;font-weight:750;}
-.show-day-timeline .tl-flight-route .flight-route{width:100%;}
+.show-day-timeline .tl-route{
+  display:block;
+  width:100%;
+  min-width:0;
+  overflow:visible;
+  font-weight:750;
+  color:var(--text);
+}
+.show-day-timeline .tl-route .flight-route,
+.show-day-timeline .tl-route .ground-route{
+  max-width:none;
+  width:100%;
+  font-size:14.5px;
+}
+.show-day-timeline .tl-card.has-route .tl-card-body{min-width:0;flex:1;}
+.show-day-timeline .tl-card.has-route b{
+  white-space:normal;
+  overflow:visible;
+  text-overflow:clip;
+}
 .show-day-timeline .tl-card-ic{color:var(--text-2);}
 
 .driver-head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;padding:14px 16px 8px;}
@@ -995,6 +1055,14 @@ select.input{appearance:none;-webkit-appearance:none;background-image:url("data:
   display:flex;align-items:center;gap:8px;
   font-size:16.5px;font-weight:750;letter-spacing:-0.015em;line-height:1.25;
   color:var(--text);text-transform:none;
+}
+.driver-title > svg{flex-shrink:0;color:var(--text-2);}
+.driver-title .ground-route,
+.driver-title .flight-route{
+  flex:1 1 auto;
+  min-width:0;
+  max-width:none;
+  font-size:15.5px;
 }
 .driver-title span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
 .driver-title-meta{font-size:12px;font-weight:600;color:var(--text-3);margin-top:4px;font-variant-numeric:tabular-nums;}
