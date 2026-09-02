@@ -523,8 +523,11 @@ select.input{appearance:none;-webkit-appearance:none;background-image:url("data:
 .tl-card.is-set{background:linear-gradient(150deg,var(--accent-soft),var(--card));border-color:rgba(109,94,252,0.22);}
 .tl-card:active{transform:scale(0.99);}
 .tl-item.done .tl-card{opacity:.5;}
-.tl-card b{font-size:15.5px;font-weight:750;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--text);}
-.tl-card span{font-size:13px;color:var(--text-3);font-weight:600;display:block;margin-top:5px;font-variant-numeric:tabular-nums;}
+/* Only the card's own title/sub — not spans inside flight/ground routes */
+.tl-card > b,
+.tl-card-body > b{font-size:15.5px;font-weight:750;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--text);}
+.tl-card > span,
+.tl-card-body > span{font-size:13px;color:var(--text-3);font-weight:600;display:block;margin-top:5px;font-variant-numeric:tabular-nums;}
 .tl-actions{display:flex;gap:6px;flex-shrink:0;}
 .tl-btn{width:var(--tap);height:var(--tap);border-radius:12px;background:var(--card-2);border:1px solid var(--stroke);display:flex;align-items:center;justify-content:center;color:var(--text-2);transition:transform .12s, background .15s;}
 .tl-btn:active{transform:scale(.9);background:var(--card-press);}
@@ -735,6 +738,7 @@ select.input{appearance:none;-webkit-appearance:none;background-image:url("data:
 .flight-route{
   display:inline-flex;
   align-items:center;
+  flex-wrap:nowrap;
   gap:8px;
   width:max-content;
   max-width:100%;
@@ -745,6 +749,7 @@ select.input{appearance:none;-webkit-appearance:none;background-image:url("data:
   font-variant-numeric:tabular-nums;
   line-height:1;
   vertical-align:middle;
+  white-space:nowrap;
 }
 .flight-route-code{
   flex:0 1 auto;
@@ -792,6 +797,7 @@ select.input{appearance:none;-webkit-appearance:none;background-image:url("data:
 .ground-route{
   display:inline-flex;
   align-items:center;
+  flex-wrap:nowrap;
   gap:8px;
   width:max-content;
   max-width:100%;
@@ -799,9 +805,10 @@ select.input{appearance:none;-webkit-appearance:none;background-image:url("data:
   font-size:15px;
   font-weight:750;
   letter-spacing:-0.01em;
-  line-height:1.15;
+  line-height:1;
   text-transform:none;
   vertical-align:middle;
+  white-space:nowrap;
 }
 .ground-route-end{
   flex:0 1 auto;
@@ -1061,20 +1068,17 @@ select.input{appearance:none;-webkit-appearance:none;background-image:url("data:
   width:auto;
   max-width:100%;
   min-width:0;
-  overflow:visible;
+  overflow:hidden;
   font-weight:750;
   color:var(--text);
+  line-height:1.2;
 }
 .show-day-timeline .tl-route .flight-route,
 .show-day-timeline .tl-route .ground-route{
   font-size:14.5px;
+  max-width:100%;
 }
-.show-day-timeline .tl-card.has-route .tl-card-body{min-width:0;flex:1;}
-.show-day-timeline .tl-card.has-route b{
-  white-space:normal;
-  overflow:visible;
-  text-overflow:clip;
-}
+.show-day-timeline .tl-card.has-route .tl-card-body{min-width:0;flex:1;overflow:hidden;}
 .show-day-timeline .tl-card-ic{color:var(--text-2);}
 
 .driver-head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;padding:14px 16px 8px;}
