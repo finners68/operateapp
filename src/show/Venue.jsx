@@ -169,9 +169,9 @@ function ContactsBlock({ show }){
               <div key={ct.id} className="info-line info-line-stacked">
                 <div className="ic"><Icon name="user" size={17} /></div>
                 <div className="tx" style={{ flex: 1, minWidth: 0 }} onClick={() => call('sheetEventContact', show.id, ct.id)}>
-                  <div className="v">{ct.name || 'Contact'}</div>
-                  {role ? <div className="k">{role}</div> : null}
-                  {ct.phone ? <div className="k">{ct.phone}</div> : null}
+                  <div className="detail-title">{role || 'Contact'}</div>
+                  <div className="detail-primary">{ct.name || 'Contact'}</div>
+                  {ct.phone ? <div className="detail-meta">{ct.phone}</div> : null}
                 </div>
                 {ct.phone ? (
                   <button type="button" className="header-btn" style={{ width: 34, height: 34, alignSelf: 'center' }} onClick={() => call('callNumber', ct.phone)}>

@@ -678,7 +678,7 @@ function contactsSubsection(e){
   }
   const body = `<div class="card flush">${cs.map(ct=>`<div class="info-line info-line-stacked">
     <div class="ic">${ICON.user(17)}</div>
-    <div class="tx" style="flex:1;min-width:0" onclick="sheetEventContact('${e.id}','${ct.id}')">${detailParts(esc(ct.name||'Contact'), ct.role?esc(showContactRoleLabel(ct.role)):'', ct.phone?esc(ct.phone):'')}</div>
+    <div class="tx" style="flex:1;min-width:0" onclick="sheetEventContact('${e.id}','${ct.id}')">${detailParts(ct.role?esc(showContactRoleLabel(ct.role)):'Contact', esc(ct.name||'Contact'), ct.phone?esc(ct.phone):'')}</div>
     ${ct.phone?`<button class="header-btn" style="width:34px;height:34px;align-self:center" onclick="callNumber('${jsAttr(ct.phone)}')">${ICON.phone(15)}</button>`:''}
     ${(ct.whatsapp||ct.phone)?`<button class="header-btn" style="width:34px;height:34px;align-self:center" onclick="whatsapp('${jsAttr(ct.whatsapp||ct.phone)}')">${ICON.chat(15)}</button>`:''}
   </div>`).join('')}</div>`;

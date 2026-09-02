@@ -632,7 +632,7 @@ function openTourContacts(runKey){
   const body=Object.entries(byShow).map(([show,cs])=>`
     ${multi?`<div class="prio-head" style="margin:14px 4px 8px"><span class="pd" style="background:var(--accent-2)"></span>${esc(show)}</div>`:''}
     <div class="card flush">${cs.map(c=>`<div class="info-line info-line-stacked"><div class="ic">${ICON.user(17)}</div>
-      <div class="tx" style="flex:1;min-width:0">${detailParts(esc(c.name||c.label), esc(c.label), c.phone?esc(c.phone):'')}</div>
+      <div class="tx" style="flex:1;min-width:0">${detailParts(esc(c.label||'Contact'), esc(c.name||''), c.phone?esc(c.phone):'')}</div>
       ${(c.whatsapp||c.phone)?`<button class="header-btn" style="width:34px;height:34px;align-self:center" onclick="whatsapp('${jsAttr(c.whatsapp||c.phone)}')">${ICON.chat(15)}</button>`:''}
       ${c.phone?`<button class="header-btn" style="width:34px;height:34px;align-self:center" onclick="callNumber('${jsAttr(c.phone)}')">${ICON.phone(15)}</button>`:''}
     </div>`).join('')}</div>`).join('');
