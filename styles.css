@@ -601,7 +601,7 @@ select.input{appearance:none;-webkit-appearance:none;background-image:url("data:
 .jitem-top .body.tx .detail-primary{margin-top:4px;}
 .jitem-top .body.tx .detail-meta{margin-top:5px;}
 .ag-log-b .detail-title{display:block;font-size:15.5px;font-weight:750;color:var(--text);}
-.ag-log-b .detail-primary{display:block;font-size:14px;font-weight:600;color:var(--text-2);margin-top:3px;}
+.ag-log-b .detail-primary{display:block;font-size:13.5px;font-weight:550;color:var(--text-2);margin-top:3px;}
 .ag-log-b .detail-meta{display:block;font-size:13px;font-weight:600;color:var(--text-3);margin-top:4px;font-variant-numeric:tabular-nums;}
 .jitem-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:11px;padding-left:58px;}
 .jitem-passes{margin-top:10px;padding-left:58px;padding-right:4px;}
@@ -728,7 +728,8 @@ select.input{appearance:none;-webkit-appearance:none;background-image:url("data:
 .info-line .ic{width:34px;height:34px;border-radius:10px;background:var(--card-2);display:flex;align-items:center;justify-content:center;flex-shrink:0;color:var(--text-2);}
 .info-line .tx{flex:1;min-width:0;}
 .detail-title{font-size:16px;font-weight:750;color:var(--text);letter-spacing:-0.01em;line-height:1.25;}
-.detail-primary{font-size:14.5px;font-weight:600;color:var(--text-2);margin-top:4px;line-height:1.3;}
+.detail-primary{font-size:13.5px;font-weight:550;color:var(--text-2);margin-top:4px;line-height:1.35;}
+.detail-meta{font-size:12.5px;font-weight:550;color:var(--text-3);margin-top:4px;line-height:1.35;font-variant-numeric:tabular-nums;}
 
 /* Flight route: BCN ── ✈ ── MAN */
 .flight-route{
@@ -772,9 +773,13 @@ select.input{appearance:none;-webkit-appearance:none;background-image:url("data:
 }
 .flight-route-icon svg{display:block;}
 .info-line-stacked .detail-primary:has(.flight-route),
-.info-line-stacked .detail-primary:has(.ground-route){
+.info-line-stacked .detail-primary:has(.ground-route),
+.detail-primary:has(.flight-route),
+.detail-primary:has(.ground-route){
   margin-top:8px;
   color:var(--text);
+  font-size:15px;
+  font-weight:750;
 }
 
 /* Non-flight journeys: Hotel ●───● Venue */
@@ -817,9 +822,24 @@ select.input{appearance:none;-webkit-appearance:none;background-image:url("data:
   height:0;
   border-top:1.5px solid color-mix(in srgb, var(--text-3) 70%, transparent);
 }
-.detail-meta{font-size:13px;font-weight:600;color:var(--text-3);margin-top:5px;line-height:1.35;font-variant-numeric:tabular-nums;}
-.info-line .tx .k{font-size:11px;color:var(--text-3);font-weight:700;text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px;}
-.info-line .tx .v{font-size:16px;font-weight:650;margin-top:0;color:var(--text);word-break:break-word;line-height:1.3;}
+/* Title first, detail second — labels read louder than the content under them */
+.info-line .tx .k{
+  font-size:15px;
+  font-weight:750;
+  color:var(--text);
+  text-transform:none;
+  letter-spacing:-0.01em;
+  margin-bottom:3px;
+  line-height:1.25;
+}
+.info-line .tx .v{
+  font-size:13.5px;
+  font-weight:550;
+  margin-top:0;
+  color:var(--text-2);
+  word-break:break-word;
+  line-height:1.35;
+}
 .info-line .tx .v.addr-trunc,.info-line .tx .v .addr-trunc{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;word-break:normal;display:block;}
 .info-line-stacked{align-items:flex-start;padding:14px 16px;}
 .info-line-stacked .detail-title{font-size:17px;}
