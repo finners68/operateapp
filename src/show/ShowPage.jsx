@@ -136,12 +136,12 @@ export default function ShowPage({ showId }){
           </div>
         </div>
 
-        <DayOverview show={show} />
-
         <div className="show-detail-quick">
           <div className="block-title">Quick access</div>
           <QuickLinks show={show} />
         </div>
+
+        <DayOverview show={show} />
 
         <div className="show-groups">
           <Group id={`sg-${show.id}-travel`} title="Travel" icon={iconHtml('plane', 20)} summary={travelSummary}>

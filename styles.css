@@ -926,13 +926,92 @@ select.input{appearance:none;-webkit-appearance:none;background-image:url("data:
   box-sizing:border-box;
 }
 .show-detail-foot{margin-top:6px;}
-.show-detail .flight-notes{
-  margin:0 0 8px;
-  padding:10px 12px!important;
-  border:1px solid var(--stroke);
-  border-radius:14px;
-  background:rgba(0,0,0,0.14);
+.show-detail .flight-block{
+  border-bottom:1px solid var(--stroke);
 }
+.show-detail .flight-block:last-child{border-bottom:none;}
+.show-detail .flight-notes{
+  margin:0;
+  padding:0 16px 12px 52px;
+  border:none;
+  border-radius:0;
+  background:transparent;
+  color:var(--text-2);
+  font-size:13px;
+  line-height:1.45;
+}
+.show-detail .flight-notes-k{
+  font-size:11px;
+  font-weight:650;
+  text-transform:uppercase;
+  letter-spacing:.05em;
+  color:var(--text-3);
+  margin-bottom:4px;
+}
+.show-detail .flight-notes-v{
+  color:var(--text-2);
+  font-weight:550;
+  white-space:pre-wrap;
+}
+.show-detail .flight-pax-wrap{
+  background:transparent;
+  border:none;
+  border-radius:0;
+  border-top:1px solid var(--stroke);
+  margin:0;
+}
+.show-detail .flight-pax-wrap.fold{box-shadow:none;}
+.show-detail .flight-pax-toggle{
+  width:100%;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:10px;
+  padding:11px 16px 11px 52px;
+  background:transparent;
+  border:none;
+  color:var(--text-2);
+  cursor:pointer;
+  -webkit-tap-highlight-color:transparent;
+}
+.show-detail .flight-pax-toggle:active{background:rgba(255,255,255,0.03);}
+.show-detail .flight-pax-toggle-label{
+  display:inline-flex;
+  align-items:center;
+  gap:8px;
+  font-size:13px;
+  font-weight:650;
+  color:var(--text-2);
+}
+.show-detail .flight-pax-wrap .fold-inner{border-top:none;}
+.show-detail .flight-pax-list{padding:0 0 6px;}
+.show-day-timeline .tl-flight-route{display:block;font-weight:750;}
+.show-day-timeline .tl-flight-route .flight-route{width:100%;}
+.show-day-timeline .tl-card-ic{color:var(--text-2);}
+
+.driver-head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;padding:14px 16px 8px;}
+.driver-title-wrap{min-width:0;flex:1 1 auto;}
+.driver-title{
+  display:flex;align-items:center;gap:8px;
+  font-size:16.5px;font-weight:750;letter-spacing:-0.015em;line-height:1.25;
+  color:var(--text);text-transform:none;
+}
+.driver-title span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.driver-title-meta{font-size:12px;font-weight:600;color:var(--text-3);margin-top:4px;font-variant-numeric:tabular-nums;}
+.driver-journey{display:none;}
+.driver-head-actions{display:inline-flex;align-items:center;gap:4px;flex-shrink:0;padding-top:1px;}
+.driver-card .driver-head-actions .header-btn{width:34px;height:34px;}
+.driver-card .driver-contact{
+  padding-top:8px;padding-bottom:12px;
+}
+.driver-card .driver-contact .ic{width:30px;height:30px;color:var(--text-3);}
+.driver-card .driver-contact .tx .k{
+  font-size:11px;font-weight:650;text-transform:none;letter-spacing:0;color:var(--text-3);margin-bottom:2px;
+}
+.driver-card .driver-contact .tx .v{
+  font-size:13.5px;font-weight:550;color:var(--text-2);
+}
+.driver-card .info-line:last-child{border-bottom:none;}
 
 .progress{height:8px;border-radius:5px;background:var(--card-2);overflow:hidden;margin-top:12px;}
 .progress i{display:block;height:100%;background:linear-gradient(90deg,var(--accent),var(--accent-2));border-radius:5px;transition:width .5s cubic-bezier(.2,.8,.2,1);}
@@ -1194,11 +1273,6 @@ html.is-refreshing .pull-refresh-icon svg{
 .show-date-ic{flex-direction:column;gap:0;line-height:1;font-variant-numeric:tabular-nums;padding:4px 2px;}
 .show-date-ic .show-date-day{font-size:17px;font-weight:850;letter-spacing:-0.03em;line-height:1.05;}
 .show-date-ic .show-date-mon{font-size:9px;font-weight:750;text-transform:uppercase;letter-spacing:.05em;opacity:.88;margin-top:2px;}
-.driver-head{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px 16px 2px;}
-.driver-journey{display:inline-flex;align-items:center;gap:6px;font-size:11.5px;font-weight:750;text-transform:uppercase;letter-spacing:.05em;color:var(--accent-2);min-width:0;flex:1 1 auto;}
-.driver-head-actions{display:inline-flex;align-items:center;gap:4px;flex-shrink:0;}
-.driver-card .driver-head-actions .header-btn{width:34px;height:34px;}
-.driver-card .info-line:last-child{border-bottom:none;}
 .prio-head{font-size:12px;font-weight:750;color:var(--text-3);text-transform:uppercase;letter-spacing:.05em;margin:16px 4px 10px;display:flex;align-items:center;gap:7px;}
 .prio-head .pd{width:8px;height:8px;border-radius:50%;}
 

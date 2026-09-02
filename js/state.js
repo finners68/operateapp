@@ -326,7 +326,8 @@ function showDayTimeline(e){
       f.terminal ? ('Term '+f.terminal) : ''
     ].filter(Boolean);
     rows.push({
-      id:'auto:flight:'+f.id, auto:true, kind:'flight', icon:'plane', refId:f.id,
+      id:'auto:flight:'+f.id, auto:true, kind:'flight', icon:'planeTop', refId:f.id,
+      from:f.from||'', to:f.to||'', code:f.code||'',
       time:parsed.time||'', title:route, sub:bits.join(' · ')||'From flights',
       done:!!f.done
     });

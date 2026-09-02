@@ -583,7 +583,10 @@ function driverCard(eid, d, idx){
        ${phone?`<button type="button" class="header-btn" style="width:34px;height:34px" title="Copy number" onclick="copyText('${jsAttr(phone)}')">${ICON.copy(16)}</button>`:''}
        ${dest?`<button type="button" class="header-btn" style="width:34px;height:34px" title="Destination" onclick="openMaps('${jsAttr(dest)}')">${ICON.map(16)}</button>`:''}`;
   const head = `<div class="driver-head">
-      <span class="driver-journey">${ICON.car(13)} ${esc(label)}${d.time?' · '+esc(d.time):''}</span>
+      <div class="driver-title-wrap">
+        <div class="driver-title">${ICON.car(16)} <span>${esc(label)}</span></div>
+        ${d.time?`<div class="driver-title-meta">${esc(d.time)}</div>`:''}
+      </div>
       <div class="driver-head-actions">
         ${actions}
         <button type="button" class="add" onclick="sheetDriver('${eid}',${idx})">Edit</button>
@@ -592,12 +595,18 @@ function driverCard(eid, d, idx){
   if(d.noGround){
     return `<div class="card flush driver-card" style="margin-bottom:10px">
       ${head}
-      <div class="info-line"><div class="ic">${ICON.car(17)}</div>${fieldTx('No grounds', 'Please book an Uber / taxi')}</div>
+      <div class="driver-contact info-line"><div class="ic">${ICON.car(15)}</div>${fieldTx('Booking', 'Please book an Uber / taxi')}</div>
     </div>`;
   }
   return `<div class="card flush driver-card" style="margin-bottom:10px">
     ${head}
-    <div class="info-line info-line-stacked"><div class="ic">${ICON.user(17)}</div>${detailTx(esc(d.name||'Driver'), esc(d.pickup||''))}</div>
+    <div class="driver-contact info-line"><div class="ic">${ICON.user(15)}</div>
+      <div class="tx">
+        <div class="k">Contact</div>
+        <div class="v">${esc(d.name||'Driver')}</div>
+        ${d.pickup?`<div class="detail-meta">${esc(d.pickup)}</div>`:''}
+      </div>
+    </div>
     ${d.notes?`<div class="info-line"><div class="ic">${ICON.note(17)}</div>${fieldTx('Notes', esc(d.notes))}</div>`:''}
   </div>`;
 }
@@ -727,14 +736,14 @@ function timelineAutoOpen(eid, s){
   if(s.kind==='advance') return `sheetAdvance('${eid}')`;
   return '';
 }
-function timelineIconName(kind){
-  if(kind==='flight') return 'plane';
-  if(kind==='hotel') return 'bed';
-  if(kind==='transport') return 'car';
-  if(kind==='arrival') return 'pin';
-  if(kind==='set') return 'music';
-  if(kind==='advance') return 'clock';
-  return 'clock';
+function timelineIconName(kind, icon){
+  if(kind==='flight' || icon==='planeTop' || icon==='plane') return 'planeTop';
+  if(kind==='hotel' || icon==='bed') return 'bed';
+  if(kind==='transport' || icon==='car') return 'car';
+  if(kind==='arrival' || icon==='pin') return 'pin';
+  if(kind==='set' || icon==='music') return 'music';
+  if(kind==='advance' || icon==='clock') return 'clock';
+  return icon || 'clock';
 }
 function dayOverviewStepRow(e, s){
   const eid = e.id;
@@ -742,14 +751,17 @@ function dayOverviewStepRow(e, s){
   const labelClick = s.auto && openAuto
     ? `onclick="${openAuto}"`
     : (!s.auto ? `onclick="sheetShowTimelineStep('${eid}','${s.id}')"` : '');
-  const icName = timelineIconName(s.kind || s.icon);
+  const icName = timelineIconName(s.kind, s.icon);
   const icFn = ICON[icName] || ICON.clock;
+  const titleHtml = (s.kind==='flight' && (s.from||s.to) && typeof flightRouteHtml==='function')
+    ? flightRouteHtml(s.from, s.to)
+    : esc(s.title||'Step');
   return `<div class="tl-item ${s.done?'done':''}" data-id="${esc(s.id)}">
     <div class="tl-time">${esc(s.time||'—')}</div>
     <div class="tl-line"><button type="button" class="tl-node" aria-label="${s.done?'Mark not done':'Mark done'}" onclick="event.stopPropagation();toggleShowTimelineStep('${eid}','${s.id}')"></button></div>
     <div class="tl-card ${s.kind==='set'?'is-set':''}" ${labelClick}>
       <div class="tl-card-ic">${icFn(16)}</div>
-      <div class="tl-card-body"><b>${esc(s.title||'Step')}</b>${s.sub?`<span>${esc(s.sub)}</span>`:''}</div>
+      <div class="tl-card-body"><b class="tl-flight-route">${titleHtml}</b>${s.sub?`<span>${esc(s.sub)}</span>`:''}</div>
     </div>
   </div>`;
 }
@@ -877,12 +889,12 @@ function viewEvent(id){
       </div>
     </div>
 
-    ${dayOverviewBlock(e)}
-
     <div class="show-detail-quick">
       <div class="block-title">Quick access</div>
       ${showQuickLinks(e)}
     </div>
+
+    ${dayOverviewBlock(e)}
 
     <div class="show-groups">
       ${showGroup('sg-'+e.id+'-travel', 'Travel', ICON.plane(20), travelGroupSummary(e), travelGroupBody(e))}
@@ -919,24 +931,39 @@ function flightLine(eid,f){
     arrTime ? 'Arr '+esc(arrTime) : '',
     f.terminal ? 'Term '+esc(f.terminal) : '',
     f.gate ? 'Gate '+esc(f.gate) : '',
-    f.fstatus ? esc(f.fstatus) : '',
-    pax.length ? (pax.length+' passenger'+(pax.length===1?'':'s')) : ''
+    f.fstatus ? esc(f.fstatus) : ''
   ].filter(Boolean).join(' · ');
-  /* Boarding passes render under each passenger — never as one pooled group. */
-  const paxBlock = pax.length ? pax.map(p=>flightPaxLine(eid,f,p)).join('') : '';
   const notes = String(f.notes || '').trim();
   const notesBlock = notes
-    ? `<div class="flight-notes" style="padding:0 16px 10px 52px;color:var(--text-2);font-size:13px;line-height:1.45">
-        <div style="font-weight:650;color:var(--text-1);margin-bottom:2px">Journey notes</div>
-        ${esc(notes)}
+    ? `<div class="flight-notes">
+        <div class="flight-notes-k">Journey notes</div>
+        <div class="flight-notes-v">${esc(notes)}</div>
       </div>`
     : '';
-  return `<div class="info-line info-line-stacked">
-    <div class="ic">${ICON.plane(17)}</div>
-    ${detailTx(esc(f.code||'Flight'), routeHtml, meta)}
-    <button type="button" class="add" style="align-self:center" onclick="sheetFlight('${eid}','${f.id}')">Edit</button>
-    <button type="button" class="header-btn" style="width:34px;height:34px;align-self:center;color:var(--red)" title="Remove flight" onclick="confirmRemoveFlight('${eid}','${f.id}')">${ICON.trash(15)}</button>
-  </div>${notesBlock}${paxBlock}`;
+  const paxFoldId = 'ss-'+eid+'-flpax-'+f.id;
+  const paxOpen = typeof isOpen==='function' ? isOpen(paxFoldId, false) : false;
+  const paxLabel = pax.length
+    ? (pax.length+' passenger'+(pax.length===1?'':'s'))
+    : '';
+  const paxBlock = pax.length
+    ? `<div class="flight-pax-wrap fold ${paxOpen?'open':''}" id="fold-${paxFoldId}">
+        <button type="button" class="flight-pax-toggle fold-head" aria-expanded="${paxOpen?'true':'false'}" onclick="toggleFold('${paxFoldId}')">
+          <span class="flight-pax-toggle-label">${ICON.users(14)} ${esc(paxLabel)}</span>
+          <span class="fold-chev">${ICON.chevDown?ICON.chevDown(18):ICON.chevR(18)}</span>
+        </button>
+        <div class="fold-body"><div class="fold-inner flight-pax-list">${pax.map(p=>flightPaxLine(eid,f,p)).join('')}</div></div>
+      </div>`
+    : '';
+  return `<div class="flight-block">
+    <div class="info-line info-line-stacked">
+      <div class="ic">${ICON.plane(17)}</div>
+      ${detailTx(esc(f.code||'Flight'), routeHtml, meta)}
+      <button type="button" class="add" style="align-self:center" onclick="sheetFlight('${eid}','${f.id}')">Edit</button>
+      <button type="button" class="header-btn" style="width:34px;height:34px;align-self:center;color:var(--red)" title="Remove flight" onclick="confirmRemoveFlight('${eid}','${f.id}')">${ICON.trash(15)}</button>
+    </div>
+    ${notesBlock}
+    ${paxBlock}
+  </div>`;
 }
 function flightPaxLine(eid,f,pax){
   const title = esc(pax.name||'Passenger');

@@ -1,14 +1,26 @@
 import { call, getIdeaTypes, getStore } from '../api/operate.js';
 import { Subsection, EmptyTap, Icon } from './ui.jsx';
 
-function timelineIcon(kind){
-  if(kind === 'flight') return 'plane';
-  if(kind === 'hotel') return 'bed';
-  if(kind === 'transport') return 'car';
-  if(kind === 'arrival') return 'pin';
-  if(kind === 'set') return 'music';
-  if(kind === 'advance') return 'clock';
-  return 'clock';
+function timelineIcon(kind, icon){
+  if(kind === 'flight' || icon === 'planeTop' || icon === 'plane') return 'planeTop';
+  if(kind === 'hotel' || icon === 'bed') return 'bed';
+  if(kind === 'transport' || icon === 'car') return 'car';
+  if(kind === 'arrival' || icon === 'pin') return 'pin';
+  if(kind === 'set' || icon === 'music') return 'music';
+  if(kind === 'advance' || icon === 'clock') return 'clock';
+  return icon || 'clock';
+}
+
+function TimelineStepTitle({ step }){
+  if(step.kind === 'flight' && (step.from || step.to) && typeof window !== 'undefined' && typeof window.flightRouteHtml === 'function'){
+    return (
+      <b
+        className="tl-flight-route"
+        dangerouslySetInnerHTML={{ __html: window.flightRouteHtml(step.from, step.to) }}
+      />
+    );
+  }
+  return <b>{step.title || 'Step'}</b>;
 }
 
 function openTimelineStep(show, s){
@@ -69,9 +81,9 @@ export function DayOverview({ show }){
                 onClick={() => openTimelineStep(show, s)}
                 onKeyDown={ev => { if(ev.key === 'Enter' || ev.key === ' '){ ev.preventDefault(); openTimelineStep(show, s); } }}
               >
-                <div className="tl-card-ic"><Icon name={timelineIcon(s.kind || s.icon)} size={16} /></div>
+                <div className="tl-card-ic"><Icon name={timelineIcon(s.kind, s.icon)} size={16} /></div>
                 <div className="tl-card-body">
-                  <b>{s.title || 'Step'}</b>
+                  <TimelineStepTitle step={s} />
                   {s.sub ? <span>{s.sub}</span> : null}
                 </div>
               </div>
