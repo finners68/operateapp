@@ -746,7 +746,7 @@ function dayOverviewStepRow(e, s){
   const icFn = ICON[icName] || ICON.clock;
   return `<div class="tl-item ${s.done?'done':''}" data-id="${esc(s.id)}">
     <div class="tl-time">${esc(s.time||'—')}</div>
-    <div class="tl-line"><button type="button" class="tl-node" onclick="toggleShowTimelineStep('${eid}','${s.id}')">${s.done?ICON.check(12):''}</button></div>
+    <div class="tl-line"><button type="button" class="tl-node" aria-label="${s.done?'Mark not done':'Mark done'}" onclick="event.stopPropagation();toggleShowTimelineStep('${eid}','${s.id}')"></button></div>
     <div class="tl-card ${s.kind==='set'?'is-set':''}" ${labelClick}>
       <div class="tl-card-ic">${icFn(16)}</div>
       <div class="tl-card-body"><b>${esc(s.title||'Step')}</b>${s.sub?`<span>${esc(s.sub)}</span>`:''}</div>

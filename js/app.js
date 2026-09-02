@@ -483,15 +483,9 @@ function patchCheckRowsById(id, done){
   const rows = document.querySelectorAll(
     '.check[data-id="'+cssAttrEscape(id)+'"], .tl-item[data-id="'+cssAttrEscape(id)+'"]'
   );
-  rows.forEach(row => {
-    row.classList.toggle('done', !!done);
-    if(row.classList.contains('tl-item')){
-      const node = row.querySelector('.tl-node');
-      if(node && typeof ICON !== 'undefined' && typeof ICON.check === 'function'){
-        node.innerHTML = done ? ICON.check(12) : '';
-      }
-    }
-  });
+  /* Only toggle the done class — never rewrite .tl-node HTML. React owns those
+     buttons; injecting a check SVG here stacked icons and could blank the page. */
+  rows.forEach(row => row.classList.toggle('done', !!done));
   return rows.length;
 }
 function removeCheckRowsById(id){

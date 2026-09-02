@@ -916,8 +916,15 @@ select.input{appearance:none;-webkit-appearance:none;background-image:url("data:
 .show-day-timeline .tl-card{cursor:pointer;}
 .show-day-timeline .tl-card-ic{width:28px;height:28px;border-radius:9px;background:rgba(255,255,255,0.05);display:flex;align-items:center;justify-content:center;color:var(--text-2);flex-shrink:0;}
 .show-day-timeline .tl-card-body{flex:1;min-width:0;}
-.show-day-timeline .tl-node{cursor:pointer;border:none;padding:0;font:inherit;}
-.show-day-timeline .tl-node svg{opacity:1;transform:none;}
+.show-day-timeline .tl-node{cursor:pointer;border-style:solid;appearance:none;-webkit-appearance:none;}
+.show-day-timeline .tl-item.done .tl-node::after{
+  content:'';
+  width:5px;height:9px;
+  border:solid #fff;
+  border-width:0 2px 2px 0;
+  transform:rotate(45deg) translateY(-1px);
+  box-sizing:border-box;
+}
 .show-detail-foot{margin-top:6px;}
 .show-detail .flight-notes{
   margin:0 0 8px;

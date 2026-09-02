@@ -56,10 +56,11 @@ export function DayOverview({ show }){
                   type="button"
                   className="tl-node"
                   aria-label={s.done ? 'Mark not done' : 'Mark done'}
-                  onClick={() => call('toggleShowTimelineStep', show.id, s.id)}
-                >
-                  {s.done ? <Icon name="check" size={12} /> : null}
-                </button>
+                  onClick={ev => {
+                    ev.stopPropagation();
+                    call('toggleShowTimelineStep', show.id, s.id);
+                  }}
+                />
               </div>
               <div
                 className={`tl-card ${s.kind === 'set' ? 'is-set' : ''}`}
