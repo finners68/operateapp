@@ -5,7 +5,7 @@ import { UploadBanner, QuickLinks } from './Banner.jsx';
 import TravelGroup from './Travel.jsx';
 import VenueGroup from './Venue.jsx';
 import DealGroup from './Deal.jsx';
-import { Timeline, Checklist, Notes, ContentBlock, Attachments } from './Prep.jsx';
+import { DayOverview, Checklist, Notes, ContentBlock, Attachments } from './Prep.jsx';
 
 function useShow(showId){
   return useSyncExternalStore(
@@ -136,6 +136,8 @@ export default function ShowPage({ showId }){
           </div>
         </div>
 
+        <DayOverview show={show} />
+
         <div className="show-detail-quick">
           <div className="block-title">Quick access</div>
           <QuickLinks show={show} />
@@ -152,7 +154,6 @@ export default function ShowPage({ showId }){
             <DealGroup show={show} />
           </Group>
           <Group id={`sg-${show.id}-prep`} title="Day prep" icon={iconHtml('checkList', 20)} summary={prepSummary}>
-            <Timeline show={show} />
             <ContentBlock show={show} />
             <Attachments show={show} />
             <Checklist show={show} />

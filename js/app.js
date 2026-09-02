@@ -480,13 +480,25 @@ function cssAttrEscape(v){
 }
 function patchCheckRowsById(id, done){
   if(id == null || id === '') return 0;
-  const rows = document.querySelectorAll('.check[data-id="'+cssAttrEscape(id)+'"]');
-  rows.forEach(row => row.classList.toggle('done', !!done));
+  const rows = document.querySelectorAll(
+    '.check[data-id="'+cssAttrEscape(id)+'"], .tl-item[data-id="'+cssAttrEscape(id)+'"]'
+  );
+  rows.forEach(row => {
+    row.classList.toggle('done', !!done);
+    if(row.classList.contains('tl-item')){
+      const node = row.querySelector('.tl-node');
+      if(node && typeof ICON !== 'undefined' && typeof ICON.check === 'function'){
+        node.innerHTML = done ? ICON.check(12) : '';
+      }
+    }
+  });
   return rows.length;
 }
 function removeCheckRowsById(id){
   if(id == null || id === '') return 0;
-  const rows = [...document.querySelectorAll('.check[data-id="'+cssAttrEscape(id)+'"]')];
+  const rows = [...document.querySelectorAll(
+    '.check[data-id="'+cssAttrEscape(id)+'"], .tl-item[data-id="'+cssAttrEscape(id)+'"]'
+  )];
   rows.forEach(row => row.remove());
   return rows.length;
 }

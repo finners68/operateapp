@@ -1,9 +1,19 @@
 import { call, getIdeaTypes, getStore } from '../api/operate.js';
 import { Subsection, EmptyTap, Icon } from './ui.jsx';
 
+function timelineIcon(kind){
+  if(kind === 'flight') return 'plane';
+  if(kind === 'hotel') return 'bed';
+  if(kind === 'transport') return 'car';
+  if(kind === 'arrival') return 'pin';
+  if(kind === 'set') return 'music';
+  if(kind === 'advance') return 'clock';
+  return 'clock';
+}
+
 function openTimelineStep(show, s){
   if(!s.auto){
-    call('toggleShowTimelineStep', show.id, s.id);
+    call('sheetShowTimelineStep', show.id, s.id);
     return;
   }
   if(s.kind === 'flight' && s.refId) return call('sheetFlight', show.id, s.refId);
@@ -17,6 +27,68 @@ function openTimelineStep(show, s){
   if(s.kind === 'advance') return call('sheetAdvance', show.id);
 }
 
+/** Always-visible day plan at the top of a show page. */
+export function DayOverview({ show }){
+  const tl = call('showDayTimeline', show) || show.timeline || [];
+  const done = tl.filter(s => s.done).length;
+  return (
+    <section className="show-day-overview">
+      <div className="show-day-overview-head">
+        <div>
+          <div className="block-title">Day overview</div>
+          <div className="show-day-overview-sub">
+            {tl.length
+              ? `${done}/${tl.length} done · flights, hotel, transport and set fill in automatically`
+              : 'Builds from flights, hotel, transport and set time'}
+          </div>
+        </div>
+        <button type="button" className="show-day-overview-edit" onClick={() => call('sheetShowTimeline', show.id)}>
+          {tl.length ? 'Edit' : 'Add'}
+        </button>
+      </div>
+      {tl.length ? (
+        <div className="timeline show-day-timeline">
+          {tl.map(s => (
+            <div key={s.id} className={`tl-item ${s.done ? 'done' : ''}`} data-id={s.id}>
+              <div className="tl-time">{s.time || '—'}</div>
+              <div className="tl-line">
+                <button
+                  type="button"
+                  className="tl-node"
+                  aria-label={s.done ? 'Mark not done' : 'Mark done'}
+                  onClick={() => call('toggleShowTimelineStep', show.id, s.id)}
+                >
+                  {s.done ? <Icon name="check" size={12} /> : null}
+                </button>
+              </div>
+              <div
+                className={`tl-card ${s.kind === 'set' ? 'is-set' : ''}`}
+                role="button"
+                tabIndex={0}
+                onClick={() => openTimelineStep(show, s)}
+                onKeyDown={ev => { if(ev.key === 'Enter' || ev.key === ' '){ ev.preventDefault(); openTimelineStep(show, s); } }}
+              >
+                <div className="tl-card-ic"><Icon name={timelineIcon(s.kind || s.icon)} size={16} /></div>
+                <div className="tl-card-body">
+                  <b>{s.title || 'Step'}</b>
+                  {s.sub ? <span>{s.sub}</span> : null}
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <EmptyTap
+          icon="clock"
+          title="Add show details — this overview fills in automatically"
+          onClick={() => call('sheetShowTimeline', show.id)}
+        />
+      )}
+    </section>
+  );
+}
+
+/** Nested checklist-style timeline (kept for sheets / older surfaces). */
 export function Timeline({ show }){
   const tl = call('showDayTimeline', show) || show.timeline || [];
   return (

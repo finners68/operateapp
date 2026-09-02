@@ -442,14 +442,12 @@ function prepGroupSummary(e){
   const ideas = store.ideas.filter(x=>x.eventId===e.id).length;
   const contentN = ideas + (e.content?1:0);
   const attachN = (e.attachments||[]).length;
-  const tlN = (typeof showDayTimeline==='function' ? showDayTimeline(e) : (e.timeline||[])).length;
   const parts = [];
-  if(tlN) parts.push(tlN+' timeline step'+(tlN!==1?'s':''));
   if(cp.total) parts.push('checklist '+cp.done+'/'+cp.total);
   if(contentN) parts.push(contentN+' content item'+(contentN>1?'s':''));
   if(attachN) parts.push(attachN+' attachment'+(attachN>1?'s':''));
   if(e.notes&&e.notes.trim()) parts.push('notes');
-  return parts.length ? parts.join(' · ') : 'Checklist, timeline, notes — add what you need';
+  return parts.length ? parts.join(' · ') : 'Checklist, content, notes — add what you need';
 }
 function dealGroupSummary(e){
   if(e.finance&&e.finance.notDisclosed) return 'Not disclosed';
@@ -729,6 +727,50 @@ function timelineAutoOpen(eid, s){
   if(s.kind==='advance') return `sheetAdvance('${eid}')`;
   return '';
 }
+function timelineIconName(kind){
+  if(kind==='flight') return 'plane';
+  if(kind==='hotel') return 'bed';
+  if(kind==='transport') return 'car';
+  if(kind==='arrival') return 'pin';
+  if(kind==='set') return 'music';
+  if(kind==='advance') return 'clock';
+  return 'clock';
+}
+function dayOverviewStepRow(e, s){
+  const eid = e.id;
+  const openAuto = s.auto ? timelineAutoOpen(eid, s) : '';
+  const labelClick = s.auto && openAuto
+    ? `onclick="${openAuto}"`
+    : (!s.auto ? `onclick="sheetShowTimelineStep('${eid}','${s.id}')"` : '');
+  const icName = timelineIconName(s.kind || s.icon);
+  const icFn = ICON[icName] || ICON.clock;
+  return `<div class="tl-item ${s.done?'done':''}" data-id="${esc(s.id)}">
+    <div class="tl-time">${esc(s.time||'—')}</div>
+    <div class="tl-line"><button type="button" class="tl-node" onclick="toggleShowTimelineStep('${eid}','${s.id}')">${s.done?ICON.check(12):''}</button></div>
+    <div class="tl-card ${s.kind==='set'?'is-set':''}" ${labelClick}>
+      <div class="tl-card-ic">${icFn(16)}</div>
+      <div class="tl-card-body"><b>${esc(s.title||'Step')}</b>${s.sub?`<span>${esc(s.sub)}</span>`:''}</div>
+    </div>
+  </div>`;
+}
+function dayOverviewBlock(e){
+  const tl = typeof showDayTimeline==='function' ? showDayTimeline(e) : (e.timeline||[]);
+  const done = tl.filter(s=>s.done).length;
+  const editBtn = `<button type="button" class="show-day-overview-edit" onclick="sheetShowTimeline('${e.id}')">${tl.length?'Edit':'Add'}</button>`;
+  const sub = tl.length
+    ? `${done}/${tl.length} done · flights, hotel, transport and set fill in automatically`
+    : 'Builds from flights, hotel, transport and set time';
+  const body = tl.length
+    ? `<div class="timeline show-day-timeline">${tl.map(s=>dayOverviewStepRow(e,s)).join('')}</div>`
+    : `<div class="card tap" onclick="sheetShowTimeline('${e.id}')" style="text-align:center;color:var(--text-3);padding:18px;font-weight:600">${ICON.clock(20)} Add show details — this overview fills in automatically</div>`;
+  return `<section class="show-day-overview">
+    <div class="show-day-overview-head">
+      <div><div class="block-title">Day overview</div><div class="show-day-overview-sub">${esc(sub)}</div></div>
+      ${editBtn}
+    </div>
+    ${body}
+  </section>`;
+}
 function timelineSubsection(e){
   const tl = typeof showDayTimeline==='function' ? showDayTimeline(e) : (e.timeline||[]);
   const addBtn = `<button type="button" class="add" onclick="sheetShowTimeline('${e.id}')">${tl.length?'Edit':'Add'}</button>`;
@@ -754,7 +796,7 @@ function notesSubsection(e){
   return showSubsection('ss-'+e.id+'-notes', 'Internal notes', '', body, has);
 }
 function prepGroupBody(e){
-  return timelineSubsection(e)+contentSubsection(e)+checklistSubsection(e)+attachmentsSubsection(e)+notesSubsection(e);
+  return contentSubsection(e)+checklistSubsection(e)+attachmentsSubsection(e)+notesSubsection(e);
 }
 function moneyGroupBody(e){
   if(e.finance && e.finance.notDisclosed){
@@ -834,6 +876,8 @@ function viewEvent(id){
         ${e.arrival?`<div class="show-stat"><span class="show-stat-k">Arrival</span><span class="show-stat-v">${esc(e.arrival)}</span></div>`:''}
       </div>
     </div>
+
+    ${dayOverviewBlock(e)}
 
     <div class="show-detail-quick">
       <div class="block-title">Quick access</div>
@@ -1693,6 +1737,14 @@ function toggleShowTimelineStep(eid,sid){
   } else if(!patchCheckRowsById(sid, done)){
     softRender();
   } else {
+    const ov = document.querySelector('.show-day-overview-sub');
+    if(ov && typeof showDayTimeline==='function'){
+      const tl = showDayTimeline(e);
+      const nDone = tl.filter(s=>s.done).length;
+      ov.textContent = tl.length
+        ? (nDone+'/'+tl.length+' done · flights, hotel, transport and set fill in automatically')
+        : 'Builds from flights, hotel, transport and set time';
+    }
     const prep = document.getElementById('fold-sg-'+eid+'-prep');
     const sub = prep && prep.querySelector('.show-group-titles span');
     if(sub && typeof prepGroupSummary==='function') sub.textContent = prepGroupSummary(e);
