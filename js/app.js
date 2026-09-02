@@ -150,6 +150,7 @@ function initPullToRefresh(){
     screen.insertBefore(indicator, screen.firstChild);
   }
 
+  const view = () => document.getElementById('view');
   const THRESH = 78;
   let startY = 0;
   let pulling = false;
@@ -157,14 +158,37 @@ function initPullToRefresh(){
   let dy = 0;
 
   const isDesktop = () => window.matchMedia('(min-width:900px)').matches;
+
+  const setContentPull = (px, mode) => {
+    const el = view();
+    const y = Math.max(0, px || 0);
+    indicator.style.setProperty('--pull', y + 'px');
+    screen.style.setProperty('--ptr-shift', y + 'px');
+    if(!el) return;
+    el.classList.toggle('ptr-dragging', mode === 'drag');
+    el.classList.toggle('ptr-settling', mode === 'settle' || mode === 'hold');
+    if(y > 0) el.style.transform = 'translate3d(0,' + y + 'px,0)';
+    else el.style.transform = '';
+  };
+
   const reset = () => {
     pulling = false;
     armed = false;
     dy = 0;
     indicator.classList.remove('armed', 'visible', 'loading');
-    indicator.style.setProperty('--pull', '0px');
     const label = indicator.querySelector('.pull-refresh-label');
     if(label) label.textContent = 'Pull to refresh';
+    setContentPull(0, 'settle');
+    const el = view();
+    if(el){
+      const clear = () => {
+        el.classList.remove('ptr-settling', 'ptr-dragging');
+        el.style.transform = '';
+        screen.style.setProperty('--ptr-shift', '0px');
+      };
+      el.addEventListener('transitionend', clear, { once: true });
+      setTimeout(clear, 320);
+    }
   };
 
   screen.addEventListener('touchstart', (e) => {
@@ -175,6 +199,11 @@ function initPullToRefresh(){
     pulling = true;
     armed = false;
     dy = 0;
+    const el = view();
+    if(el){
+      el.classList.remove('ptr-settling');
+      el.classList.add('ptr-dragging');
+    }
   }, { passive: true });
 
   screen.addEventListener('touchmove', (e) => {
@@ -184,13 +213,14 @@ function initPullToRefresh(){
       return;
     }
     dy = e.touches[0].clientY - startY;
-    if(dy < 10) return;
+    if(dy < 8) return;
+    /* Keep the page attached to the finger — block native overscroll. */
     if(e.cancelable) e.preventDefault();
-    const pull = Math.min(dy * 0.55, 110);
+    const pull = Math.min(dy * 0.55, 120);
     armed = pull >= THRESH * 0.55;
     indicator.classList.add('visible');
     indicator.classList.toggle('armed', armed);
-    indicator.style.setProperty('--pull', pull + 'px');
+    setContentPull(pull, 'drag');
     const label = indicator.querySelector('.pull-refresh-label');
     if(label) label.textContent = armed ? 'Release to refresh' : 'Pull to refresh';
   }, { passive: false });
@@ -204,7 +234,7 @@ function initPullToRefresh(){
       return;
     }
     indicator.classList.add('visible', 'loading', 'armed');
-    indicator.style.setProperty('--pull', '56px');
+    setContentPull(56, 'hold');
     const label = indicator.querySelector('.pull-refresh-label');
     if(label) label.textContent = 'Refreshing…';
     try{
