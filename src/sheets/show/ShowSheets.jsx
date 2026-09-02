@@ -80,9 +80,27 @@ export function ShowHotelSheet(props){
 export function ShowFlightsListSheet({ eid, flights }){
   const list=flights || eventOf({eid}).flights || [];
   return <><p className="sheet-lede">Flights already on this show — tap one to edit route, gate and passengers.</p>
-    <div className="card flush">{list.map(f=><div className="row" key={f.id} onClick={()=>call('openFlightFromList',eid,f.id)}>
-      <div className="ic"><Icon name="plane" size={18}/></div><div className="body"><b>{f.code||'Flight'}</b><span>{`${f.from||'?'} → ${f.to||'?'}${f.gate?` · Gate ${f.gate}`:''}${f.terminal?` · Term ${f.terminal}`:''}`}</span></div><Icon name="chevR" size={15}/>
-    </div>)}</div>
+    <div className="card flush">{list.map(f=>{
+      const from=(f.from||'?').toString().trim().toUpperCase()||'?';
+      const to=(f.to||'?').toString().trim().toUpperCase()||'?';
+      return <div className="row" key={f.id} onClick={()=>call('openFlightFromList',eid,f.id)}>
+      <div className="ic"><Icon name="plane" size={18}/></div>
+      <div className="body">
+        <b>{f.code||'Flight'}</b>
+        <span className="flight-route" aria-label={`${from} to ${to}`} style={{marginTop:6,maxWidth:220}}>
+          <span className="flight-route-code">{from}</span>
+          <span className="flight-route-rail" aria-hidden="true">
+            <span className="flight-route-line"></span>
+            <span className="flight-route-icon"><Icon name="planeTop" size={13}/></span>
+            <span className="flight-route-line"></span>
+          </span>
+          <span className="flight-route-code">{to}</span>
+        </span>
+        {(f.gate||f.terminal)?<span style={{display:'block',marginTop:4}}>{[f.gate?`Gate ${f.gate}`:'', f.terminal?`Term ${f.terminal}`:''].filter(Boolean).join(' · ')}</span>:null}
+      </div>
+      <Icon name="chevR" size={15}/>
+    </div>;
+    })}</div>
     <button className="btn secondary" style={{marginTop:14}} onClick={()=>call('openFlightFromList',eid,'__new__')}><Icon name="plus" size={16}/> Add flight</button><Spacer />
   </>;
 }

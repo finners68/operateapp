@@ -862,7 +862,9 @@ function flightLine(eid,f){
   const parsed = typeof flightParseDep==='function' ? flightParseDep(f.dep,'') : {time:(f.dep||'').split(' ').pop()};
   const depTime = parsed.time || (f.dep ? (String(f.dep).split(' ')[1] || (String(f.dep).includes(':')&&!String(f.dep).includes('-')?f.dep:'')) : '');
   const arrTime = f.arr ? (String(f.arr).split(' ')[1] || (String(f.arr).includes(':')&&!String(f.arr).includes('-')?f.arr:'')) : '';
-  const route = `${f.from||'?'} → ${f.to||'?'}`;
+  const routeHtml = (typeof flightRouteHtml === 'function')
+    ? flightRouteHtml(f.from, f.to)
+    : esc(`${f.from||'?'} → ${f.to||'?'}`);
   const pax = (typeof flightPassengers==='function' ? flightPassengers(f) : (f.passengers||[]));
   const meta = [
     depTime ? 'Dep '+esc(depTime) : '',
@@ -883,7 +885,7 @@ function flightLine(eid,f){
     : '';
   return `<div class="info-line info-line-stacked">
     <div class="ic">${ICON.plane(17)}</div>
-    ${detailTx(esc(f.code||'Flight'), esc(route), meta)}
+    ${detailTx(esc(f.code||'Flight'), routeHtml, meta)}
     <button type="button" class="add" style="align-self:center" onclick="sheetFlight('${eid}','${f.id}')">Edit</button>
     <button type="button" class="header-btn" style="width:34px;height:34px;align-self:center;color:var(--red)" title="Remove flight" onclick="confirmRemoveFlight('${eid}','${f.id}')">${ICON.trash(15)}</button>
   </div>${notesBlock}${paxBlock}`;

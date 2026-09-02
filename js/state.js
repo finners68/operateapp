@@ -621,6 +621,22 @@ function logisticRoute(l){
   if(leg) return `${leg.from} → ${leg.to}`;
   return '';
 }
+/* Visual route: BCN ── ✈ ── MAN (codes from data, plane icon from code). */
+function flightRouteHtml(from, to){
+  const a = String(from || '').trim().toUpperCase() || '?';
+  const b = String(to || '').trim().toUpperCase() || '?';
+  const plane = (typeof ICON !== 'undefined' && ICON.planeTop) ? ICON.planeTop(13) : (ICON.plane ? ICON.plane(13) : '');
+  return `<span class="flight-route" aria-label="${esc(a)} to ${esc(b)}">
+    <span class="flight-route-code">${esc(a)}</span>
+    <span class="flight-route-rail" aria-hidden="true">
+      <span class="flight-route-line"></span>
+      <span class="flight-route-icon">${plane}</span>
+      <span class="flight-route-line"></span>
+    </span>
+    <span class="flight-route-code">${esc(b)}</span>
+  </span>`;
+}
+window.flightRouteHtml = flightRouteHtml;
 function logisticTimes(l){
   if(l.kind==='stay') return l.info || '';
   if(l.start && l.end) return `${l.start} – ${l.end}`;
@@ -653,7 +669,11 @@ function logisticDisplayLines(l){
 }
 function logisticRowHtml(l){
   const d = logisticDisplayLines(l);
-  return detailParts(esc(d.title), d.primary ? esc(d.primary) : '', d.meta ? esc(d.meta) : '');
+  const isFlight = l.kind === 'travel' && (l.icon || 'plane') === 'plane' && !l.driverName;
+  const primary = isFlight && (l.from || l.to)
+    ? flightRouteHtml(l.from, l.to)
+    : (d.primary ? esc(d.primary) : '');
+  return detailParts(esc(d.title), primary, d.meta ? esc(d.meta) : '');
 }
 function haptic(){ if(navigator.vibrate) try{navigator.vibrate(8);}catch(e){} }
 let toastT;
