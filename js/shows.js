@@ -863,6 +863,7 @@ function viewEvent(id){
   if(!e) return backStub();
   if(typeof migrateShowFlightInfo==='function') migrateShowFlightInfo(e);
   const c = CATS[e.color]||CATS.purple;
+  const titleColor = e.textColor && CATS[e.textColor] ? CATS[e.textColor] : '';
   const trip = e.tripId? sel.trip(e.tripId):null;
   return `
   <div class="detail-top">
@@ -875,7 +876,7 @@ function viewEvent(id){
     </div>
     ${typeof itineraryFullUploadBanner === 'function' ? itineraryFullUploadBanner(e.id) : ''}
   </div>
-  <div class="screen-pad stagger show-detail">
+  <div class="screen-pad stagger show-detail${titleColor?' show-title-toned':''}"${titleColor?` style="--show-title:${titleColor}"`:''}>
     <div class="dhero show-hero" style="background:linear-gradient(155deg,${c}33,var(--card) 65%)">
       <div class="cat-bar" style="background:${c}"></div>
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
@@ -1042,11 +1043,25 @@ function pickCat(el){
   el.parentElement.querySelectorAll('.sw').forEach(s=>s.classList.remove('on'));
   el.classList.add('on');
   haptic();
-  if(el.dataset.cat) applyEventSheetColor(el.dataset.cat);
+  const groupId = el.parentElement && el.parentElement.id;
+  if(groupId === 'ev-cat' && el.dataset.cat) applyEventSheetColor(el.dataset.cat);
+  if(groupId === 'ev-text-cat') applyEventSheetTextColor(el.dataset.cat || '');
 }
 function segPick(el){ el.parentElement.querySelectorAll('button').forEach(b=>b.classList.remove('on')); el.classList.add('on'); haptic(); }
 function getSeg(id){ const el=document.querySelector('#'+id+' button.on'); return el?el.dataset.v:''; }
 function getCat(id){ const el=document.querySelector('#'+id+' .sw.on'); return el?el.dataset.cat:'purple'; }
+function getTextCat(id){
+  const el = document.querySelector('#'+id+' .sw.on');
+  if(!el) return null;
+  const cat = el.dataset.cat;
+  return cat ? cat : null;
+}
+function applyEventSheetTextColor(cat){
+  const title = document.getElementById('ev-preview-venue');
+  if(!title) return;
+  if(cat && CATS[cat]) title.style.color = CATS[cat];
+  else title.style.color = '';
+}
 
 function saveEvent(eid){
   const eventName = val('ev-event-name');
@@ -1062,6 +1077,7 @@ function saveEvent(eid){
     city:val('ev-city'), country:val('ev-country'), date:val('ev-date')||rawVal('ev-date'),
     setTime:rawVal('ev-set'), arrival:rawVal('ev-arr'), status:getSeg('ev-status')||'confirmed',
     content:val('ev-content'), color:getCat('ev-cat'),
+    textColor: getTextCat('ev-text-cat'),
   };
   if(eid){
     Object.assign(data, {

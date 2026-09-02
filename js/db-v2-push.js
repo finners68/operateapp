@@ -703,6 +703,7 @@ async function pushToSupabaseV2(orgId, dirtyIn){
         show_date: s.date,
         show_status: V2_SHOW_STATUS_FROM_STORE[s.status] || 'confirmed',
         color_key: s.color || null,
+        text_color_key: s.textColor || null,
         venue_arrival_time: s.arrival || null,
         set_start_time: s.setTime || null,
         set_end_time: s.endTime || null,

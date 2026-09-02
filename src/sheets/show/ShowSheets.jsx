@@ -18,11 +18,32 @@ const Seg = ({ id, values, selected, onPick }) => (
     return <button type="button" key={value} data-v={value} className={selected === value ? 'on' : ''} onClick={e => { call('segPick', e.currentTarget); if(onPick) onPick(value); }}>{label}</button>;
   })}</div>
 );
-const Swatches = ({ id, selected = 'purple' }) => {
+const Swatches = ({ id, selected = 'purple', allowDefault = false }) => {
   const cats = getCats() || {};
-  return <div className="swatches" id={id}>{Object.entries(cats).map(([key, color]) =>
-    <div key={key} className={`sw${key === selected ? ' on' : ''}`} style={{ background: color }} data-cat={key} onClick={e => call('pickCat', e.currentTarget)} />
-  )}</div>;
+  const hasSelection = selected != null && selected !== '';
+  return (
+    <div className="swatches" id={id}>
+      {allowDefault ? (
+        <div
+          key="__default"
+          className={`sw sw-default${!hasSelection ? ' on' : ''}`}
+          style={{ background: 'var(--text)' }}
+          data-cat=""
+          title="Default"
+          onClick={e => call('pickCat', e.currentTarget)}
+        />
+      ) : null}
+      {Object.entries(cats).map(([key, color]) =>
+        <div
+          key={key}
+          className={`sw${hasSelection && key === selected ? ' on' : ''}`}
+          style={{ background: color }}
+          data-cat={key}
+          onClick={e => call('pickCat', e.currentTarget)}
+        />
+      )}
+    </div>
+  );
 };
 const eventOf = props => props.event || getEvent(props.eid || props.id) || {};
 
@@ -31,12 +52,14 @@ export function ShowEventSheet({ eid, event }){
   const now = new Date();
   const date = e?.date || `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
   const cat = e?.color || 'purple';
+  const textCat = e?.textColor || '';
   const color = (getCats() || {})[cat] || '#7c3aed';
+  const titleColor = textCat ? ((getCats() || {})[textCat] || color) : undefined;
   return <>
     <div className="dhero sheet-event-preview" id="ev-preview" style={{ background:`linear-gradient(155deg,${color}33,var(--card) 65%)`, borderColor:`${color}44` }}>
       <div className="cat-bar" style={{ background:color }} />
       <div className="sheet-event-tone" style={{ fontSize:12,fontWeight:700,textTransform:'uppercase',letterSpacing:'.06em',color }}>{eid?'Edit show':'New show'}</div>
-      <div id="ev-preview-venue" style={{fontSize:20,fontWeight:800,marginTop:4}}>{e?.eventName || e?.venue || 'Event name'}</div>
+      <div id="ev-preview-venue" style={{fontSize:20,fontWeight:800,marginTop:4, color: titleColor || undefined}}>{e?.eventName || e?.venue || 'Event name'}</div>
       {e?.eventName && e?.venue ? <div style={{fontSize:13,opacity:.75,marginTop:2}}>{e.venue}</div> : null}
     </div>
     <Field label="Event name" id="ev-event-name" value={e?.eventName} placeholder="e.g. Parklife, Support slot" onInput={() => call('updateEventPreviewVenue')} />
@@ -54,6 +77,8 @@ export function ShowEventSheet({ eid, event }){
     <Field label="Content to capture" id="ev-content" value={e?.content} placeholder="e.g. 2x reels · crowd clip" />
     {eid ? <><div className="row-2"><Field label="End time" id="ev-end" type="time" value={e?.endTime} /><Field label="Artist" id="ev-artist" value={e?.artist} placeholder={getStore()?.settings?.artistName || 'Artist'} /></div><TextArea label="Internal notes" id="ev-notes" value={e?.notes} placeholder="Team-only notes" /></> : null}
     <Field label="Colour"><Swatches id="ev-cat" selected={cat} /></Field>
+    <Field label="Text colour"><Swatches id="ev-text-cat" selected={textCat} allowDefault /></Field>
+    <div className="hint" style={{ textAlign:'left', padding:'0 2px 10px' }}>Text colour tints titles on this show page. Default keeps normal app text.</div>
     {eid ? <button type="button" className="btn secondary" style={{marginBottom:10}} onClick={()=>{call('closeSheet',true,{noReturn:true});call('eventMenu',eid)}}><Icon name="edit" size={16} /> All show sections…</button> : null}
     <button type="button" className="btn" id="ev-save" onClick={()=>call('saveEvent',eid||'')}>{eid?'Save changes':'Add show'}</button><Spacer />
   </>;

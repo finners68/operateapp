@@ -65,6 +65,7 @@ export default function ShowPage({ showId }){
 
   const CATS = getCats() || {};
   const c = CATS[show.color] || CATS.purple || '#6d5efc';
+  const titleColor = show.textColor && CATS[show.textColor] ? CATS[show.textColor] : '';
   const trip = show.tripId && getSel()?.trip ? getSel().trip(show.tripId) : null;
   const backLabel = trip ? trip.name : (call('overlayBackLabel') || 'Back');
 
@@ -90,7 +91,10 @@ export default function ShowPage({ showId }){
         </div>
       </div>
 
-      <div className="screen-pad show-detail show-detail-react">
+      <div
+        className={`screen-pad show-detail show-detail-react${titleColor ? ' show-title-toned' : ''}`}
+        style={titleColor ? { '--show-title': titleColor } : undefined}
+      >
         <UploadBanner showId={show.id} />
 
         <div className="dhero show-hero" style={{ background: `linear-gradient(155deg,${c}33,var(--card) 65%)` }}>
