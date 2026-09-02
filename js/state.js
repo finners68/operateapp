@@ -101,13 +101,56 @@ const PRIO = {high:'#ff453a', med:'#ff9f0a', low:'#32d74b'};
 /* Quick-pick journey headers for driver contacts. The header is free text —
    these are just shortcuts, and it can be left blank as journeys vary. */
 const DRIVER_JOURNEYS = ['Airport → Hotel','Hotel → Venue','Venue → Hotel','Hotel → Airport'];
+/* Split "Hotel → Airport" (or legacy free text) into from/to locations. */
+function parseDriverJourney(j){
+  const s = String(j || '').trim();
+  if(!s) return { from:'', to:'' };
+  const parts = s.split(/\s*→\s*|\s*->\s*|\s*>\s*|\s*–\s*|\s*—\s*/);
+  if(parts.length >= 2){
+    return { from: parts[0].trim(), to: parts.slice(1).join(' → ').trim() };
+  }
+  /* Plain hyphen only when both sides look like place words, not times. */
+  const dash = s.split(/\s+-\s+/);
+  if(dash.length === 2 && dash[0] && dash[1]) return { from: dash[0].trim(), to: dash[1].trim() };
+  return { from: s, to: '' };
+}
+function driverJourneyLabel(d){
+  if(!d) return '';
+  const from = String(d.from || '').trim();
+  const to = String(d.to || '').trim();
+  if(from && to) return from + ' → ' + to;
+  if(from || to) return from || to;
+  return String(d.journey || '').trim();
+}
+function ensureDriverLocations(d){
+  if(!d) return d;
+  const from = String(d.from || '').trim();
+  const to = String(d.to || '').trim();
+  if(from || to){
+    d.from = from;
+    d.to = to;
+    d.journey = driverJourneyLabel(d);
+    return d;
+  }
+  if(d.journey){
+    const p = parseDriverJourney(d.journey);
+    d.from = p.from;
+    d.to = p.to;
+    d.journey = driverJourneyLabel(d) || d.journey;
+  }
+  return d;
+}
 /* A show can have several driver contacts (one per journey). Returns the
    drivers array, lazily migrating a legacy single `e.driver` into the list. */
 function showDrivers(e){
   if(!e) return [];
   if(!Array.isArray(e.drivers)) e.drivers = e.driver ? [Object.assign({id:uid('drv'), journey:''}, e.driver)] : [];
+  e.drivers.forEach(ensureDriverLocations);
   return e.drivers;
 }
+window.parseDriverJourney = parseDriverJourney;
+window.driverJourneyLabel = driverJourneyLabel;
+window.ensureDriverLocations = ensureDriverLocations;
 
 /* ---------- Persistence layer (swap-able) ---------- */
 /* DB_KEY / clearLegacyLocalStore live in js/db-v2-state.js */
@@ -299,11 +342,13 @@ function showDayTimeline(e){
   }
 
   showDrivers(e).forEach((d, idx)=>{
-    if(!(d.time||d.journey||d.name||d.noGround)) return;
+    ensureDriverLocations(d);
+    const label = driverJourneyLabel(d);
+    if(!(d.time||label||d.name||d.noGround)) return;
     const id = d.id || ('i'+idx);
     rows.push({
       id:'auto:drv:'+id, auto:true, kind:'transport', icon:'car', refId:id,
-      time:d.time||'', title:d.journey||(d.noGround?'Uber / taxi':(d.name||'Transport')),
+      time:d.time||'', title:label||(d.noGround?'Uber / taxi':(d.name||'Transport')),
       sub:d.noGround?'No grounds':[d.name,d.pickup].filter(Boolean).join(' · ')||'From transport',
       done:!!d.done
     });
@@ -1079,19 +1124,15 @@ function runTimeline(run){
         done:!!s.hotel.done, embedded:true, ref:{kind:'stay', icon:'bed', showId:s.id, place:s.hotel.name, addr:hSub || s.hotel.address, embedded:true}});
     }
     if(!hasCar.has(s.id)){
-      showDrivers(s).forEach(d=>{ if(!d.time) return;
-        // Carry the journey's endpoints (e.g. "Hotel → Venue") onto the ref so
-        // Maps/Route resolvers can find the real destination — the raw driver
-        // object only has `journey`, not from/to, which made them fall back to
-        // a bare city search.
-        const jp = String(d.journey||'').split(/→|->|>|–|-/).map(x=>x.trim()).filter(Boolean);
-        const jFrom = jp.length>1 ? jp[0] : '';
-        const jTo = jp.length>1 ? jp[jp.length-1] : '';
+      showDrivers(s).forEach(d=>{
+        ensureDriverLocations(d);
+        if(!d.time) return;
+        const label = driverJourneyLabel(d);
         rows.push({id:'shdrv_'+d.id, kind:'travel', icon:'car', date:s.date, time:d.time,
-          title:d.journey||(d.noGround?'Transport':(d.name||'Driver')),
+          title:label||(d.noGround?'Transport':(d.name||'Driver')),
           sub:d.noGround?'No grounds — Uber/taxi':[d.name, d.phone].filter(Boolean).join(' · '),
           done:!!d.done, embedded:true, ref:Object.assign({kind:'travel', icon:'car', showId:s.id, embedded:true}, d, {
-            from: jFrom, to: jTo, title: d.journey||'', legacyTitle: d.journey||''
+            from: d.from || '', to: d.to || '', title: label||'', legacyTitle: label||''
           })});
       });
     }

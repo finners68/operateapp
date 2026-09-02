@@ -912,8 +912,10 @@ async function pushToSupabaseV2(orgId, dirtyIn){
 
     for(const [i, d] of showDrivers(s).entries()){
       if(!d.name && !d.phone) continue;
+      if(typeof ensureDriverLocations === 'function') ensureDriverLocations(d);
       const cid = await v2EnsureContact(sb, orgId, { id: d.id, name: d.name || 'Driver', phone: d.phone, whatsapp: d.whatsapp }, contactCache);
       const driverLegacy = 'show_driver_journey:' + (d.id || (sid + ':' + i));
+      const title = (typeof driverJourneyLabel === 'function' ? driverJourneyLabel(d) : d.journey) || 'Transfer';
       const jRow = await v2UpsertOneByLegacy(sb, 'journeys', orgId, {
         id: v2IdForLegacy('journeys', driverLegacy, d.id),
         organisation_id: orgId,
@@ -921,8 +923,9 @@ async function pushToSupabaseV2(orgId, dirtyIn){
         related_show_id: sid,
         tour_id: s.tripId && tourUuidMap[s.tripId] ? tourUuidMap[s.tripId] : null,
         journey_type: 'ground_transfer',
-        journey_title: d.journey || 'Transfer',
-        pickup_location: d.journey || null,
+        journey_title: title,
+        pickup_location: d.from || null,
+        dropoff_location: d.to || null,
         vehicle_details: d.name || null,
         departure_at: v2CombineDateTime(s.date, d.time),
         sort_order: i

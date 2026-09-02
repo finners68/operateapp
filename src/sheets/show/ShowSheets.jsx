@@ -142,8 +142,24 @@ export function ShowContactDriverSheet({ eid, driver }){
 }
 export function ShowTransportListSheet({ eid, drivers }){
   const list=drivers || call('orderedDrivers',eventOf({eid})) || [];
-  return <><div className="card flush">{list.map((x,i)=>{const d=x.d||x;return <div className="info-line" key={d.id||i}><div className="ic"><Icon name={d.noGround?'car':'user'} size={17}/></div><div className="tx" style={{flex:1}}><div className="k">{d.journey||d.name||'Transport'}{d.time?` · ${d.time}`:''}</div><div className="v">{d.noGround?'No grounds — Uber / taxi':`${d.name||'Driver'}${d.phone?` · ${d.phone}`:''}`}</div></div>
-    {d.noGround?<button className="header-btn" onClick={()=>call('openExternal','https://m.uber.com/','uber://')}><Icon name="car" size={16}/></button>:<>{d.whatsapp||d.phone?<button className="header-btn" onClick={()=>call('whatsapp',d.whatsapp||d.phone)}><Icon name="chat" size={16}/></button>:null}{d.phone?<button className="header-btn" onClick={()=>call('callNumber',d.phone)}><Icon name="phone" size={16}/></button>:null}</>}</div>})}</div><Spacer /></>;
+  return <><div className="card flush">{list.map((x,i)=>{
+    const d=call('ensureDriverLocations', x.d||x) || (x.d||x);
+    const label=call('driverJourneyLabel', d) || d.journey || d.name || 'Transport';
+    return <div className="info-line" key={d.id||i}>
+      <div className="ic"><Icon name={d.noGround?'car':'user'} size={17}/></div>
+      <div className="tx" style={{flex:1}}>
+        <div className="k">{label}{d.time?` · ${d.time}`:''}</div>
+        <div className="v">{d.noGround?'No grounds — Uber / taxi':`${d.name||'Driver'}${d.phone?` · ${d.phone}`:''}`}</div>
+      </div>
+      {d.noGround
+        ? <button className="header-btn" onClick={()=>call('openExternal','https://m.uber.com/','uber://')}><Icon name="car" size={16}/></button>
+        : <>
+            {d.phone?<button className="header-btn" title="Call" onClick={()=>call('callNumber',d.phone)}><Icon name="phone" size={16}/></button>:null}
+            {d.whatsapp||d.phone?<button className="header-btn" title="WhatsApp" onClick={()=>call('whatsapp',d.whatsapp||d.phone)}><Icon name="chat" size={16}/></button>:null}
+            {d.phone?<button className="header-btn" title="Copy" onClick={()=>call('copyText',d.phone)}><Icon name="copy" size={16}/></button>:null}
+          </>}
+    </div>;
+  })}</div><Spacer /></>;
 }
 export function ShowContactLiaisonSheet({ eid, liaison }){
   const p=liaison||eventOf({eid}).promoter||{}, phone=p.phone||'', wa=p.whatsapp||phone;
@@ -169,13 +185,39 @@ export function ShowFlightInfoSheet({ id, item }){
 }
 
 export function ShowTransportSheet({ eid, idx, driver, journeys }){
-  const list=call('showDrivers',eventOf({eid}))||[]; const d=driver || (idx!=null?list[idx]:null) || {}; const none=!!d.noGround;
+  const list=call('showDrivers',eventOf({eid}))||[];
+  const raw=driver || (idx!=null?list[idx]:null) || {};
+  const d=call('ensureDriverLocations', raw) || raw;
+  const none=!!d.noGround;
   const presets=journeys || getDriverJourneys() || [];
-  return <><Field label="Journey (optional)" id="dr-journey" value={d.journey} placeholder="e.g. Hotel → Airport"><><input id="dr-journey" className="input" defaultValue={d.journey||''} placeholder="e.g. Hotel → Airport"/><div className="chips" style={{marginTop:8}}>{presets.map(j=><button type="button" className="chip" key={j} onClick={()=>{const el=document.getElementById('dr-journey');if(el)el.value=j;call('haptic')}}>{j}</button>)}</div></></Field>
-    <Field label="Time (optional)" id="dr-time" type="time" value={d.time}/><Field label="Arrangement"><Seg id="dr-mode" values={[['driver','Driver contact'],['none','No grounds · Uber/Taxi']]} selected={none?'none':'driver'} onPick={()=>call('drModeToggle')}/></Field>
+  const from=d.from || '';
+  const to=d.to || '';
+  return <>
+    <div className="row-2">
+      <Field label="Departure" id="dr-from" value={from} placeholder="Hotel"/>
+      <Field label="Arrival" id="dr-to" value={to} placeholder="Venue"/>
+    </div>
+    <input id="dr-journey" type="hidden" defaultValue={d.journey||''}/>
+    <div className="chips" style={{marginTop:2,marginBottom:10}}>
+      {presets.map(j=>(
+        <button type="button" className="chip" key={j} onClick={()=>call('applyDriverJourneyPreset', j)}>{j}</button>
+      ))}
+    </div>
+    <div className="hint" style={{textAlign:'left',padding:'0 2px 10px'}}>Journey title is built as Departure → Arrival.</div>
+    <Field label="Time (optional)" id="dr-time" type="time" value={d.time}/>
+    <Field label="Arrangement"><Seg id="dr-mode" values={[['driver','Driver contact'],['none','No grounds · Uber/Taxi']]} selected={none?'none':'driver'} onPick={()=>call('drModeToggle')}/></Field>
     <div id="dr-none-hint" className="hint" style={{display:none?'':'none',padding:'2px 2px 12px'}}>No ground transport provided for this journey — book an Uber or taxi.</div>
-    <div id="dr-contact" style={{display:none?'none':''}}><Field label="Name" id="dr-name" value={d.name} placeholder="Jan"/><Field label="Phone" id="dr-phone" type="tel" value={d.phone} placeholder="+31 6 12345678"/><Field label="WhatsApp (if different)" id="dr-wa" type="tel" value={d.whatsapp} placeholder="+31 6 12345678"/><Field label="Pickup location" id="dr-pick" value={d.pickup} placeholder="Schiphol Arrivals"/><Field label="Notes" id="dr-notes" value={d.notes} placeholder="Vehicle, plate, etc."/></div>
-    <button className="btn" id="dr-save" onClick={()=>call('saveDriver',eid,idx??null)}>{idx!=null?'Save':'Add'}</button>{idx!=null?<button className="btn danger" style={{marginTop:10}} onClick={()=>call('removeDriver',eid,idx)}><Icon name="trash" size={16}/> Remove</button>:null}<Spacer /></>;
+    <div id="dr-contact" style={{display:none?'none':''}}>
+      <Field label="Name" id="dr-name" value={d.name} placeholder="Jan"/>
+      <Field label="Phone" id="dr-phone" type="tel" value={d.phone} placeholder="+31 6 12345678"/>
+      <Field label="WhatsApp (if different)" id="dr-wa" type="tel" value={d.whatsapp} placeholder="+31 6 12345678"/>
+      <Field label="Pickup notes" id="dr-pick" value={d.pickup} placeholder="Meet at Arrivals door 3"/>
+      <Field label="Notes" id="dr-notes" value={d.notes} placeholder="Vehicle, plate, etc."/>
+    </div>
+    <button className="btn" id="dr-save" onClick={()=>call('saveDriver',eid,idx??null)}>{idx!=null?'Save':'Add'}</button>
+    {idx!=null?<button className="btn danger" style={{marginTop:10}} onClick={()=>call('removeDriver',eid,idx)}><Icon name="trash" size={16}/> Remove</button>:null}
+    <Spacer />
+  </>;
 }
 export function ShowVenueSheet(props){const e=eventOf(props),eid=props.eid||props.id;return <><Field label="Venue name" id="va-venue" value={e.venue} placeholder="Venue name"/><Field label="Address" id="va-addr" value={e.venueAddr} placeholder="Street and number"/><Field label="Address line 2" id="va-addr2" value={e.venueAddr2} placeholder="Building, floor, unit (optional)"/><div className="row-2"><Field label="City" id="va-city" value={e.city} placeholder="Amsterdam"/><Field label="Region" id="va-region" value={e.venueRegion} placeholder="North Holland"/></div><div className="row-2"><Field label="Postcode" id="va-postcode" value={e.venuePostcode} placeholder="1012 AB"/><Field label="Country" id="va-country" value={e.country} placeholder="Netherlands"/></div><button className="btn" id="va-save" onClick={()=>call('saveVenueAddr',eid)}>Save</button><Spacer /></>;}
 export function ShowArtistLiaisonSheet(props){const e=eventOf(props),p=props.liaison||e.promoter||{},eid=props.eid||props.id;return <><Field label="Name" id="pr-name" value={p.name} placeholder="Lena"/><Field label="Phone" id="pr-phone" type="tel" value={p.phone} placeholder="+31 6 99887766"/><Field label="WhatsApp (if different)" id="pr-wa" type="tel" value={p.whatsapp&&p.whatsapp!==p.phone?p.whatsapp:''} placeholder="Same as phone if left blank"/><div className="hint" style={{padding:'2px 2px 8px'}}>Leave WhatsApp blank to use the phone number for both.</div><button className="btn" id="pr-save" onClick={()=>call('savePromoter',eid)}>Save contact</button>{e.promoter?<button className="btn danger" style={{marginTop:10}} onClick={()=>call('removePromoter',eid)}><Icon name="trash" size={16}/> Remove contact</button>:null}<Spacer /></>;}

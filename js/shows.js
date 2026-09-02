@@ -549,17 +549,17 @@ function driverJourneyRank(j){
 }
 function orderedDrivers(e){
   return showDrivers(e).map((d,idx)=>({d,idx}))
-    .sort((a,b)=> driverJourneyRank(a.d.journey)-driverJourneyRank(b.d.journey)
+    .sort((a,b)=> driverJourneyRank(driverJourneyLabel(a.d))-driverJourneyRank(driverJourneyLabel(b.d))
       || String(a.d.time||'').localeCompare(String(b.d.time||''))
       || a.idx-b.idx);
 }
-/* Resolve a journey's DESTINATION (the part after the arrow, e.g. the "Hotel"
-   in "Venue → Hotel") to a genuine Maps location pulled from the show info —
-   postcode-first for hotels, real IATA code for airports. */
+/* Resolve a journey's DESTINATION (arrival location) to a Maps query. */
 function driverDestMapQuery(e, d){
-  const j = (d && d.journey) || '';
+  ensureDriverLocations(d);
+  const destRaw = (d && d.to) || '';
+  const j = destRaw || ((d && d.journey) || '');
   const parts = j.split(/→|->|>|–|-/);
-  const dest = (parts.length>1 ? parts[parts.length-1] : (parts[0]||'')).trim().toLowerCase();
+  const dest = (destRaw || (parts.length>1 ? parts[parts.length-1] : (parts[0]||''))).trim().toLowerCase();
   if(/venue/.test(dest)) return venueMapQuery(e);
   if(/hotel/.test(dest)) return hotelMapQuery(e);
   if(/airport/.test(dest)){
@@ -570,33 +570,37 @@ function driverDestMapQuery(e, d){
   return '';
 }
 function driverCard(eid, d, idx){
+  ensureDriverLocations(d);
   const ev = sel.event(eid);
   const dest = ev ? driverDestMapQuery(ev, d) : '';
+  const label = driverJourneyLabel(d) || (d.noGround ? 'Transport' : 'Driver');
+  const phone = d.phone || '';
+  const wa = d.whatsapp || d.phone || '';
+  const actions = d.noGround
+    ? `<button type="button" class="header-btn" style="width:34px;height:34px" title="Open Uber" onclick="openExternal('https://m.uber.com/','uber://')">${ICON.car(16)}</button>
+       ${dest?`<button type="button" class="header-btn" style="width:34px;height:34px" title="Destination" onclick="openMaps('${jsAttr(dest)}')">${ICON.map(16)}</button>`
+         :`<button type="button" class="header-btn" style="width:34px;height:34px" title="Taxis nearby" onclick="openMaps('${jsAttr(('taxi near '+((ev&&(ev.city||ev.venue))||'').trim()).trim())}')">${ICON.map(16)}</button>`}`
+    : `${phone?`<button type="button" class="header-btn" style="width:34px;height:34px" title="Call" onclick="callNumber('${jsAttr(phone)}')">${ICON.phone(16)}</button>`:''}
+       ${wa?`<button type="button" class="header-btn" style="width:34px;height:34px" title="WhatsApp" onclick="whatsapp('${jsAttr(wa)}')">${ICON.chat(16)}</button>`:''}
+       ${phone?`<button type="button" class="header-btn" style="width:34px;height:34px" title="Copy number" onclick="copyText('${jsAttr(phone)}')">${ICON.copy(16)}</button>`:''}
+       ${dest?`<button type="button" class="header-btn" style="width:34px;height:34px" title="Destination" onclick="openMaps('${jsAttr(dest)}')">${ICON.map(16)}</button>`:''}`;
   const head = `<div class="driver-head">
-      <span class="driver-journey">${ICON.car(13)} ${d.journey?esc(d.journey):(d.noGround?'Transport':'Driver')}${d.time?' · '+esc(d.time):''}</span>
-      <button type="button" class="add" onclick="sheetDriver('${eid}',${idx})">Edit</button>
-    </div>`;
-  const destBtn = dest ? `<button class="btn secondary" style="padding:11px" onclick="openMaps('${jsAttr(dest)}')">${ICON.map(16)} Destination</button>` : '';
-  if(d.noGround){
-    return `<div class="card flush" style="margin-bottom:10px">
-      ${head}
-      <div class="info-line"><div class="ic">${ICON.car(17)}</div>${fieldTx('No grounds', 'Please book an Uber / taxi')}</div>
-      <div style="display:flex;gap:9px;padding:12px 16px">
-        <button class="btn secondary" style="padding:11px" onclick="openExternal('https://m.uber.com/','uber://')">${ICON.car(16)} Open Uber</button>
-        ${destBtn || `<button class="btn secondary" style="padding:11px" onclick="openMaps('${jsAttr(('taxi near '+((ev&&(ev.city||ev.venue))||'').trim()).trim())}')">${ICON.map(16)} Taxis nearby</button>`}
+      <span class="driver-journey">${ICON.car(13)} ${esc(label)}${d.time?' · '+esc(d.time):''}</span>
+      <div class="driver-head-actions">
+        ${actions}
+        <button type="button" class="add" onclick="sheetDriver('${eid}',${idx})">Edit</button>
       </div>
     </div>`;
+  if(d.noGround){
+    return `<div class="card flush driver-card" style="margin-bottom:10px">
+      ${head}
+      <div class="info-line"><div class="ic">${ICON.car(17)}</div>${fieldTx('No grounds', 'Please book an Uber / taxi')}</div>
+    </div>`;
   }
-  return `<div class="card flush" style="margin-bottom:10px">
+  return `<div class="card flush driver-card" style="margin-bottom:10px">
     ${head}
     <div class="info-line info-line-stacked"><div class="ic">${ICON.user(17)}</div>${detailTx(esc(d.name||'Driver'), esc(d.pickup||''))}</div>
     ${d.notes?`<div class="info-line"><div class="ic">${ICON.note(17)}</div>${fieldTx('Notes', esc(d.notes))}</div>`:''}
-    <div style="display:flex;gap:9px;padding:12px 16px;flex-wrap:wrap">
-      <button class="btn secondary" style="padding:11px" onclick="callNumber('${jsAttr(d.phone||'')}')">${ICON.phone(16)} Call</button>
-      <button class="btn secondary" style="padding:11px" onclick="whatsapp('${jsAttr(d.whatsapp||d.phone||'')}')">${ICON.chat(16)} WhatsApp</button>
-      ${destBtn}
-      <button class="btn secondary" style="padding:11px;flex:0 0 auto" onclick="copyText('${jsAttr(d.phone||'')}')">${ICON.copy(16)}</button>
-    </div>
   </div>`;
 }
 function driverSubsection(e){
@@ -1274,15 +1278,17 @@ function showTransport(eid){
   const list=showDrivers(e);
   if(!list.length){ sheetDriver(eid); return; }
   const rows = orderedDrivers(e).map(({d})=>{
-    const title = (d.journey?esc(d.journey):(d.noGround?'Transport':(esc(d.name)||'Driver'))) + (d.time?' · '+esc(d.time):'');
+    ensureDriverLocations(d);
+    const title = esc(driverJourneyLabel(d) || (d.noGround?'Transport':(d.name||'Driver'))) + (d.time?' · '+esc(d.time):'');
     if(d.noGround){
       return `<div class="info-line"><div class="ic">${ICON.car(17)}</div>${fieldTx(title,'No grounds — Uber / taxi')}
         <button class="header-btn" style="width:34px;height:34px;align-self:center" onclick="openExternal('https://m.uber.com/','uber://')">${ICON.car(16)}</button></div>`;
     }
     const wa=d.whatsapp||d.phone||'';
     return `<div class="info-line"><div class="ic">${ICON.user(17)}</div>${fieldTx(title, esc(d.name||'Driver')+(d.phone?' · '+esc(d.phone):''))}
-      ${wa?`<button class="header-btn" style="width:34px;height:34px;align-self:center" onclick="whatsapp('${jsAttr(wa)}')">${ICON.chat(16)}</button>`:''}
-      ${d.phone?`<button class="header-btn" style="width:34px;height:34px;align-self:center" onclick="callNumber('${jsAttr(d.phone)}')">${ICON.phone(16)}</button>`:''}</div>`;
+      ${d.phone?`<button class="header-btn" style="width:34px;height:34px;align-self:center" title="Call" onclick="callNumber('${jsAttr(d.phone)}')">${ICON.phone(16)}</button>`:''}
+      ${wa?`<button class="header-btn" style="width:34px;height:34px;align-self:center" title="WhatsApp" onclick="whatsapp('${jsAttr(wa)}')">${ICON.chat(16)}</button>`:''}
+      ${d.phone?`<button class="header-btn" style="width:34px;height:34px;align-self:center" title="Copy" onclick="copyText('${jsAttr(d.phone)}')">${ICON.copy(16)}</button>`:''}</div>`;
   }).join('');
   openSheetReact('Transport', 'show.transportList', { eid });
 }
@@ -1407,15 +1413,34 @@ function saveDriver(eid, idx){
   if(!none && !name){ toast('Add a name','x'); return; }
   const list=showDrivers(e);
   withButton($('#dr-save'), ()=>{
-    const base = { id:(idx!=null&&list[idx]&&list[idx].id)||uid('drv'), journey:val('dr-journey'), time:val('dr-time') };
+    const from = val('dr-from');
+    const to = val('dr-to');
+    const journey = (from && to) ? (from + ' → ' + to) : (from || to || val('dr-journey') || '');
+    const base = {
+      id:(idx!=null&&list[idx]&&list[idx].id)||uid('drv'),
+      from, to, journey,
+      time:val('dr-time')
+    };
     const drv = none
       ? Object.assign(base, { noGround:true })
       : Object.assign(base, { name, phone:val('dr-phone'), whatsapp:val('dr-wa'), pickup:val('dr-pick'), notes:val('dr-notes') });
+    ensureDriverLocations(drv);
     if(idx!=null && list[idx]) list[idx]=drv; else list.push(drv);
     e.driver = list.find(x=>!x.noGround) || null;
     persist('shows', eid); closeSheet(); softRender();
   }, idx!=null?'Saved':'Added');
 }
+function applyDriverJourneyPreset(preset){
+  const p = parseDriverJourney(preset);
+  const fromEl = document.getElementById('dr-from');
+  const toEl = document.getElementById('dr-to');
+  if(fromEl) fromEl.value = p.from || '';
+  if(toEl) toEl.value = p.to || '';
+  const legacy = document.getElementById('dr-journey');
+  if(legacy) legacy.value = driverJourneyLabel({ from: p.from, to: p.to }) || preset || '';
+  if(typeof haptic === 'function') haptic();
+}
+window.applyDriverJourneyPreset = applyDriverJourneyPreset;
 function sheetVenueAddr(eid){
   const e=sel.event(eid); if(!e) return;
   openSheetReact('Venue', 'show.venue', { eid });
@@ -1785,7 +1810,9 @@ function buildDaySheet(e){
   }
   const contacts=[];
   orderedDrivers(e).forEach(({d})=>{
-    const tag = `${d.journey?' ('+d.journey+')':''}${d.time?' '+d.time:''}`;
+    ensureDriverLocations(d);
+    const jLabel = driverJourneyLabel(d);
+    const tag = `${jLabel?' ('+jLabel+')':''}${d.time?' '+d.time:''}`;
     if(d.noGround) contacts.push(`  Transport${tag} — No grounds, use Uber/taxi`);
     else if(d.name||d.phone) contacts.push(`  Driver${tag} — ${d.name||''} ${d.phone||''}`);
   });

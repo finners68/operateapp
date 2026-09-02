@@ -477,9 +477,32 @@ async function composeViewFromV2(v2, opts){
         const jcs = journeyContactByJourney[j.id] || [];
         const jc = jcs[0];
         const c = jc ? contactById[jc.contact_id] : null;
+        const from = j.pickup_location || '';
+        const to = j.dropoff_location || '';
+        let journey = '';
+        if(from && to) journey = from + ' → ' + to;
+        else if(from || to) journey = from || to;
+        else journey = j.journey_title || '';
+        /* If title looks like "A → B" and locations are empty, split it. */
+        if(!from && !to && journey && typeof parseDriverJourney === 'function'){
+          const p = parseDriverJourney(journey);
+          return {
+            id: j.id,
+            from: p.from,
+            to: p.to,
+            journey: (p.from && p.to) ? (p.from + ' → ' + p.to) : journey,
+            time: j.departure_at ? v2TimeFromTs(j.departure_at) : '',
+            phone: c?.phone_number || '',
+            whatsapp: c?.whatsapp_number || '',
+            name: c?.display_name || j.vehicle_details || '',
+            noGround: false
+          };
+        }
         return {
           id: j.id,
-          journey: j.journey_title || j.pickup_location || '',
+          from,
+          to,
+          journey,
           time: j.departure_at ? v2TimeFromTs(j.departure_at) : '',
           phone: c?.phone_number || '',
           whatsapp: c?.whatsapp_number || '',
