@@ -87,7 +87,7 @@ export function ShowFlightsListSheet({ eid, flights }){
       <div className="ic"><Icon name="plane" size={18}/></div>
       <div className="body">
         <b>{f.code||'Flight'}</b>
-        <span className="flight-route" aria-label={`${from} to ${to}`} style={{marginTop:6,maxWidth:220}}>
+        <span className="flight-route" aria-label={`${from} to ${to}`} style={{marginTop:6}}>
           <span className="flight-route-code">{from}</span>
           <span className="flight-route-rail" aria-hidden="true">
             <span className="flight-route-line"></span>

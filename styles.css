@@ -731,23 +731,28 @@ select.input{appearance:none;-webkit-appearance:none;background-image:url("data:
 .detail-primary{font-size:13.5px;font-weight:550;color:var(--text-2);margin-top:4px;line-height:1.35;}
 .detail-meta{font-size:12.5px;font-weight:550;color:var(--text-3);margin-top:4px;line-height:1.35;font-variant-numeric:tabular-nums;}
 
-/* Flight route: BCN ── ✈ ── MAN */
+/* Flight route: BCN ── ✈ ── MAN — connector is a fixed length, not full-width */
 .flight-route{
-  display:flex;
+  display:inline-flex;
   align-items:center;
   gap:8px;
-  width:100%;
-  max-width:260px;
+  width:max-content;
+  max-width:100%;
   color:var(--text);
   font-size:15px;
   font-weight:750;
   letter-spacing:0.04em;
   font-variant-numeric:tabular-nums;
   line-height:1;
+  vertical-align:middle;
 }
 .flight-route-code{
-  flex:0 0 auto;
-  min-width:2.6em;
+  flex:0 1 auto;
+  min-width:0;
+  max-width:4.5em;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
 }
 .flight-route-code:first-child{text-align:left;}
 .flight-route-code:last-child{text-align:right;}
@@ -755,8 +760,9 @@ select.input{appearance:none;-webkit-appearance:none;background-image:url("data:
   display:flex;
   align-items:center;
   gap:6px;
-  flex:1 1 auto;
-  min-width:64px;
+  flex:0 0 68px;
+  width:68px;
+  min-width:68px;
 }
 .flight-route-line{
   flex:1 1 auto;
@@ -782,23 +788,25 @@ select.input{appearance:none;-webkit-appearance:none;background-image:url("data:
   font-weight:750;
 }
 
-/* Non-flight journeys: Hotel ●───● Venue */
+/* Non-flight journeys: Hotel ●───● Venue — same fixed connector length */
 .ground-route{
-  display:flex;
+  display:inline-flex;
   align-items:center;
   gap:8px;
-  width:100%;
-  max-width:280px;
+  width:max-content;
+  max-width:100%;
   color:var(--text);
   font-size:15px;
   font-weight:750;
   letter-spacing:-0.01em;
   line-height:1.15;
   text-transform:none;
+  vertical-align:middle;
 }
 .ground-route-end{
   flex:0 1 auto;
   min-width:0;
+  max-width:7.5em;
   overflow:hidden;
   text-overflow:ellipsis;
   white-space:nowrap;
@@ -807,8 +815,9 @@ select.input{appearance:none;-webkit-appearance:none;background-image:url("data:
   display:flex;
   align-items:center;
   gap:0;
-  flex:1 1 auto;
-  min-width:52px;
+  flex:0 0 56px;
+  width:56px;
+  min-width:56px;
 }
 .ground-route-dot{
   width:7px;
@@ -1049,7 +1058,8 @@ select.input{appearance:none;-webkit-appearance:none;background-image:url("data:
 .show-detail .flight-pax-list{padding:0 0 6px;}
 .show-day-timeline .tl-route{
   display:block;
-  width:100%;
+  width:auto;
+  max-width:100%;
   min-width:0;
   overflow:visible;
   font-weight:750;
@@ -1057,8 +1067,6 @@ select.input{appearance:none;-webkit-appearance:none;background-image:url("data:
 }
 .show-day-timeline .tl-route .flight-route,
 .show-day-timeline .tl-route .ground-route{
-  max-width:none;
-  width:100%;
   font-size:14.5px;
 }
 .show-day-timeline .tl-card.has-route .tl-card-body{min-width:0;flex:1;}
@@ -1079,9 +1087,8 @@ select.input{appearance:none;-webkit-appearance:none;background-image:url("data:
 .driver-title > svg{flex-shrink:0;color:var(--text-2);}
 .driver-title .ground-route,
 .driver-title .flight-route{
-  flex:1 1 auto;
+  flex:0 1 auto;
   min-width:0;
-  max-width:none;
   font-size:15.5px;
 }
 .driver-title span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
