@@ -739,30 +739,33 @@ select.input{appearance:none;-webkit-appearance:none;background-image:url("data:
 .detail-primary{font-size:13.5px;font-weight:550;color:var(--text-2);margin-top:4px;line-height:1.35;}
 .detail-meta{font-size:12.5px;font-weight:550;color:var(--text-3);margin-top:4px;line-height:1.35;font-variant-numeric:tabular-nums;}
 
-/* Flight route: BCN ── ✈ ── MAN — connector is a fixed length, not full-width */
+/* Journey route: Departure | fixed connector | Arrival — names wrap; rail never grows */
 .flight-route{
-  display:inline-flex;
+  display:flex;
   align-items:center;
   flex-wrap:nowrap;
   gap:8px;
-  width:max-content;
+  width:100%;
   max-width:100%;
+  min-width:0;
   color:var(--text);
   font-size:15px;
   font-weight:750;
   letter-spacing:0.04em;
   font-variant-numeric:tabular-nums;
-  line-height:1;
+  line-height:1.2;
   vertical-align:middle;
-  white-space:nowrap;
+  white-space:normal;
 }
 .flight-route-code{
-  flex:0 1 auto;
+  flex:1 1 0;
   min-width:0;
-  max-width:4.5em;
-  overflow:hidden;
-  text-overflow:ellipsis;
-  white-space:nowrap;
+  max-width:none;
+  overflow:visible;
+  text-overflow:unset;
+  white-space:normal;
+  overflow-wrap:anywhere;
+  word-break:normal;
 }
 .flight-route-code:first-child{text-align:left;}
 .flight-route-code:last-child{text-align:right;}
@@ -773,6 +776,8 @@ select.input{appearance:none;-webkit-appearance:none;background-image:url("data:
   flex:0 0 68px;
   width:68px;
   min-width:68px;
+  max-width:68px;
+  align-self:center;
 }
 .flight-route-line{
   flex:1 1 auto;
@@ -794,6 +799,9 @@ select.input{appearance:none;-webkit-appearance:none;background-image:url("data:
 .info-line-stacked .detail-primary:has(.ground-route),
 .detail-primary:has(.flight-route),
 .detail-primary:has(.ground-route){
+  display:block;
+  width:100%;
+  min-width:0;
   margin-top:8px;
   color:var(--text);
   font-size:15px;
@@ -802,36 +810,43 @@ select.input{appearance:none;-webkit-appearance:none;background-image:url("data:
 
 /* Legacy ground-route alias kept for old markup; new ground journeys use .flight-route */
 .ground-route{
-  display:inline-flex;
+  display:flex;
   align-items:center;
   flex-wrap:nowrap;
   gap:8px;
-  width:max-content;
+  width:100%;
   max-width:100%;
+  min-width:0;
   color:var(--text);
   font-size:15px;
   font-weight:750;
   letter-spacing:-0.01em;
-  line-height:1;
+  line-height:1.2;
   text-transform:none;
   vertical-align:middle;
-  white-space:nowrap;
+  white-space:normal;
 }
 .ground-route-end{
-  flex:0 1 auto;
+  flex:1 1 0;
   min-width:0;
-  max-width:7.5em;
-  overflow:hidden;
-  text-overflow:ellipsis;
-  white-space:nowrap;
+  max-width:none;
+  overflow:visible;
+  text-overflow:unset;
+  white-space:normal;
+  overflow-wrap:anywhere;
+  word-break:normal;
 }
+.ground-route-end:first-child{text-align:left;}
+.ground-route-end:last-child{text-align:right;}
 .ground-route-rail{
   display:flex;
   align-items:center;
   gap:0;
-  flex:0 0 56px;
-  width:56px;
-  min-width:56px;
+  flex:0 0 68px;
+  width:68px;
+  min-width:68px;
+  max-width:68px;
+  align-self:center;
 }
 .ground-route-dot{
   width:7px;
@@ -1109,7 +1124,7 @@ select.input{appearance:none;-webkit-appearance:none;background-image:url("data:
 .show-detail .flight-pax-list{padding:0 0 6px;}
 .show-day-timeline .tl-route{
   display:block;
-  width:auto;
+  width:100%;
   max-width:100%;
   min-width:0;
   overflow:visible;
@@ -1118,31 +1133,7 @@ select.input{appearance:none;-webkit-appearance:none;background-image:url("data:
   line-height:1.2;
 }
 .show-day-timeline .tl-route .flight-route,
-.show-day-timeline .tl-route .ground-route{
-  display:flex;
-  align-items:center;
-  width:100%;
-  max-width:100%;
-  font-size:14.5px;
-  white-space:normal;
-}
-.show-day-timeline .tl-route .flight-route-code,
-.show-day-timeline .tl-route .ground-route-end{
-  flex:1 1 0;
-  min-width:0;
-  max-width:none;
-  overflow:visible;
-  text-overflow:unset;
-  white-space:normal;
-  overflow-wrap:anywhere;
-}
-.show-day-timeline .tl-route .flight-route-rail,
-.show-day-timeline .tl-route .ground-route-rail{
-  flex:0 0 68px;
-  width:68px;
-  min-width:68px;
-  max-width:68px;
-}
+.show-day-timeline .tl-route .ground-route{font-size:14.5px;}
 .show-day-timeline .tl-card.has-route .tl-card-body{min-width:0;flex:1;overflow:visible;}
 .show-day-timeline .tl-card-ic{color:var(--text-2);}
 
@@ -1156,11 +1147,17 @@ select.input{appearance:none;-webkit-appearance:none;background-image:url("data:
 .driver-title > svg{flex-shrink:0;color:var(--text-2);}
 .driver-title .ground-route,
 .driver-title .flight-route{
-  flex:0 1 auto;
+  flex:1 1 auto;
   min-width:0;
+  width:100%;
   font-size:15.5px;
 }
-.driver-title span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.driver-title > span:not(.flight-route):not(.ground-route){
+  min-width:0;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+}
 .driver-title-meta{font-size:12px;font-weight:600;color:var(--text-3);margin-top:4px;font-variant-numeric:tabular-nums;}
 .driver-journey{display:none;}
 .driver-head-actions{display:inline-flex;align-items:center;gap:4px;flex-shrink:0;padding-top:1px;}
