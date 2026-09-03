@@ -1483,7 +1483,7 @@ function submitItinerary(input, mode){
       await sendItineraryToMake(entry.id);
     } else {
       closeSheet();
-      sheetItinerary(entry.id);
+    sheetItinerary(entry.id);
       toast('File saved on existing show','check');
     }
   });
@@ -2334,7 +2334,7 @@ function eventMenu(eid){
 function tripMenu(tid){
   openSheetReact('Trip options', 'menu.trip', { tid });
 }
-function confirmDeleteEvent(eid){ confirmSheet('Delete show?','This removes the show and its details permanently.','Delete',()=>{ store.events=store.events.filter(e=>e.id!==eid); persist('shows', eid); back(); toast('Show deleted','trash'); }, true); }
+function confirmDeleteEvent(eid){ confirmSheet('Delete show?','This removes the show and its details permanently.','Delete',()=>{ store.events=store.events.filter(e=>e.id!==eid); persist('shows', eid); if(typeof showsMode!=='undefined') showsMode='shows'; go('shows'); toast('Show deleted','trash'); }, true); }
 function confirmDeleteTrip(tid){ confirmSheet('Delete trip?','Shows in this trip are kept, but the trip itself is removed.','Delete trip',()=>{ store.events.forEach(e=>{ if(e.tripId===tid) e.tripId=null; }); if(store.activeTripId===tid) store.activeTripId=null; store.trips=store.trips.filter(t=>t.id!==tid); persist('tours', tid); back(); toast('Trip deleted','trash'); }, true); }
 function confirmDeleteIdea(iid){ confirmSheet('Delete idea?','This can\'t be undone.','Delete',()=>{ store.ideas=store.ideas.filter(x=>x.id!==iid); if(typeof deleteIdeaNow === 'function') deleteIdeaNow(iid); else persist('ideas', iid); back(); toast('Idea deleted','trash'); }, true); }
 
