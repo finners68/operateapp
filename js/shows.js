@@ -1086,6 +1086,10 @@ function saveEvent(eid){
       artist: val('ev-artist') || store.settings.artistName,
     });
   }
+  if(typeof resolveSetEndDate === 'function'){
+    data.endsNextDay = typeof timesCrossMidnight === 'function' && timesCrossMidnight(data.setTime, data.endTime);
+    data.setEndDate = resolveSetEndDate({ date: data.date, setTime: data.setTime, endTime: data.endTime, endsNextDay: data.endsNextDay });
+  }
   const btn = document.getElementById('ev-save');
   if(btn) btn.disabled = true;
   let showId = eid;
@@ -1507,10 +1511,12 @@ function saveDriver(eid, idx){
     const from = val('dr-from');
     const to = val('dr-to');
     const journey = (from && to) ? (from + ' → ' + to) : (from || to || val('dr-journey') || '');
+    const time = val('dr-time');
     const base = {
       id:(idx!=null&&list[idx]&&list[idx].id)||uid('drv'),
       from, to, journey,
-      time:val('dr-time')
+      time,
+      date: (typeof showItemTrueDate === 'function' ? showItemTrueDate(e, time) : e.date) || e.date
     };
     const drv = none
       ? Object.assign(base, { noGround:true })
@@ -1745,13 +1751,17 @@ function saveShowTimelineStep(eid, sid){
   if(!title){ toast('What happens?','x'); return; }
   withButton($('#est-save'), ()=>{
     e.timeline = e.timeline || [];
+    const stepDate = (typeof showItemTrueDate === 'function' ? showItemTrueDate(e, time) : e.date) || e.date;
     if(sid){
       const s = e.timeline.find(x=>x.id===sid);
-      if(s){ s.time=time||''; s.title=title; s.sub=val('est-sub'); }
+      if(s){ s.time=time||''; s.date=stepDate; s.title=title; s.sub=val('est-sub'); }
     } else {
-      e.timeline.push({ id: uid('tl'), time: time||'', title, sub: val('est-sub'), done: false });
+      e.timeline.push({ id: uid('tl'), time: time||'', date: stepDate, title, sub: val('est-sub'), done: false });
     }
-    e.timeline.sort((a,b)=>(a.time||'').localeCompare(b.time||''));
+    e.timeline.sort((a,b)=>{
+      if(typeof showTimelineSortKey === 'function') return showTimelineSortKey(e,a)-showTimelineSortKey(e,b);
+      return (a.time||'').localeCompare(b.time||'');
+    });
     persist('shows', eid);
     if(typeof pushShowNow==='function') pushShowNow(eid);
     closeSheet(true, { noReturn:true });

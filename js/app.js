@@ -1399,7 +1399,7 @@ function normalizeScanTime(v){
   return pad(+m[1])+':'+m[2];
 }
 function blankShowFromBasics(basics){
-  return {
+  const ev = {
     id: uid('evt'),
     artist: basics.artist || store.settings.artistName,
     tripId: null,
@@ -1433,6 +1433,11 @@ function blankShowFromBasics(basics){
       expenses:[], perDiem:0, commission:0, paid:false
     }
   };
+  if(typeof resolveSetEndDate === 'function'){
+    ev.endsNextDay = typeof timesCrossMidnight === 'function' && timesCrossMidnight(ev.setTime, ev.endTime);
+    ev.setEndDate = resolveSetEndDate(ev);
+  }
+  return ev;
 }
 function submitItinerary(input, mode){
   const uploadMode = mode || itineraryUploadMode || 'new';
@@ -2224,7 +2229,11 @@ function applyScanToShow(e, f){
   const scannedDate=normalizeScanDate(f.date);
   if(!e.date     && scannedDate)     { e.date=scannedDate;            filled.push('date'); }
   if(!e.setTime  && f.setTime)       { e.setTime=normalizeScanTime(f.setTime)||f.setTime; filled.push('set time'); }
-  if(!e.endTime  && f.endTime)       { e.endTime=normalizeScanTime(f.endTime)||f.endTime; filled.push('end time'); }
+    if(!e.endTime  && f.endTime)       { e.endTime=normalizeScanTime(f.endTime)||f.endTime; filled.push('end time'); }
+    if(typeof resolveSetEndDate === 'function' && (e.setTime || e.endTime)){
+      e.endsNextDay = typeof timesCrossMidnight === 'function' && timesCrossMidnight(e.setTime, e.endTime);
+      e.setEndDate = resolveSetEndDate(e);
+    }
   if(!e.arrival  && f.arrival)       { e.arrival=normalizeScanTime(f.arrival)||f.arrival; filled.push('arrival'); }
   if(!e.venueAddr && f.venueAddress) { e.venueAddr=f.venueAddress;    filled.push('venue address'); }
   if(!e.city     && f.city)          { e.city=f.city;                 filled.push('city'); }

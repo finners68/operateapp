@@ -146,11 +146,15 @@ function viewPastShows(){
 /* A show counts as "past" 24h after its set finishes (endTime, else setTime, else end of day). */
 function showPassed(e){
   if(e.kind && e.kind!=='show') return false;
-  const t = e.endTime || e.setTime;
-  let end = t ? parseDT(e.date, t) : parseDT(e.date);
-  if(!end) return false;
-  if(!t) end.setHours(23,59,0,0);
-  return (Date.now() - end.getTime()) > 24*3600*1000;
+  let endMs = typeof showSetEndMs === 'function' ? showSetEndMs(e) : null;
+  if(endMs == null){
+    const t = e.endTime || e.setTime;
+    let end = t ? parseDT(e.date, t) : parseDT(e.date);
+    if(!end) return false;
+    if(!t) end.setHours(23,59,0,0);
+    endMs = end.getTime();
+  }
+  return (Date.now() - endMs) > 24*3600*1000;
 }
 /* Day-by-day agenda for a single month (ABOSS-style). Past shows drop out into the Past shows area. */
 function monthAgenda(y,m,todayStr){
@@ -169,10 +173,12 @@ function monthAgenda(y,m,todayStr){
   }).join('')+`</div>`;
 }
 function itemTimeKey(e){
-  let hhmm = e.start || e.setTime || '';
+  let hhmm = e.start || e.setTime || e.time || '';
   if(!hhmm && e.kind==='stay' && e.info){ const mt=e.info.match(/(\d{1,2}):(\d{2})/); if(mt) hhmm=mt[0]; }
   if(!hhmm) return -1;
   const [h,m]=hhmm.split(':').map(Number); let mins=h*60+(m||0);
+  if(e.dayOffset != null && Number(e.dayOffset) > 0) return mins + 1440 * Number(e.dayOffset);
+  if(e.trueDate && e.date && e.trueDate > e.date) return mins + 1440 * Math.max(1, typeof dateDiffDays==='function' ? dateDiffDays(e.date, e.trueDate) : 1);
   if(h<5) mins+=1440; // post-midnight items belong to the end of the touring day
   return mins;
 }

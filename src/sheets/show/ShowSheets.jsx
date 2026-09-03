@@ -75,7 +75,9 @@ export function ShowEventSheet({ eid, event }){
     </div>
     <Field label="Status"><Seg id="ev-status" values={['confirmed','hold','cancelled']} selected={e?.status || 'confirmed'} /></Field>
     <Field label="Content to capture" id="ev-content" value={e?.content} placeholder="e.g. 2x reels · crowd clip" />
-    {eid ? <><div className="row-2"><Field label="End time" id="ev-end" type="time" value={e?.endTime} /><Field label="Artist" id="ev-artist" value={e?.artist} placeholder={getStore()?.settings?.artistName || 'Artist'} /></div><TextArea label="Internal notes" id="ev-notes" value={e?.notes} placeholder="Team-only notes" /></> : null}
+    {eid ? <><div className="row-2"><Field label="End time" id="ev-end" type="time" value={e?.endTime} /><Field label="Artist" id="ev-artist" value={e?.artist} placeholder={getStore()?.settings?.artistName || 'Artist'} /></div>
+    {e?.endTime && e?.setTime && e.endTime < e.setTime ? <div className="hint" style={{ textAlign:'left', padding:'0 2px 10px' }}>Ends after midnight — treated as the next morning, still on this show day.</div> : null}
+    <TextArea label="Internal notes" id="ev-notes" value={e?.notes} placeholder="Team-only notes" /></> : null}
     <Field label="Colour"><Swatches id="ev-cat" selected={cat} /></Field>
     <Field label="Text colour"><Swatches id="ev-text-cat" selected={textCat} allowDefault /></Field>
     <div className="hint" style={{ textAlign:'left', padding:'0 2px 10px' }}>Text colour tints titles on this show page. Default keeps normal app text.</div>

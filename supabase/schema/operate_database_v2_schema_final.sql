@@ -388,6 +388,7 @@ CREATE TABLE public.shows (
     venue_arrival_time time,
     set_start_time time,
     set_end_time time,
+    set_end_date date,
     -- Historical timezone snapshot for this show. Later venue edits
     -- do not rewrite previously stored show timing.
     show_timezone_snapshot text,

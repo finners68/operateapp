@@ -307,13 +307,18 @@ function showDayTimeline(e){
   if(!e) return [];
   const autoDone = e.timelineAutoDone || {};
   const rows = [];
+  const stamp = (time, explicitDate)=>{
+    const trueDate = showItemTrueDate(e, time, explicitDate);
+    const dayOffset = dateDiffDays(e.date, trueDate);
+    return { time: time || '', trueDate, dayOffset };
+  };
 
   if(e.arrival){
-    rows.push({
+    rows.push(Object.assign({
       id:'auto:arrival', auto:true, kind:'arrival', icon:'pin',
-      time:e.arrival, title:'Arrive at venue', sub:'From show basics',
+      title:'Arrive at venue', sub:'From show basics',
       done:!!autoDone['auto:arrival']
-    });
+    }, stamp(e.arrival, e.arrivalDate)));
   }
 
   (e.flights||[]).forEach(f=>{
@@ -326,12 +331,12 @@ function showDayTimeline(e){
       f.gate ? ('Gate '+f.gate) : '',
       f.terminal ? ('Term '+f.terminal) : ''
     ].filter(Boolean);
-    rows.push({
+    rows.push(Object.assign({
       id:'auto:flight:'+f.id, auto:true, kind:'flight', icon:'planeTop', refId:f.id,
       from:f.from||'', to:f.to||'', code:f.code||'',
-      time:parsed.time||'', title:route, sub:bits.join(' · ')||'From flights',
+      title:route, sub:bits.join(' · ')||'From flights',
       done:!!f.done
-    });
+    }, stamp(parsed.time||'', parsed.date)));
   });
 
   if(e.hotel && (e.hotel.name||e.hotel.address||e.hotel.city||e.hotel.checkin)){
@@ -339,7 +344,7 @@ function showDayTimeline(e){
     rows.push({
       id:'auto:hotel', auto:true, kind:'hotel', icon:'bed',
       time:'', title:e.hotel.name||'Hotel', sub:when,
-      done:!!e.hotel.done
+      done:!!e.hotel.done, trueDate:e.hotel.checkin||e.date, dayOffset:0
     });
   }
 
@@ -348,23 +353,23 @@ function showDayTimeline(e){
     const label = driverJourneyLabel(d);
     if(!(d.time||label||d.name||d.noGround)) return;
     const id = d.id || ('i'+idx);
-    rows.push({
+    rows.push(Object.assign({
       id:'auto:drv:'+id, auto:true, kind:'transport', icon:'car', refId:id,
       from:d.from||'', to:d.to||'',
-      time:d.time||'', title:label||(d.noGround?'Uber / taxi':(d.name||'Transport')),
+      title:label||(d.noGround?'Uber / taxi':(d.name||'Transport')),
       sub:d.noGround?'No grounds':[d.name,d.pickup].filter(Boolean).join(' · ')||'From transport',
       done:!!d.done
-    });
+    }, stamp(d.time||'', d.date)));
   });
 
   ((e.advance&&e.advance.schedule)||[]).forEach((s,i)=>{
     if(!(s.time||s.label||s.title)) return;
     const id='auto:adv:'+i;
-    rows.push({
+    rows.push(Object.assign({
       id, auto:true, kind:'advance', icon:'clock',
-      time:s.time||'', title:s.label||s.title||'Schedule',
+      title:s.label||s.title||'Schedule',
       sub:'From advancing', done:!!(s.done||autoDone[id])
-    });
+    }, stamp(s.time||'', s.date)));
   });
 
   if(e.advance&&e.advance.soundcheck){
@@ -372,31 +377,33 @@ function showDayTimeline(e){
     rows.push({
       id, auto:true, kind:'advance', icon:'music',
       time:'', title:'Sound check', sub:String(e.advance.soundcheck),
-      done:!!autoDone[id]
+      done:!!autoDone[id], trueDate:e.date, dayOffset:0
     });
   }
 
   if(e.setTime || e.venue){
-    rows.push({
+    const overnight = showEndsNextDay(e);
+    const endBit = e.endTime ? (' – '+e.endTime+(overnight?' next day':'')) : '';
+    rows.push(Object.assign({
       id:'auto:set', auto:true, kind:'set', icon:'music',
-      time:e.setTime||'', title:e.venue||'Set',
-      sub:e.setTime?('Set '+e.setTime+(e.endTime?' – '+e.endTime:'')):'Set TBA',
-      done:!!e.setDone
-    });
+      title:e.venue||'Set',
+      sub:e.setTime?('Set '+e.setTime+endBit):'Set TBA',
+      done:!!e.setDone, endTime:e.endTime||'', endDate:showSetEndDate(e)
+    }, stamp(e.setTime||'', showSetStartDate(e))));
   }
 
   (e.timeline||[]).forEach(s=>{
     if(!s) return;
-    rows.push({
+    rows.push(Object.assign({
       id:s.id, auto:false, kind:'custom', icon:'clock',
-      time:s.time||'', title:s.title||'Step', sub:s.sub||'',
+      title:s.title||'Step', sub:s.sub||'',
       done:!!s.done
-    });
+    }, stamp(s.time||'', s.date)));
   });
 
   rows.sort((a,b)=>{
-    const ta=a.time||'99:99', tb=b.time||'99:99';
-    if(ta!==tb) return ta.localeCompare(tb);
+    const ka=showTimelineSortKey(e,a), kb=showTimelineSortKey(e,b);
+    if(ka!==kb) return ka-kb;
     return String(a.title||'').localeCompare(String(b.title||''));
   });
   return rows;
@@ -463,7 +470,7 @@ function persist(scope, id){
   if(scoped && typeof flushDirtyNow === 'function' && typeof syncActive === 'function' && syncActive()
       && (typeof navigator === 'undefined' || navigator.onLine !== false)){
     flushDirtyNow();
-  } else {
+    } else {
     queueSync();
   }
   if(typeof notifyStore === 'function') notifyStore();
@@ -777,6 +784,90 @@ function parseDT(dateStr, timeStr){
   if(timeStr){ [hh,mm] = timeStr.split(':').map(Number); }
   return new Date(y, m-1, d, hh||0, mm||0);
 }
+function addDaysYmd(dateStr, days){
+  const d = parseDT(dateStr);
+  if(!d) return dateStr || '';
+  d.setDate(d.getDate() + (Number(days) || 0));
+  return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
+}
+function clockMinutes(hhmm){
+  if(!hhmm) return null;
+  const parts = String(hhmm).trim().split(':');
+  const h = Number(parts[0]), m = Number(parts[1] || 0);
+  if(!Number.isFinite(h)) return null;
+  return h * 60 + (Number.isFinite(m) ? m : 0);
+}
+function timesCrossMidnight(start, end){
+  const a = clockMinutes(start), b = clockMinutes(end);
+  return a != null && b != null && b < a;
+}
+function dateDiffDays(from, to){
+  const a = parseDT(from), b = parseDT(to);
+  if(!a || !b) return 0;
+  return Math.round((b.getTime() - a.getTime()) / 86400000);
+}
+/* End time is next calendar morning when it is earlier than set start,
+   or when set_end_date is stored as the day after show_date. */
+function showEndsNextDay(e){
+  if(!e) return false;
+  if(e.setEndDate && e.date && e.setEndDate > e.date) return true;
+  if(e.endsNextDay === true) return true;
+  return timesCrossMidnight(e.setTime, e.endTime);
+}
+function resolveSetEndDate(e){
+  if(!e || !e.date) return '';
+  if(e.setEndDate) return e.setEndDate;
+  return showEndsNextDay(e) ? addDaysYmd(e.date, 1) : e.date;
+}
+/* Clock times from 00:00 up to (but not including) noon, when they sit
+   before a late set start, belong to the morning after the show date. */
+function isPostMidnightOnShow(e, hhmm){
+  const mins = clockMinutes(hhmm);
+  if(mins == null || !e) return false;
+  if(!showEndsNextDay(e) && !(e.setTime && clockMinutes(e.setTime) < 6 * 60)) return false;
+  const setMins = clockMinutes(e.setTime);
+  if(setMins == null) return mins < 6 * 60;
+  return mins < setMins && mins < 12 * 60;
+}
+function showItemTrueDate(e, hhmm, explicitDate){
+  if(explicitDate) return explicitDate;
+  if(!e || !e.date) return '';
+  if(isPostMidnightOnShow(e, hhmm)) return addDaysYmd(e.date, 1);
+  return e.date;
+}
+function showSetStartDate(e){
+  if(!e || !e.date) return '';
+  if(e.setStartDate) return e.setStartDate;
+  const mins = clockMinutes(e.setTime);
+  if(mins != null && mins < 6 * 60 && !timesCrossMidnight(e.setTime, e.endTime)) return addDaysYmd(e.date, 1);
+  return e.date;
+}
+function showSetEndDate(e){
+  return resolveSetEndDate(e);
+}
+function showSetStartMs(e){
+  if(!e || !e.setTime) return null;
+  const d = parseDT(showSetStartDate(e), e.setTime);
+  return d ? d.getTime() : null;
+}
+function showSetEndMs(e){
+  if(!e) return null;
+  const t = e.endTime || e.setTime;
+  if(!t) return null;
+  const date = e.endTime ? showSetEndDate(e) : showSetStartDate(e);
+  const d = parseDT(date, t);
+  return d ? d.getTime() : null;
+}
+function showTimelineSortKey(e, item){
+  const time = item && (item.time || item.start || item.setTime) || '';
+  const mins = clockMinutes(time);
+  if(mins == null) return 100000;
+  const trueDate = (item && (item.trueDate || item.date)) || showItemTrueDate(e, time, item && item.date);
+  const offset = (item && item.dayOffset != null)
+    ? Number(item.dayOffset)
+    : dateDiffDays(e && e.date, trueDate);
+  return (Number.isFinite(offset) ? offset : 0) * 1440 + mins;
+}
 /* True set-start time in ms. A set in the small hours (before 06:00) is
    played the morning *after* the show's listed day — a show dated Thursday
    with a 01:00 set actually starts Friday 01:00 — so roll it to the next
@@ -785,7 +876,7 @@ function setStartMs(dateStr, timeStr){
   if(!timeStr) return null;
   const d = parseDT(dateStr, timeStr);
   if(!d) return null;
-  const hh = Number(timeStr.split(':')[0]);
+  const hh = Number(String(timeStr).split(':')[0]);
   if(hh < 6) d.setDate(d.getDate() + 1);
   return d.getTime();
 }
@@ -1159,17 +1250,35 @@ function runTimeline(run){
         ensureDriverLocations(d);
         if(!d.time) return;
         const label = driverJourneyLabel(d);
-        rows.push({id:'shdrv_'+d.id, kind:'travel', icon:'car', date:s.date, time:d.time,
+        const drvDate = d.date || showItemTrueDate(s, d.time);
+        rows.push({id:'shdrv_'+d.id, kind:'travel', icon:'car', date:drvDate, time:d.time,
           title:label||(d.noGround?'Transport':(d.name||'Driver')),
           sub:d.noGround?'No grounds — Uber/taxi':[d.name, d.phone].filter(Boolean).join(' · '),
-          done:!!d.done, embedded:true, ref:Object.assign({kind:'travel', icon:'car', showId:s.id, embedded:true}, d, {
-            from: d.from || '', to: d.to || '', title: label||'', legacyTitle: label||''
+          done:!!d.done, embedded:true, trueDate:drvDate, dayOffset:dateDiffDays(s.date, drvDate),
+          ref:Object.assign({kind:'travel', icon:'car', showId:s.id, embedded:true}, d, {
+            from: d.from || '', to: d.to || '', title: label||'', legacyTitle: label||'', date: drvDate
           })});
       });
     }
   });
-  run.shows.forEach(s=>{ rows.push({id:'set_'+s.id, kind:'set', date:s.date, time:s.setTime||'', title:s.venue, sub:s.setTime?('Set '+s.setTime+(s.endTime?' - '+s.endTime:'')):'Set TBA', icon:'music', done:!!s.setDone, showId:s.id}); });
-  rows.sort((a,b)=>{ if(a.date!==b.date) return a.date.localeCompare(b.date); return itemTimeKey({start:a.time})-itemTimeKey({start:b.time}); });
+  run.shows.forEach(s=>{
+    const overnight = showEndsNextDay(s);
+    rows.push({
+      id:'set_'+s.id, kind:'set', date:s.date, time:s.setTime||'',
+      title:s.venue,
+      sub:s.setTime?('Set '+s.setTime+(s.endTime?' - '+s.endTime+(overnight?' next day':''):'')):'Set TBA',
+      icon:'music', done:!!s.setDone, showId:s.id,
+      trueDate: showSetStartDate(s), dayOffset: dateDiffDays(s.date, showSetStartDate(s)),
+      endTime:s.endTime||'', endDate:showSetEndDate(s)
+    });
+  });
+  rows.sort((a,b)=>{
+    if(a.date!==b.date) return (a.date||'').localeCompare(b.date||'');
+    const show = run.shows.find(s=>s.id===(a.showId|| (a.ref&&a.ref.showId)) || s.id===(b.showId|| (b.ref&&b.ref.showId)));
+    const ka = showTimelineSortKey(show || { date:a.date }, a);
+    const kb = showTimelineSortKey(show || { date:b.date }, b);
+    return ka-kb;
+  });
   return rows;
 }
 function runProgress(run){

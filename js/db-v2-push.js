@@ -707,6 +707,7 @@ async function pushToSupabaseV2(orgId, dirtyIn){
         venue_arrival_time: s.arrival || null,
         set_start_time: s.setTime || null,
         set_end_time: s.endTime || null,
+        set_end_date: (typeof resolveSetEndDate === 'function' ? resolveSetEndDate(s) : s.setEndDate) || null,
         internal_notes: s.notes || null,
         content_plan: s.content || null,
         is_set_done: !!s.setDone
@@ -928,7 +929,10 @@ async function pushToSupabaseV2(orgId, dirtyIn){
         pickup_location: d.from || null,
         dropoff_location: d.to || null,
         vehicle_details: d.name || null,
-        departure_at: v2CombineDateTime(s.date, d.time),
+        departure_at: v2CombineDateTime(
+          d.date || (typeof showItemTrueDate === 'function' ? showItemTrueDate(s, d.time) : s.date),
+          d.time
+        ),
         sort_order: i
       });
       if(cid && jRow){
@@ -1101,7 +1105,7 @@ async function pushToSupabaseV2(orgId, dirtyIn){
         schedule_item_type: 'custom',
         item_title: t.title || 'Schedule item',
         item_notes: t.sub || null,
-        scheduled_date: s.date,
+        scheduled_date: t.date || (typeof showItemTrueDate === 'function' ? showItemTrueDate(s, t.time) : s.date),
         scheduled_time: t.time || null,
         is_done: !!t.done,
         sort_order: i
@@ -1136,7 +1140,7 @@ async function pushToSupabaseV2(orgId, dirtyIn){
       const showUuid = (l.showId && isUuid(l.showId)) ? l.showId : null;
       const travelTimes = v2NormalizeJourneyTimes(
         v2CombineDateTime(l.date, l.start),
-        v2CombineDateTime(l.date, l.end)
+        v2CombineDateTime(l.endDate || l.date, l.end)
       );
       const travelLegacy = 'logistics:' + l.id;
       const jRow = await v2UpsertOneByLegacy(sb, 'journeys', orgId, {

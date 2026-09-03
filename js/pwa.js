@@ -53,7 +53,9 @@ function ensureUsbReminders(){
   if(store.settings && store.settings.usbReminder===false) return;
   const list=reminderList(); const now=Date.now(), horizon=now+60*24*3600000; let changed=false;
   (typeof sel!=='undefined' && sel.events ? sel.events() : []).forEach(e=>{
-    const at = e.endTime ? setStartMs(e.date, e.endTime) : null;
+    const at = e.endTime
+      ? (typeof showSetEndMs === 'function' ? showSetEndMs(e) : setStartMs(e.date, e.endTime))
+      : null;
     if(at==null || at<=now || at>horizon) return;
     let r=list.find(x=>x.showId===e.id && x.kind==='usb');
     if(!r){ r={id:uid('rem'), showId:e.id, kind:'usb', at, label:"Don't forget your USB", fired:false, triggered:false}; list.push(r); changed=true; }
