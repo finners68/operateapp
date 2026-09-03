@@ -403,6 +403,19 @@ async function composeViewFromV2(v2, opts){
     return d && t ? `${d} ${t}` : (t || '');
   }
 
+  function flightDurationText(depAt, arrAt){
+    if(!depAt || !arrAt) return '';
+    const depMs = Date.parse(depAt);
+    const arrMs = Date.parse(arrAt);
+    if(!Number.isFinite(depMs) || !Number.isFinite(arrMs)) return '';
+    if(arrMs < depMs) return '';
+    const mins = Math.round((arrMs - depMs) / 60000);
+    const h = Math.floor(mins / 60);
+    const m = mins % 60;
+    if(h <= 0) return `${m}m`;
+    return `${h}h ${m}m`;
+  }
+
   let events = [];
   const orgSettings = v2.organisation_settings;
 
@@ -421,8 +434,17 @@ async function composeViewFromV2(v2, opts){
       const row = {
         id: j.id,
         code: j.flight_number || j.journey_title || '',
+        /* Codes shown in the header; names shown as the wrapped “second row”. */
+        fromCode: j.departure_location_code || j.departure_airport_iata || '',
+        toCode: j.arrival_location_code || j.arrival_airport_iata || '',
+        fromName: j.departure_location_name || j.departure_location_code || j.departure_airport_iata || '',
+        toName: j.arrival_location_name || j.arrival_location_code || j.arrival_airport_iata || '',
+        /* Back-compat: existing UI uses `from` / `to`. */
         from: j.departure_location_code || j.departure_airport_iata || j.departure_location_name || '',
         to: j.arrival_location_code || j.arrival_airport_iata || j.arrival_location_name || '',
+        operator: j.operator_name || '',
+        bookingRef: j.booking_reference || '',
+        duration: flightDurationText(j.departure_at, j.arrival_at),
         dep: flightDateTimeLocal(j.departure_at),
         arr: flightDateTimeLocal(j.arrival_at),
         terminal: j.departure_terminal || '',

@@ -927,62 +927,100 @@ function flightLine(eid,f){
   const parsed = typeof flightParseDep==='function' ? flightParseDep(f.dep,'') : {time:(f.dep||'').split(' ').pop()};
   const depTime = parsed.time || (f.dep ? (String(f.dep).split(' ')[1] || (String(f.dep).includes(':')&&!String(f.dep).includes('-')?f.dep:'')) : '');
   const arrTime = f.arr ? (String(f.arr).split(' ')[1] || (String(f.arr).includes(':')&&!String(f.arr).includes('-')?f.arr:'')) : '';
-  const routeHtml = (typeof flightRouteHtml === 'function')
-    ? flightRouteHtml(f.from, f.to)
+  const routeCodeHtml = (typeof flightRouteHtml === 'function')
+    ? flightRouteHtml(f.fromCode || f.from || '?', f.toCode || f.to || '?')
     : esc(`${f.from||'?'} → ${f.to||'?'}`);
+  const routeFullHtml = (typeof flightRouteTextHtml === 'function')
+    ? flightRouteTextHtml(
+      f.fromName || f.fromCode || f.from || '?',
+      f.toName || f.toCode || f.to || '?'
+    )
+    : routeCodeHtml;
   const pax = (typeof flightPassengers==='function' ? flightPassengers(f) : (f.passengers||[]));
-  const meta = [
-    depTime ? 'Dep '+esc(depTime) : '',
-    arrTime ? 'Arr '+esc(arrTime) : '',
-    f.terminal ? 'Term '+esc(f.terminal) : '',
-    f.gate ? 'Gate '+esc(f.gate) : '',
-    f.fstatus ? esc(f.fstatus) : ''
-  ].filter(Boolean).join(' · ');
+
+  const operator = f.operator || '';
+  const bookingRef = f.bookingRef || '';
+  const duration = f.duration || '';
+  const status = f.fstatus || '';
+
+  const kvRow = (k, v) => v
+    ? `<div class="flight-side-kv"><div class="flight-side-k">${esc(k)}</div><div class="flight-side-v">${esc(v)}</div></div>`
+    : '';
+
   const notes = String(f.notes || '').trim();
   const notesBlock = notes
-    ? `<div class="flight-notes">
-        <div class="flight-notes-k">Journey notes</div>
-        <div class="flight-notes-v">${esc(notes)}</div>
+    ? `<div class="flight-side-notes">
+        <div class="flight-side-notes-k">Journey notes</div>
+        <div class="flight-side-notes-v">${esc(notes)}</div>
       </div>`
     : '';
   const paxFoldId = 'ss-'+eid+'-flpax-'+f.id;
   const paxOpen = typeof isOpen==='function' ? isOpen(paxFoldId, false) : false;
   const paxLabel = pax.length
-    ? (pax.length+' passenger'+(pax.length===1?'':'s'))
+    ? `PASSENGERS · ${pax.length}`
     : '';
   const paxBlock = pax.length
-    ? `<div class="flight-pax-wrap fold ${paxOpen?'open':''}" id="fold-${paxFoldId}">
+    ? `<div class="flight-pax-wrap fold flight-v2 ${paxOpen?'open':''}" id="fold-${paxFoldId}">
         <button type="button" class="flight-pax-toggle fold-head" aria-expanded="${paxOpen?'true':'false'}" onclick="toggleFold('${paxFoldId}')">
-          <span class="flight-pax-toggle-label">${ICON.users(14)} ${esc(paxLabel)}</span>
+          <span class="flight-pax-toggle-label">${esc(paxLabel)}</span>
           <span class="fold-chev">${ICON.chevDown?ICON.chevDown(18):ICON.chevR(18)}</span>
         </button>
         <div class="fold-body"><div class="fold-inner flight-pax-list">${pax.map(p=>flightPaxLine(eid,f,p)).join('')}</div></div>
       </div>`
     : '';
   return `<div class="flight-block">
-    <div class="info-line info-line-stacked">
-      <div class="ic">${ICON.plane(17)}</div>
-      ${detailTx(esc(f.code||'Flight'), routeHtml, meta)}
-      <button type="button" class="add" style="align-self:center" onclick="sheetFlight('${eid}','${f.id}')">Edit</button>
-      <button type="button" class="header-btn" style="width:34px;height:34px;align-self:center;color:var(--red)" title="Remove flight" onclick="confirmRemoveFlight('${eid}','${f.id}')">${ICON.trash(15)}</button>
+    <div class="flight-journey-header">
+      <div class="flight-journey-main">
+        <div class="flight-journey-main-top">
+          <div class="flight-journey-top-left">
+            <span class="flight-journey-ic">${ICON.plane(17)}</span>
+            <b class="flight-journey-code">${esc(f.code||'Flight')}</b>
+            <span class="flight-journey-route-code">${routeCodeHtml}</span>
+          </div>
+          <div class="flight-journey-top-right">
+            <div class="flight-journey-times">
+              ${depTime ? `<span class="flight-journey-time"><span class="flight-journey-time-k">Dep</span><span class="flight-journey-time-v">${esc(depTime)}</span></span>` : ''}
+              ${arrTime ? `<span class="flight-journey-time"><span class="flight-journey-time-k">Arr</span><span class="flight-journey-time-v">${esc(arrTime)}</span></span>` : ''}
+            </div>
+            <div class="flight-journey-actions">
+              <button type="button" class="flight-journey-edit" onclick="sheetFlight('${eid}','${f.id}')">Edit</button>
+              <button type="button" class="header-btn flight-journey-del" style="width:34px;height:34px;color:var(--red)" title="Remove flight" onclick="confirmRemoveFlight('${eid}','${f.id}')">${ICON.trash(15)}</button>
+            </div>
+          </div>
+        </div>
+        <div class="flight-journey-route-full">${routeFullHtml}</div>
+      </div>
+
+      <div class="flight-journey-side">
+        <div class="flight-journey-side-head">JOURNEY DETAILS</div>
+        ${kvRow('Operator', operator)}
+        ${kvRow('Flight', f.code || '')}
+        ${kvRow('Duration', duration)}
+        ${kvRow('Booking ref', bookingRef)}
+        ${kvRow('Status', status)}
+        ${notesBlock}
+      </div>
     </div>
-    ${notesBlock}
     ${paxBlock}
   </div>`;
 }
 function flightPaxLine(eid,f,pax){
   const title = esc(pax.name||'Passenger');
-  const seat = pax.seat ? ('Seat '+esc(pax.seat)) : 'No seat yet';
+  const seat = pax.seat ? ('Seat '+esc(pax.seat)) : 'Seat —';
   const passes = pax.passes||[];
-  return `<div class="flight-pax" style="padding:0 0 4px">
-    <div class="info-line" style="padding-left:52px">
-      <div class="ic">${ICON.users(15)}</div>
-      ${detailTx(title, seat)}
-      <label class="header-btn" style="width:34px;height:34px;align-self:center" title="Boarding pass">${ICON.ticket(16)}<input type="file" accept="${PASS_FILE_ACCEPT}" style="display:none" onchange="uploadPass('${eid}','${f.id}',this,'${pax.id}')"></label>
-      <button type="button" class="header-btn" style="width:34px;height:34px;align-self:center;color:var(--red)" title="Remove person" onclick="confirmRemoveFlightPassenger('${eid}','${f.id}','${pax.id}')">${ICON.trash(15)}</button>
+  return `<div class="flight-pax-row">
+    <div class="flight-pax-row-top">
+      <div class="flight-pax-name">${title}</div>
+      <div class="flight-pax-seat">${seat}</div>
+      <div class="flight-pax-pass">
+        <span class="flight-pax-pass-k">Boarding pass —</span>
+        <label class="header-btn flight-pax-ticket" style="width:34px;height:34px" title="Boarding pass">${ICON.ticket(16)}<input type="file" accept="${PASS_FILE_ACCEPT}" style="display:none" onchange="uploadPass('${eid}','${f.id}',this,'${pax.id}')"></label>
+      </div>
+      <button type="button" class="header-btn flight-pax-del" style="width:34px;height:34px;color:var(--red)" title="Remove person" onclick="confirmRemoveFlightPassenger('${eid}','${f.id}','${pax.id}')">${ICON.trash(15)}</button>
     </div>
-    ${passes.length?`<div style="padding:0 16px 10px 52px"><div class="thumb-row">${passes.map(p=>passThumb(eid, p, passEditable()?`delFlightPass('${eid}','${f.id}','${p.id}','${pax.id}')`:null, f.id)).join('')}</div></div>`
-      :`<div style="padding:0 16px 10px 52px;color:var(--text-3);font-size:12px">No boarding pass yet</div>`}
+    ${passes.length
+      ? `<div class="flight-pax-passes"><div class="thumb-row">${passes.map(p=>passThumb(eid, p, passEditable()?`delFlightPass('${eid}','${f.id}','${p.id}','${pax.id}')`:null, f.id)).join('')}</div></div>`
+      : `<div class="flight-pax-passes-empty">No boarding pass yet</div>`}
   </div>`;
 }
 function attachThumb(eid,a){

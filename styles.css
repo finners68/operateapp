@@ -1067,6 +1067,236 @@ select.input{appearance:none;-webkit-appearance:none;background-image:url("data:
   border-bottom:1px solid var(--stroke);
 }
 .show-detail .flight-block:last-child{border-bottom:none;}
+
+/* Flight journey header redesign (two-column: main info + journey details) */
+.show-detail .flight-journey-header{
+  display:grid;
+  grid-template-columns:2.1fr 1fr;
+  gap:14px;
+  padding:13px 16px 10px 16px;
+}
+.show-detail .flight-journey-main-top{
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  gap:12px;
+}
+.show-detail .flight-journey-top-left{
+  display:flex;
+  align-items:center;
+  gap:10px;
+  min-width:0;
+}
+.show-detail .flight-journey-ic{
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  flex-shrink:0;
+  color:var(--text-2);
+}
+.show-detail .flight-journey-code{
+  font-size:16px;
+  font-weight:800;
+  letter-spacing:-0.01em;
+  color:var(--text);
+}
+.show-detail .flight-journey-route-code{
+  min-width:0;
+  flex:1 1 auto;
+}
+.show-detail .flight-journey-top-right{
+  display:flex;
+  flex-direction:column;
+  align-items:flex-end;
+  gap:8px;
+}
+.show-detail .flight-journey-times{
+  display:flex;
+  gap:12px;
+  flex-wrap:wrap;
+  justify-content:flex-end;
+}
+.show-detail .flight-journey-time{
+  display:inline-flex;
+  align-items:baseline;
+  gap:7px;
+}
+.show-detail .flight-journey-time-k{
+  font-size:11px;
+  font-weight:750;
+  text-transform:uppercase;
+  letter-spacing:.05em;
+  color:var(--text-3);
+}
+.show-detail .flight-journey-time-v{
+  font-size:13.5px;
+  font-weight:750;
+  color:var(--text-2);
+  font-variant-numeric:tabular-nums;
+}
+.show-detail .flight-journey-actions{
+  display:flex;
+  align-items:center;
+  gap:10px;
+}
+.show-detail .flight-journey-edit{
+  border:none;
+  background:none;
+  padding:8px 2px;
+  font-size:13.5px;
+  font-weight:750;
+  color:var(--text);
+  cursor:pointer;
+  -webkit-tap-highlight-color:transparent;
+}
+.show-detail .flight-journey-edit:active{opacity:.75;}
+.show-detail .flight-journey-route-full{
+  margin-top:6px;
+}
+
+.show-detail .flight-journey-side{
+  min-width:0;
+  display:flex;
+  flex-direction:column;
+  gap:6px;
+}
+.show-detail .flight-journey-side-head{
+  font-size:11px;
+  font-weight:750;
+  text-transform:uppercase;
+  letter-spacing:.05em;
+  color:var(--text-3);
+  margin-bottom:2px;
+}
+.show-detail .flight-side-kv{
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  gap:12px;
+}
+.show-detail .flight-side-k{
+  font-size:11px;
+  font-weight:750;
+  text-transform:uppercase;
+  letter-spacing:.05em;
+  color:var(--text-3);
+  flex:0 0 auto;
+}
+.show-detail .flight-side-v{
+  font-size:13.5px;
+  font-weight:650;
+  color:var(--text-2);
+  text-align:right;
+  flex:1 1 auto;
+  min-width:0;
+  overflow-wrap:anywhere;
+}
+.show-detail .flight-side-notes{
+  margin-top:6px;
+  padding-top:6px;
+  border-top:1px solid rgba(255,255,255,0.06);
+}
+.show-detail .flight-side-notes-k{
+  font-size:11px;
+  font-weight:750;
+  text-transform:uppercase;
+  letter-spacing:.05em;
+  color:var(--text-3);
+  margin-bottom:4px;
+}
+.show-detail .flight-side-notes-v{
+  color:var(--text-2);
+  font-weight:550;
+  white-space:pre-wrap;
+  line-height:1.45;
+}
+
+/* Passengers section: new layout */
+.show-detail .flight-pax-wrap.flight-v2 .flight-pax-toggle{
+  padding:11px 16px;
+}
+.show-detail .flight-pax-wrap.flight-v2 .flight-pax-toggle-label{
+  text-transform:uppercase;
+  letter-spacing:.05em;
+  font-size:12px;
+}
+.show-detail .flight-pax-row{
+  padding:10px 16px 0 16px;
+}
+.show-detail .flight-pax-row-top{
+  display:flex;
+  align-items:flex-start;
+  gap:12px;
+}
+.show-detail .flight-pax-name{
+  flex:1 1 140px;
+  min-width:0;
+  font-size:13.5px;
+  font-weight:650;
+  color:var(--text);
+  overflow-wrap:anywhere;
+}
+.show-detail .flight-pax-seat{
+  flex:0 0 auto;
+  min-width:92px;
+  font-size:13.5px;
+  font-weight:550;
+  color:var(--text-2);
+}
+.show-detail .flight-pax-pass{
+  flex:1 1 200px;
+  min-width:0;
+  display:flex;
+  align-items:center;
+  gap:10px;
+  justify-content:flex-start;
+}
+.show-detail .flight-pax-pass-k{
+  font-size:12px;
+  font-weight:750;
+  color:var(--text-3);
+  text-transform:uppercase;
+  letter-spacing:.05em;
+}
+.show-detail .flight-pax-ticket{
+  width:34px!important;
+  height:34px!important;
+  border-radius:50%;
+  flex-shrink:0;
+  padding:0!important;
+}
+.show-detail .flight-pax-del{
+  flex-shrink:0;
+}
+.show-detail .flight-pax-passes{
+  padding:0 0 10px 0;
+}
+.show-detail .flight-pax-passes-empty{
+  padding:0 0 10px 0;
+  color:var(--text-3);
+  font-size:12px;
+  font-weight:550;
+}
+
+@media (max-width:899px){
+  .show-detail .flight-journey-header{
+    grid-template-columns:1fr;
+    padding:14px 14px 10px 14px;
+    gap:10px;
+  }
+  .show-detail .flight-journey-top-right{
+    align-items:flex-start;
+  }
+  .show-detail .flight-journey-times{
+    justify-content:flex-start;
+  }
+  .show-detail .flight-pax-row{
+    padding:10px 14px 0 14px;
+  }
+  .show-detail .flight-pax-row-top{
+    flex-wrap:wrap;
+  }
+}
 .show-detail .flight-notes{
   margin:0;
   padding:0 16px 12px 52px;

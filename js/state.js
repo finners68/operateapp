@@ -713,6 +713,35 @@ function flightRouteHtml(from, to){
 }
 window.flightRouteHtml = flightRouteHtml;
 window.journeyRouteHtml = journeyRouteHtml;
+/* Variant that keeps original casing for airport/city names.
+   We still use the flight-style icon/rail, but avoid forced uppercase. */
+function journeyRouteHtmlCased(from, to, mode, {upperAirCodes=true}={}){
+  const m = String(mode || 'car').toLowerCase();
+  const isAir = m==='plane' || m==='flight' || m==='planetop';
+  const aRaw = String(from || '').trim();
+  const bRaw = String(to || '').trim();
+  const a = isAir
+    ? ((upperAirCodes ? aRaw.toUpperCase() : aRaw) || '?')
+    : (aRaw || '?');
+  const b = isAir
+    ? ((upperAirCodes ? bRaw.toUpperCase() : bRaw) || '?')
+    : (bRaw || '?');
+  const icon = journeyRouteModeIcon(isAir ? 'planeTop' : m);
+  return `<span class="flight-route journey-route${isAir?' is-air':''}" aria-label="${esc(a)} to ${esc(b)}">
+    <span class="flight-route-code">${esc(a)}</span>
+    <span class="flight-route-rail" aria-hidden="true">
+      <span class="flight-route-line"></span>
+      <span class="flight-route-icon${isAir?' is-air':''}">${icon}</span>
+      <span class="flight-route-line"></span>
+    </span>
+    <span class="flight-route-code">${esc(b)}</span>
+  </span>`;
+}
+window.journeyRouteHtmlCased = journeyRouteHtmlCased;
+function flightRouteTextHtml(from, to){
+  return journeyRouteHtmlCased(from, to, 'plane', {upperAirCodes:false});
+}
+window.flightRouteTextHtml = flightRouteTextHtml;
 /* Back-compat alias — ground journeys now use the flight-style rail with a mode icon. */
 function groundRouteHtml(from, to, mode){
   return journeyRouteHtml(from, to, mode || 'car');
