@@ -739,13 +739,13 @@ select.input{appearance:none;-webkit-appearance:none;background-image:url("data:
 .detail-primary{font-size:13.5px;font-weight:550;color:var(--text-2);margin-top:4px;line-height:1.35;}
 .detail-meta{font-size:12.5px;font-weight:550;color:var(--text-3);margin-top:4px;line-height:1.35;font-variant-numeric:tabular-nums;}
 
-/* Journey route: Departure | fixed connector | Arrival — names wrap; rail never grows */
+/* Journey route: content-sized — Departure | fixed connector | Arrival (no full-row stretch) */
 .flight-route{
-  display:flex;
+  display:inline-flex;
   align-items:center;
   flex-wrap:nowrap;
   gap:8px;
-  width:100%;
+  width:max-content;
   max-width:100%;
   min-width:0;
   color:var(--text);
@@ -758,7 +758,8 @@ select.input{appearance:none;-webkit-appearance:none;background-image:url("data:
   white-space:normal;
 }
 .flight-route-code{
-  flex:1 1 0;
+  flex:0 1 auto;
+  width:auto;
   min-width:0;
   max-width:none;
   overflow:visible;
@@ -810,11 +811,11 @@ select.input{appearance:none;-webkit-appearance:none;background-image:url("data:
 
 /* Legacy ground-route alias kept for old markup; new ground journeys use .flight-route */
 .ground-route{
-  display:flex;
+  display:inline-flex;
   align-items:center;
   flex-wrap:nowrap;
   gap:8px;
-  width:100%;
+  width:max-content;
   max-width:100%;
   min-width:0;
   color:var(--text);
@@ -827,7 +828,8 @@ select.input{appearance:none;-webkit-appearance:none;background-image:url("data:
   white-space:normal;
 }
 .ground-route-end{
-  flex:1 1 0;
+  flex:0 1 auto;
+  width:auto;
   min-width:0;
   max-width:none;
   overflow:visible;
@@ -1102,7 +1104,9 @@ select.input{appearance:none;-webkit-appearance:none;background-image:url("data:
 }
 .show-detail .flight-journey-route-code{
   min-width:0;
-  flex:1 1 auto;
+  flex:0 1 auto;
+  width:max-content;
+  max-width:100%;
 }
 .show-detail .flight-journey-top-right{
   display:flex;
@@ -1354,7 +1358,7 @@ select.input{appearance:none;-webkit-appearance:none;background-image:url("data:
 .show-detail .flight-pax-list{padding:0 0 6px;}
 .show-day-timeline .tl-route{
   display:block;
-  width:100%;
+  width:max-content;
   max-width:100%;
   min-width:0;
   overflow:visible;
@@ -1377,9 +1381,10 @@ select.input{appearance:none;-webkit-appearance:none;background-image:url("data:
 .driver-title > svg{flex-shrink:0;color:var(--text-2);}
 .driver-title .ground-route,
 .driver-title .flight-route{
-  flex:1 1 auto;
+  flex:0 1 auto;
   min-width:0;
-  width:100%;
+  width:max-content;
+  max-width:100%;
   font-size:15.5px;
 }
 .driver-title > span:not(.flight-route):not(.ground-route){
