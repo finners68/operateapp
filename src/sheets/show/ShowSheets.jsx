@@ -161,6 +161,21 @@ export function ShowFlightSheet({ eid, fid, flight, passengers }){
   </>;
 }
 
+export function ShowFlightPassengersSheet({ eid, fid, flight, passengers }){
+  const e=eventOf({eid});
+  const f=flight || (e.flights||[]).find(x=>x.id===fid) || {};
+  const pax=passengers || f.passengers || [{id:call('uid','pax'),name:'',seat:'',passes:[]}];
+  const code=f.code || 'this flight';
+  return <>
+    <p className="sheet-lede">{code} — names, seats and boarding passes.</p>
+    <div id="fl-pax-list">{pax.length ? pax.map((p,i)=><PaxRow key={p.id||i} pax={p} eid={eid} fid={f.id||''}/>) : <PaxRow pax={{id:call('uid','pax'),name:'',seat:'',passes:[]}} eid={eid} fid={f.id||''}/>}</div>
+    <button type="button" className="btn secondary" style={{marginTop:8}} onClick={()=>call('addFlightPaxRow',eid,f.id||'')}><Icon name="plus" size={15}/> Add person</button>
+    <div className="hint" style={{padding:'8px 2px 12px'}}>Same flight for everyone — each person has their own seat and boarding pass.</div>
+    <button className="btn" id="fl-pax-save" onClick={()=>call('saveFlightPassengers',eid,f.id)}>Save passengers</button>
+    <Spacer />
+  </>;
+}
+
 export function ShowContactDriverSheet({ eid, driver }){
   const d=driver||eventOf({eid}).driver||{}, phone=d.phone||'', wa=d.whatsapp||phone;
   return <>{d.name?<div className="hint" style={{textAlign:'left',padding:'0 2px 12px'}}>{d.name}{d.pickup?` · ${d.pickup}`:''}</div>:null}

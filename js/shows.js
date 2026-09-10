@@ -463,7 +463,10 @@ function flightsSubsection(e){
     body = `<div class="card tap" onclick="sheetFlight('${e.id}')" style="text-align:center;color:var(--text-3);padding:20px">${ICON.plane(22)}<div style="margin-top:6px;font-weight:600">Add flight</div><div style="margin-top:4px;font-size:12px;font-weight:500">Number, times, passengers and boarding passes</div></div>`;
   } else {
     if(legs.length) body += showSourceLabel('From journey')+`<div class="card flush">${legs.map(journeyRow).join('')}</div>`;
-    if(manual.length) body += showSourceLabel('Added to show')+`<div class="card flush">${manual.map(f=>flightLine(e.id,f)).join('')}</div>`;
+    if(manual.length){
+      if(legs.length) body += showSourceLabel('Added to show');
+      body += manual.map(f=>`<div class="card flush flight-card-wrap">${flightLine(e.id,f)}</div>`).join('');
+    }
   }
   const has = !!(legs.length || manual.length);
   return showSubsection('ss-'+e.id+'-flights', 'Flights', `<button type="button" class="add" onclick="sheetFlight('${e.id}')">Add</button>`, body, has);
@@ -951,20 +954,14 @@ function flightLine(eid,f){
     kvRow('Status', f.fstatus || ''),
     notes ? `<div class="flight-side-notes"><div class="flight-side-notes-k">Notes</div><div class="flight-side-notes-v">${esc(notes)}</div></div>` : ''
   ].filter(Boolean).join('');
-  const paxFoldId = 'ss-'+eid+'-flpax-'+f.id;
-  const paxOpen = typeof isOpen==='function' ? isOpen(paxFoldId, false) : false;
   const paxCount = pax.length;
-  const paxLabel = paxCount ? ('Passengers · '+paxCount) : 'Passengers';
   const compactRows = paxCount
-    ? pax.map(p=>flightPaxLine(eid,f,p,false)).join('')
-    : `<div class="flight-pax-empty">No passengers yet</div>`;
-  const expandedRows = paxCount
-    ? pax.map(p=>flightPaxLine(eid,f,p,true)).join('') + `<button type="button" class="flight-pax-edit" onclick="sheetFlight('${eid}','${f.id}')">Edit passengers</button>`
-    : `<button type="button" class="flight-pax-edit" onclick="sheetFlight('${eid}','${f.id}')">Add passengers</button>`;
+    ? pax.map(p=>flightPaxLine(eid,f,p)).join('')
+    : `<div class="flight-pax-empty">Tap to add passengers</div>`;
   return `<div class="flight-block">
     <div class="flight-card-tools">
-      <button type="button" class="flight-card-tool" title="Edit flight" onclick="sheetFlight('${eid}','${f.id}')">${ICON.edit(15)}</button>
-      <button type="button" class="flight-card-tool is-danger" title="Remove flight" onclick="confirmRemoveFlight('${eid}','${f.id}')">${ICON.trash(15)}</button>
+      <button type="button" class="flight-card-tool" title="Edit flight" onclick="event.stopPropagation();sheetFlight('${eid}','${f.id}')">${ICON.edit(15)}</button>
+      <button type="button" class="flight-card-tool is-danger" title="Remove flight" onclick="event.stopPropagation();confirmRemoveFlight('${eid}','${f.id}')">${ICON.trash(15)}</button>
     </div>
     <div class="flight-journey-header">
       <div class="flight-journey-main">
@@ -973,44 +970,24 @@ function flightLine(eid,f){
           <b class="flight-journey-code">${esc(f.code||'Flight')}</b>
         </div>
         <div class="flight-card-route">${routeHtml}</div>
-        <div class="flight-pax-wrap fold flight-v2 ${paxOpen?'open':''}" id="fold-${paxFoldId}">
-          <button type="button" class="flight-pax-toggle fold-head" aria-expanded="${paxOpen?'true':'false'}" onclick="toggleFold('${paxFoldId}')">
-            <span class="flight-pax-toggle-label">${esc(paxLabel)}</span>
-            <span class="fold-chev">${ICON.chevDown?ICON.chevDown(16):ICON.chevR(16)}</span>
-          </button>
-          <div class="flight-pax-preview">${compactRows}</div>
-          <div class="fold-body"><div class="fold-inner flight-pax-list">${expandedRows}</div></div>
-        </div>
       </div>
       ${sideHtml ? `<div class="flight-journey-side">${sideHtml}</div>` : ''}
+      <button type="button" class="flight-pax-wrap" onclick="sheetFlightPassengers('${eid}','${f.id}')">
+        <div class="flight-pax-head"><span>${esc(paxCount ? ('Passengers · '+paxCount) : 'Passengers')}</span>${ICON.chevR(14)}</div>
+        <div class="flight-pax-preview">${compactRows}</div>
+      </button>
     </div>
   </div>`;
 }
-function flightPaxLine(eid,f,pax, expanded){
+function flightPaxLine(eid,f,pax){
   const title = esc(pax.name||'Passenger');
   const seat = pax.seat ? esc(pax.seat) : '—';
   const passes = pax.passes||[];
   const passLabel = passes.length ? (passes.length===1 ? 'Pass' : passes.length+' passes') : '—';
-  if(!expanded){
-    return `<div class="flight-pax-row is-compact">
-      <div class="flight-pax-name">${title}</div>
-      <div class="flight-pax-seat">${seat}</div>
-      <div class="flight-pax-pass-k">${passLabel}</div>
-    </div>`;
-  }
-  const passCell = passes.length
-    ? `<div class="thumb-row">${passes.map(p=>passThumb(eid, p, passEditable()?`delFlightPass('${eid}','${f.id}','${p.id}','${pax.id}')`:null, f.id)).join('')}</div>`
-    : `<span class="flight-pax-pass-k">No pass</span>`;
-  return `<div class="flight-pax-row is-expanded">
-    <div class="flight-pax-row-top">
-      <div class="flight-pax-name">${title}</div>
-      <div class="flight-pax-seat">${pax.seat ? 'Seat '+esc(pax.seat) : 'Seat —'}</div>
-      <div class="flight-pax-pass">${passCell}</div>
-      <div class="flight-pax-actions">
-        <label class="header-btn flight-pax-ticket" style="width:32px;height:32px" title="Add boarding pass">${ICON.ticket(15)}<input type="file" accept="${PASS_FILE_ACCEPT}" style="display:none" onchange="uploadPass('${eid}','${f.id}',this,'${pax.id}')"></label>
-        <button type="button" class="header-btn flight-pax-del" style="width:32px;height:32px;color:var(--red)" title="Remove person" onclick="confirmRemoveFlightPassenger('${eid}','${f.id}','${pax.id}')">${ICON.trash(15)}</button>
-      </div>
-    </div>
+  return `<div class="flight-pax-row is-compact">
+    <div class="flight-pax-name">${title}</div>
+    <div class="flight-pax-seat">${seat}</div>
+    <div class="flight-pax-pass-k">${passLabel}</div>
   </div>`;
 }
 function attachThumb(eid,a){
@@ -1198,6 +1175,34 @@ function sheetFlight(eid, fid){
     : [{id:uid('pax'), name:'', seat:'', passes:[]}];
   openSheetReact(editing?'Edit flight':'Add flight', 'show.flight', { eid, fid: editing ? f.id : '' });
 }
+function sheetFlightPassengers(eid, fid){
+  const e = sel.event(eid);
+  const f = e && fid && (e.flights||[]).find(x=>x.id===fid);
+  if(!f){ toast('Save the flight first','x'); return; }
+  if(typeof ensureFlightPassengers==='function') ensureFlightPassengers(f);
+  openSheetReact('Passengers', 'show.flightPassengers', { eid, fid: f.id, flight: f, passengers: flightPassengers(f) }, {
+    full: true,
+    action: `saveFlightPassengers('${eid}','${f.id}')`,
+    actionLabel: 'Save'
+  });
+}
+window.sheetFlightPassengers = sheetFlightPassengers;
+function saveFlightPassengers(eid, fid){
+  const e = sel.event(eid);
+  const f = e && fid && (e.flights||[]).find(x=>x.id===fid);
+  if(!f){ toast('Flight not found','x'); return; }
+  if(typeof ensureFlightPassengers==='function') ensureFlightPassengers(f);
+  const passengers = collectFlightPaxFromSheet(eid, fid, f.passengers);
+  withButton($('#fl-pax-save') || $('#sheet-action'), ()=>{
+    f.passengers = passengers;
+    f.passes = [];
+    persist('shows', eid);
+    if(typeof pushShowNow === 'function') pushShowNow(eid);
+    closeSheet();
+    softRender();
+  }, 'Passengers saved');
+}
+window.saveFlightPassengers = saveFlightPassengers;
 function openFlightFromList(eid, fid){
   sheetReturnStack.push({kind:'showFlights', id:eid});
   sheetFlight(eid, fid);

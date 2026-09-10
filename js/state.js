@@ -813,25 +813,23 @@ function flightRouteEndParts(code, name){
   }
   return { primary: primary || '?', secondary };
 }
-/* Codes on one row with the connector; city names sit under the codes with no second rail. */
+/* Codes on one row with the connector; city names sit under each code, centred, with no second rail. */
 function flightRouteStackedHtml(fromCode, fromName, toCode, toName){
   const a = flightRouteEndParts(fromCode, fromName);
   const b = flightRouteEndParts(toCode, toName);
   const icon = journeyRouteModeIcon('planeTop');
-  const nameRow = (a.secondary || b.secondary)
-    ? `<span class="flight-route-name is-from">${a.secondary ? esc(a.secondary) : ''}</span>
-      <span class="flight-route-name-gap" aria-hidden="true"></span>
-      <span class="flight-route-name is-to">${b.secondary ? esc(b.secondary) : ''}</span>`
-    : '';
+  const end = (side, parts) => `<span class="flight-route-end is-${side}">
+    <span class="flight-route-code">${esc(parts.primary)}</span>
+    ${parts.secondary ? `<span class="flight-route-name">${esc(parts.secondary)}</span>` : ''}
+  </span>`;
   return `<span class="flight-route-stack" aria-label="${esc(a.primary)} to ${esc(b.primary)}">
-    <span class="flight-route-code is-from">${esc(a.primary)}</span>
+    ${end('from', a)}
     <span class="flight-route-rail" aria-hidden="true">
       <span class="flight-route-line"></span>
       <span class="flight-route-icon is-air">${icon}</span>
       <span class="flight-route-line"></span>
     </span>
-    <span class="flight-route-code is-to">${esc(b.primary)}</span>
-    ${nameRow}
+    ${end('to', b)}
   </span>`;
 }
 window.flightRouteStackedHtml = flightRouteStackedHtml;

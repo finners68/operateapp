@@ -78,9 +78,11 @@ function Flights({ show }){
           {manual.length ? (
             <>
               {legs.length ? <SourceLabel text="Added to show" /> : null}
-              <div className="card flush">
-                {manual.map(f => <LegacyHtml key={f.id} html={call('flightLine', show.id, f)} />)}
-              </div>
+              {manual.map(f => (
+                <div className="card flush flight-card-wrap" key={f.id}>
+                  <LegacyHtml html={call('flightLine', show.id, f)} />
+                </div>
+              ))}
             </>
           ) : null}
         </>
