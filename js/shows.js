@@ -639,7 +639,7 @@ function driverSubsection(e){
   }
   if(!body) body = `<div class="card tap" onclick="sheetDriver('${e.id}')" style="text-align:center;color:var(--text-3);padding:20px">${ICON.car(22)}<div style="margin-top:6px;font-weight:600">Add transport</div><div style="margin-top:4px;font-size:12px;font-weight:500">Driver details, pickup, or Uber / taxi</div></div>`;
   const has = !!(legs.length || drivers.length);
-  return showSubsection('ss-'+e.id+'-driver', 'Transport', `<button type="button" class="add" onclick="sheetDriver('${e.id}')">Add</button>`, body, has);
+  return showSubsection('ss-'+e.id+'-driver', 'Ground transport', `<button type="button" class="add" onclick="sheetDriver('${e.id}')">Add</button>`, body, has);
 }
 function transfersSubsection(e){
   const legs = showLegs(e.id).filter(x=>x.kind==='travel' && (x.icon||'plane')!=='plane' && !isDriverItem(x)).sort(legSort);
