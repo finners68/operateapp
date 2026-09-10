@@ -1281,13 +1281,13 @@ select.input{appearance:none;-webkit-appearance:none;background-image:url("data:
 }
 .show-detail .flight-card-notes{
   min-width:0;
-  padding-top:8px;
-  border-top:1px solid var(--stroke);
+  padding-top:2px;
+  border-top:none;
 }
 .show-detail .flight-side-notes{
   margin-top:4px;
-  padding-top:6px;
-  border-top:1px solid var(--stroke);
+  padding-top:0;
+  border-top:none;
 }
 .show-detail .flight-side-notes-k{
   font-size:11px;
