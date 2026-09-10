@@ -794,6 +794,47 @@ function flightRouteTextHtml(from, to){
   return journeyRouteHtmlCased(from, to, 'plane', {upperAirCodes:false});
 }
 window.flightRouteTextHtml = flightRouteTextHtml;
+function isIataCode(s){
+  return /^[A-Za-z]{3}$/.test(String(s || '').trim());
+}
+function flightRouteEndParts(code, name){
+  const c = String(code || '').trim();
+  const n = String(name || '').trim();
+  let primary = '';
+  let secondary = '';
+  if(isIataCode(c)){
+    primary = c.toUpperCase();
+    if(n && n.toUpperCase() !== primary) secondary = n;
+  } else if(isIataCode(n)){
+    primary = n.toUpperCase();
+  } else {
+    primary = c || n || '?';
+    if(n && c && n.toUpperCase() !== c.toUpperCase()) secondary = n;
+  }
+  return { primary: primary || '?', secondary };
+}
+/* Codes on one row with the connector; city names sit under the codes with no second rail. */
+function flightRouteStackedHtml(fromCode, fromName, toCode, toName){
+  const a = flightRouteEndParts(fromCode, fromName);
+  const b = flightRouteEndParts(toCode, toName);
+  const icon = journeyRouteModeIcon('planeTop');
+  const nameRow = (a.secondary || b.secondary)
+    ? `<span class="flight-route-name is-from">${a.secondary ? esc(a.secondary) : ''}</span>
+      <span class="flight-route-name-gap" aria-hidden="true"></span>
+      <span class="flight-route-name is-to">${b.secondary ? esc(b.secondary) : ''}</span>`
+    : '';
+  return `<span class="flight-route-stack" aria-label="${esc(a.primary)} to ${esc(b.primary)}">
+    <span class="flight-route-code is-from">${esc(a.primary)}</span>
+    <span class="flight-route-rail" aria-hidden="true">
+      <span class="flight-route-line"></span>
+      <span class="flight-route-icon is-air">${icon}</span>
+      <span class="flight-route-line"></span>
+    </span>
+    <span class="flight-route-code is-to">${esc(b.primary)}</span>
+    ${nameRow}
+  </span>`;
+}
+window.flightRouteStackedHtml = flightRouteStackedHtml;
 /* Back-compat alias — ground journeys now use the flight-style rail with a mode icon. */
 function groundRouteHtml(from, to, mode){
   return journeyRouteHtml(from, to, mode || 'car');
