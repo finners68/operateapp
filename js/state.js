@@ -485,6 +485,47 @@ function showDayTimeline(e){
   });
   return rows;
 }
+function showTimelineStepDate(e, step){
+  if(!step) return (e && e.date) || '';
+  if(step.trueDate) return step.trueDate;
+  if(step.date) return step.date;
+  if(step.dayOffset != null && e && e.date) return addDaysYmd(e.date, Number(step.dayOffset) || 0);
+  return showItemTrueDate(e, step.time || '', step.date);
+}
+/* Split a show timeline into calendar days so overnight lists can show a date heading. */
+function groupShowTimelineByDay(e, steps){
+  const list = steps || [];
+  const n = new Date();
+  const today = `${n.getFullYear()}-${pad(n.getMonth()+1)}-${pad(n.getDate())}`;
+  const groups = [];
+  list.forEach(s => {
+    let date = showTimelineStepDate(e, s) || (e && e.date) || '';
+    const mins = clockMinutes(s && s.time);
+    const last = groups[groups.length - 1];
+    /* Same stored date but the clock went backwards (14:00 then 07:30) → next morning. */
+    if(last && date && last.date === date && mins != null && last.lastMins != null && mins < last.lastMins){
+      date = addDaysYmd(date, 1);
+    }
+    if(!last || last.date !== date){
+      groups.push({
+        date,
+        label: (typeof fmtDate === 'function' ? fmtDate(date) : date) || date,
+        today: !!(date && date === today),
+        lastMins: mins,
+        steps: [s]
+      });
+    } else {
+      last.steps.push(s);
+      if(mins != null) last.lastMins = mins;
+    }
+  });
+  groups.forEach(g => { delete g.lastMins; });
+  const unique = [];
+  groups.forEach(g => {
+    if(g.date && unique.indexOf(g.date) === -1) unique.push(g.date);
+  });
+  return { multi: unique.length > 1, groups };
+}
 function toggleShowAutoTimelineStep(e, sid){
   if(!e || !sid) return false;
   if(sid==='auto:set'){ e.setDone=!e.setDone; return true; }

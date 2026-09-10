@@ -806,8 +806,12 @@ function dayOverviewBlock(e){
   const sub = tl.length
     ? `${done}/${tl.length} done · flights, hotel, transport and set fill in automatically`
     : 'Builds from flights, hotel, transport and set time';
+  const grouped = typeof groupShowTimelineByDay==='function' ? groupShowTimelineByDay(e, tl) : { multi:false, groups:[{ steps:tl }] };
   const body = tl.length
-    ? `<div class="timeline show-day-timeline">${tl.map(s=>dayOverviewStepRow(e,s)).join('')}</div>`
+    ? `<div class="timeline show-day-timeline">${(grouped.groups||[]).map(g=>{
+        const head = grouped.multi && g.label ? `<div class="tl-day-head${g.today?' today':''}">${esc(g.label)}</div>` : '';
+        return `<div class="tl-day">${head}${(g.steps||[]).map(s=>dayOverviewStepRow(e,s)).join('')}</div>`;
+      }).join('')}</div>`
     : `<div class="card tap" onclick="sheetShowTimeline('${e.id}')" style="text-align:center;color:var(--text-3);padding:18px;font-weight:600">${ICON.clock(20)} Add show details — this overview fills in automatically</div>`;
   return `<section class="show-day-overview">
     <div class="show-day-overview-head">

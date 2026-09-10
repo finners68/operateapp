@@ -45,10 +45,49 @@ function openTimelineStep(show, s){
   if(s.kind === 'advance') return call('sheetAdvance', show.id);
 }
 
+function groupedTimelineDays(show, tl){
+  const grouped = call('groupShowTimelineByDay', show, tl);
+  if(grouped && grouped.groups && grouped.groups.length) return grouped;
+  return { multi: false, groups: [{ date: show.date || '', label: '', today: false, steps: tl }] };
+}
+
+function TimelineStepRow({ show, step: s }){
+  return (
+    <div className={`tl-item ${s.done ? 'done' : ''}`} data-id={s.id}>
+      <div className="tl-time">{s.time || '—'}</div>
+      <button
+        type="button"
+        className="tl-node"
+        aria-label={s.done ? 'Mark not done' : 'Mark done'}
+        onClick={ev => {
+          ev.stopPropagation();
+          call('toggleShowTimelineStep', show.id, s.id);
+        }}
+      />
+      <div
+        className={`tl-card ${s.kind === 'set' ? 'is-set' : ''}${stepShowsRoute(s) ? ' has-route' : ''}`}
+        role="button"
+        tabIndex={0}
+        onClick={() => openTimelineStep(show, s)}
+        onKeyDown={ev => { if(ev.key === 'Enter' || ev.key === ' '){ ev.preventDefault(); openTimelineStep(show, s); } }}
+      >
+        {stepShowsRoute(s) ? null : (
+          <div className="tl-card-ic"><Icon name={timelineIcon(s.kind, s.icon)} size={16} /></div>
+        )}
+        <div className="tl-card-body">
+          <TimelineStepTitle step={s} />
+          {s.sub ? <span>{s.sub}</span> : null}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /** Always-visible day plan at the top of a show page. */
 export function DayOverview({ show }){
   const tl = call('showDayTimeline', show) || show.timeline || [];
   const done = tl.filter(s => s.done).length;
+  const { multi, groups } = groupedTimelineDays(show, tl);
   return (
     <section className="show-day-overview">
       <div className="show-day-overview-head">
@@ -66,33 +105,14 @@ export function DayOverview({ show }){
       </div>
       {tl.length ? (
         <div className="timeline show-day-timeline">
-          {tl.map(s => (
-            <div key={s.id} className={`tl-item ${s.done ? 'done' : ''}`} data-id={s.id}>
-              <div className="tl-time">{s.time || '—'}</div>
-              <button
-                type="button"
-                className="tl-node"
-                aria-label={s.done ? 'Mark not done' : 'Mark done'}
-                onClick={ev => {
-                  ev.stopPropagation();
-                  call('toggleShowTimelineStep', show.id, s.id);
-                }}
-              />
-              <div
-                className={`tl-card ${s.kind === 'set' ? 'is-set' : ''}${stepShowsRoute(s) ? ' has-route' : ''}`}
-                role="button"
-                tabIndex={0}
-                onClick={() => openTimelineStep(show, s)}
-                onKeyDown={ev => { if(ev.key === 'Enter' || ev.key === ' '){ ev.preventDefault(); openTimelineStep(show, s); } }}
-              >
-                {stepShowsRoute(s) ? null : (
-                  <div className="tl-card-ic"><Icon name={timelineIcon(s.kind, s.icon)} size={16} /></div>
-                )}
-                <div className="tl-card-body">
-                  <TimelineStepTitle step={s} />
-                  {s.sub ? <span>{s.sub}</span> : null}
-                </div>
-              </div>
+          {groups.map((g, i) => (
+            <div key={g.date || i} className="tl-day">
+              {multi && g.label ? (
+                <div className={`tl-day-head${g.today ? ' today' : ''}`}>{g.label}</div>
+              ) : null}
+              {g.steps.map(s => (
+                <TimelineStepRow key={s.id} show={show} step={s} />
+              ))}
             </div>
           ))}
         </div>
