@@ -1035,19 +1035,31 @@ function dateDiffDays(from, to){
   return Math.round((b.getTime() - a.getTime()) / 86400000);
 }
 /* End time is next calendar morning when it is earlier than set start,
-   or when set_end_date is stored as the day after show_date. */
+   or when set_end_date is stored after set_start_date. */
 function showEndsNextDay(e){
   if(!e) return false;
-  if(e.setEndDate && e.date && e.setEndDate > e.date) return true;
+  const start = e.setStartDate || (typeof resolveSetStartDate === 'function' ? resolveSetStartDate(e) : e.date);
+  const end = e.setEndDate || (typeof resolveSetEndDate === 'function' ? resolveSetEndDate(e) : '');
+  if(start && end && end > start) return true;
   if(e.endsNextDay === true) return true;
   return timesCrossMidnight(e.setTime, e.endTime);
 }
+function resolveSetStartDate(e){
+  if(!e || !e.date) return '';
+  const mins = clockMinutes(e.setTime);
+  /* 01:00–02:30 on a Saturday show: the set itself is Sunday morning. */
+  if(mins != null && mins < 6 * 60 && !timesCrossMidnight(e.setTime, e.endTime)) return addDaysYmd(e.date, 1);
+  if(e.setTime) return e.date;
+  if(e.setStartDate) return e.setStartDate;
+  return e.date;
+}
 function resolveSetEndDate(e){
   if(!e || !e.date) return '';
-  if(timesCrossMidnight(e.setTime, e.endTime)) return addDaysYmd(e.date, 1);
-  if(e.setTime || e.endTime) return e.date;
+  const startDate = resolveSetStartDate(e) || e.date;
+  if(timesCrossMidnight(e.setTime, e.endTime)) return addDaysYmd(startDate, 1);
+  if(e.setTime || e.endTime) return startDate;
   if(e.setEndDate) return e.setEndDate;
-  return e.date;
+  return startDate;
 }
 /* Clock times from 00:00 up to (but not including) noon, when they sit
    before a late set start, belong to the morning after the show date. */
@@ -1066,11 +1078,7 @@ function showItemTrueDate(e, hhmm, explicitDate){
   return explicitDate || e.date;
 }
 function showSetStartDate(e){
-  if(!e || !e.date) return '';
-  if(e.setStartDate) return e.setStartDate;
-  const mins = clockMinutes(e.setTime);
-  if(mins != null && mins < 6 * 60 && !timesCrossMidnight(e.setTime, e.endTime)) return addDaysYmd(e.date, 1);
-  return e.date;
+  return (typeof resolveSetStartDate === 'function') ? resolveSetStartDate(e) : (e && e.date) || '';
 }
 function showSetEndDate(e){
   return resolveSetEndDate(e);

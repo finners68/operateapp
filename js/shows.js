@@ -1122,9 +1122,11 @@ function saveEvent(eid){
       artist: val('ev-artist') || store.settings.artistName,
     });
   }
-  if(typeof resolveSetEndDate === 'function'){
+  if(typeof resolveSetEndDate === 'function' || typeof resolveSetStartDate === 'function'){
     data.endsNextDay = typeof timesCrossMidnight === 'function' && timesCrossMidnight(data.setTime, data.endTime);
-    data.setEndDate = resolveSetEndDate({ date: data.date, setTime: data.setTime, endTime: data.endTime, endsNextDay: data.endsNextDay });
+    const payload = { date: data.date, setTime: data.setTime, endTime: data.endTime, endsNextDay: data.endsNextDay };
+    if(typeof resolveSetStartDate === 'function') data.setStartDate = resolveSetStartDate(payload);
+    if(typeof resolveSetEndDate === 'function') data.setEndDate = resolveSetEndDate(payload);
   }
   const btn = document.getElementById('ev-save');
   if(btn) btn.disabled = true;

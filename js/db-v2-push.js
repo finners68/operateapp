@@ -707,6 +707,7 @@ async function pushToSupabaseV2(orgId, dirtyIn){
         venue_arrival_time: s.arrival || null,
         set_start_time: s.setTime || null,
         set_end_time: s.endTime || null,
+        set_start_date: (typeof resolveSetStartDate === 'function' ? resolveSetStartDate(s) : (s.setStartDate || s.date)) || s.date || null,
         set_end_date: (typeof resolveSetEndDate === 'function' ? resolveSetEndDate(s) : (s.setEndDate || s.date)) || s.date || null,
         internal_notes: (typeof noteItemsForDb === 'function' ? noteItemsForDb(s.notes) : (s.notes || null)),
         content_plan: s.content || null,

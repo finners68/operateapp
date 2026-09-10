@@ -1438,9 +1438,10 @@ function blankShowFromBasics(basics){
       expenses:[], perDiem:0, commission:0, paid:false
     }
   };
-  if(typeof resolveSetEndDate === 'function'){
+  if(typeof resolveSetEndDate === 'function' || typeof resolveSetStartDate === 'function'){
     ev.endsNextDay = typeof timesCrossMidnight === 'function' && timesCrossMidnight(ev.setTime, ev.endTime);
-    ev.setEndDate = resolveSetEndDate(ev);
+    if(typeof resolveSetStartDate === 'function') ev.setStartDate = resolveSetStartDate(ev);
+    if(typeof resolveSetEndDate === 'function') ev.setEndDate = resolveSetEndDate(ev);
   }
   return ev;
 }
@@ -2235,9 +2236,10 @@ function applyScanToShow(e, f){
   if(!e.date     && scannedDate)     { e.date=scannedDate;            filled.push('date'); }
   if(!e.setTime  && f.setTime)       { e.setTime=normalizeScanTime(f.setTime)||f.setTime; filled.push('set time'); }
     if(!e.endTime  && f.endTime)       { e.endTime=normalizeScanTime(f.endTime)||f.endTime; filled.push('end time'); }
-    if(typeof resolveSetEndDate === 'function' && (e.setTime || e.endTime)){
+    if((typeof resolveSetEndDate === 'function' || typeof resolveSetStartDate === 'function') && (e.setTime || e.endTime)){
       e.endsNextDay = typeof timesCrossMidnight === 'function' && timesCrossMidnight(e.setTime, e.endTime);
-      e.setEndDate = resolveSetEndDate(e);
+      if(typeof resolveSetStartDate === 'function') e.setStartDate = resolveSetStartDate(e);
+      if(typeof resolveSetEndDate === 'function') e.setEndDate = resolveSetEndDate(e);
     }
   if(!e.arrival  && f.arrival)       { e.arrival=normalizeScanTime(f.arrival)||f.arrival; filled.push('arrival'); }
   if(!e.venueAddr && f.venueAddress) { e.venueAddr=f.venueAddress;    filled.push('venue address'); }
