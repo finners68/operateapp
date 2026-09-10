@@ -36,10 +36,12 @@ function transferLegs(show){
 }
 
 function manualFlights(show){
-  return (show.flights || []).filter(f => {
+  const list = (show.flights || []).filter(f => {
     const fn = flightHasDetails;
     return typeof fn !== 'function' || fn(f);
   });
+  const sorted = call('sortFlightsChrono', list, show.date);
+  return Array.isArray(sorted) ? sorted : list;
 }
 
 function JourneyCards({ legs }){

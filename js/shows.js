@@ -472,7 +472,10 @@ function dealGroupSummary(e){
 }
 function flightsSubsection(e){
   const legs = showLegs(e.id).filter(x=>x.kind==='travel' && (x.icon||'plane')==='plane').sort(legSort);
-  const manual = (e.flights||[]).filter(f => typeof flightHasDetails!=='function' || flightHasDetails(f));
+  const manual = sortFlightsChrono(
+    (e.flights||[]).filter(f => typeof flightHasDetails!=='function' || flightHasDetails(f)),
+    e.date
+  );
   let body = '';
   if(!legs.length && !manual.length){
     body = `<div class="card tap" onclick="sheetFlight('${e.id}')" style="text-align:center;color:var(--text-3);padding:20px">${ICON.plane(22)}<div style="margin-top:6px;font-weight:600">Add flight</div><div style="margin-top:4px;font-size:12px;font-weight:500">Number, times, passengers and boarding passes</div></div>`;
@@ -956,7 +959,10 @@ function viewEvent(id){
 }
 function flightLine(eid,f){
   if(typeof ensureFlightPassengers==='function') ensureFlightPassengers(f);
-  const parsed = typeof flightParseDep==='function' ? flightParseDep(f.dep,'') : {time:(f.dep||'').split(' ').pop()};
+  const show = (typeof sel!=='undefined' && sel.event) ? sel.event(eid) : null;
+  const fallbackDate = (show && show.date) || '';
+  const parsed = typeof flightParseDep==='function' ? flightParseDep(f.dep, fallbackDate) : {time:(f.dep||'').split(' ').pop()};
+  const dateLabel = typeof flightDepDateLabel==='function' ? flightDepDateLabel(f, fallbackDate) : '';
   const depTime = parsed.time || (f.dep ? (String(f.dep).split(' ')[1] || (String(f.dep).includes(':')&&!String(f.dep).includes('-')?f.dep:'')) : '');
   const arrTime = f.arr ? (String(f.arr).split(' ')[1] || (String(f.arr).includes(':')&&!String(f.arr).includes('-')?f.arr:'')) : '';
   const routeHtml = (typeof flightRouteStackedHtml === 'function')
@@ -995,7 +1001,10 @@ function flightLine(eid,f){
       <div class="flight-journey-main">
         <div class="flight-card-title">
           <span class="flight-journey-ic">${ICON.plane(17)}</span>
-          <b class="flight-journey-code">${esc(f.code||'Flight')}</b>
+          <div class="flight-journey-heading">
+            <b class="flight-journey-code">${esc(f.code||'Flight')}</b>
+            ${dateLabel?`<span class="flight-journey-date">${esc(dateLabel)}</span>`:''}
+          </div>
         </div>
         <div class="flight-card-route">${routeHtml}</div>
       </div>
@@ -1187,7 +1196,10 @@ function saveHotel(eid){
 function sheetFlight(eid, fid){
   const e=sel.event(eid); if(!e) return;
   migrateShowFlightInfo(e);
-  const flights = (e.flights||[]).filter(f => typeof flightHasDetails!=='function' || flightHasDetails(f));
+  const flights = sortFlightsChrono(
+    (e.flights||[]).filter(f => typeof flightHasDetails!=='function' || flightHasDetails(f)),
+    e.date
+  );
   /* From the editor with no flight id: show existing flights first. */
   if(!fid){
     if(flights.length){

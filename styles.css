@@ -1235,6 +1235,13 @@ select.input{appearance:none;-webkit-appearance:none;background-image:url("data:
   gap:8px;
   min-width:0;
 }
+.show-detail .flight-journey-heading{
+  display:flex;
+  flex-wrap:wrap;
+  align-items:baseline;
+  gap:4px 10px;
+  min-width:0;
+}
 .show-detail .flight-journey-main{
   min-width:0;
   display:flex;
@@ -1253,6 +1260,13 @@ select.input{appearance:none;-webkit-appearance:none;background-image:url("data:
   font-weight:800;
   letter-spacing:-0.01em;
   color:var(--text);
+}
+.show-detail .flight-journey-date{
+  font-size:13px;
+  font-weight:650;
+  letter-spacing:-0.01em;
+  color:var(--text-2);
+  white-space:nowrap;
 }
 .show-detail .flight-card-route{
   margin-top:10px;

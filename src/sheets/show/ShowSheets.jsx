@@ -106,7 +106,10 @@ export function ShowHotelSheet(props){
 }
 
 export function ShowFlightsListSheet({ eid, flights }){
-  const list=flights || eventOf({eid}).flights || [];
+  const e=eventOf({eid});
+  const raw=flights || (e && e.flights) || [];
+  const sorted=call('sortFlightsChrono', raw, e && e.date);
+  const list=Array.isArray(sorted)?sorted:raw;
   return <><p className="sheet-lede">Flights already on this show — tap one to edit route, gate and passengers.</p>
     <div className="card flush">{list.map(f=>{
       const from=(f.from||'?').toString().trim().toUpperCase()||'?';

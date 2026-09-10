@@ -357,6 +357,26 @@ function flightParseDep(dep, fallbackDate){
   }
   return { date: fallbackDate || '', time: '' };
 }
+/* Earliest-first for flight cards. Flights with no date/time sink to the end. */
+function flightDepMs(f, fallbackDate){
+  const p = flightParseDep(f && f.dep, fallbackDate || '');
+  if(!p.date && !p.time) return Number.POSITIVE_INFINITY;
+  const d = parseDT(p.date || fallbackDate, p.time || '00:00');
+  return d ? d.getTime() : Number.POSITIVE_INFINITY;
+}
+function sortFlightsChrono(flights, fallbackDate){
+  return (flights || []).slice().sort((a, b) => {
+    const ka = flightDepMs(a, fallbackDate);
+    const kb = flightDepMs(b, fallbackDate);
+    if(ka !== kb) return ka - kb;
+    return String((a && a.code) || '').localeCompare(String((b && b.code) || ''));
+  });
+}
+function flightDepDateLabel(f, fallbackDate){
+  const p = flightParseDep(f && f.dep, fallbackDate || '');
+  if(!p.date || typeof fmtDate !== 'function') return '';
+  return fmtDate(p.date);
+}
 /* Show-day timeline: auto steps from flights / hotel / transport / set / advancing,
    plus any custom steps saved on e.timeline. Built live so it stays in sync. */
 function showDayTimeline(e){
@@ -2050,5 +2070,7 @@ function migrate(){
   w.ACCOUNT_TYPES = ACCOUNT_TYPES;
   w.showTitle = showTitle;
   w.showListTitleHtml = showListTitleHtml;
+  w.sortFlightsChrono = sortFlightsChrono;
+  w.flightDepDateLabel = flightDepDateLabel;
 })();
 
