@@ -136,6 +136,38 @@ export function ShowFlightsListSheet({ eid, flights }){
   </>;
 }
 
+export function ShowContactsListSheet({ eid, contacts }){
+  const e=eventOf({eid});
+  const list=contacts || call('showKeyContactEntries', e) || [];
+  return <>
+    <p className="sheet-lede">Everyone saved on this show — tap a person to edit, or remove them from here.</p>
+    {list.length ? (
+      <div className="card flush">{list.map(c=>(
+        <div className="row" key={c.kind+'-'+c.id} onClick={()=>call('openKeyContactFromList',eid,c.kind,c.id)}>
+          <div className="ic"><Icon name="user" size={18}/></div>
+          <div className="body">
+            <b>{c.role||'Contact'}</b>
+            <span>{[c.name, c.phone].filter(Boolean).join(' · ')||'Tap to add details'}</span>
+          </div>
+          <button
+            type="button"
+            className="header-btn"
+            title="Remove"
+            style={{ width: 34, height: 34, flexShrink: 0 }}
+            onClick={ev=>{ ev.stopPropagation(); call('removeKeyContactFromList',eid,c.kind,c.id); }}
+          >
+            <Icon name="trash" size={15}/>
+          </button>
+        </div>
+      ))}</div>
+    ) : (
+      <div className="hint" style={{padding:'8px 4px 12px'}}>No key contacts yet — add a liaison, driver, or anyone else you need on the day.</div>
+    )}
+    <button className="btn secondary" style={{marginTop:14}} onClick={()=>call('openKeyContactFromList',eid,'new')}><Icon name="plus" size={16}/> Add contact</button>
+    <Spacer />
+  </>;
+}
+
 function PaxRow({ pax, eid, fid }){
   const pid=pax.id || call('uid','pax') || `pax-${Math.random()}`;
   return <div className="fl-pax-row" data-pax-id={pid} style={{border:'1px solid var(--stroke)',borderRadius:12,padding:12,marginBottom:8}}>

@@ -701,6 +701,7 @@ function reopenSheetReturn(ret){
   else if(ret.kind==='showChecklist' && ret.id) sheetShowChecklist(ret.id);
   else if(ret.kind==='showTimeline' && ret.id) sheetShowTimeline(ret.id);
   else if(ret.kind==='showFlights' && ret.id) sheetFlight(ret.id);
+  else if(ret.kind==='showContacts' && ret.id) sheetKeyContacts(ret.id);
 }
 /* Open a show-edit section and remember to return to the Edit show panel. */
 function openFromEventMenu(eid, opener){

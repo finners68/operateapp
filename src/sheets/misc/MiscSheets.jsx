@@ -96,7 +96,7 @@ export function EventMenuSheet({ eid }){
         <button type="button" className="edit-section-btn" onClick={open('sheetFinance')}><Icon name="coins" size={16}/><span><b>Deal</b><small>Fee, expenses, paid</small></span></button>
         <button type="button" className="edit-section-btn" onClick={open('sheetShowTimeline')}><Icon name="clock" size={16}/><span><b>Day timeline</b><small>Schedule steps</small></span></button>
         <button type="button" className="edit-section-btn" onClick={open('sheetShowChecklist')}><Icon name="checkList" size={16}/><span><b>Checklist</b><small>Prep tasks</small></span></button>
-        <button type="button" className="edit-section-btn" onClick={open('sheetEventContact')}><Icon name="users" size={16}/><span><b>Key contact</b><small>Extra people</small></span></button>
+        <button type="button" className="edit-section-btn" onClick={open('sheetKeyContacts')}><Icon name="users" size={16}/><span><b>Key contacts</b><small>View, add or remove people</small></span></button>
       </div>
       <Spacer />
       <button type="button" className="btn secondary" onClick={() => { call('closeSheet', true, { noReturn: true }); if(typeof window !== 'undefined') window.sheetReturnStack = []; call('startTripFromShow', eid); }}>

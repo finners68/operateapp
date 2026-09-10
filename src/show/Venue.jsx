@@ -157,8 +157,8 @@ function ContactsBlock({ show }){
     <Subsection
       id={`ss-${show.id}-contacts`}
       title="Key contacts"
-      addLabel="Add"
-      onAdd={() => call('sheetEventContact', show.id)}
+      addLabel={has ? 'Edit' : 'Add'}
+      onAdd={() => has ? call('sheetKeyContacts', show.id) : call('sheetEventContact', show.id)}
       defaultOpen={has}
     >
       {!has ? (

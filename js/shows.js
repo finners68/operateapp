@@ -694,9 +694,12 @@ function advanceSubsection(e){
 function contactsSubsection(e){
   const cs = e.contacts||[];
   const p = e.promoter;
-  const addBtn = `<button type="button" class="add" onclick="sheetEventContact('${e.id}')">Add</button>`;
-  if(!p && !cs.length){
-    return showSubsection('ss-'+e.id+'-contacts', 'Key contacts', addBtn, `<div class="card tap" onclick="sheetEventContact('${e.id}')" style="text-align:center;color:var(--text-3);padding:18px;font-weight:600">${ICON.users(20)} Add a key contact</div>`);
+  const has = !!(p || cs.length);
+  const headBtn = has
+    ? `<button type="button" class="add" onclick="sheetKeyContacts('${e.id}')">Edit</button>`
+    : `<button type="button" class="add" onclick="sheetEventContact('${e.id}')">Add</button>`;
+  if(!has){
+    return showSubsection('ss-'+e.id+'-contacts', 'Key contacts', headBtn, `<div class="card tap" onclick="sheetEventContact('${e.id}')" style="text-align:center;color:var(--text-3);padding:18px;font-weight:600">${ICON.users(20)} Add a key contact</div>`);
   }
   const liaisonRow = p ? `<div class="info-line info-line-stacked">
     <div class="ic">${ICON.user(17)}</div>
@@ -710,7 +713,7 @@ function contactsSubsection(e){
     ${ct.phone?`<button class="header-btn" style="width:34px;height:34px;align-self:center" onclick="callNumber('${jsAttr(ct.phone)}')">${ICON.phone(15)}</button>`:''}
     ${(ct.whatsapp||ct.phone)?`<button class="header-btn" style="width:34px;height:34px;align-self:center" onclick="whatsapp('${jsAttr(ct.whatsapp||ct.phone)}')">${ICON.chat(15)}</button>`:''}
   </div>`).join('');
-  return showSubsection('ss-'+e.id+'-contacts', 'Key contacts', addBtn, `<div class="card flush">${liaisonRow}${otherRows}</div>`, true);
+  return showSubsection('ss-'+e.id+'-contacts', 'Key contacts', headBtn, `<div class="card flush">${liaisonRow}${otherRows}</div>`, true);
 }
 function venueGroupBody(e){
   return venueSubsection(e)+advanceSubsection(e)+contactsSubsection(e);
@@ -1751,8 +1754,56 @@ function toggleEventContactRoleOther(){
   if(!pick || !wrap) return;
   wrap.style.display = pick.value === '__other__' ? '' : 'none';
 }
+function showKeyContactEntries(e){
+  const rows=[];
+  if(e && e.promoter){
+    const p=e.promoter;
+    rows.push({
+      kind:'liaison', id:'liaison',
+      role:'Artist Liaison',
+      name:p.name||'Liaison',
+      phone:p.phone||''
+    });
+  }
+  (e && e.contacts || []).forEach(ct=>{
+    rows.push({
+      kind:'contact', id:ct.id,
+      role:(typeof showContactRoleLabel==='function' ? showContactRoleLabel(ct.role) : ct.role) || 'Contact',
+      name:ct.name||'Contact',
+      phone:ct.phone||''
+    });
+  });
+  return rows;
+}
+function sheetKeyContacts(eid){
+  const e=sel.event(eid); if(!e) return;
+  openSheetReact('Key contacts', 'show.contactsList', { eid, contacts: showKeyContactEntries(e) }, { full: true });
+}
+function openKeyContactFromList(eid, kind, id){
+  sheetReturnStack.push({ kind:'showContacts', id:eid });
+  if(kind==='liaison') sheetPromoter(eid);
+  else if(kind==='new') sheetEventContact(eid, '__new__');
+  else sheetEventContact(eid, id);
+}
+function removeKeyContactFromList(eid, kind, id){
+  const e=sel.event(eid); if(!e) return;
+  if(kind==='liaison') e.promoter=null;
+  else e.contacts=(e.contacts||[]).filter(x=>x.id!==id);
+  persist('shows', eid);
+  if(typeof pushShowNow==='function') pushShowNow(eid);
+  toast('Contact removed','trash');
+  sheetKeyContacts(eid);
+}
 function sheetEventContact(eid,cid){
-  const e=sel.event(eid); const c=(e.contacts||[]).find(x=>x.id===cid)||{};
+  const e=sel.event(eid); if(!e) return;
+  const forceNew = cid === '__new__';
+  if(!cid && !forceNew){
+    if(e.promoter || (e.contacts||[]).length){
+      sheetKeyContacts(eid);
+      return;
+    }
+  }
+  const c=(!forceNew && cid) ? ((e.contacts||[]).find(x=>x.id===cid)||{}) : {};
   const matched = matchShowContactRole(c.role);
   const selected = matched.mode === 'preset' ? matched.value
     : matched.mode === 'other' ? '__other__'
@@ -1766,7 +1817,7 @@ function sheetEventContact(eid,cid){
     ),
     `<option value="__other__" ${selected==='__other__'?'selected':''}>Other</option>`
   ].join('');
-  openSheetReact(cid?'Edit contact':'Add contact', 'show.contact', { eid, cid });
+  openSheetReact((!forceNew && cid)?'Edit contact':'Add contact', 'show.contact', { eid, cid: (!forceNew && cid) ? cid : '' });
 }
 function resolveEventContactRole(){
   const pick = rawVal('ct-role');
