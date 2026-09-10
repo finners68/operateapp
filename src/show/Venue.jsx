@@ -151,18 +151,40 @@ function AdvanceBlock({ show }){
 
 function ContactsBlock({ show }){
   const cs = show.contacts || [];
+  const p = show.promoter;
+  const has = !!(p || cs.length);
   return (
     <Subsection
       id={`ss-${show.id}-contacts`}
       title="Key contacts"
       addLabel="Add"
       onAdd={() => call('sheetEventContact', show.id)}
-      defaultOpen={cs.length > 0}
+      defaultOpen={has}
     >
-      {!cs.length ? (
+      {!has ? (
         <EmptyTap icon="users" title="Add a key contact" onClick={() => call('sheetEventContact', show.id)} />
       ) : (
         <div className="card flush">
+          {p ? (
+            <div className="info-line info-line-stacked">
+              <div className="ic"><Icon name="user" size={17} /></div>
+              <div className="tx" style={{ flex: 1, minWidth: 0 }} onClick={() => call('sheetPromoter', show.id)}>
+                <div className="detail-title">Artist Liaison</div>
+                <div className="detail-primary">{p.name || 'Liaison'}</div>
+                {p.phone ? <div className="detail-meta">{p.phone}</div> : null}
+              </div>
+              {p.phone ? (
+                <button type="button" className="header-btn" style={{ width: 34, height: 34, alignSelf: 'center' }} onClick={() => call('callNumber', p.phone)}>
+                  <Icon name="phone" size={15} />
+                </button>
+              ) : null}
+              {(p.whatsapp || p.phone) ? (
+                <button type="button" className="header-btn" style={{ width: 34, height: 34, alignSelf: 'center' }} onClick={() => call('whatsapp', p.whatsapp || p.phone)}>
+                  <Icon name="chat" size={15} />
+                </button>
+              ) : null}
+            </div>
+          ) : null}
           {cs.map(ct => {
             const role = call('showContactRoleLabel', ct.role) || ct.role || '';
             return (

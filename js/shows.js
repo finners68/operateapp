@@ -431,7 +431,7 @@ function travelGroupSummary(e){
 function venueGroupSummary(e){
   const n = countAdvanceFields(e.advance);
   const venue = cleanVenue(e.venue) || 'Venue';
-  const contacts = (e.contacts||[]).length;
+  const contacts = (e.contacts||[]).length + (e.promoter ? 1 : 0);
   const bits = [venue];
   if(n) bits.push(n+' day-of detail'+(n>1?'s':''));
   if(contacts) bits.push(contacts+' contact'+(contacts>1?'s':''));
@@ -675,17 +675,24 @@ function advanceSubsection(e){
 }
 function contactsSubsection(e){
   const cs = e.contacts||[];
+  const p = e.promoter;
   const addBtn = `<button type="button" class="add" onclick="sheetEventContact('${e.id}')">Add</button>`;
-  if(!cs.length){
+  if(!p && !cs.length){
     return showSubsection('ss-'+e.id+'-contacts', 'Key contacts', addBtn, `<div class="card tap" onclick="sheetEventContact('${e.id}')" style="text-align:center;color:var(--text-3);padding:18px;font-weight:600">${ICON.users(20)} Add a key contact</div>`);
   }
-  const body = `<div class="card flush">${cs.map(ct=>`<div class="info-line info-line-stacked">
+  const liaisonRow = p ? `<div class="info-line info-line-stacked">
+    <div class="ic">${ICON.user(17)}</div>
+    <div class="tx" style="flex:1;min-width:0" onclick="sheetPromoter('${e.id}')">${detailParts('Artist Liaison', esc(p.name||'Liaison'), p.phone?esc(p.phone):'')}</div>
+    ${p.phone?`<button class="header-btn" style="width:34px;height:34px;align-self:center" onclick="callNumber('${jsAttr(p.phone)}')">${ICON.phone(15)}</button>`:''}
+    ${(p.whatsapp||p.phone)?`<button class="header-btn" style="width:34px;height:34px;align-self:center" onclick="whatsapp('${jsAttr(p.whatsapp||p.phone)}')">${ICON.chat(15)}</button>`:''}
+  </div>` : '';
+  const otherRows = cs.map(ct=>`<div class="info-line info-line-stacked">
     <div class="ic">${ICON.user(17)}</div>
     <div class="tx" style="flex:1;min-width:0" onclick="sheetEventContact('${e.id}','${ct.id}')">${detailParts(ct.role?esc(showContactRoleLabel(ct.role)):'Contact', esc(ct.name||'Contact'), ct.phone?esc(ct.phone):'')}</div>
     ${ct.phone?`<button class="header-btn" style="width:34px;height:34px;align-self:center" onclick="callNumber('${jsAttr(ct.phone)}')">${ICON.phone(15)}</button>`:''}
     ${(ct.whatsapp||ct.phone)?`<button class="header-btn" style="width:34px;height:34px;align-self:center" onclick="whatsapp('${jsAttr(ct.whatsapp||ct.phone)}')">${ICON.chat(15)}</button>`:''}
-  </div>`).join('')}</div>`;
-  return showSubsection('ss-'+e.id+'-contacts', 'Key contacts', addBtn, body, true);
+  </div>`).join('');
+  return showSubsection('ss-'+e.id+'-contacts', 'Key contacts', addBtn, `<div class="card flush">${liaisonRow}${otherRows}</div>`, true);
 }
 function venueGroupBody(e){
   return venueSubsection(e)+advanceSubsection(e)+contactsSubsection(e);
