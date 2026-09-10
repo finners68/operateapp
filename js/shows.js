@@ -16,10 +16,16 @@ function setShowSearchQuiet(v){
   showSearch = String(v == null ? '' : v);
 }
 function reactShowsListLive(){
-  return typeof OperateReact !== 'undefined'
-    && OperateReact
-    && typeof OperateReact.isShowsListMounted === 'function'
-    && OperateReact.isShowsListMounted();
+  if(typeof OperateReact !== 'undefined' && OperateReact && typeof OperateReact.isShowsListMounted === 'function'){
+    return !!OperateReact.isShowsListMounted();
+  }
+  const view = document.getElementById('view');
+  const appLive = typeof OperateReact !== 'undefined' && OperateReact && (
+    (typeof OperateReact.isAppMounted === 'function' && OperateReact.isAppMounted())
+    || (typeof OperateReact.isShellMounted === 'function' && OperateReact.isShellMounted())
+  );
+  return !!(appLive || (view && view.dataset && view.dataset.reactOutlet))
+    && !!(document.getElementById('shows-mode-page') || (typeof store !== 'undefined' && store.tab === 'shows' && !overlay));
 }
 function setShowsMode(m){
   if(showsMode===m) return;
@@ -28,6 +34,7 @@ function setShowsMode(m){
   if(typeof saveNavState==='function') saveNavState();
   if(reactShowsListLive()){
     if(typeof OperateReact.refreshShowsList === 'function') OperateReact.refreshShowsList();
+    else if(typeof notifyStore === 'function') notifyStore();
     if(typeof setFab === 'function') setFab();
     return;
   }
@@ -107,6 +114,12 @@ function refreshShowsModeChrome(){
   if(typeof syncSeg==='function') syncSeg('shows-mode-seg', showsMode);
 }
 function swapShowsModePanel(){
+  const view = document.getElementById('view');
+  if(view && view.dataset && view.dataset.reactOutlet) return false;
+  if(typeof OperateReact !== 'undefined' && OperateReact && (
+    (typeof OperateReact.isAppMounted === 'function' && OperateReact.isAppMounted())
+    || (typeof OperateReact.isShellMounted === 'function' && OperateReact.isShellMounted())
+  )) return false;
   const panel = document.getElementById('shows-mode-panel');
   if(!panel || store.tab !== 'shows' || overlay) return false;
   panel.innerHTML = showsModePanelInner();
@@ -134,6 +147,7 @@ function setShowFilter(k){
   haptic();
   if(reactShowsListLive()){
     if(typeof OperateReact.refreshShowsList === 'function') OperateReact.refreshShowsList();
+    else if(typeof notifyStore === 'function') notifyStore();
     return;
   }
   renderView();
@@ -144,6 +158,7 @@ function debouncedShowSearch(){
   showSearchT=setTimeout(()=>{
     if(reactShowsListLive()){
       if(typeof OperateReact.refreshShowsList === 'function') OperateReact.refreshShowsList();
+      else if(typeof notifyStore === 'function') notifyStore();
       return;
     }
     const el=$('#view .searchbar input');

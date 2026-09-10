@@ -164,3 +164,28 @@ export function chromeSetAuthMsg(msg, isErr){
     msgKind: msg ? (isErr ? 'err' : 'ok') : '',
   });
 }
+
+function pageMounted(id){
+  return typeof document !== 'undefined' && !!document.getElementById(id);
+}
+
+/* Vanilla screens still ask whether a React page is live. If these are missing,
+   those scripts rewrite React-owned HTML and the tab crashes. */
+export function refreshContentTab(){ notifyStore(); }
+export function isContentTabMounted(){ return pageMounted('content-mode-page'); }
+export function refreshShowsList(){ notifyStore(); }
+export function isShowsListMounted(){ return pageMounted('shows-mode-page'); }
+export function refreshNoteFolder(){ notifyStore(); }
+export function isNoteFolderMounted(){
+  if(typeof window !== 'undefined' && window.overlay && window.overlay.type === 'noteFolder') return true;
+  try{ return /#\/notes\/folder\//.test(String(location.hash || '')); }
+  catch(_){ return false; }
+}
+export function refreshNoteDetail(){ notifyStore(); }
+export function isNoteDetailMounted(){
+  if(typeof window !== 'undefined' && window.overlay && window.overlay.type === 'note') return true;
+  try{ return /#\/notes\/(?!folder\/)/.test(String(location.hash || '')); }
+  catch(_){ return false; }
+}
+export function refreshCalendar(){ notifyStore(); }
+export function isCalendarMounted(){ return pageMounted('cal-wrap') || pageMounted('cal-page'); }

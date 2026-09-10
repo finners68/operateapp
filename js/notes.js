@@ -7,8 +7,8 @@ function setNoteSearchQuiet(v){
 }
 
 function notesSub(){
-  const all = sel.notes();
-  const folders = sel.noteFolders();
+  const all = (typeof sel !== 'undefined' && sel.notes) ? sel.notes() : [];
+  const folders = (typeof sel !== 'undefined' && sel.noteFolders) ? sel.noteFolders() : [];
   return all.length+' note'+(all.length!==1?'s':'')+(folders.length?' · '+folders.length+' folder'+(folders.length!==1?'s':''):'')+' · free-form text';
 }
 
@@ -68,15 +68,29 @@ function notesListBody(){
 }
 
 function refreshNotesList(){
-  if(typeof OperateReact !== 'undefined' && OperateReact){
-    if(typeof OperateReact.isContentTabMounted === 'function' && OperateReact.isContentTabMounted()){
-      if(typeof OperateReact.refreshContentTab === 'function') OperateReact.refreshContentTab();
+  const R = (typeof OperateReact !== 'undefined') ? OperateReact : null;
+  const appLive = !!(R && (
+    (typeof R.isAppMounted === 'function' && R.isAppMounted())
+    || (typeof R.isShellMounted === 'function' && R.isShellMounted())
+  ));
+  const viewOwned = !!(document.getElementById('view') && document.getElementById('view').dataset.reactOutlet);
+  if(R){
+    const contentLive = (typeof R.isContentTabMounted === 'function' && R.isContentTabMounted())
+      || ((appLive || viewOwned) && document.getElementById('content-mode-page'));
+    if(contentLive){
+      if(typeof R.refreshContentTab === 'function') R.refreshContentTab();
       else if(typeof notifyStore === 'function') notifyStore();
       return;
     }
-    if(typeof OperateReact.isNoteFolderMounted === 'function' && OperateReact.isNoteFolderMounted()){
-      if(typeof OperateReact.refreshNoteFolder === 'function') OperateReact.refreshNoteFolder();
+    const folderLive = (typeof R.isNoteFolderMounted === 'function' && R.isNoteFolderMounted())
+      || ((appLive || viewOwned) && overlay && overlay.type === 'noteFolder');
+    if(folderLive){
+      if(typeof R.refreshNoteFolder === 'function') R.refreshNoteFolder();
       else if(typeof notifyStore === 'function') notifyStore();
+      return;
+    }
+    if(appLive || viewOwned){
+      if(typeof notifyStore === 'function') notifyStore();
       return;
     }
   }

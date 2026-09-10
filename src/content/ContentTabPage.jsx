@@ -280,7 +280,12 @@ export default function ContentTabPage(){
   useStoreTick();
   const { mode, ideaFilter, noteSearch } = contentState();
   const isNotes = mode === 'notes';
-  const sub = isNotes ? (call('notesSub') || '') : (call('ideasSub') || '');
+  let sub = '';
+  try{
+    sub = isNotes ? (call('notesSub') || '') : (call('ideasSub') || '');
+  }catch(err){
+    console.error('content tab subtitle', err);
+  }
   const searchTimer = useRef(null);
 
   useEffect(() => () => {

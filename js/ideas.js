@@ -23,15 +23,33 @@ function getContentTabState(){
     selectedIdeaId
   };
 }
-function reactContentLive(){
+function reactAppLive(){
   return typeof OperateReact !== 'undefined'
     && OperateReact
-    && typeof OperateReact.isContentTabMounted === 'function'
-    && OperateReact.isContentTabMounted();
+    && (
+      (typeof OperateReact.isAppMounted === 'function' && OperateReact.isAppMounted())
+      || (typeof OperateReact.isShellMounted === 'function' && OperateReact.isShellMounted())
+    );
+}
+function reactOwnsView(){
+  const view = document.getElementById('view');
+  return !!(view && view.dataset && view.dataset.reactOutlet);
+}
+function reactContentLive(){
+  if(typeof OperateReact !== 'undefined' && OperateReact && typeof OperateReact.isContentTabMounted === 'function'){
+    return !!OperateReact.isContentTabMounted();
+  }
+  const onIdeasTab = !!(document.getElementById('content-mode-page')
+    || (typeof store !== 'undefined' && store.tab === 'ideas' && !overlay));
+  return (reactAppLive() || reactOwnsView()) && onIdeasTab;
 }
 function refreshContentTabView(){
-  if(reactContentLive()){
-    if(typeof OperateReact.refreshContentTab === 'function') OperateReact.refreshContentTab();
+  if(reactContentLive() || reactAppLive() || reactOwnsView()){
+    if(typeof OperateReact !== 'undefined' && OperateReact && typeof OperateReact.refreshContentTab === 'function'){
+      OperateReact.refreshContentTab();
+    } else if(typeof notifyStore === 'function'){
+      notifyStore();
+    }
     if(typeof setFab === 'function') setFab();
     return true;
   }
@@ -76,6 +94,7 @@ function refreshContentModeChrome(){
   if(typeof syncSeg==='function') syncSeg('content-mode-seg', contentMode);
 }
 function swapContentModePanel(){
+  if(reactOwnsView() || reactAppLive()) return false;
   const panel = document.getElementById('content-mode-panel');
   if(!panel || store.tab !== 'ideas' || overlay) return false;
   deselectIdea();
@@ -107,8 +126,8 @@ function viewContentTab(){
 function ideasSub(){ const toUse=sel.ideas().filter(i=>!i.done).length; return 'Content to shoot · '+toUse+' waiting'; }
 function ideaChips(){
   const all=sel.ideas();
-  const typesPresent=[...new Set(all.map(i=>i.type))];
-  const chips=[{k:'all',l:'All '+all.length},{k:'active',l:'To use'},{k:'done',l:'Done'}, ...typesPresent.map(t=>({k:t,l:IDEA_TYPES[t].label}))];
+  const typesPresent=[...new Set(all.map(i=>i.type).filter(Boolean))];
+  const chips=[{k:'all',l:'All '+all.length},{k:'active',l:'To use'},{k:'done',l:'Done'}, ...typesPresent.map(t=>({k:t,l:(IDEA_TYPES[t]||IDEA_TYPES.other||{label:t}).label}))];
   return chips.map(c=>`<button class="chip ${ideaFilter===c.k?'on':''}" onclick="setIdeaFilter('${c.k}')">${esc(c.l)}</button>`).join('');
 }
 function ideasControls(){
