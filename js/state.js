@@ -858,7 +858,8 @@ function logisticRoute(l){
   if(leg) return `${leg.from} → ${leg.to}`;
   return '';
 }
-/* Visual route: flights keep Place ── plane ── Place; ground is Place [icon] Place with no lines. */
+/* Visual route: flights keep Place ── plane ── Place; ground keeps that
+   spacing but with no lines — Place    [icon]    Place. */
 function journeyRouteModeIcon(mode, size=13){
   const m = String(mode || 'car').toLowerCase();
   if(!ICON) return '';

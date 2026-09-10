@@ -828,21 +828,13 @@ select.input{appearance:none;-webkit-appearance:none;background-image:url("data:
   transform:rotate(90deg);
 }
 .flight-route-icon svg{display:block;}
-/* Ground: icon only, titles sit close — no leftover gap from the 68px flight rail */
+/* Ground: no connecting lines, but keep the same 68px gap as flights so
+   titles sit apart with empty space around the icon. */
 .flight-route.journey-route:not(.is-air){
-  gap:4px;
   letter-spacing:-0.01em;
 }
-.flight-route.journey-route:not(.is-air) .flight-route-rail,
 .flight-route-rail.is-icon-only{
-  flex:0 0 auto;
-  width:auto;
-  min-width:0;
-  max-width:none;
-  gap:0;
-}
-.flight-route-rail.is-icon-only .flight-route-icon{
-  width:auto;
+  justify-content:center;
 }
 .info-line-stacked .detail-primary:has(.flight-route),
 .info-line-stacked .detail-primary:has(.ground-route),
