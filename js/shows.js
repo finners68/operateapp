@@ -744,7 +744,6 @@ function timelineStepRow(e, s, opts={}){
     <div class="lbl" ${labelClick} style="flex:1;min-width:0">
       <b>${esc(s.time||'—')}</b> ${esc(s.title||'Step')}
       ${s.sub?`<span style="display:block;font-size:12px;color:var(--text-3);font-weight:600;margin-top:2px">${esc(s.sub)}</span>`:''}
-      ${s.auto?`<span style="display:block;font-size:11px;color:var(--text-3);margin-top:2px">From show info</span>`:''}
     </div>
     ${editable?`<button class="del" onclick="delShowTimelineStep('${eid}','${s.id}')">${ICON.x(16)}</button>`:''}
   </div>`;

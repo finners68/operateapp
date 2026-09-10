@@ -372,7 +372,7 @@ function showDayTimeline(e){
   if(e.arrival){
     rows.push(Object.assign({
       id:'auto:arrival', auto:true, kind:'arrival', icon:'pin',
-      title:'Arrive at venue', sub:'From show basics',
+      title:'Arrive at venue', sub:'',
       done:!!autoDone['auto:arrival']
     }, stamp(e.arrival, e.arrivalDate)));
   }
@@ -390,7 +390,7 @@ function showDayTimeline(e){
     rows.push(Object.assign({
       id:'auto:flight:'+f.id, auto:true, kind:'flight', icon:'planeTop', refId:f.id,
       from:f.from||'', to:f.to||'', code:f.code||'',
-      title:route, sub:bits.join(' · ')||'From flights',
+      title:route, sub:bits.join(' · '),
       done:!!f.done
     }, stamp(parsed.time||'', parsed.date)));
   });
@@ -414,7 +414,7 @@ function showDayTimeline(e){
       id:'auto:drv:'+id, auto:true, kind:'transport', icon:'car', refId:id,
       from:d.from||'', to:d.to||'',
       title:label||(d.noGround?'Uber / taxi':(d.name||'Transport')),
-      sub:d.noGround?'No grounds':[d.name,d.pickup].filter(Boolean).join(' · ')||'From transport',
+      sub:d.noGround?'No grounds':[d.name,d.pickup].filter(Boolean).join(' · '),
       done:!!d.done
     }, stamp(d.time||'', d.date)));
   });
@@ -425,7 +425,7 @@ function showDayTimeline(e){
     rows.push(Object.assign({
       id, auto:true, kind:'advance', icon:'clock',
       title:s.label||s.title||'Schedule',
-      sub:'From advancing', done:!!(s.done||autoDone[id])
+      sub:'', done:!!(s.done||autoDone[id])
     }, stamp(s.time||'', s.date)));
   });
 

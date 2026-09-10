@@ -133,7 +133,6 @@ export function Timeline({ show }){
                 >
                   <b>{s.time || '—'}</b> {s.title || 'Step'}
                   {s.sub ? <span style={{ display: 'block', fontSize: 12, color: 'var(--text-3)', fontWeight: 600, marginTop: 2 }}>{s.sub}</span> : null}
-                  {s.auto ? <span style={{ display: 'block', fontSize: 11, color: 'var(--text-3)', marginTop: 2 }}>From show info</span> : null}
                 </div>
               </div>
             ))}
