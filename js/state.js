@@ -741,44 +741,6 @@ window.journeyRouteHtmlCased = journeyRouteHtmlCased;
 function flightRouteTextHtml(from, to){
   return journeyRouteHtmlCased(from, to, 'plane', {upperAirCodes:false});
 }
-function isAirportCode(s){
-  return /^[A-Za-z]{3}$/.test(String(s || '').trim());
-}
-function flightRouteEndHtml(code, name, fallback, side){
-  const c = String(code || '').trim();
-  const n = String(name || '').trim();
-  let primary = '';
-  let secondary = '';
-  if(isAirportCode(c)){
-    primary = c.toUpperCase();
-    if(n && n.toUpperCase() !== primary) secondary = n;
-  } else if(isAirportCode(n)){
-    primary = n.toUpperCase();
-  } else {
-    primary = n || c || fallback || '?';
-  }
-  return `<span class="flight-route-end is-${side}">
-    <span class="flight-route-code">${esc(primary)}</span>
-    ${secondary ? `<span class="flight-route-name">${esc(secondary)}</span>` : ''}
-  </span>`;
-}
-function flightRouteStackedHtml(fromCode, fromName, toCode, toName){
-  const icon = journeyRouteModeIcon('planeTop');
-  const fromEnd = flightRouteEndHtml(fromCode, fromName, '?', 'from');
-  const toEnd = flightRouteEndHtml(toCode, toName, '?', 'to');
-  const a = String(fromCode || fromName || '?').trim() || '?';
-  const b = String(toCode || toName || '?').trim() || '?';
-  return `<span class="flight-route flight-route-stacked journey-route is-air" aria-label="${esc(a)} to ${esc(b)}">
-    ${fromEnd}
-    <span class="flight-route-rail" aria-hidden="true">
-      <span class="flight-route-line"></span>
-      <span class="flight-route-icon is-air">${icon}</span>
-      <span class="flight-route-line"></span>
-    </span>
-    ${toEnd}
-  </span>`;
-}
-window.flightRouteStackedHtml = flightRouteStackedHtml;
 window.flightRouteTextHtml = flightRouteTextHtml;
 /* Back-compat alias — ground journeys now use the flight-style rail with a mode icon. */
 function groundRouteHtml(from, to, mode){
