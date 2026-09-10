@@ -93,7 +93,7 @@ export default function ShowPage({ showId }){
 
       <div
         className={`screen-pad show-detail show-detail-react${titleColor ? ' show-title-toned' : ''}`}
-        style={titleColor ? { '--show-title': titleColor } : undefined}
+        style={{ '--show-color': c, ...(titleColor ? { '--show-title': titleColor } : {}) }}
       >
         <UploadBanner showId={show.id} />
 

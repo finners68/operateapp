@@ -909,7 +909,7 @@ function viewEvent(id){
     </div>
     ${typeof itineraryFullUploadBanner === 'function' ? itineraryFullUploadBanner(e.id) : ''}
   </div>
-  <div class="screen-pad stagger show-detail${titleColor?' show-title-toned':''}"${titleColor?` style="--show-title:${titleColor}"`:''}>
+  <div class="screen-pad stagger show-detail${titleColor?' show-title-toned':''}" style="--show-color:${c}${titleColor?`;--show-title:${titleColor}`:''}">
     <div class="dhero show-hero" style="background:linear-gradient(155deg,${c}33,var(--card) 65%)">
       <div class="cat-bar" style="background:${c}"></div>
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">

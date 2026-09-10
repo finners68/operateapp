@@ -950,6 +950,7 @@ select.input{appearance:none;-webkit-appearance:none;background-image:url("data:
 .show-hero .cat-bar{width:3px;opacity:.9;}
 .show-hero-eyebrow{font-size:11px;font-weight:650;text-transform:uppercase;letter-spacing:.07em;color:var(--text-3);display:flex;align-items:center;gap:7px;margin-bottom:10px;}
 .show-hero-title{font-size:30px;font-weight:780;letter-spacing:-0.03em;line-height:1.05;color:var(--text-title);text-shadow:var(--text-shadow-title);}
+.show-detail{--show-color: var(--accent-2);}
 .show-detail.show-title-toned{
   --show-title: var(--text-title);
 }
@@ -973,7 +974,6 @@ select.input{appearance:none;-webkit-appearance:none;background-image:url("data:
 .show-detail.show-title-toned .show-brief-k{
   color: var(--show-title);
 }
-.show-detail.show-title-toned .show-group-ic,
 .show-detail.show-title-toned .driver-title > svg,
 .show-detail.show-title-toned .flight-route-icon,
 .show-detail.show-title-toned .ground-route-dot{
@@ -1089,9 +1089,9 @@ select.input{appearance:none;-webkit-appearance:none;background-image:url("data:
 .show-group.open .show-group-head{border-bottom-color:var(--stroke);}
 .show-group-ic{
   width:36px;height:36px;border-radius:11px;
-  background:rgba(255,255,255,0.05);
+  background:color-mix(in srgb, var(--show-color, var(--accent-2)) 14%, transparent);
   display:flex;align-items:center;justify-content:center;
-  color:var(--accent-2);flex-shrink:0;
+  color:var(--show-color, var(--accent-2));flex-shrink:0;
 }
 .show-group-titles{flex:1;min-width:0;}
 .show-group-titles b{display:block;font-size:16px;font-weight:700;letter-spacing:-0.015em;color:var(--text-title);line-height:1.2;text-shadow:var(--text-shadow-title);}

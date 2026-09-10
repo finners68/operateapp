@@ -77,11 +77,11 @@ export function QuickLinks({ show }){
     const withPass = flights.find(f => f.passes && f.passes.length);
     if(withPass){
       tiles.push(
-        <ActTile key="board" icon="ticket" color="var(--accent-2)" label="Boarding" onClick={() => call('viewItemPass', withPass.id)} />
+        <ActTile key="board" icon="ticket" color="var(--show-color, var(--accent-2))" label="Boarding" onClick={() => call('viewItemPass', withPass.id)} />
       );
     } else {
       tiles.push(
-        <ActFileTile key="board" icon="ticket" color="var(--accent-2)" label="Boarding" itemId={flights[0].id} />
+        <ActFileTile key="board" icon="ticket" color="var(--show-color, var(--accent-2))" label="Boarding" itemId={flights[0].id} />
       );
     }
   }
@@ -108,7 +108,7 @@ export function QuickLinks({ show }){
 
   if(show.promoter && (show.promoter.phone || show.promoter.whatsapp)){
     tiles.push(
-      <ActTile key="contact" icon="user" color="var(--accent-2)" label="Contact" onClick={() => call('contactPromoter', show.id)} />
+      <ActTile key="contact" icon="user" color="var(--show-color, var(--accent-2))" label="Contact" onClick={() => call('contactPromoter', show.id)} />
     );
   }
 
