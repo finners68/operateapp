@@ -71,14 +71,21 @@ export function ShowEventSheet({ eid, event }){
     <div className="row-2"><Field label="Postcode" id="ev-postcode" value={e?.venuePostcode} placeholder="1012 AB" /><Field label="Country" id="ev-country" value={e?.country} placeholder="Netherlands" /></div>
     <div className="field picker-field" onClick={() => picker('ev-date')}><label>Date</label><input id="ev-date" type="date" className="input" defaultValue={date} onClick={x=>{x.stopPropagation();picker('ev-date')}} /></div>
     <div className="row-2">
-      <div className="field picker-field" onClick={() => picker('ev-set')}><label>Set time</label><input id="ev-set" type="time" className="input" defaultValue={e?.setTime || '23:00'} onClick={x=>{x.stopPropagation();picker('ev-set')}} /></div>
       <div className="field picker-field" onClick={() => picker('ev-arr')}><label>Arrival</label><input id="ev-arr" type="time" className="input" defaultValue={e?.arrival || ''} onClick={x=>{x.stopPropagation();picker('ev-arr')}} /></div>
+      <div className="field picker-field" onClick={() => picker('ev-set')}><label>Set time</label><input id="ev-set" type="time" className="input" defaultValue={e?.setTime || '23:00'} onClick={x=>{x.stopPropagation();picker('ev-set')}} /></div>
     </div>
+    {eid ? (
+      <>
+        <div className="row-2">
+          <div className="field picker-field" onClick={() => picker('ev-end')}><label>End time</label><input id="ev-end" type="time" className="input" defaultValue={e?.endTime || ''} onClick={x=>{x.stopPropagation();picker('ev-end')}} /></div>
+          <Field label="Artist" id="ev-artist" value={e?.artist} placeholder={getStore()?.settings?.artistName || 'Artist'} />
+        </div>
+        {e?.endTime && e?.setTime && e.endTime < e.setTime ? <div className="hint" style={{ textAlign:'left', padding:'0 2px 10px' }}>Ends after midnight — treated as the next morning, still on this show day.</div> : null}
+      </>
+    ) : null}
     <Field label="Status"><Seg id="ev-status" values={['confirmed','hold','cancelled']} selected={e?.status || 'confirmed'} /></Field>
     <Field label="Content to capture" id="ev-content" value={e?.content} placeholder="e.g. 2x reels · crowd clip" />
-    {eid ? <><div className="row-2"><Field label="End time" id="ev-end" type="time" value={e?.endTime} /><Field label="Artist" id="ev-artist" value={e?.artist} placeholder={getStore()?.settings?.artistName || 'Artist'} /></div>
-    {e?.endTime && e?.setTime && e.endTime < e.setTime ? <div className="hint" style={{ textAlign:'left', padding:'0 2px 10px' }}>Ends after midnight — treated as the next morning, still on this show day.</div> : null}
-    <NoteItemsField label="Internal notes" listId="ev-notes" value={e?.notes} placeholder="Team-only notes" /></> : null}
+    {eid ? <NoteItemsField label="Internal notes" listId="ev-notes" value={e?.notes} placeholder="Team-only notes" /> : null}
     <Field label="Colour"><Swatches id="ev-cat" selected={cat} /></Field>
     <Field label="Text colour"><Swatches id="ev-text-cat" selected={textCat} allowDefault /></Field>
     <div className="hint" style={{ textAlign:'left', padding:'0 2px 10px' }}>Text colour tints titles on this show page. Default keeps normal app text.</div>

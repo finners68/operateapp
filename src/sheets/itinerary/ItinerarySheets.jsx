@@ -43,7 +43,7 @@ export function ItineraryReviewSheet({id,fields}){
     <div className="row-2"><Field label="City" id="itn-rev-city" value={f.city} placeholder="Amsterdam"/><Field label="Region" id="itn-rev-region" value={f.venueRegion||f.region} placeholder="North Holland"/></div>
     <div className="row-2"><Field label="Postcode" id="itn-rev-postcode" value={f.venuePostcode||f.postcode} placeholder="1012 AB"/><Field label="Country" id="itn-rev-country" value={f.country} placeholder="Netherlands"/></div>
     <Field label="Date" id="itn-rev-date" type="date" value={date}/>
-    <div className="row-2"><Field label="Set time" id="itn-rev-set" type="time" value={normalTime(f.setTime)||'23:00'}/><Field label="Arrival" id="itn-rev-arr" type="time" value={normalTime(f.arrival)}/></div>
+    <div className="row-2"><Field label="Arrival" id="itn-rev-arr" type="time" value={normalTime(f.arrival)}/><Field label="Set time" id="itn-rev-set" type="time" value={normalTime(f.setTime)||'23:00'}/></div>
     <div className="row-2"><Field label="End time" id="itn-rev-end" type="time" value={normalTime(f.endTime)}/><Field label="Artist" id="itn-rev-artist" value={f.artist||settings.artistName} placeholder={settings.artistName||'Artist'}/></div>
     <Field label="Status"><div className="seg" id="itn-rev-status">{statuses.map(s=><button type="button" data-v={s} className={status===s?'on':''} key={s} onClick={e=>call('segPick',e.currentTarget)}>{s[0].toUpperCase()+s.slice(1)}</button>)}</div></Field>
     <Field label="Content to capture" id="itn-rev-content" value={f.content} placeholder="e.g. 2x reels · crowd clip"/>
