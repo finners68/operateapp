@@ -828,13 +828,9 @@ select.input{appearance:none;-webkit-appearance:none;background-image:url("data:
   transform:rotate(90deg);
 }
 .flight-route-icon svg{display:block;}
-/* Ground: no connecting lines, but keep the same 68px gap as flights so
-   titles sit apart with empty space around the icon. */
+/* Ground titles (hotel names etc.) sit a little tighter than airport codes. */
 .flight-route.journey-route:not(.is-air){
   letter-spacing:-0.01em;
-}
-.flight-route-rail.is-icon-only{
-  justify-content:center;
 }
 .info-line-stacked .detail-primary:has(.flight-route),
 .info-line-stacked .detail-primary:has(.ground-route),

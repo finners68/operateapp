@@ -858,8 +858,8 @@ function logisticRoute(l){
   if(leg) return `${leg.from} → ${leg.to}`;
   return '';
 }
-/* Visual route: flights keep Place ── plane ── Place; ground keeps that
-   spacing but with no lines — Place    [icon]    Place. */
+/* Visual route: Place ── icon ── Place. Flights rotate the plane; ground
+   uses the same lines with a car / ferry / train icon. */
 function journeyRouteModeIcon(mode, size=13){
   const m = String(mode || 'car').toLowerCase();
   if(!ICON) return '';
@@ -872,15 +872,10 @@ function journeyRouteModeIcon(mode, size=13){
   return ICON.car ? ICON.car(size) : '';
 }
 function journeyRouteRailHtml(icon, isAir){
-  if(isAir){
-    return `<span class="flight-route-rail" aria-hidden="true">
-      <span class="flight-route-line"></span>
-      <span class="flight-route-icon is-air">${icon}</span>
-      <span class="flight-route-line"></span>
-    </span>`;
-  }
-  return `<span class="flight-route-rail is-icon-only" aria-hidden="true">
-    <span class="flight-route-icon">${icon}</span>
+  return `<span class="flight-route-rail" aria-hidden="true">
+    <span class="flight-route-line"></span>
+    <span class="flight-route-icon${isAir?' is-air':''}">${icon}</span>
+    <span class="flight-route-line"></span>
   </span>`;
 }
 function journeyRouteHtml(from, to, mode){
