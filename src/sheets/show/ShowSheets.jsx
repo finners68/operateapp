@@ -137,6 +137,7 @@ function PaxRow({ pax, eid, fid }){
   const pid=pax.id || call('uid','pax') || `pax-${Math.random()}`;
   return <div className="fl-pax-row" data-pax-id={pid} style={{border:'1px solid var(--stroke)',borderRadius:12,padding:12,marginBottom:8}}>
     <div className="row-2"><Field label="Name"><input className="input fl-pax-name" defaultValue={pax.name||''} placeholder="Passenger name"/></Field><Field label="Seat"><input className="input fl-pax-seat" defaultValue={pax.seat||''} placeholder="4A"/></Field></div>
+    <Field label="Booking reference"><input className="input fl-pax-ref" defaultValue={pax.booking_reference||pax.bookingRef||''} placeholder="ABC123"/></Field>
     {fid?<label className="btn secondary" style={{marginTop:8,display:'inline-flex'}}><Icon name="ticket" size={15}/> Boarding pass<input type="file" accept={getPassFileAccept()||'image/*,application/pdf'} hidden onChange={e=>call('uploadPass',eid,fid,e.currentTarget,pid)}/></label>:<div className="hint" style={{padding:'6px 2px 0'}}>Save the flight first to attach boarding passes.</div>}
     <button type="button" className="btn secondary" style={{marginTop:8}} onClick={e=>call('removeFlightPaxFromSheet',e.currentTarget,eid,fid||'',pid)}><Icon name="trash" size={14}/> Remove person</button>
   </div>;
@@ -144,7 +145,7 @@ function PaxRow({ pax, eid, fid }){
 export function ShowFlightSheet({ eid, fid, flight, passengers }){
   const e=eventOf({eid}); const f=flight || (e.flights||[]).find(x=>x.id===fid) || {}; const editing=!!(flight || (e.flights||[]).find(x=>x.id===fid));
   const dep=call('flightParseDep',f.dep,e.date) || {date:e.date||'',time:''};
-  const pax=passengers || f.passengers || [{id:call('uid','pax'),name:'',seat:'',passes:[]}];
+  const pax=passengers || f.passengers || [{id:call('uid','pax'),name:'',seat:'',booking_reference:'',passes:[]}];
   return <>
     <Field label="Flight number" id="fl-code" value={f.code} placeholder="KL1008" />
     <div className="row-2"><Field label="From" id="fl-from" value={f.from} placeholder="LHR"/><Field label="To" id="fl-to" value={f.to} placeholder="AMS"/></div>
@@ -165,11 +166,11 @@ export function ShowFlightSheet({ eid, fid, flight, passengers }){
 export function ShowFlightPassengersSheet({ eid, fid, flight, passengers }){
   const e=eventOf({eid});
   const f=flight || (e.flights||[]).find(x=>x.id===fid) || {};
-  const pax=passengers || f.passengers || [{id:call('uid','pax'),name:'',seat:'',passes:[]}];
+  const pax=passengers || f.passengers || [{id:call('uid','pax'),name:'',seat:'',booking_reference:'',passes:[]}];
   const code=f.code || 'this flight';
   return <>
     <p className="sheet-lede">{code} — names, seats and boarding passes.</p>
-    <div id="fl-pax-list">{pax.length ? pax.map((p,i)=><PaxRow key={p.id||i} pax={p} eid={eid} fid={f.id||''}/>) : <PaxRow pax={{id:call('uid','pax'),name:'',seat:'',passes:[]}} eid={eid} fid={f.id||''}/>}</div>
+    <div id="fl-pax-list">{pax.length ? pax.map((p,i)=><PaxRow key={p.id||i} pax={p} eid={eid} fid={f.id||''}/>) : <PaxRow pax={{id:call('uid','pax'),name:'',seat:'',booking_reference:'',passes:[]}} eid={eid} fid={f.id||''}/>}</div>
     <button type="button" className="btn secondary" style={{marginTop:8}} onClick={()=>call('addFlightPaxRow',eid,f.id||'')}><Icon name="plus" size={15}/> Add person</button>
     <div className="hint" style={{padding:'8px 2px 12px'}}>Same flight for everyone — each person has their own seat and boarding pass.</div>
     <button className="btn" id="fl-pax-save" onClick={()=>call('saveFlightPassengers',eid,f.id)}>Save passengers</button>

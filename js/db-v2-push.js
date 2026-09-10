@@ -707,7 +707,7 @@ async function pushToSupabaseV2(orgId, dirtyIn){
         venue_arrival_time: s.arrival || null,
         set_start_time: s.setTime || null,
         set_end_time: s.endTime || null,
-        set_end_date: (typeof resolveSetEndDate === 'function' ? resolveSetEndDate(s) : s.setEndDate) || null,
+        set_end_date: (typeof resolveSetEndDate === 'function' ? resolveSetEndDate(s) : (s.setEndDate || s.date)) || s.date || null,
         internal_notes: (typeof noteItemsForDb === 'function' ? noteItemsForDb(s.notes) : (s.notes || null)),
         content_plan: s.content || null,
         is_set_done: !!s.setDone
@@ -1026,7 +1026,10 @@ async function pushToSupabaseV2(orgId, dirtyIn){
       const flightLegacy = 'show_flight:' + f.id;
       const paxMeta = (f.passengers || []).map(p => {
         if(!p.id) p.id = newUuid();
-        return { id: p.id, name: p.name || '', seat: p.seat || '' };
+        const booking_reference = String(p.booking_reference || p.bookingRef || '').trim();
+        const row = { id: p.id, name: p.name || '', seat: p.seat || '' };
+        if(booking_reference) row.booking_reference = booking_reference;
+        return row;
       });
       const jRow = await v2UpsertOneByLegacy(sb, 'journeys', orgId, {
         id: v2IdForLegacy('journeys', flightLegacy, f.id),
@@ -1109,6 +1112,7 @@ async function pushToSupabaseV2(orgId, dirtyIn){
         item_title: t.title || 'Schedule item',
         item_notes: t.sub || null,
         scheduled_date: t.date || (typeof showItemTrueDate === 'function' ? showItemTrueDate(s, t.time) : s.date),
+        scheduled_end_date: t.endDate || null,
         scheduled_time: t.time || null,
         is_done: !!t.done,
         sort_order: i
@@ -1219,6 +1223,7 @@ async function pushToSupabaseV2(orgId, dirtyIn){
           item_notes: l.info || null,
           scheduled_date: l.date,
           scheduled_time: l.start || null,
+          scheduled_end_date: l.endDate || null,
           scheduled_end_time: l.end || null,
           is_all_day: !!l.allDay,
           is_done: !!l.done,
@@ -1253,6 +1258,7 @@ async function pushToSupabaseV2(orgId, dirtyIn){
         item_notes: tl.sub || null,
         scheduled_date: tl.date || t.start,
         scheduled_time: tl.time || null,
+        scheduled_end_date: tl.endDate || null,
         scheduled_end_time: tl.endTime || null,
         is_all_day: !!tl.allDay,
         is_done: !!tl.done,

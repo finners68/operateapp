@@ -1012,10 +1012,11 @@ function flightLine(eid,f){
 function flightPaxLine(eid,f,pax){
   const title = esc(pax.name||'Passenger');
   const seat = pax.seat ? esc(pax.seat) : '—';
+  const ref = (typeof passengerBookingRef==='function' ? passengerBookingRef(pax) : (pax.booking_reference||pax.bookingRef||''));
   const passes = pax.passes||[];
   const passLabel = passes.length ? (passes.length===1 ? 'Pass' : passes.length+' passes') : '—';
   return `<div class="flight-pax-row is-compact">
-    <div class="flight-pax-name">${title}</div>
+    <div class="flight-pax-name">${title}${ref?`<div class="flight-pax-ref">${esc(ref)}</div>`:''}</div>
     <div class="flight-pax-seat">${seat}</div>
     <div class="flight-pax-pass-k">${passLabel}</div>
   </div>`;
@@ -1250,6 +1251,7 @@ function flightSheetPaxRow(pax, idx, eid, fid){
       <div class="field" style="margin:0"><label>Name</label><input class="input fl-pax-name" value="${esc(pax.name||'')}" placeholder="Passenger name"></div>
       <div class="field" style="margin:0"><label>Seat</label><input class="input fl-pax-seat" value="${esc(pax.seat||'')}" placeholder="4A"></div>
     </div>
+    <div class="field" style="margin-top:8px"><label>Booking reference</label><input class="input fl-pax-ref" value="${esc(pax.booking_reference||pax.bookingRef||'')}" placeholder="ABC123"></div>
     ${upload}
     ${passThumbs}
     <button type="button" class="btn secondary" style="margin-top:8px" onclick="removeFlightPaxFromSheet(this,'${eid}','${fid||''}','${pid}')">${ICON.trash(14)} Remove person</button>
@@ -1258,20 +1260,21 @@ function flightSheetPaxRow(pax, idx, eid, fid){
 function addFlightPaxRow(eid, fid){
   const list = document.getElementById('fl-pax-list');
   if(!list) return;
-  const pax = { id: uid('pax'), name: '', seat: '', passes: [] };
+  const pax = { id: uid('pax'), name: '', seat: '', booking_reference: '', passes: [] };
   list.insertAdjacentHTML('beforeend', flightSheetPaxRow(pax, list.children.length, eid, fid||''));
   haptic();
 }
 /* Read name/seat typed in the open flight sheet for a passenger row that may
    not have been saved yet. */
 function flightSheetPaxDraft(passengerId){
-  if(!passengerId) return { name: '', seat: '' };
+  if(!passengerId) return { name: '', seat: '', booking_reference: '' };
   const row = [...document.querySelectorAll('#fl-pax-list .fl-pax-row')]
     .find(r => r.getAttribute('data-pax-id') === passengerId);
-  if(!row) return { name: '', seat: '' };
+  if(!row) return { name: '', seat: '', booking_reference: '' };
   return {
     name: (row.querySelector('.fl-pax-name')?.value || '').trim(),
-    seat: (row.querySelector('.fl-pax-seat')?.value || '').trim()
+    seat: (row.querySelector('.fl-pax-seat')?.value || '').trim(),
+    booking_reference: (row.querySelector('.fl-pax-ref')?.value || '').trim()
   };
 }
 /* After a pass upload, update thumbs in the open sheet without rebuilding it
@@ -1306,12 +1309,13 @@ function collectFlightPaxFromSheet(eid, fid, existing){
   const out = [];
   rows.forEach(row => {
     const id = row.getAttribute('data-pax-id') || uid('pax');
+    const prev = prevById[id];
     const name = (row.querySelector('.fl-pax-name')?.value || '').trim();
     const seat = (row.querySelector('.fl-pax-seat')?.value || '').trim();
-    const prev = prevById[id];
+    const booking_reference = (row.querySelector('.fl-pax-ref')?.value || '').trim() || (prev && (prev.booking_reference || prev.bookingRef)) || '';
     const passes = (prev && prev.passes) ? prev.passes.slice() : [];
-    if(!name && !seat && !passes.length) return;
-    out.push({ id, name, seat, passes });
+    if(!name && !seat && !booking_reference && !passes.length) return;
+    out.push({ id, name, seat, booking_reference, passes });
   });
   return out;
 }

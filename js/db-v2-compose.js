@@ -356,6 +356,7 @@ async function composeViewFromV2(v2, opts){
         id,
         name: (m.name || hint?.name || '').trim(),
         seat: (m.seat || hint?.seat || '').trim(),
+        booking_reference: String(m.booking_reference || m.bookingRef || '').trim(),
         passes: fromTickets.map(x => x.pass)
       };
     });
@@ -382,10 +383,11 @@ async function composeViewFromV2(v2, opts){
           id: stablePaxId(idx),
           name: byName[key].name,
           seat: byName[key].seat || legacySeat || '',
+          booking_reference: '',
           passes: byName[key].passes
         }));
       } else if(legacySeat){
-        pax = [{ id: stablePaxId(0), name: '', seat: legacySeat, passes: [] }];
+        pax = [{ id: stablePaxId(0), name: '', seat: legacySeat, booking_reference: '', passes: [] }];
       }
     } else {
       const leftover = unassigned.filter((_, i) => !usedUnassigned.has(i));
@@ -548,6 +550,8 @@ async function composeViewFromV2(v2, opts){
         id: t.id,
         time: t.scheduled_time ? String(t.scheduled_time).slice(0, 5) : '',
         date: t.scheduled_date || '',
+        endDate: t.scheduled_end_date || '',
+        endTime: t.scheduled_end_time ? String(t.scheduled_end_time).slice(0, 5) : '',
         title: t.item_title || '',
         sub: t.item_notes || '',
         done: t.is_done
@@ -642,6 +646,7 @@ async function composeViewFromV2(v2, opts){
       title: m.item_title || '',
       start: m.scheduled_time ? String(m.scheduled_time).slice(0, 5) : '',
       end: m.scheduled_end_time ? String(m.scheduled_end_time).slice(0, 5) : '',
+      endDate: m.scheduled_end_date || '',
       icon: 'pin',
       info: m.item_notes || '',
       allDay: m.is_all_day,
@@ -782,6 +787,7 @@ async function composeViewFromV2(v2, opts){
       date: s.scheduled_date,
       time: s.scheduled_time ? String(s.scheduled_time).slice(0, 5) : '',
       endTime: s.scheduled_end_time ? String(s.scheduled_end_time).slice(0, 5) : '',
+      endDate: s.scheduled_end_date || '',
       title: s.item_title || '',
       sub: s.item_notes || '',
       allDay: s.is_all_day,

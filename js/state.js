@@ -313,8 +313,12 @@ function flightHasDetails(f){
   return pax.some(p => p && (
     String(p.name||'').trim() ||
     String(p.seat||'').trim() ||
+    String(p.booking_reference||p.bookingRef||'').trim() ||
     (Array.isArray(p.passes) && p.passes.length)
   ));
+}
+function passengerBookingRef(p){
+  return String((p && (p.booking_reference || p.bookingRef)) || '').trim();
 }
 /* Move old show-level flightNo/gate/terminal onto the first flight so one place holds it. */
 function migrateShowFlightInfo(e){
@@ -337,7 +341,7 @@ function migrateShowFlightInfo(e){
 }
 function flightPassengerSummary(f){
   return flightPassengers(f).map(p => {
-    const bits = [p.name, p.seat ? ('Seat ' + p.seat) : ''].filter(Boolean);
+    const bits = [p.name, p.seat ? ('Seat ' + p.seat) : '', passengerBookingRef(p)].filter(Boolean);
     return bits.join(' · ');
   }).filter(Boolean).join(' · ');
 }
@@ -393,10 +397,11 @@ function showDayTimeline(e){
 
   if(e.hotel && (e.hotel.name||e.hotel.address||e.hotel.city||e.hotel.checkin)){
     const when = e.hotel.checkin && e.hotel.checkin!==e.date ? ('Check-in '+e.hotel.checkin) : 'Check-in';
+    const hotelDate = e.hotel.checkin||e.date;
     rows.push({
       id:'auto:hotel', auto:true, kind:'hotel', icon:'bed',
       time:'', title:e.hotel.name||'Hotel', sub:when,
-      done:!!e.hotel.done, trueDate:e.hotel.checkin||e.date, dayOffset:0
+      done:!!e.hotel.done, trueDate:hotelDate, dayOffset:dateDiffDays(e.date, hotelDate)
     });
   }
 
@@ -1039,8 +1044,10 @@ function showEndsNextDay(e){
 }
 function resolveSetEndDate(e){
   if(!e || !e.date) return '';
+  if(timesCrossMidnight(e.setTime, e.endTime)) return addDaysYmd(e.date, 1);
+  if(e.setTime || e.endTime) return e.date;
   if(e.setEndDate) return e.setEndDate;
-  return showEndsNextDay(e) ? addDaysYmd(e.date, 1) : e.date;
+  return e.date;
 }
 /* Clock times from 00:00 up to (but not including) noon, when they sit
    before a late set start, belong to the morning after the show date. */
@@ -1053,10 +1060,10 @@ function isPostMidnightOnShow(e, hhmm){
   return mins < setMins && mins < 12 * 60;
 }
 function showItemTrueDate(e, hhmm, explicitDate){
-  if(explicitDate) return explicitDate;
-  if(!e || !e.date) return '';
+  if(!e || !e.date) return explicitDate || '';
+  if(explicitDate && explicitDate !== e.date) return explicitDate;
   if(isPostMidnightOnShow(e, hhmm)) return addDaysYmd(e.date, 1);
-  return e.date;
+  return explicitDate || e.date;
 }
 function showSetStartDate(e){
   if(!e || !e.date) return '';
@@ -1429,7 +1436,11 @@ function runTimeline(run){
     normalizeLogisticItem(e);
     const d = logisticDisplayLines(e);
     const sub = e.kind==='travel' ? logisticMetaLine(e) : (e.info||'');
-    return {id:e.id, kind:e.kind, date:e.date, time:e.start||(e.info&&(e.info.match(/(\d{1,2}:\d{2})/)||[])[1])||'', title:d.title, sub: e.kind==='travel' ? [d.primary, sub].filter(Boolean).join(' · ') : sub, icon:e.icon||(e.kind==='stay'?'bed':'plane'), done:!!e.done, ref:e};
+    const show = run.shows.find(s=>s.id===e.showId);
+    const time = e.start||(e.info&&(e.info.match(/(\d{1,2}:\d{2})/)||[])[1])||'';
+    const showDate = (show && show.date) || e.date;
+    const trueDate = show ? showItemTrueDate(show, time, e.date) : e.date;
+    return {id:e.id, kind:e.kind, date:e.date, showId:e.showId||null, showDate, trueDate, dayOffset:dateDiffDays(showDate, trueDate), time, title:d.title, sub: e.kind==='travel' ? [d.primary, sub].filter(Boolean).join(' · ') : sub, icon:e.icon||(e.kind==='stay'?'bed':'plane'), done:!!e.done, ref:e};
   }).filter(r=>{
     if(r.kind==='travel' && (r.icon||'plane')==='plane'){
       const e=r.ref||{};
@@ -1454,7 +1465,8 @@ function runTimeline(run){
         const parts=String(f.dep||'').trim().split(/\s+/);
         const paxSub = typeof flightPassengerSummary==='function' ? flightPassengerSummary(f) : (f.seat?'Seat '+f.seat:'');
         const passes = typeof flightAllPasses==='function' ? flightAllPasses(f) : (f.passes||[]);
-        rows.push({id:'shflt_'+f.id, kind:'travel', icon:'plane', date:parts[0]&&/^\d{4}-\d{2}-\d{2}/.test(parts[0])?parts[0]:(s.date), time:parts[1]||(parts[0]&&parts[0].includes(':')&&!parts[0].includes('-')?parts[0]:'')||'',
+        const fltDate = parts[0]&&/^\d{4}-\d{2}-\d{2}/.test(parts[0])?parts[0]:(s.date);
+        rows.push({id:'shflt_'+f.id, kind:'travel', icon:'plane', date:fltDate, showId:s.id, showDate:s.date, trueDate:fltDate, dayOffset:dateDiffDays(s.date, fltDate), time:parts[1]||(parts[0]&&parts[0].includes(':')&&!parts[0].includes('-')?parts[0]:'')||'',
           title:(f.from&&f.to)?f.from+' → '+f.to:(f.code||'Flight'),
           sub:[f.code, f.gate?('Gate '+f.gate):'', f.terminal?('Term '+f.terminal):'', paxSub].filter(Boolean).join(' · '),
           done:!!f.done, embedded:true, ref:Object.assign({kind:'travel', icon:'plane', showId:s.id, to:f.to, from:f.from, embedded:true, passes, flightNo:f.code||'', terminal:f.terminal||'', gate:f.gate||'', fstatus:f.fstatus||'', delay:f.delay||'', fiUpdated:f.fiUpdated||null}, f)});
@@ -1464,7 +1476,8 @@ function runTimeline(run){
       const hSub = typeof formatHotelAddress === 'function'
         ? formatHotelAddress(s.hotel)
         : [s.hotel.address, s.hotel.postcode].filter(Boolean).join(', ');
-      rows.push({id:'shhotel_'+s.id, kind:'stay', icon:'bed', date:s.hotel.checkin||s.date, time:'',
+      const stayDate = s.hotel.checkin||s.date;
+      rows.push({id:'shhotel_'+s.id, kind:'stay', icon:'bed', date:stayDate, showId:s.id, showDate:s.date, trueDate:stayDate, dayOffset:dateDiffDays(s.date, stayDate), time:'',
         title:s.hotel.name||'Hotel', sub:hSub,
         done:!!s.hotel.done, embedded:true, ref:{kind:'stay', icon:'bed', showId:s.id, place:s.hotel.name, addr:hSub || s.hotel.address, embedded:true}});
     }
@@ -1473,8 +1486,8 @@ function runTimeline(run){
         ensureDriverLocations(d);
         if(!d.time) return;
         const label = driverJourneyLabel(d);
-        const drvDate = d.date || showItemTrueDate(s, d.time);
-        rows.push({id:'shdrv_'+d.id, kind:'travel', icon:'car', date:drvDate, time:d.time,
+        const drvDate = showItemTrueDate(s, d.time, d.date);
+        rows.push({id:'shdrv_'+d.id, kind:'travel', icon:'car', date:drvDate, showId:s.id, showDate:s.date, time:d.time,
           title:label||(d.noGround?'Transport':(d.name||'Driver')),
           sub:d.noGround?'No grounds — Uber/taxi':[d.name, d.phone].filter(Boolean).join(' · '),
           done:!!d.done, embedded:true, trueDate:drvDate, dayOffset:dateDiffDays(s.date, drvDate),
@@ -1487,20 +1500,23 @@ function runTimeline(run){
   run.shows.forEach(s=>{
     const overnight = showEndsNextDay(s);
     rows.push({
-      id:'set_'+s.id, kind:'set', date:s.date, time:s.setTime||'',
+      id:'set_'+s.id, kind:'set', date:s.date, showId:s.id, showDate:s.date, time:s.setTime||'',
       title:s.venue,
       sub:s.setTime?('Set '+s.setTime+(s.endTime?' - '+s.endTime+(overnight?' next day':''):'')):'Set TBA',
-      icon:'music', done:!!s.setDone, showId:s.id,
+      icon:'music', done:!!s.setDone,
       trueDate: showSetStartDate(s), dayOffset: dateDiffDays(s.date, showSetStartDate(s)),
       endTime:s.endTime||'', endDate:showSetEndDate(s)
     });
   });
   rows.sort((a,b)=>{
-    if(a.date!==b.date) return (a.date||'').localeCompare(b.date||'');
-    const show = run.shows.find(s=>s.id===(a.showId|| (a.ref&&a.ref.showId)) || s.id===(b.showId|| (b.ref&&b.ref.showId)));
-    const ka = showTimelineSortKey(show || { date:a.date }, a);
-    const kb = showTimelineSortKey(show || { date:b.date }, b);
-    return ka-kb;
+    const da = a.showDate || a.date || '';
+    const db = b.showDate || b.date || '';
+    if(da!==db) return da.localeCompare(db);
+    const ia = run.shows.findIndex(s=>s.id===(a.showId||(a.ref&&a.ref.showId)));
+    const ib = run.shows.findIndex(s=>s.id===(b.showId||(b.ref&&b.ref.showId)));
+    if(ia!==ib && ia>=0 && ib>=0) return ia-ib;
+    const show = run.shows[ia>=0?ia:ib] || { date: da };
+    return showTimelineSortKey(show, a) - showTimelineSortKey(show, b);
   });
   return rows;
 }

@@ -316,27 +316,37 @@ function uploadItemPass(itemId, input){
     });
   });
 }
-/* Group the run timeline by day (clearer, day-by-day) */
+/* Group the run timeline by show so overnight items stay on that show's itinerary. */
 function runTimelineByDay(run){
-  const rows=runTimeline(run); const byDay={};
-  rows.forEach(r=>{ (byDay[r.date]=byDay[r.date]||[]).push(r); });
-  return Object.keys(byDay).sort().map(d=>({date:d, rows:byDay[d]}));
+  const rows=runTimeline(run); const groups=[]; const byKey=Object.create(null);
+  rows.forEach(r=>{
+    const key=r.showId || ('date:'+(r.showDate||r.date||''));
+    if(!byKey[key]){
+      const show=r.showId ? run.shows.find(s=>s.id===r.showId) : null;
+      const date=(show&&show.date)||r.showDate||r.date||'';
+      byKey[key]={date, show, rows:[]};
+      groups.push(byKey[key]);
+    }
+    byKey[key].rows.push(r);
+  });
+  return groups;
 }
-/* Day-by-day, each day a collapsible dropdown — collapsed by default except the current day.
-   Keeps Trip Mode calm: you only open the day you want. */
+/* One collapsible block per show — collapsed by default except the current show.
+   Overnight items stay with their show instead of splitting onto the next calendar day. */
 function dayTimeline(runKey, run){
   const groups=runTimelineByDay(run);
   if(!groups.length) return '<div class="hint">Add flights & hotels inside each show</div>';
   const next=runTimeline(run).find(s=>!s.done);
-  const openDate=next?next.date:(groups[0]&&groups[0].date);
+  const openKey=next?(next.showId||next.showDate||next.date):(groups[0]&&((groups[0].show&&groups[0].show.id)||groups[0].date));
   const todayStr=(()=>{const n=new Date();return `${n.getFullYear()}-${pad(n.getMonth()+1)}-${pad(n.getDate())}`;})();
   return groups.map(g=>{
     const d=parseDT(g.date); const done=g.rows.filter(r=>r.done).length;
     const allDone=g.rows.length>0 && done===g.rows.length;
     const setRow=g.rows.find(r=>r.kind==='set');
-    const label=DOW[d.getDay()]+' '+d.getDate()+' '+MON[d.getMonth()]+(g.date===todayStr?' · Today':'');
-    const sub=(setRow?setRow.title+' · ':'')+done+'/'+g.rows.length+' done'; // raw — foldSection escapes
-    return foldSection('tld'+runKey+g.date, allDone?ICON.check(16):ICON.calendar(16), label, sub, g.rows.map(s=>tlRow(runKey,s)).join(''), allDone?false:(g.date===openDate), allDone?'fold-done':'');
+    const label=d?(DOW[d.getDay()]+' '+d.getDate()+' '+MON[d.getMonth()]+(g.date===todayStr?' · Today':'')):(g.date||'Show');
+    const sub=(setRow?setRow.title+' · ':'')+done+'/'+g.rows.length+' done';
+    const groupKey=g.show?g.show.id:g.date;
+    return foldSection('tld'+runKey+groupKey, allDone?ICON.check(16):ICON.calendar(16), label, sub, g.rows.map(s=>tlRow(runKey,s)).join(''), allDone?false:(groupKey===openKey), allDone?'fold-done':'');
   }).join('<div style="height:10px"></div>');
 }
 function tlRow(runKey, s){
