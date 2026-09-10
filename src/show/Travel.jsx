@@ -1,5 +1,6 @@
 import { call, flightHasDetails, fmtDate, legSort } from '../api/operate.js';
 import { Subsection, EmptyTap, SourceLabel, LegacyHtml, FieldTx, DetailTx, Icon } from './ui.jsx';
+import { NoteItemsRead } from './NoteItems.jsx';
 
 function legsOf(showId){
   return call('showLegs', showId) || [];
@@ -159,12 +160,7 @@ function Hotel({ show }){
                     <button type="button" className="header-btn" style={{ width: 34, height: 34, alignSelf: 'center' }}><Icon name="copy" size={16} /></button>
                   </div>
                 ) : null}
-                {h.notes ? (
-                  <div className="info-line">
-                    <div className="ic"><Icon name="note" size={17} /></div>
-                    <FieldTx label="Room notes" value={h.notes} />
-                  </div>
-                ) : null}
+                <NoteItemsRead label="Room notes" value={h.notes} />
               </div>
             </>
           ) : null}

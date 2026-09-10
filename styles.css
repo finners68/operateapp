@@ -1306,6 +1306,22 @@ select.input{appearance:none;-webkit-appearance:none;background-image:url("data:
   white-space:pre-wrap;
   line-height:1.4;
 }
+.show-detail .flight-side-notes-v + .flight-side-notes-v{margin-top:8px;}
+
+.note-items{display:flex;flex-direction:column;gap:8px;margin:10px 10px 12px;}
+.field > .note-items{margin:0;}
+.note-item{position:relative;}
+.note-item .textarea{min-height:76px;padding-right:42px;resize:vertical;}
+.note-item-del{
+  position:absolute;top:8px;right:8px;
+  width:32px;height:32px;padding:0;border:none;background:transparent;
+  color:var(--text-3);display:flex;align-items:center;justify-content:center;
+  cursor:pointer;-webkit-tap-highlight-color:transparent;
+}
+.note-item-del:hover,.note-item-del:active{color:var(--text);}
+.note-items-add{margin-top:2px;}
+.note-item-read{white-space:pre-wrap;}
+.note-item-read + .note-item-read{margin-top:8px;}
 
 .show-detail .flight-pax-wrap{
   appearance:none;

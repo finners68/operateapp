@@ -1205,7 +1205,12 @@ function completeStep(tid,sid){
   } else if(!patchCheckRowsById(sid, s.done)) softRender();
   if(s.done) toast('Step done ✓','check');
 }
-function saveEventNotes(eid,v){ const e=sel.event(eid); if(e){e.notes=v; persist('shows', eid);} }
+function saveEventNotes(eid,v){
+  const e=sel.event(eid);
+  if(!e) return;
+  e.notes = (Array.isArray(v) && typeof serializeNoteItems==='function') ? serializeNoteItems(v) : (v || '');
+  persist('shows', eid);
+}
 
 /* ============================================================
    File uploads (stored as data URLs — Phase 2: cloud storage)

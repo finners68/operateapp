@@ -1,3 +1,4 @@
+import { NoteItemsField } from '../../show/NoteItems.jsx';
 import { Icon } from '../../show/ui.jsx';
 import { call, getCats, getDaySheetText, getDriverJourneys, getEvent, getPassFileAccept, getStore, parseDT } from '../../api/operate.js';
 
@@ -77,7 +78,7 @@ export function ShowEventSheet({ eid, event }){
     <Field label="Content to capture" id="ev-content" value={e?.content} placeholder="e.g. 2x reels · crowd clip" />
     {eid ? <><div className="row-2"><Field label="End time" id="ev-end" type="time" value={e?.endTime} /><Field label="Artist" id="ev-artist" value={e?.artist} placeholder={getStore()?.settings?.artistName || 'Artist'} /></div>
     {e?.endTime && e?.setTime && e.endTime < e.setTime ? <div className="hint" style={{ textAlign:'left', padding:'0 2px 10px' }}>Ends after midnight — treated as the next morning, still on this show day.</div> : null}
-    <TextArea label="Internal notes" id="ev-notes" value={e?.notes} placeholder="Team-only notes" /></> : null}
+    <NoteItemsField label="Internal notes" listId="ev-notes" value={e?.notes} placeholder="Team-only notes" /></> : null}
     <Field label="Colour"><Swatches id="ev-cat" selected={cat} /></Field>
     <Field label="Text colour"><Swatches id="ev-text-cat" selected={textCat} allowDefault /></Field>
     <div className="hint" style={{ textAlign:'left', padding:'0 2px 10px' }}>Text colour tints titles on this show page. Default keeps normal app text.</div>
@@ -98,7 +99,7 @@ export function ShowHotelSheet(props){
     <div className="row-2"><Field label="Phone" id="ho-phone" type="tel" value={h.phone} placeholder="+31 20 123 4567" /><Field label="Email" id="ho-email" type="email" value={h.email} placeholder="reservations@hotel.com" /></div>
     <div className="row-2"><Field label="Check in" id="ho-in" type="date" value={h.checkin||e.date} /><Field label="Check out" id="ho-out" type="date" value={h.checkout} /></div>
     <Field label="Confirmation #" id="ho-conf" value={conf} placeholder="Booking reference" />
-    <TextArea label="Room notes" id="ho-notes" value={h.notes} placeholder="Late checkout, floor, etc." />
+    <NoteItemsField label="Room notes" listId="ho-notes" value={h.notes} placeholder="Late checkout, floor, etc." />
     <button className="btn" id="ho-save" onClick={()=>call('saveHotel',props.eid||props.id)}>Save hotel</button>
     {e.hotel ? <button className="btn danger" style={{marginTop:10}} onClick={()=>call('removeHotel',props.eid||props.id)}><Icon name="trash" size={16}/> Remove hotel</button>:null}<Spacer />
   </>;
@@ -151,7 +152,7 @@ export function ShowFlightSheet({ eid, fid, flight, passengers }){
     <div className="block-title" style={{margin:'6px 2px 8px'}}>Day-of flight info</div>
     <div className="row-2"><Field label="Terminal" id="fl-term" value={f.terminal} placeholder="2"/><Field label="Gate" id="fl-gate" value={f.gate} placeholder="B12"/></div>
     <div className="row-2"><Field label="Status" id="fl-status" value={f.fstatus} placeholder="On time / Boarding"/><Field label="Delay" id="fl-delay" value={f.delay} placeholder="+25 min"/></div>
-    <TextArea label="Journey notes" id="fl-notes" value={f.notes} placeholder="Connection tips, meeting point, baggage…" style={{minHeight:72}}/>
+    <NoteItemsField label="Journey notes" listId="fl-notes" value={f.notes} placeholder="Connection tips, meeting point, baggage…" />
     <div className="field"><label>Passengers</label><div id="fl-pax-list">{pax.map((p,i)=><PaxRow key={p.id||i} pax={p} eid={eid} fid={editing?f.id:''}/>)}</div>
       <button type="button" className="btn secondary" style={{marginTop:8}} onClick={()=>call('addFlightPaxRow',eid,editing?f.id:'')}><Icon name="plus" size={15}/> Add person</button>
       <div className="hint" style={{padding:'8px 2px 0'}}>Same flight for everyone — each person has their own seat and boarding pass.</div>
@@ -270,7 +271,7 @@ export function ShowTransportSheet({ eid, idx, driver, journeys }){
       <Field label="Phone" id="dr-phone" type="tel" value={d.phone} placeholder="+31 6 12345678"/>
       <Field label="WhatsApp (if different)" id="dr-wa" type="tel" value={d.whatsapp} placeholder="+31 6 12345678"/>
       <Field label="Pickup notes" id="dr-pick" value={d.pickup} placeholder="Meet at Arrivals door 3"/>
-      <Field label="Notes" id="dr-notes" value={d.notes} placeholder="Vehicle, plate, etc."/>
+      <NoteItemsField label="Notes" listId="dr-notes" value={d.notes} placeholder="Vehicle, plate, etc." />
     </div>
     <button className="btn" id="dr-save" onClick={()=>call('saveDriver',eid,idx??null)}>{idx!=null?'Save':'Add'}</button>
     {idx!=null?<button className="btn danger" style={{marginTop:10}} onClick={()=>call('removeDriver',eid,idx)}><Icon name="trash" size={16}/> Remove</button>:null}

@@ -461,7 +461,7 @@ function prepGroupSummary(e){
   if(cp.total) parts.push('checklist '+cp.done+'/'+cp.total);
   if(contentN) parts.push(contentN+' content item'+(contentN>1?'s':''));
   if(attachN) parts.push(attachN+' attachment'+(attachN>1?'s':''));
-  if(e.notes&&e.notes.trim()) parts.push('notes');
+  if(typeof noteItemsHas==='function' ? noteItemsHas(e.notes) : (e.notes&&e.notes.trim())) parts.push('notes');
   return parts.length ? parts.join(' · ') : 'Checklist, content, notes — add what you need';
 }
 function dealGroupSummary(e){
@@ -549,7 +549,7 @@ function hotelSubsection(e){
       ${conf?`<div class="info-line" onclick="copyText('${jsAttr(conf)}')"><div class="ic">${ICON.ticket(17)}</div>${fieldTx('Confirmation', esc(conf))}<button class="header-btn" style="width:34px;height:34px;align-self:center">${ICON.copy(16)}</button></div>`:''}
       ${e.hotel.phone?`<div class="info-line" onclick="callNumber('${jsAttr(e.hotel.phone)}')"><div class="ic">${ICON.phone(17)}</div>${fieldTx('Phone', esc(e.hotel.phone))}<button class="header-btn" style="width:34px;height:34px;align-self:center">${ICON.phone(16)}</button></div>`:''}
       ${e.hotel.email?`<div class="info-line" onclick="copyText('${jsAttr(e.hotel.email)}')"><div class="ic">${ICON.chat(17)}</div>${fieldTx('Email', esc(e.hotel.email))}<button class="header-btn" style="width:34px;height:34px;align-self:center">${ICON.copy(16)}</button></div>`:''}
-      ${e.hotel.notes?`<div class="info-line"><div class="ic">${ICON.note(17)}</div>${fieldTx('Room notes', esc(e.hotel.notes))}</div>`:''}
+      ${noteItemsHas(e.hotel.notes)?`<div class="info-line" style="align-items:flex-start"><div class="ic">${ICON.note(17)}</div>${noteItemsReadHtml('Room notes', e.hotel.notes)}</div>`:''}
     </div>`;
   }
   if(!body) body = `<div class="card tap" onclick="sheetHotel('${e.id}')" style="text-align:center;color:var(--text-3);padding:20px">${ICON.bed(22)}<div style="margin-top:6px;font-weight:600">Add hotel details</div><div style="margin-top:4px;font-size:12px;font-weight:500">Name, dates, confirmation and maps</div></div>`;
@@ -625,7 +625,7 @@ function driverCard(eid, d, idx){
         ${d.pickup?`<div class="detail-meta">${esc(d.pickup)}</div>`:''}
       </div>
     </div>
-    ${d.notes?`<div class="info-line"><div class="ic">${ICON.note(17)}</div>${fieldTx('Notes', esc(d.notes))}</div>`:''}
+    ${noteItemsHas(d.notes)?`<div class="info-line" style="align-items:flex-start"><div class="ic">${ICON.note(17)}</div>${noteItemsReadHtml('Notes', d.notes)}</div>`:''}
   </div>`;
 }
 function driverSubsection(e){
@@ -832,9 +832,17 @@ function attachmentsSubsection(e){
   return showSubsection('ss-'+e.id+'-attachments', 'Attachments', '', body, has);
 }
 function notesSubsection(e){
-  const has = !!(e.notes && String(e.notes).trim());
-  const body = `<div class="card" style="margin:10px"><textarea class="textarea" placeholder="Anything to remember about this show…" onblur="saveEventNotes('${e.id}',this.value)">${esc(e.notes||'')}</textarea></div>`;
-  return showSubsection('ss-'+e.id+'-notes', 'Internal notes', '', body, has);
+  const has = typeof noteItemsHas==='function' ? noteItemsHas(e.notes) : !!(e.notes && String(e.notes).trim());
+  const items = (typeof parseNoteItems==='function' ? parseNoteItems(e.notes) : []);
+  const rows = (items.length?items:[{id:'draft',text:''}]).map(n=>`
+    <div class="note-item" data-note-id="${esc(n.id)}">
+      <textarea class="textarea note-item-text" placeholder="Anything to remember about this show…" onblur="saveEventNotes('${e.id}', collectNoteItems('show-notes-${e.id}'))">${esc(n.text||'')}</textarea>
+      <button type="button" class="note-item-del" onclick="removeNoteItemRow(this);saveEventNotes('${e.id}', collectNoteItems('show-notes-${e.id}'))" aria-label="Remove note">${ICON.x(16)}</button>
+    </div>`).join('');
+  const body = `<div class="note-items" data-note-list="show-notes-${e.id}">${rows}
+    <button type="button" class="btn secondary note-items-add" onclick="addNoteItemRow(this,'Anything to remember about this show…')">${ICON.plus(15)} Add note</button>
+  </div>`;
+  return showSubsection('ss-'+e.id+'-notes', 'Internal notes', `<button type="button" class="add" onclick="addNoteItemRow(document.querySelector('[data-note-list=\\'show-notes-${e.id}\\'] .note-items-add'),'Anything to remember about this show…')">Add</button>`, body, has);
 }
 function prepGroupBody(e){
   return contentSubsection(e)+checklistSubsection(e)+attachmentsSubsection(e)+notesSubsection(e);
@@ -966,7 +974,7 @@ function flightLine(eid,f){
   const kvRow = (k, v) => v
     ? `<div class="flight-side-kv"><div class="flight-side-k">${esc(k)}</div><div class="flight-side-v">${esc(v)}</div></div>`
     : '';
-  const notes = String(f.notes || '').trim();
+  const notes = typeof parseNoteItems==='function' ? parseNoteItems(f.notes) : (String(f.notes || '').trim() ? [{id:'legacy',text:String(f.notes)}] : []);
   const metaHtml = [
     kvRow('Dep', depTime),
     kvRow('Arr', arrTime),
@@ -997,7 +1005,7 @@ function flightLine(eid,f){
         <div class="flight-pax-preview">${compactRows}</div>
       </button>
       ${metaHtml ? `<div class="flight-journey-side">${metaHtml}</div>` : ''}
-      ${notes ? `<div class="flight-card-notes"><div class="flight-side-notes-k">Notes</div><div class="flight-side-notes-v">${esc(notes)}</div></div>` : ''}
+      ${notes.length ? `<div class="flight-card-notes"><div class="flight-side-notes-k">Notes</div>${notes.map(n=>`<div class="flight-side-notes-v">${esc(n.text)}</div>`).join('')}</div>` : ''}
     </div>
   </div>`;
 }
@@ -1035,7 +1043,7 @@ function sheetEvent(eid){
       </div>
       <div class="field"><label>Artist</label><input id="ev-artist" class="input" placeholder="${esc(store.settings.artistName||'Artist')}" value="${esc(e.artist||'')}"></div>
     </div>
-    <div class="field"><label>Internal notes</label><textarea id="ev-notes" class="textarea" placeholder="Team-only notes">${esc(e.notes||'')}</textarea></div>
+    <div class="field"><label>Internal notes</label><textarea id="ev-notes" class="textarea" placeholder="Team-only notes">${esc(typeof noteItemsPlain==='function'?noteItemsPlain(e.notes):(e.notes||''))}</textarea></div>
   ` : '';
   openSheetReact(eid?'Edit show':'New show', 'show.event', { eid });
   /* Set tone after the sheet starts opening — avoid style thrash mid-slide. */
@@ -1109,7 +1117,7 @@ function saveEvent(eid){
   if(eid){
     Object.assign(data, {
       endTime: rawVal('ev-end'),
-      notes: val('ev-notes'),
+      notes: typeof collectNoteItems==='function' ? collectNoteItems('ev-notes') : val('ev-notes'),
       artist: val('ev-artist') || store.settings.artistName,
     });
   }
@@ -1166,7 +1174,7 @@ function saveHotel(eid){
       checkout: rawVal('ho-out'),
       conf,
       bookingRef: conf,
-      notes: val('ho-notes')
+      notes: typeof collectNoteItems==='function' ? collectNoteItems('ho-notes') : val('ho-notes')
     };
     persist('shows', eid);
     if(typeof pushShowNow === 'function') pushShowNow(eid);
@@ -1328,7 +1336,7 @@ function saveFlight(eid, fid){
       gate: val('fl-gate'),
       fstatus: val('fl-status'),
       delay: val('fl-delay'),
-      notes: val('fl-notes'),
+      notes: typeof collectNoteItems==='function' ? collectNoteItems('fl-notes') : val('fl-notes'),
       fiUpdated: Date.now(),
       seat: '',
       passengers: passengers.length ? passengers : [],
@@ -1575,7 +1583,7 @@ function saveDriver(eid, idx){
     };
     const drv = none
       ? Object.assign(base, { noGround:true })
-      : Object.assign(base, { name, phone:val('dr-phone'), whatsapp:val('dr-wa'), pickup:val('dr-pick'), notes:val('dr-notes') });
+      : Object.assign(base, { name, phone:val('dr-phone'), whatsapp:val('dr-wa'), pickup:val('dr-pick'), notes: typeof collectNoteItems==='function' ? collectNoteItems('dr-notes') : val('dr-notes') });
     ensureDriverLocations(drv);
     if(idx!=null && list[idx]) list[idx]=drv; else list.push(drv);
     e.driver = list.find(x=>!x.noGround) || null;
@@ -1967,7 +1975,10 @@ function buildDaySheet(e){
     if(e.hotel.email) L.push(`  Email: ${e.hotel.email}`);
     const hConf = typeof hotelBookingRef === 'function' ? hotelBookingRef(e.hotel) : (e.hotel.conf || e.hotel.bookingRef || '');
     if(hConf) L.push(`  Conf: ${hConf}`);
-    if(e.hotel.notes) L.push(`  Notes: ${e.hotel.notes}`);
+    if(typeof noteItemsHas==='function' ? noteItemsHas(e.hotel.notes) : e.hotel.notes){
+      const hotelNotes = typeof parseNoteItems==='function' ? parseNoteItems(e.hotel.notes) : [{text:e.hotel.notes}];
+      hotelNotes.forEach(n => L.push(`  Notes: ${n.text}`));
+    }
     if(e.hotel.checkin) L.push(`  ${fmtDate(e.hotel.checkin)} → ${e.hotel.checkout?fmtDate(e.hotel.checkout):''}`);
   }
   const contacts=[];
@@ -1982,7 +1993,11 @@ function buildDaySheet(e){
   if(contacts.length){ L.push(''); L.push('📞 CONTACTS'); contacts.forEach(x=>L.push(x)); }
   if(e.content){ L.push(''); L.push('🎬 CONTENT'); L.push(`  ${e.content}`); }
   if(c.gross){ L.push(''); L.push('💷 DEAL'); L.push(`  ${e.finance.dealType}: ${fmtMoney(c.gross,c.cur)} (${c.paid?'paid':'unpaid'})`); L.push(`  Net take-home: ${fmtMoney(c.net,c.cur)}`); }
-  if(e.notes){ L.push(''); L.push('📝 NOTES'); L.push(`  ${e.notes}`); }
+  if(typeof noteItemsHas==='function' ? noteItemsHas(e.notes) : e.notes){
+    L.push(''); L.push('📝 NOTES');
+    const noteLines = typeof parseNoteItems==='function' ? parseNoteItems(e.notes) : [{text:e.notes}];
+    noteLines.forEach(n => String(n.text||'').split('\n').forEach(line => L.push(`  ${line}`)));
+  }
   L.push('');
   L.push('— via Operate');
   return L.join('\n');

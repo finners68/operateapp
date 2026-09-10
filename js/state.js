@@ -532,6 +532,96 @@ function commit(){ persistAll(); render(); }
 /* ---------- Utilities ---------- */
 const $ = sel => document.querySelector(sel);
 const esc = s => (s==null?'':String(s)).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+/* Show notes: one text value can hold several items. A single note stays plain
+   text (old rows keep working). Two or more are stored as a JSON array. */
+function parseNoteItems(value){
+  if(Array.isArray(value)) return normalizeNoteItems(value);
+  if(value == null) return [];
+  const raw = String(value);
+  const trimmed = raw.trim();
+  if(!trimmed) return [];
+  if(trimmed.charAt(0) === '['){
+    try{
+      const parsed = JSON.parse(trimmed);
+      if(Array.isArray(parsed)) return normalizeNoteItems(parsed);
+    }catch(_){}
+  }
+  return [{ id: 'legacy', text: raw }];
+}
+function normalizeNoteItems(arr){
+  const out = [];
+  (arr || []).forEach((x, i) => {
+    if(typeof x === 'string'){
+      const text = x.trim();
+      if(text) out.push({ id: 'n'+i, text });
+      return;
+    }
+    if(!x || typeof x !== 'object') return;
+    const text = String(x.text != null ? x.text : (x.body || '')).trim();
+    if(!text) return;
+    out.push({ id: String(x.id || ('n'+i)), text });
+  });
+  return out;
+}
+function serializeNoteItems(items){
+  const clean = [];
+  (items || []).forEach((x, i) => {
+    const text = String(x && x.text != null ? x.text : x || '').trim();
+    if(!text) return;
+    clean.push({ id: String((x && x.id) || ('n'+i)), text });
+  });
+  if(!clean.length) return '';
+  if(clean.length === 1) return clean[0].text;
+  return JSON.stringify(clean);
+}
+function noteItemsPlain(value){
+  return parseNoteItems(value).map(x => x.text).join('\n\n');
+}
+function noteItemsHas(value){
+  return parseNoteItems(value).length > 0;
+}
+function collectNoteItems(listId){
+  const key = String(listId == null ? '' : listId).replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+  const root = document.querySelector('[data-note-list="'+key+'"]');
+  if(!root){
+    const el = document.getElementById(listId);
+    return el ? String(el.value || '').trim() : '';
+  }
+  const items = [];
+  root.querySelectorAll('.note-item').forEach(row => {
+    const id = row.getAttribute('data-note-id') || '';
+    const text = (row.querySelector('.note-item-text') || {}).value || '';
+    items.push({ id, text });
+  });
+  return serializeNoteItems(items);
+}
+function noteItemsReadHtml(label, value){
+  const items = parseNoteItems(value);
+  if(!items.length) return '';
+  const body = items.map(x => `<div class="v note-item-read">${esc(x.text)}</div>`).join('');
+  return `<div class="tx"><div class="k">${esc(label)}</div>${body}</div>`;
+}
+function addNoteItemRow(btn, placeholder){
+  const root = btn && btn.closest ? btn.closest('.note-items') : null;
+  if(!root) return;
+  const id = (typeof uid === 'function') ? uid('note') : ('note-'+Date.now());
+  const wrap = document.createElement('div');
+  wrap.className = 'note-item';
+  wrap.setAttribute('data-note-id', id);
+  wrap.innerHTML = `<textarea class="textarea note-item-text" placeholder="${esc(placeholder || '')}"></textarea><button type="button" class="note-item-del" onclick="removeNoteItemRow(this)" aria-label="Remove note">${typeof ICON==='object'&&ICON.x?ICON.x(16):'×'}</button>`;
+  root.insertBefore(wrap, btn);
+  const ta = wrap.querySelector('textarea');
+  if(ta) ta.focus();
+}
+function removeNoteItemRow(btn){
+  const row = btn && btn.closest ? btn.closest('.note-item') : null;
+  const root = row && row.parentElement;
+  if(row) row.remove();
+  if(root && !root.querySelector('.note-item')){
+    const add = root.querySelector('.note-items-add');
+    if(add && typeof addNoteItemRow === 'function') addNoteItemRow(add, '');
+  }
+}
 /* Plain-text headline: "event - venue" when both exist. */
 function showTitle(e, fallback){
   if(!e) return fallback || 'Untitled show';

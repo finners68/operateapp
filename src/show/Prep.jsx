@@ -1,5 +1,7 @@
+import { useRef } from 'react';
 import { call, getIdeaTypes, getStore } from '../api/operate.js';
 import { Subsection, EmptyTap, Icon } from './ui.jsx';
+import { NoteItemsEditor } from './NoteItems.jsx';
 
 function timelineIcon(kind, icon){
   if(kind === 'flight' || icon === 'planeTop' || icon === 'plane') return 'planeTop';
@@ -187,18 +189,23 @@ export function Checklist({ show }){
 }
 
 export function Notes({ show }){
-  const has = !!(show.notes && String(show.notes).trim());
+  const editorRef = useRef(null);
+  const has = !!(typeof call === 'function' && call('noteItemsHas', show.notes));
   return (
-    <Subsection id={`ss-${show.id}-notes`} title="Internal notes" defaultOpen={has}>
-      <div className="card" style={{ margin: 10 }}>
-        <textarea
-          className="textarea"
-          placeholder="Anything to remember about this show…"
-          defaultValue={show.notes || ''}
-          key={`${show.id}:${show.notes || ''}`}
-          onBlur={e => call('saveEventNotes', show.id, e.target.value)}
-        />
-      </div>
+    <Subsection
+      id={`ss-${show.id}-notes`}
+      title="Internal notes"
+      addLabel="Add"
+      onAdd={() => editorRef.current && editorRef.current.add()}
+      defaultOpen={has}
+    >
+      <NoteItemsEditor
+        ref={editorRef}
+        listId={`show-notes-${show.id}`}
+        value={show.notes}
+        placeholder="Anything to remember about this show…"
+        onCommit={items => call('saveEventNotes', show.id, items)}
+      />
     </Subsection>
   );
 }
