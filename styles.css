@@ -936,7 +936,7 @@ select.input{appearance:none;-webkit-appearance:none;background-image:url("data:
 
 /* Show detail page — clear title / info / detail hierarchy */
 .show-detail .show-section{margin-top:20px;}
-.show-detail .show-section .block-title{font-size:11px;font-weight:700;color:var(--text-3);letter-spacing:.06em;padding:0 2px 8px;margin-bottom:0;}
+.show-detail .show-section .block-title{font-size:12.5px;font-weight:750;color:var(--text);letter-spacing:.06em;padding:0 2px 8px;margin-bottom:0;}
 .show-detail .show-section > .card,
 .show-detail .show-section > .card.flush{margin-top:8px;}
 .show-hero{
@@ -992,7 +992,7 @@ select.input{appearance:none;-webkit-appearance:none;background-image:url("data:
 .show-stat{background:rgba(255,255,255,0.03);border:1px solid transparent;border-radius:14px;padding:11px 12px;}
 .show-stat-k{display:block;font-size:10px;font-weight:650;text-transform:uppercase;letter-spacing:.05em;color:var(--text-3);margin-bottom:5px;}
 .show-stat-v{display:block;font-size:14px;font-weight:700;color:var(--text);font-variant-numeric:tabular-nums;line-height:1.25;}
-.show-brief-k{font-size:11px;font-weight:650;text-transform:uppercase;letter-spacing:.05em;color:var(--text-3);display:flex;align-items:center;gap:6px;margin-bottom:8px;}
+.show-brief-k{font-size:12.5px;font-weight:750;text-transform:uppercase;letter-spacing:.06em;color:var(--text);display:flex;align-items:center;gap:6px;margin-bottom:8px;}
 .show-brief-v{font-size:15px;font-weight:500;line-height:1.5;color:var(--text);}
 .show-detail .info-line{padding:13px 14px;}
 .show-detail .jitem-top .body b{font-size:16px;font-weight:750;}
@@ -1049,7 +1049,7 @@ select.input{appearance:none;-webkit-appearance:none;background-image:url("data:
 .show-detail .ro-row{flex-direction:column;align-items:flex-start;gap:3px;padding:10px 0;}
 .show-detail .ro-lab{font-size:14px;font-weight:700;color:var(--text);order:1;}
 .show-detail .ro-time{font-size:12px;font-weight:600;color:var(--text-3);flex:none;order:2;font-variant-numeric:tabular-nums;}
-.deal-k{font-size:11px;color:var(--text-3);font-weight:650;text-transform:uppercase;letter-spacing:.05em;}
+.deal-k{font-size:12.5px;color:var(--text);font-weight:750;text-transform:uppercase;letter-spacing:.06em;}
 .deal-amount{font-size:28px;font-weight:780;letter-spacing:-0.025em;margin-top:3px;color:var(--text);}
 .deal-meta{font-size:13px;color:var(--text-3);font-weight:550;margin-top:2px;}
 .deal-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;}
@@ -1065,7 +1065,7 @@ select.input{appearance:none;-webkit-appearance:none;background-image:url("data:
 .deal-row-total .deal-row-v{font-weight:780;font-size:16px;}
 .deal-card-ic{width:34px;height:34px;border-radius:11px;background:rgba(255,255,255,0.04);display:flex;align-items:center;justify-content:center;color:var(--text-2);flex-shrink:0;}
 .deal-card-body{flex:1;min-width:0;display:flex;flex-direction:column;gap:4px;}
-.deal-card-k{font-size:11px;font-weight:650;text-transform:uppercase;letter-spacing:.05em;color:var(--text-3);}
+.deal-card-k{font-size:12.5px;font-weight:750;text-transform:uppercase;letter-spacing:.06em;color:var(--text);}
 .deal-card-v{font-size:16px;font-weight:700;color:var(--text);}
 
 /* Show detail — macro groups and subsections (sleek nested panels) */
@@ -1136,16 +1136,16 @@ select.input{appearance:none;-webkit-appearance:none;background-image:url("data:
 .show-subsection-body > .card:not(.flush){margin:0 0 8px;border-radius:16px;border-color:var(--stroke);box-shadow:none;background:rgba(0,0,0,0.18);}
 .show-subsection-body > .card.tap{margin:0 0 8px;}
 .show-subsection-body > .thumb-row{padding:8px 2px 4px;}
-.show-source-label{font-size:10px;font-weight:650;text-transform:uppercase;letter-spacing:.05em;color:var(--text-3);padding:6px 2px 4px;}
+.show-source-label{font-size:12.5px;font-weight:750;text-transform:uppercase;letter-spacing:.06em;color:var(--text);padding:8px 2px 6px;}
 .show-source-label + .card.flush{border-top:none;}
 .show-adv-mini{padding:0 0 4px;}
-.show-adv-mini-head{font-size:10px;font-weight:650;text-transform:uppercase;letter-spacing:.05em;color:var(--text-3);padding:8px 2px 4px;}
+.show-adv-mini-head{font-size:12.5px;font-weight:750;text-transform:uppercase;letter-spacing:.06em;color:var(--text);padding:10px 2px 6px;}
 .show-adv-mini .card.flush{border:1px solid var(--stroke);border-radius:14px;background:rgba(0,0,0,0.18);}
 .show-detail-quick{margin-top:14px;}
-.show-detail-quick .block-title{font-size:11px;font-weight:650;color:var(--text-3);letter-spacing:.05em;padding:0 2px 8px;margin-bottom:0;}
+.show-detail-quick .block-title{font-size:12.5px;font-weight:750;color:var(--text);letter-spacing:.06em;padding:0 2px 8px;margin-bottom:0;}
 .show-day-overview{margin-top:18px;}
 .show-day-overview-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:0 2px 10px;}
-.show-day-overview-head .block-title{font-size:11px;font-weight:650;color:var(--text-3);letter-spacing:.05em;padding:0;margin:0;}
+.show-day-overview-head .block-title{font-size:12.5px;font-weight:750;color:var(--text);letter-spacing:.05em;padding:0;margin:0;}
 .show-day-overview-sub{font-size:12px;font-weight:550;color:var(--text-3);margin-top:4px;line-height:1.35;}
 .show-day-overview-edit{color:var(--text-3);font-size:13px;font-weight:550;background:none;border:none;padding:4px 2px;cursor:pointer;flex-shrink:0;-webkit-tap-highlight-color:transparent;}
 .show-day-overview-edit:hover,
@@ -1358,9 +1358,11 @@ select.input{appearance:none;-webkit-appearance:none;background-image:url("data:
   border-top:none;
 }
 .show-detail .flight-side-notes-k{
-  font-size:11px;
-  font-weight:650;
-  color:var(--text-3);
+  font-size:12.5px;
+  font-weight:750;
+  text-transform:uppercase;
+  letter-spacing:.06em;
+  color:var(--text);
   margin-bottom:3px;
 }
 .show-detail .flight-side-notes-v{
@@ -1505,11 +1507,11 @@ select.input{appearance:none;-webkit-appearance:none;background-image:url("data:
   line-height:1.45;
 }
 .show-detail .flight-notes-k{
-  font-size:11px;
-  font-weight:650;
+  font-size:12.5px;
+  font-weight:750;
   text-transform:uppercase;
-  letter-spacing:.05em;
-  color:var(--text-3);
+  letter-spacing:.06em;
+  color:var(--text);
   margin-bottom:4px;
 }
 .show-detail .flight-notes-v{
