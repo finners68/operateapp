@@ -498,7 +498,7 @@ select.input{appearance:none;-webkit-appearance:none;background-image:url("data:
 .act{display:flex;flex-direction:column;align-items:center;gap:6px;padding:13px 4px;background:var(--card);border:1px solid var(--stroke);border-radius:16px;transition:transform .15s, background .15s;}
 .act:active{transform:scale(0.93);background:var(--card-press);}
 .act .ic{width:40px;height:40px;border-radius:12px;display:flex;align-items:center;justify-content:center;}
-.act span{font-size:11px;font-weight:600;color:var(--text-2);}
+.act span{font-size:11px;font-weight:600;color:var(--text-2);text-align:center;line-height:1.25;padding:0 8px;max-width:100%;}
 
 /* ---------- Checklist ---------- */
 .check{display:flex;align-items:center;gap:10px;padding:10px 12px 10px 10px;border-bottom:1px solid var(--stroke);transition:background .15s;}

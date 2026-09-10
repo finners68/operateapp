@@ -70,7 +70,7 @@ export function QuickLinks({ show }){
 
   const tiles = [];
   tiles.push(
-    <ActTile key="venue" icon="map" color="var(--blue)" label="Venue" onClick={() => call('openMaps', venueQ)} />
+    <ActTile key="venue" icon="map" color="var(--blue)" label="Directions to venue" onClick={() => call('openMaps', venueQ)} />
   );
 
   if(flights.length){
@@ -98,17 +98,17 @@ export function QuickLinks({ show }){
   const drvPhone = show.driver && show.driver.phone;
   if(drvPhone){
     tiles.push(
-      <ActTile key="drv" icon="car" color="var(--green)" label="Driver" onClick={() => call('contactDriver', show.id)} />
+      <ActTile key="drv" icon="car" color="var(--green)" label="Contact driver" onClick={() => call('contactDriver', show.id)} />
     );
   } else if(drivers.length){
     tiles.push(
-      <ActTile key="drv" icon="car" color="var(--green)" label="Driver" onClick={() => call('sheetDriver', show.id)} />
+      <ActTile key="drv" icon="car" color="var(--green)" label="Contact driver" onClick={() => call('sheetDriver', show.id)} />
     );
   }
 
   if(show.promoter && (show.promoter.phone || show.promoter.whatsapp)){
     tiles.push(
-      <ActTile key="contact" icon="user" color="var(--show-color, var(--accent-2))" label="Contact" onClick={() => call('contactPromoter', show.id)} />
+      <ActTile key="contact" icon="user" color="var(--show-color, var(--accent-2))" label="Contact artist liaison" onClick={() => call('contactPromoter', show.id)} />
     );
   }
 
