@@ -25,7 +25,7 @@ function showDisplay(show, venue, artist){
     venueAddr2: venue?.address_line_2 || '',
     venueRegion: venue?.region || '',
     venuePostcode: venue?.postal_code || '',
-    notes: show.internal_notes || '',
+    notes: (typeof noteItemsFromDb === 'function' ? noteItemsFromDb(show.internal_notes) : (show.internal_notes || '')),
     content: show.content_plan || '',
     setDone: !!show.is_set_done
   };
@@ -151,7 +151,9 @@ async function composeViewFromV2(v2, opts){
           done: b.is_done,
           bookingRef,
           conf: bookingRef,
-          notes: b.room_notes || b.booking_notes || h?.hotel_notes || '',
+          notes: (typeof noteItemsFromDb === 'function'
+            ? (noteItemsFromDb(b.room_notes) || noteItemsFromDb(h?.hotel_notes) || (typeof b.booking_notes === 'string' ? b.booking_notes : ''))
+            : (b.room_notes || b.booking_notes || h?.hotel_notes || '')),
           phone: h?.phone_number || '',
           email: h?.email_address || '',
           _bookingId: b.id,
@@ -428,9 +430,10 @@ async function composeViewFromV2(v2, opts){
     const fl = [];
     for(const j of fj.flights.sort((a,b) => (a.sort_order||0) - (b.sort_order||0))){
       const passengers = await passengersFromJourney(j);
-      const notesRaw = String(j.journey_notes || '').trim();
+      const fromItems = (typeof noteItemsFromDb === 'function') ? noteItemsFromDb(j.note_items) : '';
+      const notesRaw = (typeof j.journey_notes === 'string') ? j.journey_notes.trim() : '';
       /* Old rows stored "Legacy seat: 12A" in notes — that is seat data, not notes. */
-      const notes = /^Legacy seat:\s*/i.test(notesRaw) ? '' : notesRaw;
+      const notes = fromItems || (/^Legacy seat:\s*/i.test(notesRaw) ? '' : notesRaw);
       const row = {
         id: j.id,
         code: j.flight_number || j.journey_title || '',
@@ -522,6 +525,8 @@ async function composeViewFromV2(v2, opts){
           phone: c?.phone_number || '',
           whatsapp: c?.whatsapp_number || '',
           name: c?.display_name || j.vehicle_details || '',
+          notes: (typeof noteItemsFromDb === 'function' ? noteItemsFromDb(j.note_items) : ''),
+          pickup: j.pickup_instructions || '',
           noGround: false
         };
         /* If title looks like "A → B" and locations are empty, split it. */

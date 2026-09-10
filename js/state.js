@@ -536,7 +536,11 @@ const esc = s => (s==null?'':String(s)).replace(/[&<>"']/g, c=>({'&':'&amp;','<'
    text (old rows keep working). Two or more are stored as a JSON array. */
 function parseNoteItems(value){
   if(Array.isArray(value)) return normalizeNoteItems(value);
-  if(value == null) return [];
+  if(value == null || value === '') return [];
+  if(typeof value === 'object'){
+    if(value.text != null || value.body != null) return normalizeNoteItems([value]);
+    return [];
+  }
   const raw = String(value);
   const trimmed = raw.trim();
   if(!trimmed) return [];
@@ -579,6 +583,15 @@ function noteItemsPlain(value){
 }
 function noteItemsHas(value){
   return parseNoteItems(value).length > 0;
+}
+function noteItemsForDb(value){
+  const items = parseNoteItems(value);
+  if(!items.length) return null;
+  return items.map(x => ({ id: x.id, text: x.text }));
+}
+function noteItemsFromDb(value){
+  if(value == null || value === '') return '';
+  return serializeNoteItems(parseNoteItems(value));
 }
 function collectNoteItems(listId){
   const key = String(listId == null ? '' : listId).replace(/\\/g, '\\\\').replace(/"/g, '\\"');

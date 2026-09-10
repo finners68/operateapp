@@ -708,7 +708,7 @@ async function pushToSupabaseV2(orgId, dirtyIn){
         set_start_time: s.setTime || null,
         set_end_time: s.endTime || null,
         set_end_date: (typeof resolveSetEndDate === 'function' ? resolveSetEndDate(s) : s.setEndDate) || null,
-        internal_notes: s.notes || null,
+        internal_notes: (typeof noteItemsForDb === 'function' ? noteItemsForDb(s.notes) : (s.notes || null)),
         content_plan: s.content || null,
         is_set_done: !!s.setDone
       });
@@ -927,12 +927,14 @@ async function pushToSupabaseV2(orgId, dirtyIn){
         journey_type: 'ground_transfer',
         journey_title: title,
         pickup_location: d.from || null,
+        pickup_instructions: (d.pickup || '').trim() || null,
         dropoff_location: d.to || null,
         vehicle_details: d.name || null,
         departure_at: v2CombineDateTime(
           d.date || (typeof showItemTrueDate === 'function' ? showItemTrueDate(s, d.time) : s.date),
           d.time
         ),
+        note_items: (typeof noteItemsForDb === 'function' ? noteItemsForDb(d.notes) : (d.notes || null)),
         sort_order: i
       });
       if(cid && jRow){
@@ -950,7 +952,7 @@ async function pushToSupabaseV2(orgId, dirtyIn){
       const h = s.hotel;
       const hotelLegacy = 'hotel:' + sid;
       const bookingRef = (h.bookingRef || h.conf || '').trim() || null;
-      const roomNotes = (h.notes || '').trim() || null;
+      const roomNotes = (typeof noteItemsForDb === 'function' ? noteItemsForDb(h.notes) : ((h.notes || '').trim() || null));
       const hotelRow = await v2UpsertOneByLegacy(sb, 'hotels', orgId, {
         id: v2IdForLegacy('hotels', hotelLegacy, h._hotelId),
         organisation_id: orgId,
@@ -1039,7 +1041,8 @@ async function pushToSupabaseV2(orgId, dirtyIn){
         arrival_location_code: f.to || null,
         departure_at: flightTimes.departure_at,
         arrival_at: flightTimes.arrival_at,
-        journey_notes: (f.notes && String(f.notes).trim()) ? String(f.notes).trim() : null,
+        journey_notes: null,
+        note_items: (typeof noteItemsForDb === 'function' ? noteItemsForDb(f.notes) : ((f.notes && String(f.notes).trim()) ? String(f.notes).trim() : null)),
         departure_terminal: f.terminal || null,
         departure_gate: f.gate || null,
         journey_status: f.fstatus || null,
