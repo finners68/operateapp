@@ -443,7 +443,7 @@ function showDayTimeline(e){
     const endBit = e.endTime ? (' – '+e.endTime+(overnight?' next day':'')) : '';
     rows.push(Object.assign({
       id:'auto:set', auto:true, kind:'set', icon:'music',
-      title:e.venue||'Set',
+      title:e.eventName||e.venue||'Set',
       sub:e.setTime?('Set '+e.setTime+endBit):'Set TBA',
       done:!!e.setDone, endTime:e.endTime||'', endDate:showSetEndDate(e)
     }, stamp(e.setTime||'', showSetStartDate(e))));
@@ -1513,7 +1513,7 @@ function runTimeline(run){
     const overnight = showEndsNextDay(s);
     rows.push({
       id:'set_'+s.id, kind:'set', date:s.date, showId:s.id, showDate:s.date, time:s.setTime||'',
-      title:s.venue,
+      title:s.eventName||s.venue||'Set',
       sub:s.setTime?('Set '+s.setTime+(s.endTime?' - '+s.endTime+(overnight?' next day':''):'')):'Set TBA',
       icon:'music', done:!!s.setDone,
       trueDate: showSetStartDate(s), dayOffset: dateDiffDays(s.date, showSetStartDate(s)),
