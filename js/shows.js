@@ -811,7 +811,7 @@ function dayOverviewBlock(e){
     : `<div class="card tap" onclick="sheetShowTimeline('${e.id}')" style="text-align:center;color:var(--text-3);padding:18px;font-weight:600">${ICON.clock(20)} Add show details — this overview fills in automatically</div>`;
   return `<section class="show-day-overview">
     <div class="show-day-overview-head">
-      <div><div class="block-title">Day overview</div><div class="show-day-overview-sub">${esc(sub)}</div></div>
+      <div><div class="block-title">Show timeline</div><div class="show-day-overview-sub">${esc(sub)}</div></div>
       ${editBtn}
     </div>
     ${body}

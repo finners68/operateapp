@@ -53,7 +53,7 @@ export function DayOverview({ show }){
     <section className="show-day-overview">
       <div className="show-day-overview-head">
         <div>
-          <div className="block-title">Day overview</div>
+          <div className="block-title">Show timeline</div>
           <div className="show-day-overview-sub">
             {tl.length
               ? `${done}/${tl.length} done · flights, hotel, transport and set fill in automatically`
