@@ -496,6 +496,10 @@ async function composeViewFromV2(v2, opts){
         return c;
       }).filter(Boolean);
 
+    const showCtx = Object.assign({}, base, {
+      hotel: embeddedHotelByShow[s.id] || null,
+      flights: fl
+    });
     const drivers = (driverJourneysByShow[s.id] || [])
       .sort((a,b) => (a.sort_order||0) - (b.sort_order||0))
       .map(j => {
@@ -508,23 +512,7 @@ async function composeViewFromV2(v2, opts){
         if(from && to) journey = from + ' → ' + to;
         else if(from || to) journey = from || to;
         else journey = j.journey_title || '';
-        /* If title looks like "A → B" and locations are empty, split it. */
-        if(!from && !to && journey && typeof parseDriverJourney === 'function'){
-          const p = parseDriverJourney(journey);
-          return {
-            id: j.id,
-            from: p.from,
-            to: p.to,
-            journey: (p.from && p.to) ? (p.from + ' → ' + p.to) : journey,
-            time: j.departure_at ? v2TimeFromTs(j.departure_at) : '',
-            date: j.departure_at ? v2DateFromTs(j.departure_at) : '',
-            phone: c?.phone_number || '',
-            whatsapp: c?.whatsapp_number || '',
-            name: c?.display_name || j.vehicle_details || '',
-            noGround: false
-          };
-        }
-        return {
+        const row = {
           id: j.id,
           from,
           to,
@@ -536,6 +524,16 @@ async function composeViewFromV2(v2, opts){
           name: c?.display_name || j.vehicle_details || '',
           noGround: false
         };
+        /* If title looks like "A → B" and locations are empty, split it. */
+        if(!from && !to && journey && typeof parseDriverJourney === 'function'){
+          const p = parseDriverJourney(journey);
+          row.from = p.from;
+          row.to = p.to;
+          row.journey = (p.from && p.to) ? (p.from + ' → ' + p.to) : journey;
+        }
+        if(typeof applyGeneralDriverPlaces === 'function') applyGeneralDriverPlaces(row, showCtx);
+        else if(typeof ensureDriverLocations === 'function') ensureDriverLocations(row);
+        return row;
       });
 
     const timeline = (schedByShow[s.id] || [])

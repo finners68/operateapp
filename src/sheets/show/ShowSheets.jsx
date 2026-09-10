@@ -212,25 +212,41 @@ export function ShowFlightInfoSheet({ id, item }){
 }
 
 export function ShowTransportSheet({ eid, idx, driver, journeys }){
-  const list=call('showDrivers',eventOf({eid}))||[];
+  const e=eventOf({eid});
+  const list=call('showDrivers',e)||[];
   const raw=driver || (idx!=null?list[idx]:null) || {};
-  const d=call('ensureDriverLocations', raw) || raw;
+  const d=call('applyGeneralDriverPlaces', Object.assign({}, raw), e) || call('ensureDriverLocations', raw) || raw;
   const none=!!d.noGround;
   const presets=journeys || getDriverJourneys() || [];
+  const kinds= (typeof window!=='undefined' && window.DRIVER_PLACE_KINDS) || ['Airport','Hotel','Venue'];
   const from=d.from || '';
   const to=d.to || '';
+  const placeOptions = current => {
+    const opts=[...kinds];
+    if(current && !opts.some(k=>k.toLowerCase()===String(current).toLowerCase())) opts.push(current);
+    return opts;
+  };
   return <>
     <div className="row-2">
-      <Field label="Departure" id="dr-from" value={from} placeholder="Hotel"/>
-      <Field label="Arrival" id="dr-to" value={to} placeholder="Venue"/>
+      <Field label="Departure">
+        <select id="dr-from" className="input" defaultValue={from}>
+          <option value="">Select…</option>
+          {placeOptions(from).map(k=><option value={k} key={'from-'+k}>{k}</option>)}
+        </select>
+      </Field>
+      <Field label="Arrival">
+        <select id="dr-to" className="input" defaultValue={to}>
+          <option value="">Select…</option>
+          {placeOptions(to).map(k=><option value={k} key={'to-'+k}>{k}</option>)}
+        </select>
+      </Field>
     </div>
-    <input id="dr-journey" type="hidden" defaultValue={d.journey||''}/>
     <div className="chips" style={{marginTop:2,marginBottom:10}}>
       {presets.map(j=>(
         <button type="button" className="chip" key={j} onClick={()=>call('applyDriverJourneyPreset', j)}>{j}</button>
       ))}
     </div>
-    <div className="hint" style={{textAlign:'left',padding:'0 2px 10px'}}>Journey title is built as Departure → Arrival.</div>
+    <div className="hint" style={{textAlign:'left',padding:'0 2px 10px'}}>The journey name is just Departure → Arrival, using general places (Airport, Hotel, Venue) — not the specific venue or hotel name.</div>
     <Field label="Time (optional)" id="dr-time" type="time" value={d.time}/>
     <Field label="Arrangement"><Seg id="dr-mode" values={[['driver','Driver contact'],['none','No grounds · Uber/Taxi']]} selected={none?'none':'driver'} onPick={()=>call('drModeToggle')}/></Field>
     <div id="dr-none-hint" className="hint" style={{display:none?'':'none',padding:'2px 2px 12px'}}>No ground transport provided for this journey — book an Uber or taxi.</div>

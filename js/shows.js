@@ -1546,9 +1546,9 @@ function saveDriver(eid, idx){
   if(!none && !name){ toast('Add a name','x'); return; }
   const list=showDrivers(e);
   withButton($('#dr-save'), ()=>{
-    const from = val('dr-from');
-    const to = val('dr-to');
-    const journey = (from && to) ? (from + ' → ' + to) : (from || to || val('dr-journey') || '');
+    const from = generalizePlaceLabel(val('dr-from'), e);
+    const to = generalizePlaceLabel(val('dr-to'), e);
+    const journey = driverJourneyLabel({ from, to });
     const time = val('dr-time');
     const base = {
       id:(idx!=null&&list[idx]&&list[idx].id)||uid('drv'),
@@ -1571,8 +1571,6 @@ function applyDriverJourneyPreset(preset){
   const toEl = document.getElementById('dr-to');
   if(fromEl) fromEl.value = p.from || '';
   if(toEl) toEl.value = p.to || '';
-  const legacy = document.getElementById('dr-journey');
-  if(legacy) legacy.value = driverJourneyLabel({ from: p.from, to: p.to }) || preset || '';
   if(typeof haptic === 'function') haptic();
 }
 window.applyDriverJourneyPreset = applyDriverJourneyPreset;

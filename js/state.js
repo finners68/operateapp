@@ -102,6 +102,7 @@ const PRIO = {high:'#ff453a', med:'#ff9f0a', low:'#32d74b'};
 /* Quick-pick journey headers for driver contacts. The header is free text —
    these are just shortcuts, and it can be left blank as journeys vary. */
 const DRIVER_JOURNEYS = ['Airport → Hotel','Hotel → Venue','Venue → Hotel','Hotel → Airport'];
+const DRIVER_PLACE_KINDS = ['Airport', 'Hotel', 'Venue'];
 /* Split "Hotel → Airport" (or legacy free text) into from/to locations. */
 function parseDriverJourney(j){
   const s = String(j || '').trim();
@@ -115,13 +116,51 @@ function parseDriverJourney(j){
   if(dash.length === 2 && dash[0] && dash[1]) return { from: dash[0].trim(), to: dash[1].trim() };
   return { from: s, to: '' };
 }
+function canonicalPlaceKind(s){
+  const t = String(s || '').trim().toLowerCase();
+  if(!t) return '';
+  const hit = DRIVER_PLACE_KINDS.find(k => k.toLowerCase() === t);
+  return hit || '';
+}
+function looksLikeAirportPlace(s, show){
+  const raw = String(s || '').trim();
+  if(!raw) return false;
+  if(/\bairport\b/i.test(raw)) return true;
+  const code = raw.toUpperCase();
+  if(!/^[A-Z]{3}$/.test(code)) return false;
+  const flights = (show && show.flights) || [];
+  return flights.some(f => {
+    const from = String((f && (f.fromCode || f.from)) || '').toUpperCase();
+    const to = String((f && (f.toCode || f.to)) || '').toUpperCase();
+    return from === code || to === code;
+  });
+}
+/* Turn a specific name ("Fuse", "The Grand Hotel") into the general place
+   kind used in journey titles: Airport, Hotel, or Venue. */
+function generalizePlaceLabel(raw, show){
+  const s = String(raw || '').trim();
+  if(!s) return '';
+  const kind = canonicalPlaceKind(s);
+  if(kind) return kind;
+  if(looksLikeAirportPlace(s, show)) return 'Airport';
+  if(/\bhotel\b/i.test(s)) return 'Hotel';
+  if(/\bvenue\b/i.test(s)) return 'Venue';
+  const hotel = String((show && show.hotel && show.hotel.name) || '').trim();
+  const venue = String((show && show.venue) || '').trim();
+  const eventName = String((show && show.eventName) || '').trim();
+  const lower = s.toLowerCase();
+  if(hotel && lower === hotel.toLowerCase()) return 'Hotel';
+  if(venue && lower === venue.toLowerCase()) return 'Venue';
+  if(eventName && lower === eventName.toLowerCase()) return 'Venue';
+  return s;
+}
 function driverJourneyLabel(d){
   if(!d) return '';
   const from = String(d.from || '').trim();
   const to = String(d.to || '').trim();
   if(from && to) return from + ' → ' + to;
   if(from || to) return from || to;
-  return String(d.journey || '').trim();
+  return '';
 }
 function ensureDriverLocations(d){
   if(!d) return d;
@@ -137,8 +176,18 @@ function ensureDriverLocations(d){
     const p = parseDriverJourney(d.journey);
     d.from = p.from;
     d.to = p.to;
-    d.journey = driverJourneyLabel(d) || d.journey;
+    d.journey = driverJourneyLabel(d);
   }
+  return d;
+}
+function applyGeneralDriverPlaces(d, show){
+  if(!d) return d;
+  ensureDriverLocations(d);
+  const from = generalizePlaceLabel(d.from, show);
+  const to = generalizePlaceLabel(d.to, show);
+  if(from) d.from = from;
+  if(to) d.to = to;
+  d.journey = driverJourneyLabel(d);
   return d;
 }
 /* A show can have several driver contacts (one per journey). Returns the
@@ -146,12 +195,15 @@ function ensureDriverLocations(d){
 function showDrivers(e){
   if(!e) return [];
   if(!Array.isArray(e.drivers)) e.drivers = e.driver ? [Object.assign({id:uid('drv'), journey:''}, e.driver)] : [];
-  e.drivers.forEach(ensureDriverLocations);
+  e.drivers.forEach(d => applyGeneralDriverPlaces(d, e));
   return e.drivers;
 }
 window.parseDriverJourney = parseDriverJourney;
 window.driverJourneyLabel = driverJourneyLabel;
 window.ensureDriverLocations = ensureDriverLocations;
+window.generalizePlaceLabel = generalizePlaceLabel;
+window.applyGeneralDriverPlaces = applyGeneralDriverPlaces;
+window.DRIVER_PLACE_KINDS = DRIVER_PLACE_KINDS;
 
 /* ---------- Persistence layer (swap-able) ---------- */
 /* DB_KEY / clearLegacyLocalStore live in js/db-v2-state.js */
@@ -1818,6 +1870,7 @@ function migrate(){
   w.IDEA_TYPES = IDEA_TYPES;
   w.PRIO = PRIO;
   w.DRIVER_JOURNEYS = DRIVER_JOURNEYS;
+  w.DRIVER_PLACE_KINDS = DRIVER_PLACE_KINDS;
   w.MONTHS = MONTHS;
   w.MON = MON;
   w.DOW = DOW;
