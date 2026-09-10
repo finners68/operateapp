@@ -1118,6 +1118,12 @@ select.input{appearance:none;-webkit-appearance:none;background-image:url("data:
   gap:8px;
   min-width:0;
 }
+.show-detail .flight-journey-main{
+  min-width:0;
+  display:flex;
+  flex-direction:column;
+  align-items:stretch;
+}
 .show-detail .flight-journey-ic{
   display:flex;
   align-items:center;
@@ -1147,7 +1153,7 @@ select.input{appearance:none;-webkit-appearance:none;background-image:url("data:
   color:var(--text);
 }
 .flight-route-stack:has(.flight-route-name){
-  padding-bottom:2.4em;
+  padding-bottom:1.85em;
 }
 .flight-route-end{
   position:relative;
@@ -1247,9 +1253,9 @@ select.input{appearance:none;-webkit-appearance:none;background-image:url("data:
   appearance:none;
   -webkit-appearance:none;
   display:block;
-  grid-column:1 / -1;
   width:100%;
-  margin-top:6px;
+  max-width:100%;
+  margin-top:8px;
   padding:0;
   background:transparent;
   border:none;

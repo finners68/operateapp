@@ -970,12 +970,12 @@ function flightLine(eid,f){
           <b class="flight-journey-code">${esc(f.code||'Flight')}</b>
         </div>
         <div class="flight-card-route">${routeHtml}</div>
+        <button type="button" class="flight-pax-wrap" onclick="sheetFlightPassengers('${eid}','${f.id}')">
+          <div class="flight-pax-head"><span>${esc(paxCount ? ('Passengers · '+paxCount) : 'Passengers')}</span>${ICON.chevR(14)}</div>
+          <div class="flight-pax-preview">${compactRows}</div>
+        </button>
       </div>
       ${sideHtml ? `<div class="flight-journey-side">${sideHtml}</div>` : ''}
-      <button type="button" class="flight-pax-wrap" onclick="sheetFlightPassengers('${eid}','${f.id}')">
-        <div class="flight-pax-head"><span>${esc(paxCount ? ('Passengers · '+paxCount) : 'Passengers')}</span>${ICON.chevR(14)}</div>
-        <div class="flight-pax-preview">${compactRows}</div>
-      </button>
     </div>
   </div>`;
 }
