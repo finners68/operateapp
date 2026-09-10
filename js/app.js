@@ -1307,16 +1307,48 @@ function persistItineraryUploadState(){
   try{ localStorage.setItem(ITINERARY_UPLOAD_STATE_KEY, JSON.stringify(itineraryFullUploadByShow || {})); }
   catch(_){}
 }
+function copyMentionsMake(text){
+  return /\bmake\b/i.test(String(text || '')) || /make\.com/i.test(String(text || ''));
+}
+function itinerarySourceLabel(source){
+  const raw = String(source || '').trim();
+  if(!raw) return 'Itinerary';
+  if(copyMentionsMake(raw)) return 'New show itinerary';
+  return raw;
+}
+function publicItineraryMessage(text, fallback){
+  const raw = String(text == null ? '' : text).trim();
+  if(!raw || copyMentionsMake(raw)) return fallback || '';
+  return raw;
+}
+function scrubItineraryUploadCopy(st){
+  if(!st) return st;
+  const fallbackMsg = st.status === 'error'
+    ? 'There was a problem finishing this itinerary.'
+    : st.status === 'done'
+      ? 'Details are ready on this show.'
+      : 'Please wait — hotel, travel and the rest will appear on this show.';
+  const fallbackTitle = st.status === 'error'
+    ? 'Upload didn’t finish'
+    : st.status === 'done'
+      ? 'Itinerary uploaded'
+      : 'Itinerary is being uploaded';
+  if(copyMentionsMake(st.message)) st.message = fallbackMsg;
+  if(copyMentionsMake(st.title)) st.title = fallbackTitle;
+  return st;
+}
+Object.keys(itineraryFullUploadByShow || {}).forEach(id => scrubItineraryUploadCopy(itineraryFullUploadByShow[id]));
+persistItineraryUploadState();
 function setItineraryUploadState(showId, state){
   if(!showId) return;
   if(!state) delete itineraryFullUploadByShow[showId];
   else {
-    itineraryFullUploadByShow[showId] = Object.assign(
+    itineraryFullUploadByShow[showId] = scrubItineraryUploadCopy(Object.assign(
       {},
       itineraryFullUploadByShow[showId] || {},
       state,
       { updatedAt: Date.now() }
-    );
+    ));
   }
   persistItineraryUploadState();
   refreshIfViewingShow(showId);
@@ -1337,7 +1369,7 @@ function viewItinerary(){
   </div></div>
   <div class="screen-pad stagger">
     <button type="button" class="btn" style="margin-top:14px" onclick="sheetItineraryStart()">${ICON.plus(18)} Submit itinerary</button>
-    <div class="hint" style="text-align:left;padding:11px 2px 2px">Choose <b>new show</b> or <b>existing show</b>, then upload. New-show uploads are sent straight to your Make webhook.</div>
+    <div class="hint" style="text-align:left;padding:11px 2px 2px">Choose <b>new show</b> or <b>existing show</b>, then upload. New-show uploads are read automatically, then you check the basics.</div>
     ${list.length? list.map(itinCard).join('') : `<div class="empty" style="margin-top:22px"><div class="ic">${ICON.file(26)}</div><b>Nothing submitted yet</b><span>Upload your first itinerary screenshot.</span></div>`}
     <div class="spacer"></div><div class="spacer"></div>
   </div>`;
@@ -1351,7 +1383,7 @@ function itinCard(it){
     : `<div class="thumb"><div class="pdf">${ICON.file(26)}<span>${esc(im.name||'PDF')}</span></div></div>`).join('');
   return `<div class="card" style="margin-top:12px;padding:14px">
     <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px" onclick="openItineraryEntry('${it.id}')">
-      <div style="min-width:0"><b style="font-size:15.5px">${esc(it.source||'Itinerary')}</b>
+      <div style="min-width:0"><b style="font-size:15.5px">${esc(itinerarySourceLabel(it.source))}</b>
         <div style="font-size:13px;color:var(--text-2);margin-top:2px">${pending?'Review show basics':(when||'No date set')}${show?' · '+esc(show.venue):''}</div>
         ${pending?`<div style="font-size:12.5px;color:var(--accent-2);margin-top:4px;font-weight:650">Waiting for you to confirm &amp; create the show</div>`:''}
         ${it.note?`<div style="font-size:13px;color:var(--text-3);margin-top:5px;white-space:pre-wrap">${esc(it.note)}</div>`:''}</div>
@@ -1459,7 +1491,7 @@ function submitItinerary(input, mode){
     if(uploadMode === 'new'){
       const n=new Date();
       date=`${n.getFullYear()}-${pad(n.getMonth()+1)}-${pad(n.getDate())}`;
-      source = 'New show → Make';
+      source = 'New show itinerary';
     } else {
       showId = rawVal('itn-pick-show') || '';
       if(!showId){ toast('Pick a show first','x'); return; }
@@ -1659,10 +1691,10 @@ async function postItineraryFileToMake(it, opts={}){
   }
 }
 function itineraryScanErrorToast(code){
-  if(code==='make_timeout') return 'Make timed out — check your scenario / Webhook response';
-  if(code==='make_failed') return 'Make rejected the upload — check the scenario is on';
+  if(code==='make_timeout') return 'The upload timed out — try again in a moment';
+  if(code==='make_failed') return 'The upload was rejected — try another file or try again later';
   if(code==='no_file' || code==='bad_file') return 'No usable file to send — try another upload';
-  return 'Couldn’t reach Make (often a browser CORS block) — check the console';
+  return 'Couldn’t send the itinerary — check your connection and try again';
 }
 async function sendItineraryToMake(id){
   const it=(store.itineraries||[]).find(x=>x.id===id); if(!it) return;
@@ -1670,8 +1702,8 @@ async function sendItineraryToMake(id){
     toast('Nothing to send — upload a file first','file');
     return;
   }
-  openSheetReact('Sending to Make', 'itinerary.sending', {});
-  toast('Sending to Make…','image');
+  openSheetReact('Sending itinerary', 'itinerary.sending', {});
+  toast('Sending itinerary…','image');
   try{
     const result = await postItineraryFileToMake(it, { stage:'basics' });
     if(result.error){
@@ -1685,9 +1717,9 @@ async function sendItineraryToMake(id){
     persist('user_preferences');
     sheetItineraryReview(id);
     const keys = Object.keys(it.scanFields||{});
-    toast(keys.length ? 'Check the show basics, then save' : 'Sent to Make — fill basics and save','check');
+    toast(keys.length ? 'Check the show basics, then save' : 'File sent — fill basics and save','check');
   }catch(err){
-    toast('Couldn’t reach Make — see browser console','x');
+    toast('Couldn’t send the itinerary — try again','x');
     sheetItineraryReview(id);
   }
 }
@@ -1878,10 +1910,10 @@ async function saveItineraryReview(id){
     setItineraryUploadState(finalShowId, {
       status:'error',
       title:'Cloud sync still pending',
-      message:'Show confirmed to Make, but cloud sync is still catching up. Tap Retry when online to upload full itinerary details.',
+      message:'Show saved, but cloud sync is still catching up. Tap Retry when online to upload full itinerary details.',
       itineraryId: id
     });
-    toast('Confirmed to Make — cloud sync still pending', 'x');
+    toast('Show saved — cloud sync still pending', 'x');
     return;
   }
 
@@ -1897,8 +1929,8 @@ function itineraryFullUploadBanner(showId){
   const st = itineraryFullUploadByShow[showId];
   if(!st) return '';
   if(st.status === 'uploading'){
-    const title = st.title || 'Itinerary is being uploaded';
-    const msg = st.message || 'Please wait — hotel, travel and the rest are still coming in.';
+    const title = publicItineraryMessage(st.title, 'Itinerary is being uploaded');
+    const msg = publicItineraryMessage(st.message, 'Please wait — hotel, travel and the rest are still coming in.');
     return `<div class="itinerary-upload-bar is-uploading" role="status" aria-live="polite">
       <span class="itin-upload-pulse" aria-hidden="true"></span>
       <div class="itin-upload-copy">
@@ -1910,16 +1942,16 @@ function itineraryFullUploadBanner(showId){
   if(st.status === 'done'){
     return `<div class="itinerary-upload-bar is-done" role="status">
       <div class="itin-upload-copy">
-        <span class="itin-upload-title">${esc(st.title || 'Itinerary uploaded')}</span>
-        <span class="itin-upload-sub">${esc(st.message || 'Details are ready on this show.')}</span>
+        <span class="itin-upload-title">${esc(publicItineraryMessage(st.title, 'Itinerary uploaded'))}</span>
+        <span class="itin-upload-sub">${esc(publicItineraryMessage(st.message, 'Details are ready on this show.'))}</span>
       </div>
     </div>`;
   }
   if(st.status === 'error'){
     return `<div class="itinerary-upload-bar is-error" role="status">
       <div class="itin-upload-copy">
-        <span class="itin-upload-title">${esc(st.title || 'Upload didn’t finish')}</span>
-        <span class="itin-upload-sub">${esc(st.message || 'Couldn’t finish itinerary upload.')}
+        <span class="itin-upload-title">${esc(publicItineraryMessage(st.title, 'Upload didn’t finish'))}</span>
+        <span class="itin-upload-sub">${esc(publicItineraryMessage(st.message, 'Couldn’t finish itinerary upload.'))}
           <button type="button" class="link-btn" style="display:inline;margin-left:8px" onclick="retryItineraryFullUpload('${showId}')">Retry</button>
         </span>
       </div>
@@ -2028,7 +2060,7 @@ async function watchItineraryUploadComplete(showId, itineraryId){
         setItineraryUploadState(showId, {
           status:'error',
           title:'Upload failed',
-          message:'Make reported a problem finishing this itinerary.',
+          message:'There was a problem finishing this itinerary.',
           itineraryId
         });
         stopItineraryUploadWatch(showId);
@@ -2054,7 +2086,7 @@ async function watchItineraryUploadComplete(showId, itineraryId){
         title:'Itinerary is being uploaded',
         message: elapsed > 45000
           ? 'Still working — please keep this show open. Hotel, travel and contacts will appear when ready.'
-          : 'Please wait — Make is filling hotel, travel and the rest into this show.',
+          : 'Please wait — hotel, travel and the rest will appear on this show.',
         itineraryId,
         baselineScore: baseline,
         startedAt
@@ -2066,7 +2098,7 @@ async function watchItineraryUploadComplete(showId, itineraryId){
       setItineraryUploadState(showId, {
         status:'error',
         title:'Still waiting',
-        message:'This is taking longer than usual. Tap Retry, or check Make then come back to this show.',
+        message:'This is taking longer than usual. Tap Retry, or come back to this show in a minute.',
         itineraryId,
         baselineScore: baseline,
         startedAt
@@ -2099,7 +2131,7 @@ function onPendingShowImportRealtime(row){
     setItineraryUploadState(showId, {
       status:'error',
       title:'Upload failed',
-      message:'Make reported a problem finishing this itinerary.',
+      message:'There was a problem finishing this itinerary.',
       itineraryId: st.itineraryId
     });
     toast('Itinerary upload failed', 'x');
@@ -2113,7 +2145,7 @@ async function startItineraryFullUpload(itineraryId, showId){
   setItineraryUploadState(showId, {
     status:'uploading',
     title:'Itinerary is being uploaded',
-    message:'Please wait — sending the file to Make, then filling hotel, travel and the rest.',
+    message:'Please wait — sending the file, then filling hotel, travel and the rest.',
     itineraryId,
     baselineScore,
     startedAt: Date.now()
@@ -2136,14 +2168,14 @@ async function startItineraryFullUpload(itineraryId, showId){
     const ok = payload.ok === true || payload.ok === 'true' || payload.success === true || !('ok' in payload && payload.ok === false);
     if(!ok){
       stopItineraryUploadWatch(showId);
-      const message = payload.message || payload.status || 'Make finished but reported a problem.';
+      const message = 'The upload finished but reported a problem.';
       setItineraryUploadState(showId, {
         status:'error',
         title:'Upload didn’t finish',
-        message:String(message),
+        message,
         itineraryId
       });
-      toast(String(message), 'x');
+      toast(message, 'x');
       return;
     }
     /* HTTP ok only means Make accepted the job. Keep the waiting bar until
@@ -2152,13 +2184,13 @@ async function startItineraryFullUpload(itineraryId, showId){
       || payload.status === 'applied'
       || String(payload.message || '').toLowerCase().includes('applied');
     if(appliedNow){
-      await markItineraryUploadComplete(showId, itineraryId, payload.message || 'Itinerary details uploaded successfully.');
+      await markItineraryUploadComplete(showId, itineraryId, 'Itinerary details uploaded successfully.');
       return;
     }
     setItineraryUploadState(showId, {
       status:'uploading',
       title:'Itinerary is being uploaded',
-      message:'File received — please wait while Make fills hotel, travel and the rest into this show.',
+      message:'File received — please wait while hotel, travel and the rest appear on this show.',
       itineraryId,
       baselineScore,
       startedAt: (itineraryFullUploadByShow[showId] && itineraryFullUploadByShow[showId].startedAt) || Date.now()
@@ -2168,10 +2200,10 @@ async function startItineraryFullUpload(itineraryId, showId){
     setItineraryUploadState(showId, {
       status:'error',
       title:'Upload didn’t finish',
-      message: 'Couldn’t reach Make — see browser console',
+      message: 'Couldn’t send the itinerary — try again',
       itineraryId
     });
-    toast('Couldn’t reach Make for full upload', 'x');
+    toast('Couldn’t finish the itinerary upload', 'x');
   }
 }
 async function retryItineraryFullUpload(showId){
@@ -2200,7 +2232,7 @@ async function retryItineraryFullUpload(showId){
       message:'Couldn’t save this show to the cloud yet. Retry when you’re online.',
       itineraryId: it.id
     });
-    toast('Cloud sync needed before Make', 'x');
+    toast('Cloud sync needed before the full upload', 'x');
     return;
   }
   if(it.decisionNotified !== 'confirmed'){

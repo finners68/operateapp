@@ -22,7 +22,7 @@ function ItinCard({ it }){
         onClick={() => call('openItineraryEntry', it.id)}
       >
         <div style={{ minWidth: 0 }}>
-          <b style={{ fontSize: 15.5 }}>{esc(it.source || 'Itinerary')}</b>
+          <b style={{ fontSize: 15.5 }}>{esc(call('itinerarySourceLabel', it.source) || it.source || 'Itinerary')}</b>
           <div style={{ fontSize: 13, color: 'var(--text-2)', marginTop: 2 }}>
             {pending ? 'Review show basics' : (when || 'No date set')}
             {show ? ` · ${esc(showTitle(show))}` : ''}
@@ -89,7 +89,7 @@ export default function ItineraryPage(){
           <Icon name="plus" size={18} /> Submit itinerary
         </button>
         <div className="hint" style={{ textAlign: 'left', padding: '11px 2px 2px' }}>
-          Choose <b>new show</b> or <b>existing show</b>, then upload. New-show uploads are sent straight to your Make webhook.
+          Choose <b>new show</b> or <b>existing show</b>, then upload. New-show uploads are read automatically, then you check the basics.
         </div>
         {list.length ? (
           list.map(it => <ItinCard key={it.id} it={it} />)

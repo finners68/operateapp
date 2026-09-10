@@ -9,21 +9,21 @@ export function UploadBanner({ showId }){
   if(st.status === 'uploading'){
     return (
       <div className="hint" style={{ textAlign: 'left', margin: '0 0 14px', padding: '12px 14px', borderRadius: 12, background: 'rgba(99,102,241,.12)', color: 'var(--text-1)', fontWeight: 650 }}>
-        {st.message || 'Uploading itinerary details… Make is filling hotel, travel and the rest into this show.'}
+        {call('publicItineraryMessage', st.message, 'Uploading itinerary details… Hotel, travel and the rest will appear on this show.') || st.message}
       </div>
     );
   }
   if(st.status === 'done'){
     return (
       <div className="hint" style={{ textAlign: 'left', margin: '0 0 14px', padding: '12px 14px', borderRadius: 12, background: 'rgba(34,197,94,.12)', color: 'var(--text-1)', fontWeight: 650 }}>
-        {st.message || 'Itinerary details uploaded successfully.'}
+        {call('publicItineraryMessage', st.message, 'Itinerary details uploaded successfully.') || 'Itinerary details uploaded successfully.'}
       </div>
     );
   }
   if(st.status === 'error'){
     return (
       <div className="hint" style={{ textAlign: 'left', margin: '0 0 14px', padding: '12px 14px', borderRadius: 12, background: 'rgba(239,68,68,.12)', color: 'var(--text-1)', fontWeight: 650 }}>
-        {st.message || 'Couldn’t finish itinerary upload.'}
+        {call('publicItineraryMessage', st.message, 'Couldn’t finish itinerary upload.') || 'Couldn’t finish itinerary upload.'}
         <button type="button" className="link-btn" style={{ display: 'inline', marginLeft: 8 }} onClick={() => call('retryItineraryFullUpload', showId)}>
           Retry
         </button>

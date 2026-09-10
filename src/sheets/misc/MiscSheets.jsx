@@ -58,7 +58,7 @@ export function CalendarItemSheet({id,item}){
 
 export function CalendarUploadSheet(){
   return <>
-    <p className="sheet-lede">Upload one or more calendar screenshots. They are sent straight to Make for processing.</p>
+    <p className="sheet-lede">Upload one or more calendar screenshots. We’ll read them and add the details.</p>
     <label className="btn" style={{ marginTop: 8 }}>
       <Icon name="image" size={18} /> Choose screenshots
       <input
