@@ -67,17 +67,15 @@ export function DayOverview({ show }){
           {tl.map(s => (
             <div key={s.id} className={`tl-item ${s.done ? 'done' : ''}`} data-id={s.id}>
               <div className="tl-time">{s.time || '—'}</div>
-              <div className="tl-line">
-                <button
-                  type="button"
-                  className="tl-node"
-                  aria-label={s.done ? 'Mark not done' : 'Mark done'}
-                  onClick={ev => {
-                    ev.stopPropagation();
-                    call('toggleShowTimelineStep', show.id, s.id);
-                  }}
-                />
-              </div>
+              <button
+                type="button"
+                className="tl-node"
+                aria-label={s.done ? 'Mark not done' : 'Mark done'}
+                onClick={ev => {
+                  ev.stopPropagation();
+                  call('toggleShowTimelineStep', show.id, s.id);
+                }}
+              />
               <div
                 className={`tl-card ${s.kind === 'set' ? 'is-set' : ''}${stepShowsRoute(s) ? ' has-route' : ''}`}
                 role="button"

@@ -787,7 +787,7 @@ function dayOverviewStepRow(e, s){
   }
   return `<div class="tl-item ${s.done?'done':''}" data-id="${esc(s.id)}">
     <div class="tl-time">${esc(s.time||'—')}</div>
-    <div class="tl-line"><button type="button" class="tl-node" aria-label="${s.done?'Mark not done':'Mark done'}" onclick="event.stopPropagation();toggleShowTimelineStep('${eid}','${s.id}')"></button></div>
+    <button type="button" class="tl-node" aria-label="${s.done?'Mark not done':'Mark done'}" onclick="event.stopPropagation();toggleShowTimelineStep('${eid}','${s.id}')"></button>
     <div class="tl-card ${s.kind==='set'?'is-set':''}${hasRoute?' has-route':''}" ${labelClick}>
       ${hasRoute?'':`<div class="tl-card-ic">${icFn(16)}</div>`}
       <div class="tl-card-body"><div class="tl-route">${titleHtml}</div>${s.sub?`<span>${esc(s.sub)}</span>`:''}</div>

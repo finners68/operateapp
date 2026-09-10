@@ -1087,7 +1087,11 @@ select.input{appearance:none;-webkit-appearance:none;background-image:url("data:
 .show-day-overview-edit:hover,
 .show-day-overview-edit:active{color:var(--text-2);opacity:1;}
 .show-day-timeline{padding:2px 0 4px;}
-.show-day-timeline .tl-card{cursor:pointer;}
+.show-day-timeline .tl-item{align-items:center;padding:8px 0;}
+.show-day-timeline .tl-time{padding-top:0;}
+.show-day-timeline .tl-line::before{content:none;display:none;}
+.show-day-timeline .tl-node{margin-top:0;}
+.show-day-timeline .tl-card{cursor:pointer;margin:0;}
 .show-day-timeline .tl-card-ic{width:28px;height:28px;border-radius:9px;background:rgba(255,255,255,0.05);display:flex;align-items:center;justify-content:center;color:var(--text-2);flex-shrink:0;}
 .show-day-timeline .tl-card-body{flex:1;min-width:0;}
 .show-day-timeline .tl-node{cursor:pointer;border-style:solid;appearance:none;-webkit-appearance:none;}
