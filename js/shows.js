@@ -1012,7 +1012,7 @@ function flightLine(eid,f){
         <div class="flight-card-route">${routeHtml}</div>
       </div>
       <button type="button" class="flight-pax-wrap" onclick="sheetFlightPassengers('${eid}','${f.id}')">
-        <div class="flight-pax-head">${esc(paxCount ? ('Passengers · '+paxCount) : 'Passengers')}</div>
+        <div class="flight-pax-head">Passengers</div>
         <div class="flight-pax-preview">${compactRows}</div>
       </button>
       ${metaHtml ? `<div class="flight-journey-side">${metaHtml}</div>` : ''}
