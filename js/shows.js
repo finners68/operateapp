@@ -724,7 +724,7 @@ function timelineStepRow(e, s, opts={}){
   const labelClick = s.auto && openAuto
     ? `onclick="${openAutoSafe}"`
     : (editable ? `onclick="sheetShowTimelineStep('${eid}','${s.id}')"` : `onclick="toggleShowTimelineStep('${eid}','${s.id}')"`);
-  return `<div class="check ${s.done?'done':''}" data-id="${esc(s.id)}">
+  return `<div class="check is-circle ${s.done?'done':''}" data-id="${esc(s.id)}">
     <div class="box" onclick="toggleShowTimelineStep('${eid}','${s.id}')">${ICON.check(15)}</div>
     <div class="lbl" ${labelClick} style="flex:1;min-width:0">
       <b>${esc(s.time||'—')}</b> ${esc(s.title||'Step')}

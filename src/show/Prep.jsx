@@ -122,7 +122,7 @@ export function Timeline({ show }){
         <>
           <div className="card flush">
             {tl.map(s => (
-              <div key={s.id} className={`check ${s.done ? 'done' : ''}`} data-id={s.id}>
+              <div key={s.id} className={`check is-circle ${s.done ? 'done' : ''}`} data-id={s.id}>
                 <div className="box" onClick={() => call('toggleShowTimelineStep', show.id, s.id)}>
                   <Icon name="check" size={15} />
                 </div>
