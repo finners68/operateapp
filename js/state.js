@@ -838,7 +838,7 @@ function logisticRoute(l){
   if(leg) return `${leg.from} → ${leg.to}`;
   return '';
 }
-/* Visual route: Place ── icon ── Place (flight uses plane; ground uses car/walk/ferry/train). */
+/* Visual route: flights keep Place ── plane ── Place; ground is Place [icon] Place with no lines. */
 function journeyRouteModeIcon(mode, size=13){
   const m = String(mode || 'car').toLowerCase();
   if(!ICON) return '';
@@ -850,6 +850,18 @@ function journeyRouteModeIcon(mode, size=13){
   if(m==='train' || m==='rail') return ICON.train ? ICON.train(size) : (ICON.car ? ICON.car(size) : '');
   return ICON.car ? ICON.car(size) : '';
 }
+function journeyRouteRailHtml(icon, isAir){
+  if(isAir){
+    return `<span class="flight-route-rail" aria-hidden="true">
+      <span class="flight-route-line"></span>
+      <span class="flight-route-icon is-air">${icon}</span>
+      <span class="flight-route-line"></span>
+    </span>`;
+  }
+  return `<span class="flight-route-rail is-icon-only" aria-hidden="true">
+    <span class="flight-route-icon">${icon}</span>
+  </span>`;
+}
 function journeyRouteHtml(from, to, mode){
   const m = String(mode || 'car').toLowerCase();
   const isAir = m==='plane' || m==='flight' || m==='planetop';
@@ -860,11 +872,7 @@ function journeyRouteHtml(from, to, mode){
   const icon = journeyRouteModeIcon(isAir ? 'planeTop' : m);
   return `<span class="flight-route journey-route${isAir?' is-air':''}" aria-label="${esc(a)} to ${esc(b)}">
     <span class="flight-route-code">${esc(a)}</span>
-    <span class="flight-route-rail" aria-hidden="true">
-      <span class="flight-route-line"></span>
-      <span class="flight-route-icon${isAir?' is-air':''}">${icon}</span>
-      <span class="flight-route-line"></span>
-    </span>
+    ${journeyRouteRailHtml(icon, isAir)}
     <span class="flight-route-code">${esc(b)}</span>
   </span>`;
 }
@@ -889,11 +897,7 @@ function journeyRouteHtmlCased(from, to, mode, {upperAirCodes=true}={}){
   const icon = journeyRouteModeIcon(isAir ? 'planeTop' : m);
   return `<span class="flight-route journey-route${isAir?' is-air':''}" aria-label="${esc(a)} to ${esc(b)}">
     <span class="flight-route-code">${esc(a)}</span>
-    <span class="flight-route-rail" aria-hidden="true">
-      <span class="flight-route-line"></span>
-      <span class="flight-route-icon${isAir?' is-air':''}">${icon}</span>
-      <span class="flight-route-line"></span>
-    </span>
+    ${journeyRouteRailHtml(icon, isAir)}
     <span class="flight-route-code">${esc(b)}</span>
   </span>`;
 }

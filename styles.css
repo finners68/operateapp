@@ -828,6 +828,22 @@ select.input{appearance:none;-webkit-appearance:none;background-image:url("data:
   transform:rotate(90deg);
 }
 .flight-route-icon svg{display:block;}
+/* Ground: icon only, titles sit close — no leftover gap from the 68px flight rail */
+.flight-route.journey-route:not(.is-air){
+  gap:4px;
+  letter-spacing:-0.01em;
+}
+.flight-route.journey-route:not(.is-air) .flight-route-rail,
+.flight-route-rail.is-icon-only{
+  flex:0 0 auto;
+  width:auto;
+  min-width:0;
+  max-width:none;
+  gap:0;
+}
+.flight-route-rail.is-icon-only .flight-route-icon{
+  width:auto;
+}
 .info-line-stacked .detail-primary:has(.flight-route),
 .info-line-stacked .detail-primary:has(.ground-route),
 .detail-primary:has(.flight-route),
@@ -981,6 +997,54 @@ select.input{appearance:none;-webkit-appearance:none;background-image:url("data:
 .show-detail .info-line{padding:13px 14px;}
 .show-detail .jitem-top .body b{font-size:16px;font-weight:750;}
 .show-detail .jitem-top .body span{margin-top:5px;font-size:13px;}
+/* List rows force every span to display:block — keep route chips on one line */
+.jitem-top .body span.flight-route,
+.row .body span.flight-route,
+.show-detail .jitem-top .body span.flight-route{
+  display:inline-flex;
+  align-items:center;
+  margin-top:5px;
+  font-size:15px;
+  font-weight:750;
+  color:var(--text);
+  white-space:normal;
+  overflow:visible;
+  text-overflow:unset;
+  line-height:1.2;
+}
+.jitem-top .body .flight-route span.flight-route-code,
+.row .body .flight-route span.flight-route-code,
+.show-detail .jitem-top .body .flight-route span.flight-route-code{
+  display:block;
+  margin-top:0;
+  font-size:inherit;
+  font-weight:inherit;
+  color:inherit;
+  white-space:normal;
+  overflow:visible;
+  text-overflow:unset;
+}
+.jitem-top .body span.flight-route-rail,
+.row .body span.flight-route-rail,
+.show-detail .jitem-top .body span.flight-route-rail{
+  display:flex;
+  margin-top:0;
+  font-size:inherit;
+  color:inherit;
+}
+.jitem-top .body span.flight-route-icon,
+.row .body span.flight-route-icon,
+.show-detail .jitem-top .body span.flight-route-icon{
+  display:flex;
+  margin-top:0;
+  color:var(--text-2);
+  font-size:inherit;
+}
+.jitem-top .body span.flight-route-line,
+.row .body span.flight-route-line,
+.show-detail .jitem-top .body span.flight-route-line{
+  margin-top:0;
+}
 .show-detail .ro-list{margin-top:8px;}
 .show-detail .ro-row{flex-direction:column;align-items:flex-start;gap:3px;padding:10px 0;}
 .show-detail .ro-lab{font-size:14px;font-weight:700;color:var(--text);order:1;}
