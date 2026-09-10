@@ -1208,8 +1208,8 @@ select.input{appearance:none;-webkit-appearance:none;background-image:url("data:
   position:relative;
   display:flex;
   flex-direction:column;
-  align-items:center;
-  text-align:center;
+  align-items:flex-start;
+  text-align:left;
   flex:0 0 auto;
   width:auto;
 }
@@ -1221,7 +1221,7 @@ select.input{appearance:none;-webkit-appearance:none;background-image:url("data:
   letter-spacing:0.04em;
   font-variant-numeric:tabular-nums;
   line-height:1.2;
-  text-align:center;
+  text-align:left;
   white-space:nowrap;
   overflow:visible;
 }
@@ -1237,14 +1237,14 @@ select.input{appearance:none;-webkit-appearance:none;background-image:url("data:
 .flight-route-name{
   position:absolute;
   top:calc(100% + 3px);
-  left:50%;
-  transform:translateX(-50%);
+  left:0;
+  transform:none;
   font-size:12px;
   font-weight:550;
   letter-spacing:0;
   color:var(--text-2);
   line-height:1.25;
-  text-align:center;
+  text-align:left;
   white-space:normal;
   overflow-wrap:anywhere;
   width:max-content;
