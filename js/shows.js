@@ -945,14 +945,13 @@ function flightLine(eid,f){
     ? `<div class="flight-side-kv"><div class="flight-side-k">${esc(k)}</div><div class="flight-side-v">${esc(v)}</div></div>`
     : '';
   const notes = String(f.notes || '').trim();
-  const sideHtml = [
+  const metaHtml = [
     kvRow('Dep', depTime),
     kvRow('Arr', arrTime),
     kvRow('Operator', f.operator || ''),
     kvRow('Duration', f.duration || ''),
     kvRow('Booking', f.bookingRef || ''),
     kvRow('Status', f.fstatus || ''),
-    notes ? `<div class="flight-side-notes"><div class="flight-side-notes-k">Notes</div><div class="flight-side-notes-v">${esc(notes)}</div></div>` : ''
   ].filter(Boolean).join('');
   const paxCount = pax.length;
   const compactRows = paxCount
@@ -963,19 +962,20 @@ function flightLine(eid,f){
       <button type="button" class="flight-card-tool" title="Edit flight" onclick="event.stopPropagation();sheetFlight('${eid}','${f.id}')">${ICON.edit(15)}</button>
       <button type="button" class="flight-card-tool is-danger" title="Remove flight" onclick="event.stopPropagation();confirmRemoveFlight('${eid}','${f.id}')">${ICON.trash(15)}</button>
     </div>
-    <div class="flight-journey-header">
+    <div class="flight-card-body">
       <div class="flight-journey-main">
         <div class="flight-card-title">
           <span class="flight-journey-ic">${ICON.plane(17)}</span>
           <b class="flight-journey-code">${esc(f.code||'Flight')}</b>
         </div>
         <div class="flight-card-route">${routeHtml}</div>
-        <button type="button" class="flight-pax-wrap" onclick="sheetFlightPassengers('${eid}','${f.id}')">
-          <div class="flight-pax-head"><span>${esc(paxCount ? ('Passengers · '+paxCount) : 'Passengers')}</span>${ICON.chevR(14)}</div>
-          <div class="flight-pax-preview">${compactRows}</div>
-        </button>
       </div>
-      ${sideHtml ? `<div class="flight-journey-side">${sideHtml}</div>` : ''}
+      <button type="button" class="flight-pax-wrap" onclick="sheetFlightPassengers('${eid}','${f.id}')">
+        <div class="flight-pax-head"><span>${esc(paxCount ? ('Passengers · '+paxCount) : 'Passengers')}</span>${ICON.chevR(14)}</div>
+        <div class="flight-pax-preview">${compactRows}</div>
+      </button>
+      ${metaHtml ? `<div class="flight-journey-side">${metaHtml}</div>` : ''}
+      ${notes ? `<div class="flight-card-notes"><div class="flight-side-notes-k">Notes</div><div class="flight-side-notes-v">${esc(notes)}</div></div>` : ''}
     </div>
   </div>`;
 }
