@@ -303,7 +303,7 @@ function showQuickLinks(e){
   tiles.push(tile(ICON.map(20),'var(--blue)','Directions to venue',`openMaps('${jsAttr(venueMapQuery(e)||formatVenueAddress(e)||([e.city,e.country].filter(Boolean).join(', ')))}')`));
   if(flights.length){ const wp=flights.find(f=>f.passes&&f.passes.length);
     tiles.push(wp?tile(ICON.ticket(20),'var(--show-color, var(--accent-2))','Boarding',`viewItemPass('${wp.id}')`):tileFile(ICON.ticket(20),'var(--show-color, var(--accent-2))','Boarding',flights[0].id)); }
-  if(hotelItem||e.hotel){ const q=e.hotel?hotelMapQuery(e):((hotelItem.place||hotelItem.title||'').replace(/^hotel\s*[-–:]?\s*/i,'').trim()+' '+(e.city||'')); tiles.push(tile(ICON.bed(20),'var(--orange)','Hotel',`openMaps('${jsAttr(q)}')`)); }
+  if(hotelItem||e.hotel){ const q=e.hotel?hotelMapQuery(e):((hotelItem.place||hotelItem.title||'').replace(/^hotel\s*[-–:]?\s*/i,'').trim()+' '+(e.city||'')); tiles.push(tile(ICON.bed(20),'var(--orange)','Directions to hotel',`openMaps('${jsAttr(q)}')`)); }
   const drvPhone=e.driver&&e.driver.phone;
   if(drvPhone) tiles.push(tile(ICON.car(20),'var(--green)','Contact driver',`contactDriver('${e.id}')`));
   else if(drivers.length) tiles.push(tile(ICON.car(20),'var(--green)','Contact driver',`sheetDriver('${e.id}')`));

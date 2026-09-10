@@ -91,7 +91,7 @@ export function QuickLinks({ show }){
       ? call('hotelMapQuery', show)
       : `${(hotelItem.place || hotelItem.title || '').replace(/^hotel\s*[-–:]?\s*/i, '').trim()} ${show.city || ''}`.trim();
     tiles.push(
-      <ActTile key="hotel" icon="bed" color="var(--orange)" label="Hotel" onClick={() => call('openMaps', q)} />
+      <ActTile key="hotel" icon="bed" color="var(--orange)" label="Directions to hotel" onClick={() => call('openMaps', q)} />
     );
   }
 
