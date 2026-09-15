@@ -740,11 +740,11 @@ function detailTx(title, primary, meta){
 function fieldTx(label, value){
   return `<div class="tx"><div class="k">${label}</div><div class="v">${value}</div></div>`;
 }
-function showGroup(id, title, iconHTML, summary, bodyHTML, defOpen){
+function showGroup(id, title, iconHTML, summary, bodyHTML, defOpen, extraClass){
   /* Show groups default open so the page is scannable; user can still collapse. */
   const open = isOpen(id, defOpen !== false);
   const chev = ICON.chevDown ? ICON.chevDown(20) : ICON.chevR(20);
-  return `<section class="show-group ${open?'open':''}" id="fold-${id}">
+  return `<section class="show-group ${open?'open':''}${extraClass?' '+extraClass:''}" id="fold-${id}">
     <div class="show-group-head" onclick="toggleFold('${id}')" role="button" aria-expanded="${open?'true':'false'}">
       <div class="show-group-ic">${iconHTML}</div>
       <div class="show-group-titles"><b>${esc(title)}</b>${summary?`<span>${esc(summary)}</span>`:''}</div>

@@ -1,11 +1,20 @@
 import { call } from '../api/operate.js';
 import { Subsection, EmptyTap, FieldTx, Icon } from './ui.jsx';
 
-function AdvRow({ icon, label, value, extra }){
+const COMPACT_LABELS = new Set([
+  'Stage / area',
+  'Sound check',
+  'Curfew',
+  'Parking',
+  'WiFi'
+]);
+
+function AdvRow({ icon, label, value, extra, compact }){
   if(!value) return null;
+  const isCompact = compact || COMPACT_LABELS.has(label);
   return (
-    <div className="info-line" style={label === 'Running order' ? { alignItems: 'flex-start' } : undefined}>
-      <div className="ic"><Icon name={icon} size={17} /></div>
+    <div className={`info-line show-venue-row${isCompact ? ' is-compact' : ' is-block'}`} style={label === 'Running order' ? { alignItems: 'flex-start' } : undefined}>
+      <div className="ic"><Icon name={icon} size={16} /></div>
       <div className="tx" style={{ width: '100%' }}>
         <div className="k">{label}</div>
         <div className="v" style={{ whiteSpace: 'pre-wrap' }}>{value}</div>
@@ -20,7 +29,7 @@ function Mini({ title, children }){
   return (
     <div className="show-adv-mini">
       <div className="show-adv-mini-head">{title}</div>
-      <div className="card flush">{children}</div>
+      <div className="show-venue-stack">{children}</div>
     </div>
   );
 }
@@ -35,40 +44,39 @@ function VenueBlock({ show }){
 
   return (
     <Subsection id={`ss-${show.id}-venue`} title="Venue & liaison" defaultOpen>
-      <div className="card flush">
-        <div className="info-line">
-          <div className="ic"><Icon name="pin" size={17} /></div>
-          <FieldTx label="Address"><span className="addr-trunc">{addrDisplay}</span></FieldTx>
+      <div className="show-venue-stack">
+        <div className="info-line show-venue-row is-block">
+          <div className="ic"><Icon name="pin" size={16} /></div>
+          <FieldTx label="Address"><span>{addrDisplay}</span></FieldTx>
           {mapQ ? (
-            <button type="button" className="header-btn" style={{ width: 34, height: 34, alignSelf: 'center' }} title="Open in Maps" onClick={() => call('openMaps', mapQ)}>
-              <Icon name="map" size={17} />
+            <button type="button" className="show-venue-action" title="Open in Maps" onClick={() => call('openMaps', mapQ)}>
+              <Icon name="map" size={16} />
             </button>
           ) : null}
-          <button type="button" className="header-btn" style={{ width: 34, height: 34, alignSelf: 'center' }} title="Edit venue" onClick={() => call('sheetVenueAddr', show.id)}>
+          <button type="button" className="header-btn show-venue-edit" title="Edit venue" onClick={() => call('sheetVenueAddr', show.id)}>
             <Icon name="edit" size={15} />
           </button>
         </div>
         {p ? (
-          <div className="info-line">
-            <div className="ic"><Icon name="user" size={17} /></div>
+          <div className="info-line show-venue-row is-compact">
+            <div className="ic"><Icon name="user" size={16} /></div>
             <FieldTx label="Artist Liaison" value={p.name || 'Liaison'} />
             {(p.phone || p.whatsapp) ? (
               <button
                 type="button"
-                className="btn secondary"
-                style={{ width: 'auto', flex: '0 0 auto', padding: '9px 15px', fontSize: 13.5, alignSelf: 'center', boxShadow: 'none' }}
+                className="show-venue-action"
                 onClick={() => call('contactPromoter', show.id)}
               >
                 <Icon name="chat" size={15} /> Contact
               </button>
             ) : null}
-            <button type="button" className="header-btn" style={{ width: 34, height: 34, alignSelf: 'center' }} title="Edit liaison" onClick={() => call('sheetPromoter', show.id)}>
+            <button type="button" className="header-btn show-venue-edit" title="Edit liaison" onClick={() => call('sheetPromoter', show.id)}>
               <Icon name="edit" size={15} />
             </button>
           </div>
         ) : (
-          <div className="info-line" onClick={() => call('sheetPromoter', show.id)}>
-            <div className="ic"><Icon name="plus" size={17} /></div>
+          <div className="info-line show-venue-row" onClick={() => call('sheetPromoter', show.id)}>
+            <div className="ic"><Icon name="plus" size={16} /></div>
             <div className="tx"><div className="v" style={{ color: 'var(--accent-2)' }}>Add artist liaison</div></div>
           </div>
         )}
@@ -91,19 +99,21 @@ function AdvanceBlock({ show }){
       defaultOpen={hasAny}
     >
       {!hasAny ? (
-        <EmptyTap
-          icon="checkList"
-          title="Add show-day details"
-          sub="Access, soundcheck, running order, wifi…"
-          onClick={() => call('sheetAdvance', show.id)}
-        />
+        <div className="show-venue-empty">
+          <EmptyTap
+            icon="checkList"
+            title="Add show-day details"
+            sub="Access, soundcheck, running order, wifi…"
+            onClick={() => call('sheetAdvance', show.id)}
+          />
+        </div>
       ) : (
         <>
           <Mini title="Schedule">
             <AdvRow icon="pin" label="Stage / area" value={a.stage} />
             {sched.length ? (
-              <div className="info-line" style={{ alignItems: 'flex-start' }}>
-                <div className="ic"><Icon name="clock" size={17} /></div>
+              <div className="info-line show-venue-row is-block" style={{ alignItems: 'flex-start' }}>
+                <div className="ic"><Icon name="clock" size={16} /></div>
                 <div className="tx" style={{ width: '100%' }}>
                   <div className="k">Running order</div>
                   <div className="ro-list">
@@ -127,7 +137,7 @@ function AdvanceBlock({ show }){
               label="Navigation address"
               value={a.navAddr}
               extra={a.navAddr ? (
-                <button type="button" className="header-btn" style={{ width: 34, height: 34, alignSelf: 'center' }} onClick={() => call('openMaps', a.navAddr)}>
+                <button type="button" className="show-venue-action" onClick={() => call('openMaps', a.navAddr)}>
                   <Icon name="map" size={16} />
                 </button>
               ) : null}
@@ -162,24 +172,26 @@ function ContactsBlock({ show }){
       defaultOpen={has}
     >
       {!has ? (
-        <EmptyTap icon="users" title="Add a key contact" onClick={() => call('sheetEventContact', show.id)} />
+        <div className="show-venue-empty">
+          <EmptyTap icon="users" title="Add a key contact" onClick={() => call('sheetEventContact', show.id)} />
+        </div>
       ) : (
-        <div className="card flush">
+        <div className="show-venue-stack">
           {p ? (
-            <div className="info-line info-line-stacked">
-              <div className="ic"><Icon name="user" size={17} /></div>
+            <div className="info-line info-line-stacked show-venue-row is-block">
+              <div className="ic"><Icon name="user" size={16} /></div>
               <div className="tx" style={{ flex: 1, minWidth: 0 }} onClick={() => call('sheetPromoter', show.id)}>
                 <div className="detail-title">Artist Liaison</div>
                 <div className="detail-primary">{p.name || 'Liaison'}</div>
                 {p.phone ? <div className="detail-meta">{p.phone}</div> : null}
               </div>
               {p.phone ? (
-                <button type="button" className="header-btn" style={{ width: 34, height: 34, alignSelf: 'center' }} onClick={() => call('callNumber', p.phone)}>
+                <button type="button" className="show-venue-action" onClick={() => call('callNumber', p.phone)}>
                   <Icon name="phone" size={15} />
                 </button>
               ) : null}
               {(p.whatsapp || p.phone) ? (
-                <button type="button" className="header-btn" style={{ width: 34, height: 34, alignSelf: 'center' }} onClick={() => call('whatsapp', p.whatsapp || p.phone)}>
+                <button type="button" className="show-venue-action" onClick={() => call('whatsapp', p.whatsapp || p.phone)}>
                   <Icon name="chat" size={15} />
                 </button>
               ) : null}
@@ -188,20 +200,20 @@ function ContactsBlock({ show }){
           {cs.map(ct => {
             const role = call('showContactRoleLabel', ct.role) || ct.role || '';
             return (
-              <div key={ct.id} className="info-line info-line-stacked">
-                <div className="ic"><Icon name="user" size={17} /></div>
+              <div key={ct.id} className="info-line info-line-stacked show-venue-row is-block">
+                <div className="ic"><Icon name="user" size={16} /></div>
                 <div className="tx" style={{ flex: 1, minWidth: 0 }} onClick={() => call('sheetEventContact', show.id, ct.id)}>
                   <div className="detail-title">{role || 'Contact'}</div>
                   <div className="detail-primary">{ct.name || 'Contact'}</div>
                   {ct.phone ? <div className="detail-meta">{ct.phone}</div> : null}
                 </div>
                 {ct.phone ? (
-                  <button type="button" className="header-btn" style={{ width: 34, height: 34, alignSelf: 'center' }} onClick={() => call('callNumber', ct.phone)}>
+                  <button type="button" className="show-venue-action" onClick={() => call('callNumber', ct.phone)}>
                     <Icon name="phone" size={15} />
                   </button>
                 ) : null}
                 {(ct.whatsapp || ct.phone) ? (
-                  <button type="button" className="header-btn" style={{ width: 34, height: 34, alignSelf: 'center' }} onClick={() => call('whatsapp', ct.whatsapp || ct.phone)}>
+                  <button type="button" className="show-venue-action" onClick={() => call('whatsapp', ct.whatsapp || ct.phone)}>
                     <Icon name="chat" size={15} />
                   </button>
                 ) : null}

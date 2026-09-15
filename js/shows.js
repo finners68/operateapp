@@ -679,19 +679,19 @@ function venueSubsection(e){
   const addr = formatVenueAddress(e);
   const addrDisplay = addr || (e.city ? [e.city, e.country].filter(Boolean).join(', ') : '') || 'Tap to add';
   const mapQ = venueMapQuery(e);
-  const body = `<div class="card flush">
-    <div class="info-line">
-      <div class="ic">${ICON.pin(17)}</div>
-      ${fieldTx('Address', `<span class="addr-trunc">${esc(addrDisplay)}</span>`)}
-      ${mapQ?`<button type="button" class="header-btn" style="width:34px;height:34px;align-self:center" onclick="openMaps('${jsAttr(mapQ)}')" title="Open in Maps">${ICON.map(17)}</button>`:''}
-      <button type="button" class="header-btn" style="width:34px;height:34px;align-self:center" onclick="sheetVenueAddr('${e.id}')" title="Edit venue">${ICON.edit(15)}</button>
+  const body = `<div class="show-venue-stack">
+    <div class="info-line show-venue-row is-block">
+      <div class="ic">${ICON.pin(16)}</div>
+      ${fieldTx('Address', `<span>${esc(addrDisplay)}</span>`)}
+      ${mapQ?`<button type="button" class="show-venue-action" onclick="openMaps('${jsAttr(mapQ)}')" title="Open in Maps">${ICON.map(16)}</button>`:''}
+      <button type="button" class="header-btn show-venue-edit" onclick="sheetVenueAddr('${e.id}')" title="Edit venue">${ICON.edit(15)}</button>
     </div>
-    ${e.promoter?`<div class="info-line">
-      <div class="ic">${ICON.user(17)}</div>
+    ${e.promoter?`<div class="info-line show-venue-row is-compact">
+      <div class="ic">${ICON.user(16)}</div>
       ${fieldTx('Artist Liaison', esc(e.promoter.name||'Liaison'))}
-      ${(e.promoter.phone||e.promoter.whatsapp)?`<button type="button" class="btn secondary" style="width:auto;flex:0 0 auto;padding:9px 15px;font-size:13.5px;align-self:center;box-shadow:none" onclick="contactPromoter('${e.id}')">${ICON.chat(15)} Contact</button>`:''}
-      <button type="button" class="header-btn" style="width:34px;height:34px;align-self:center" onclick="sheetPromoter('${e.id}')" title="Edit liaison">${ICON.edit(15)}</button>
-    </div>`:`<div class="info-line" onclick="sheetPromoter('${e.id}')"><div class="ic">${ICON.plus(17)}</div><div class="tx"><div class="v" style="color:var(--accent-2)">Add artist liaison</div></div></div>`}
+      ${(e.promoter.phone||e.promoter.whatsapp)?`<button type="button" class="show-venue-action" onclick="contactPromoter('${e.id}')">${ICON.chat(15)} Contact</button>`:''}
+      <button type="button" class="header-btn show-venue-edit" onclick="sheetPromoter('${e.id}')" title="Edit liaison">${ICON.edit(15)}</button>
+    </div>`:`<div class="info-line show-venue-row" onclick="sheetPromoter('${e.id}')"><div class="ic">${ICON.plus(16)}</div><div class="tx"><div class="v" style="color:var(--accent-2)">Add artist liaison</div></div></div>`}
   </div>`;
   return showSubsection('ss-'+e.id+'-venue', 'Venue & liaison', '', body, true);
 }
@@ -699,17 +699,17 @@ function advanceSubsection(e){
   const a = e.advance||{};
   const sched = (a.schedule||[]).filter(s=>(s.time||s.label||s.title));
   const schedHTML = sched.length?`<div class="ro-list">${sched.map(s=>`<div class="ro-row"><div class="ro-lab">${esc(s.label||s.title||'')}</div><div class="ro-time">${esc(s.time||'')}</div></div>`).join('')}</div>`:'';
-  const navExtra = a.navAddr?`<button class="header-btn" style="width:34px;height:34px;align-self:center" onclick="openMaps('${jsAttr(a.navAddr)}')">${ICON.map(16)}</button>`:'';
+  const navExtra = a.navAddr?`<button class="show-venue-action" onclick="openMaps('${jsAttr(a.navAddr)}')">${ICON.map(16)}</button>`:'';
   const hasAny = countAdvanceFields(a) > 0;
   const editBtn = `<button type="button" class="add" onclick="sheetAdvance('${e.id}')">${hasAny?'Edit':'Add'}</button>`;
   if(!hasAny){
-    return showSubsection('ss-'+e.id+'-advancing', 'Show-day details', editBtn, `<div class="card tap" onclick="sheetAdvance('${e.id}')" style="text-align:center;color:var(--text-3);padding:18px;font-weight:600">${ICON.checkList(20)} Add show-day details<div style="margin-top:4px;font-size:12px;font-weight:500">Access, soundcheck, running order, wifi…</div></div>`);
+    return showSubsection('ss-'+e.id+'-advancing', 'Show-day details', editBtn, `<div class="show-venue-empty"><div class="card tap" onclick="sheetAdvance('${e.id}')" style="text-align:center;color:var(--text-3);padding:18px;font-weight:600">${ICON.checkList(20)} Add show-day details<div style="margin-top:4px;font-size:12px;font-weight:500">Access, soundcheck, running order, wifi…</div></div></div>`);
   }
-  const scheduleRows = [advRow(ICON.pin(17),'Stage / area',a.stage), schedHTML?`<div class="info-line" style="align-items:flex-start"><div class="ic">${ICON.clock(17)}</div><div class="tx" style="width:100%"><div class="k">Running order</div>${schedHTML}</div></div>`:''].filter(Boolean).join('');
-  const accessRows = [advRow(ICON.planeUp(17),'Access / arrival',a.access), advRow(ICON.music(17),'Sound check',a.soundcheck), advRow(ICON.clock(17),'Curfew',a.curfew), advRow(ICON.pin(17),'Navigation address',a.navAddr,navExtra)].filter(Boolean).join('');
-  const backstageRows = [advRow(ICON.face(17),'Dressing room',a.dressingRoom), advRow(ICON.users(17),'Guest list',a.guestlist), advRow(ICON.bag(17),'Catering / rider',a.catering), advRow(ICON.car(17),'Parking',a.parking), advRow(ICON.globe(17),'WiFi',a.wifi)].filter(Boolean).join('');
-  const otherRows = advRow(ICON.note(17),'Remarks',a.remarks);
-  const mini = (title, rows)=> rows ? `<div class="show-adv-mini"><div class="show-adv-mini-head">${esc(title)}</div><div class="card flush">${rows}</div></div>` : '';
+  const scheduleRows = [advRow(ICON.pin(16),'Stage / area',a.stage), schedHTML?`<div class="info-line show-venue-row is-block" style="align-items:flex-start"><div class="ic">${ICON.clock(16)}</div><div class="tx" style="width:100%"><div class="k">Running order</div>${schedHTML}</div></div>`:''].filter(Boolean).join('');
+  const accessRows = [advRow(ICON.planeUp(16),'Access / arrival',a.access), advRow(ICON.music(16),'Sound check',a.soundcheck), advRow(ICON.clock(16),'Curfew',a.curfew), advRow(ICON.pin(16),'Navigation address',a.navAddr,navExtra)].filter(Boolean).join('');
+  const backstageRows = [advRow(ICON.face(16),'Dressing room',a.dressingRoom), advRow(ICON.users(16),'Guest list',a.guestlist), advRow(ICON.bag(16),'Catering / rider',a.catering), advRow(ICON.car(16),'Parking',a.parking), advRow(ICON.globe(16),'WiFi',a.wifi)].filter(Boolean).join('');
+  const otherRows = advRow(ICON.note(16),'Remarks',a.remarks);
+  const mini = (title, rows)=> rows ? `<div class="show-adv-mini"><div class="show-adv-mini-head">${esc(title)}</div><div class="show-venue-stack">${rows}</div></div>` : '';
   const body = mini('Schedule', scheduleRows)+mini('Access', accessRows)+mini('Backstage', backstageRows)+mini('Other', otherRows);
   return showSubsection('ss-'+e.id+'-advancing', 'Show-day details', editBtn, body, true);
 }
@@ -721,21 +721,21 @@ function contactsSubsection(e){
     ? `<button type="button" class="add" onclick="sheetKeyContacts('${e.id}')">Edit</button>`
     : `<button type="button" class="add" onclick="sheetEventContact('${e.id}')">Add</button>`;
   if(!has){
-    return showSubsection('ss-'+e.id+'-contacts', 'Key contacts', headBtn, `<div class="card tap" onclick="sheetEventContact('${e.id}')" style="text-align:center;color:var(--text-3);padding:18px;font-weight:600">${ICON.users(20)} Add a key contact</div>`);
+    return showSubsection('ss-'+e.id+'-contacts', 'Key contacts', headBtn, `<div class="show-venue-empty"><div class="card tap" onclick="sheetEventContact('${e.id}')" style="text-align:center;color:var(--text-3);padding:18px;font-weight:600">${ICON.users(20)} Add a key contact</div></div>`);
   }
-  const liaisonRow = p ? `<div class="info-line info-line-stacked">
-    <div class="ic">${ICON.user(17)}</div>
+  const liaisonRow = p ? `<div class="info-line info-line-stacked show-venue-row is-block">
+    <div class="ic">${ICON.user(16)}</div>
     <div class="tx" style="flex:1;min-width:0" onclick="sheetPromoter('${e.id}')">${detailParts('Artist Liaison', esc(p.name||'Liaison'), p.phone?esc(p.phone):'')}</div>
-    ${p.phone?`<button class="header-btn" style="width:34px;height:34px;align-self:center" onclick="callNumber('${jsAttr(p.phone)}')">${ICON.phone(15)}</button>`:''}
-    ${(p.whatsapp||p.phone)?`<button class="header-btn" style="width:34px;height:34px;align-self:center" onclick="whatsapp('${jsAttr(p.whatsapp||p.phone)}')">${ICON.chat(15)}</button>`:''}
+    ${p.phone?`<button class="show-venue-action" onclick="callNumber('${jsAttr(p.phone)}')">${ICON.phone(15)}</button>`:''}
+    ${(p.whatsapp||p.phone)?`<button class="show-venue-action" onclick="whatsapp('${jsAttr(p.whatsapp||p.phone)}')">${ICON.chat(15)}</button>`:''}
   </div>` : '';
-  const otherRows = cs.map(ct=>`<div class="info-line info-line-stacked">
-    <div class="ic">${ICON.user(17)}</div>
+  const otherRows = cs.map(ct=>`<div class="info-line info-line-stacked show-venue-row is-block">
+    <div class="ic">${ICON.user(16)}</div>
     <div class="tx" style="flex:1;min-width:0" onclick="sheetEventContact('${e.id}','${ct.id}')">${detailParts(ct.role?esc(showContactRoleLabel(ct.role)):'Contact', esc(ct.name||'Contact'), ct.phone?esc(ct.phone):'')}</div>
-    ${ct.phone?`<button class="header-btn" style="width:34px;height:34px;align-self:center" onclick="callNumber('${jsAttr(ct.phone)}')">${ICON.phone(15)}</button>`:''}
-    ${(ct.whatsapp||ct.phone)?`<button class="header-btn" style="width:34px;height:34px;align-self:center" onclick="whatsapp('${jsAttr(ct.whatsapp||ct.phone)}')">${ICON.chat(15)}</button>`:''}
+    ${ct.phone?`<button class="show-venue-action" onclick="callNumber('${jsAttr(ct.phone)}')">${ICON.phone(15)}</button>`:''}
+    ${(ct.whatsapp||ct.phone)?`<button class="show-venue-action" onclick="whatsapp('${jsAttr(ct.whatsapp||ct.phone)}')">${ICON.chat(15)}</button>`:''}
   </div>`).join('');
-  return showSubsection('ss-'+e.id+'-contacts', 'Key contacts', headBtn, `<div class="card flush">${liaisonRow}${otherRows}</div>`, true);
+  return showSubsection('ss-'+e.id+'-contacts', 'Key contacts', headBtn, `<div class="show-venue-stack">${liaisonRow}${otherRows}</div>`, true);
 }
 function venueGroupBody(e){
   return venueSubsection(e)+advanceSubsection(e)+contactsSubsection(e);
@@ -1043,7 +1043,7 @@ function viewEvent(id){
 
     <div class="show-groups">
       ${showGroup('sg-'+e.id+'-travel', 'Travel & stay', ICON.plane(20), travelGroupSummary(e), travelGroupBody(e))}
-      ${showGroup('sg-'+e.id+'-venue', 'Venue & show day', ICON.pin(20), venueGroupSummary(e), venueGroupBody(e))}
+      ${showGroup('sg-'+e.id+'-venue', 'Venue & show day', ICON.pin(20), venueGroupSummary(e), venueGroupBody(e), true, 'show-venue-panel')}
       ${showGroup('sg-'+e.id+'-deal', 'Fee & deal', ICON.coins(20), dealGroupSummary(e), moneyGroupBody(e))}
       ${showGroup('sg-'+e.id+'-prep', 'Day prep', ICON.checkList(20), prepGroupSummary(e), prepGroupBody(e))}
     </div>
@@ -1798,7 +1798,11 @@ function savePromoter(eid){
   }, 'Promoter saved');
 }
 /* ---- Advancing: rich, ABOSS-depth show-day info. Every field hidden unless filled. ---- */
-function advRow(icon,k,v,extra){ if(!v) return ''; return `<div class="info-line"><div class="ic">${icon}</div>${fieldTx(k, `<span style="white-space:pre-wrap">${esc(v)}</span>`)}${extra||''}</div>`; }
+function advRow(icon,k,v,extra){
+  if(!v) return '';
+  const compact = k==='Stage / area'||k==='Sound check'||k==='Curfew'||k==='Parking'||k==='WiFi';
+  return `<div class="info-line show-venue-row ${compact?'is-compact':'is-block'}"><div class="ic">${icon}</div>${fieldTx(k, `<span style="white-space:pre-wrap">${esc(v)}</span>`)}${extra||''}</div>`;
+}
 function roTimeFieldHtml(time, id){
   const tid = id || ('ro-t-' + Math.random().toString(36).slice(2, 8));
   return `<div class="field picker-field" style="flex:0 0 34%" onclick="openInputPicker('${tid}')">

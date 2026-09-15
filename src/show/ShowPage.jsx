@@ -151,7 +151,7 @@ export default function ShowPage({ showId }){
           <Group id={`sg-${show.id}-travel`} title="Travel & stay" icon={iconHtml('plane', 20)} summary={travelSummary}>
             <TravelGroup show={show} />
           </Group>
-          <Group id={`sg-${show.id}-venue`} title="Venue & show day" icon={iconHtml('pin', 20)} summary={venueSummary}>
+          <Group id={`sg-${show.id}-venue`} className="show-venue-panel" title="Venue & show day" icon={iconHtml('pin', 20)} summary={venueSummary}>
             <VenueGroup show={show} />
           </Group>
           <Group id={`sg-${show.id}-deal`} title="Fee & deal" icon={iconHtml('coins', 20)} summary={dealSummary}>

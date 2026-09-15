@@ -20,10 +20,10 @@ export function setFold(id, open){
   notifyStore();
 }
 
-export function Group({ id, title, icon, summary, defaultOpen = true, children }){
+export function Group({ id, title, icon, summary, defaultOpen = true, className, children }){
   const open = isOpen(id, defaultOpen);
   return (
-    <section className={`show-group ${open ? 'open' : ''}`} id={`fold-${id}`}>
+    <section className={`show-group ${open ? 'open' : ''}${className ? ` ${className}` : ''}`} id={`fold-${id}`}>
       <div
         className="show-group-head"
         role="button"
