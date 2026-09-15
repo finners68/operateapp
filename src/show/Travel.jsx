@@ -73,12 +73,21 @@ function hasAnyTravel(show){
 
 function JourneyCards({ legs }){
   if(!legs.length) return null;
+  const stays = legs.every(l => l.kind === 'stay');
+  if(stays){
+    return (
+      <>
+        <SourceLabel text="From journey" />
+        <div className="card flush">
+          {legs.map(l => <LegacyHtml key={l.id} html={call('journeyRow', l)} />)}
+        </div>
+      </>
+    );
+  }
   return (
     <>
       <SourceLabel text="From journey" />
-      <div className="card flush">
-        {legs.map(l => <LegacyHtml key={l.id} html={call('journeyRow', l)} />)}
-      </div>
+      {legs.map(l => <LegacyHtml key={l.id} html={call('travelLegCard', l)} />)}
     </>
   );
 }

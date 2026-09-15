@@ -487,7 +487,7 @@ function flightsSubsection(e){
   );
   if(!legs.length && !manual.length) return '';
   let body = '';
-  if(legs.length) body += showSourceLabel('From journey')+`<div class="card flush">${legs.map(journeyRow).join('')}</div>`;
+  if(legs.length) body += showSourceLabel('From journey')+legs.map(travelLegCard).join('');
   if(manual.length){
     if(legs.length) body += showSourceLabel('Added to show');
     body += manual.map(f=>`<div class="card flush flight-card-wrap">${flightLine(e.id,f)}</div>`).join('');
@@ -662,7 +662,7 @@ function driverSubsection(e){
   const legs = showLegs(e.id).filter(x=>x.kind==='travel' && isDriverItem(x)).sort(legSort);
   const drivers = showDrivers(e);
   let body = '';
-  if(legs.length) body += showSourceLabel('From journey')+`<div class="card flush">${legs.map(journeyRow).join('')}</div>`;
+  if(legs.length) body += showSourceLabel('From journey')+legs.map(travelLegCard).join('');
   if(drivers.length){
     if(legs.length) body += showSourceLabel('Added to show');
     body += orderedDrivers(e).map(o=>driverCard(e.id,o.d,o.idx)).join('');
@@ -699,33 +699,57 @@ function travelLegsOfType(e, key){
 function travelLegCard(l){
   const icon = l.icon || 'train';
   const type = (typeof logisticTypeLabel==='function' ? logisticTypeLabel(l) : '') || 'Travel';
-  const hop = Number(l.routeTotal)>1 ? (Number(l.routeIndex||0)+1)+' of '+l.routeTotal : '';
-  const route = ((l.from || l.to) && typeof groundRouteHtml==='function')
-    ? groundRouteHtml(l.from || '?', l.to || '?', icon)
-    : `<span>${(ICON[icon]||ICON.train)(16)} ${esc(type)}</span>`;
-  const times = typeof logisticTimes==='function' ? logisticTimes(l) : [l.start,l.end].filter(Boolean).join(' – ');
-  const mapQ = typeof tlMapsQuery==='function' ? (tlMapsQuery({ kind:l.kind, title:l.title, icon, ref:l })||'') : (l.to||'');
-  const code = l.trainNo || l.ferryNo || l.coachNo || '';
-  const notes = l.info || l.notes || '';
-  const rows = [
-    code ? [ICON.ticket(15),'Service', code] : null,
-    l.platform ? [ICON.pin(15),'Platform', l.platform] : null,
-    l.operator ? [ICON.bag(15),'Operator', l.operator] : null,
-    l.bookingRef ? [ICON.copy(15),'Booking', l.bookingRef] : null
-  ].filter(Boolean);
-  return `<div class="card flush driver-card" style="margin-bottom:10px">
-    <div class="driver-head">
-      <div class="driver-title-wrap">
-        <div class="driver-title">${route}</div>
-        ${(type||hop||times)?`<div class="driver-title-meta">${esc([type+(hop?' '+hop:''), times].filter(Boolean).join(' · '))}</div>`:''}
+  const hop = Number(l.routeTotal)>1 ? ((Number(l.routeIndex)||0)+1)+' of '+l.routeTotal : '';
+  const code = l.trainNo || l.ferryNo || l.coachNo || l.flightNo || '';
+  const heading = code || type;
+  const dateLabel = (l.date && typeof fmtDate==='function') ? fmtDate(l.date) : (l.date || '');
+  const sub = [hop ? (code ? type+' '+hop : hop) : '', dateLabel].filter(Boolean).join(' · ');
+  const ic = (ICON[icon] && typeof ICON[icon]==='function') ? ICON[icon] : ICON.train;
+  let routeHtml = '';
+  if(l.from || l.to){
+    if(icon==='plane' && typeof flightRouteStackedHtml==='function'){
+      routeHtml = flightRouteStackedHtml(l.from || '', '', l.to || '', '');
+    } else if(typeof groundRouteHtml==='function'){
+      routeHtml = groundRouteHtml(l.from || '?', l.to || '?', icon);
+    } else {
+      routeHtml = esc((l.from || '?')+' → '+(l.to || '?'));
+    }
+  }
+  const kvRow = (k, v) => v
+    ? `<div class="flight-side-kv"><div class="flight-side-k">${esc(k)}</div><div class="flight-side-v">${esc(v)}</div></div>`
+    : '';
+  const notesRaw = l.info || l.notes || '';
+  const notes = typeof parseNoteItems==='function'
+    ? parseNoteItems(notesRaw)
+    : (String(notesRaw).trim() ? [{id:'legacy',text:String(notesRaw)}] : []);
+  const metaHtml = [
+    kvRow('Dep', l.start || ''),
+    kvRow('Arr', l.end || ''),
+    kvRow('Operator', l.operator || ''),
+    kvRow('Platform', l.platform || ''),
+    kvRow('Booking', l.bookingRef || '')
+  ].filter(Boolean).join('');
+  return `<div class="card flush flight-card-wrap">
+    <div class="flight-block">
+      <div class="flight-card-tools">
+        <button type="button" class="flight-card-tool" title="Edit" onclick="event.stopPropagation();openItem('${l.id}')">${ICON.edit(15)}</button>
+        <button type="button" class="flight-card-tool is-danger" title="Remove" onclick="event.stopPropagation();confirmRemoveTravelLeg('${l.id}')">${ICON.trash(15)}</button>
       </div>
-      <div class="driver-head-actions">
-        ${mapQ?`<button type="button" class="header-btn" style="width:34px;height:34px" title="Maps" onclick="openMaps('${jsAttr(mapQ)}')">${ICON.map(16)}</button>`:''}
-        <button type="button" class="add" onclick="openItem('${l.id}')">Edit</button>
+      <div class="flight-card-body">
+        <div class="flight-journey-main">
+          <div class="flight-card-title">
+            <span class="flight-journey-ic">${ic(17)}</span>
+            <div class="flight-journey-heading">
+              <b class="flight-journey-code">${esc(heading)}</b>
+              ${sub?`<span class="flight-journey-date">${esc(sub)}</span>`:''}
+            </div>
+          </div>
+          ${routeHtml?`<div class="flight-card-route">${routeHtml}</div>`:''}
+        </div>
+        ${metaHtml ? `<div class="flight-journey-side">${metaHtml}</div>` : ''}
+        ${notes.length ? `<div class="flight-card-notes"><div class="flight-side-notes-k">Notes</div>${notes.map(n=>`<div class="flight-side-notes-v">${esc(n.text)}</div>`).join('')}</div>` : ''}
       </div>
     </div>
-    ${rows.map(([ic,k,v])=>`<div class="info-line"><div class="ic">${ic}</div>${fieldTx(k, esc(v))}</div>`).join('')}
-    ${noteItemsHas(notes)?`<div class="info-line" style="align-items:flex-start"><div class="ic">${ICON.note(17)}</div>${noteItemsReadHtml('Notes', notes)}</div>`:''}
   </div>`;
 }
 function travelTypeSubsection(e, spec){
@@ -1704,18 +1728,18 @@ function delFlight(eid,fid){
   softRender();
   toast('Flight removed','trash');
 }
-function confirmRemoveFlight(eid, fid){
-  const e=sel.event(eid);
-  const f=e && (e.flights||[]).find(x=>x.id===fid);
-  const label=(f && f.code) || 'this flight';
+function confirmRemoveTravelLeg(id){
+  const e=(store.events||[]).find(x=>x.id===id);
+  const label=(e && ((typeof logisticTypeLabel==='function' && logisticTypeLabel(e)) || e.title)) || 'this journey';
   confirmSheet(
-    'Remove flight?',
-    `Remove ${label} from this show, including passengers and boarding passes.`,
-    'Remove flight',
-    ()=>{ delFlight(eid, fid); },
+    'Remove journey?',
+    `Remove ${label} from this show.`,
+    'Remove',
+    ()=>{ if(typeof delItem==='function') delItem(id); },
     true
   );
 }
+window.confirmRemoveTravelLeg = confirmRemoveTravelLeg;
 function delFlightPassenger(eid, fid, paxId){
   const e=sel.event(eid); if(!e || !fid || !paxId) return;
   const f=(e.flights||[]).find(x=>x.id===fid); if(!f) return;

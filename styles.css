@@ -1857,6 +1857,12 @@ select.input{appearance:none;-webkit-appearance:none;background-image:url("data:
     row-gap:12px;
     padding:14px 44px 14px 16px;
   }
+  .show-detail .flight-card-body:not(:has(.flight-pax-wrap)),
+  .show-detail .flight-journey-header:not(:has(.flight-pax-wrap)){
+    grid-template-areas:
+      "route meta"
+      "notes notes";
+  }
 }
 
 /* Desktop: route | passengers | times */
@@ -1875,6 +1881,13 @@ select.input{appearance:none;-webkit-appearance:none;background-image:url("data:
     grid-template-columns:minmax(200px,1.05fr) minmax(220px,1.2fr);
     grid-template-areas:
       "route pax"
+      "notes notes";
+  }
+  .show-detail .flight-card-body:not(:has(.flight-pax-wrap)),
+  .show-detail .flight-journey-header:not(:has(.flight-pax-wrap)){
+    grid-template-columns:minmax(200px,1.05fr) minmax(148px,.78fr);
+    grid-template-areas:
+      "route meta"
       "notes notes";
   }
 }
