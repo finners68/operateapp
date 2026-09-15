@@ -41,7 +41,13 @@ function driverLegs(show){
 
 function transferLegs(show){
   return legsOf(show.id)
-    .filter(x => x.kind === 'travel' && (x.icon || 'plane') !== 'plane' && !call('isDriverItem', x))
+    .filter(x => x.kind === 'travel' && call('travelTypeKey', x))
+    .sort(byLegSort);
+}
+
+function legsOfType(show, key){
+  return legsOf(show.id)
+    .filter(x => x.kind === 'travel' && call('travelTypeKey', x) === key)
     .sort(byLegSort);
 }
 
@@ -257,31 +263,43 @@ function Transport({ show }){
   );
 }
 
-function Transfers({ show }){
-  const legs = transferLegs(show);
+function TravelTypeSection({ show, spec }){
+  const legs = legsOfType(show, spec.key);
   if(!legs.length) return null;
   return (
     <Subsection
-      id={`ss-${show.id}-transfers`}
-      title="Other travel"
+      id={`ss-${show.id}-${spec.key}`}
+      title={spec.title}
       addLabel="Add"
-      onAdd={() => call('sheetAddTravel', show.id)}
+      onAdd={() => call('sheetTravelLeg', show.id, spec.mode)}
       defaultOpen
     >
-      <JourneyCards legs={legs} />
+      {legs.map(l => (
+        <LegacyHtml key={l.id} html={call('travelLegCard', l)} />
+      ))}
     </Subsection>
   );
 }
 
 export default function TravelGroup({ show }){
   const hasTravel = hasAnyTravel(show);
+  const typeSpecs = (typeof window !== 'undefined' && window.TRAVEL_TYPE_SECTIONS) || [
+    { key: 'train', title: 'Trains', mode: 'train' },
+    { key: 'coach', title: 'Coaches', mode: 'coach' },
+    { key: 'ferry', title: 'Ferries', mode: 'ferry' },
+    { key: 'walk', title: 'Walks', mode: 'walk' },
+    { key: 'cycle', title: 'Cycles', mode: 'cycle' }
+  ];
+  const beforeGround = typeSpecs.filter(s => s.key === 'train' || s.key === 'coach' || s.key === 'ferry');
+  const afterGround = typeSpecs.filter(s => s.key === 'walk' || s.key === 'cycle');
   return (
     <>
       {hasTravel ? (
         <>
           <Flights show={show} />
+          {beforeGround.map(spec => <TravelTypeSection key={spec.key} show={show} spec={spec} />)}
           <Transport show={show} />
-          <Transfers show={show} />
+          {afterGround.map(spec => <TravelTypeSection key={spec.key} show={show} spec={spec} />)}
           <button
             type="button"
             className="btn secondary"

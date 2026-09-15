@@ -434,12 +434,20 @@ function travelGroupSummary(e){
   const drvList = showDrivers(e);
   const driver = !!(drvList.some(d=>!d.noGround) || showLegs(e.id).some(x=>x.kind==='travel' && isDriverItem(x)));
   const noGround = drvList.some(d=>d.noGround);
-  const transferN = showLegs(e.id).filter(x=>x.kind==='travel' && (x.icon||'plane')!=='plane' && !isDriverItem(x)).length;
+  const typeCounts = {};
+  showLegs(e.id).filter(x=>x.kind==='travel' && (x.icon||'plane')!=='plane' && !isDriverItem(x)).forEach(l=>{
+    const k = travelTypeKey(l);
+    typeCounts[k] = (typeCounts[k]||0)+1;
+  });
   const parts = [];
   if(flightN) parts.push(flightN+' flight'+(flightN>1?'s':''));
-  if(transferN) parts.push(transferN+' other'+(transferN>1?'':'')+' travel');
+  if(typeCounts.train) parts.push(typeCounts.train+' train'+(typeCounts.train>1?'s':''));
+  if(typeCounts.coach) parts.push(typeCounts.coach+' coach'+(typeCounts.coach>1?'es':''));
+  if(typeCounts.ferry) parts.push(typeCounts.ferry+' ferr'+(typeCounts.ferry>1?'ies':'y'));
   if(driver) parts.push('ground');
   if(noGround) parts.push('arrange at time');
+  if(typeCounts.walk) parts.push(typeCounts.walk+' walk'+(typeCounts.walk>1?'s':''));
+  if(typeCounts.cycle) parts.push(typeCounts.cycle+' cycle'+(typeCounts.cycle>1?'s':''));
   if(stay) parts.push('accommodation');
   else if(e.noAccommodation) parts.push('no accommodation');
   return parts.length ? parts.join(' · ') : 'Add travel or accommodation';
@@ -663,12 +671,80 @@ function driverSubsection(e){
   const has = !!(legs.length || drivers.length);
   return showSubsection('ss-'+e.id+'-driver', 'Ground transport', `<button type="button" class="add" onclick="sheetDriver('${e.id}')">Add</button>`, body, has);
 }
-function transfersSubsection(e){
-  const legs = showLegs(e.id).filter(x=>x.kind==='travel' && (x.icon||'plane')!=='plane' && !isDriverItem(x)).sort(legSort);
-  if(!legs.length) return '';
-  const body = showSourceLabel('From journey')+`<div class="card flush">${legs.map(journeyRow).join('')}</div>`;
-  return showSubsection('ss-'+e.id+'-transfers', 'Other travel', `<button type="button" class="add" onclick="sheetAddTravel('${e.id}')">Add</button>`, body, true);
+const TRAVEL_TYPE_SECTIONS = [
+  { key:'train', icon:'train', title:'Trains', mode:'train' },
+  { key:'coach', icon:'bus', title:'Coaches', mode:'coach' },
+  { key:'ferry', icon:'ferry', title:'Ferries', mode:'ferry' },
+  { key:'walk', icon:'walk', title:'Walks', mode:'walk' },
+  { key:'cycle', icon:'cycle', title:'Cycles', mode:'cycle' }
+];
+function travelTypeKey(l){
+  if(!l || l.kind!=='travel' || (typeof isDriverItem==='function' && isDriverItem(l))) return '';
+  const ic = l.icon || 'plane';
+  if(ic==='plane' || ic==='car') return '';
+  if(ic==='bus') return 'coach';
+  if(ic==='bike') return 'cycle';
+  if(ic==='train' || ic==='ferry' || ic==='walk' || ic==='cycle') return ic;
+  const t = String(l.title||'').toLowerCase();
+  if(/ferry|boat/.test(t)) return 'ferry';
+  if(/train|rail/.test(t)) return 'train';
+  if(/coach|bus/.test(t)) return 'coach';
+  if(/walk/.test(t)) return 'walk';
+  if(/cycle|bike/.test(t)) return 'cycle';
+  return 'coach';
 }
+function travelLegsOfType(e, key){
+  return showLegs(e.id).filter(x=>travelTypeKey(x)===key).sort(legSort);
+}
+function travelLegCard(l){
+  const icon = l.icon || 'train';
+  const type = (typeof logisticTypeLabel==='function' ? logisticTypeLabel(l) : '') || 'Travel';
+  const hop = Number(l.routeTotal)>1 ? (Number(l.routeIndex||0)+1)+' of '+l.routeTotal : '';
+  const route = ((l.from || l.to) && typeof groundRouteHtml==='function')
+    ? groundRouteHtml(l.from || '?', l.to || '?', icon)
+    : `<span>${(ICON[icon]||ICON.train)(16)} ${esc(type)}</span>`;
+  const times = typeof logisticTimes==='function' ? logisticTimes(l) : [l.start,l.end].filter(Boolean).join(' – ');
+  const mapQ = typeof tlMapsQuery==='function' ? (tlMapsQuery({ kind:l.kind, title:l.title, icon, ref:l })||'') : (l.to||'');
+  const code = l.trainNo || l.ferryNo || l.coachNo || '';
+  const notes = l.info || l.notes || '';
+  const rows = [
+    code ? [ICON.ticket(15),'Service', code] : null,
+    l.platform ? [ICON.pin(15),'Platform', l.platform] : null,
+    l.operator ? [ICON.bag(15),'Operator', l.operator] : null,
+    l.bookingRef ? [ICON.copy(15),'Booking', l.bookingRef] : null
+  ].filter(Boolean);
+  return `<div class="card flush driver-card" style="margin-bottom:10px">
+    <div class="driver-head">
+      <div class="driver-title-wrap">
+        <div class="driver-title">${route}</div>
+        ${(type||hop||times)?`<div class="driver-title-meta">${esc([type+(hop?' '+hop:''), times].filter(Boolean).join(' · '))}</div>`:''}
+      </div>
+      <div class="driver-head-actions">
+        ${mapQ?`<button type="button" class="header-btn" style="width:34px;height:34px" title="Maps" onclick="openMaps('${jsAttr(mapQ)}')">${ICON.map(16)}</button>`:''}
+        <button type="button" class="add" onclick="openItem('${l.id}')">Edit</button>
+      </div>
+    </div>
+    ${rows.map(([ic,k,v])=>`<div class="info-line"><div class="ic">${ic}</div>${fieldTx(k, esc(v))}</div>`).join('')}
+    ${noteItemsHas(notes)?`<div class="info-line" style="align-items:flex-start"><div class="ic">${ICON.note(17)}</div>${noteItemsReadHtml('Notes', notes)}</div>`:''}
+  </div>`;
+}
+function travelTypeSubsection(e, spec){
+  const legs = travelLegsOfType(e, spec.key);
+  if(!legs.length) return '';
+  return showSubsection(
+    'ss-'+e.id+'-'+spec.key,
+    spec.title,
+    `<button type="button" class="add" onclick="sheetTravelLeg('${e.id}','${spec.mode}')">Add</button>`,
+    legs.map(travelLegCard).join(''),
+    true
+  );
+}
+function travelTypeSubsections(e){
+  return TRAVEL_TYPE_SECTIONS.map(spec=>travelTypeSubsection(e, spec)).join('');
+}
+window.travelTypeKey = travelTypeKey;
+window.travelLegCard = travelLegCard;
+window.TRAVEL_TYPE_SECTIONS = TRAVEL_TYPE_SECTIONS;
 function addTravelPickerHtml(eid){
   const modes = [
     ['flight','plane','Flight','Number, times, passengers and boarding passes'],
@@ -683,11 +759,16 @@ function addTravelPickerHtml(eid){
 }
 function travelGroupBody(e){
   const flights = flightsSubsection(e);
+  const trains = travelTypeSubsection(e, TRAVEL_TYPE_SECTIONS[0]);
+  const coaches = travelTypeSubsection(e, TRAVEL_TYPE_SECTIONS[1]);
+  const ferries = travelTypeSubsection(e, TRAVEL_TYPE_SECTIONS[2]);
   const drivers = driverSubsection(e);
-  const transfers = transfersSubsection(e);
-  const hasTravel = !!(flights || drivers || transfers);
+  const walks = travelTypeSubsection(e, TRAVEL_TYPE_SECTIONS[3]);
+  const cycles = travelTypeSubsection(e, TRAVEL_TYPE_SECTIONS[4]);
+  const types = trains+coaches+ferries+walks+cycles;
+  const hasTravel = !!(flights || drivers || types);
   const travel = hasTravel
-    ? (flights+drivers+transfers+`<button type="button" class="btn secondary" style="margin:4px 0 12px" onclick="sheetAddTravel('${e.id}')">${ICON.plus(15)} Add travel</button>`)
+    ? (flights+trains+coaches+ferries+drivers+walks+cycles+`<button type="button" class="btn secondary" style="margin:4px 0 12px" onclick="sheetAddTravel('${e.id}')">${ICON.plus(15)} Add travel</button>`)
     : addTravelPickerHtml(e.id);
   return travel+hotelSubsection(e);
 }
