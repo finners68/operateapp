@@ -3,14 +3,100 @@ import { call, getIdeaTypes, getStore } from '../api/operate.js';
 import { Subsection, EmptyTap, Icon } from './ui.jsx';
 import { NoteItemsEditor } from './NoteItems.jsx';
 
+const PREVIEW_SOFT_LIMIT = 8;
+const PREVIEW_SOFT_CAP = 9;
+const IMPORTANT_CUSTOM_RE = /sound\s*check|meet\s*(&|and)?\s*greet|deadline|curfew|load[\s-]?in|doors|press|interview|performance|\bshow\b/;
+
 function timelineIcon(kind, icon){
-  if(kind === 'flight' || icon === 'planeTop' || icon === 'plane') return 'planeTop';
-  if(kind === 'hotel' || icon === 'bed') return 'bed';
-  if(kind === 'transport' || icon === 'car') return 'car';
-  if(kind === 'arrival' || icon === 'pin') return 'pin';
-  if(kind === 'set' || icon === 'music') return 'music';
-  if(kind === 'advance' || icon === 'clock') return 'clock';
+  const ic = String(icon || '').toLowerCase();
+  if(kind === 'flight' || ic === 'planetop' || ic === 'plane') return 'planeTop';
+  if(kind === 'hotel' || ic === 'bed') return 'bed';
+  if(ic === 'train' || ic === 'rail') return 'train';
+  if(ic === 'ferry' || ic === 'boat') return 'ferry';
+  if(ic === 'walk') return 'walk';
+  if(kind === 'transport' || ic === 'car') return 'car';
+  if(kind === 'arrival' || ic === 'pin') return 'pin';
+  if(kind === 'set' || ic === 'music') return 'music';
+  if(kind === 'advance' || ic === 'clock') return 'clock';
   return icon || 'clock';
+}
+
+function stepShowsRoute(step){
+  return (step.kind === 'flight' || step.kind === 'transport') && !!(step.from || step.to);
+}
+
+function isImportantCustom(step){
+  return IMPORTANT_CUSTOM_RE.test(String(step.title || '').toLowerCase());
+}
+
+function timelineTier(step){
+  if(step.kind === 'set') return 'performance';
+  if(step.kind === 'arrival' || step.kind === 'advance') return 'milestone';
+  if(step.kind === 'custom' && isImportantCustom(step)) return 'milestone';
+  return 'logistics';
+}
+
+function previewSecondary(step){
+  const sub = String(step.sub || '').trim();
+  if(step.kind === 'set'){
+    return { text: step.endTime ? ('until ' + step.endTime) : '', hasNote: false };
+  }
+  if(!sub) return { text: '', hasNote: false };
+  if(step.kind === 'transport'){
+    if(sub === 'No grounds') return { text: 'Uber / taxi', hasNote: false };
+    const parts = sub.split(' · ');
+    const operator = (parts[0] || '').trim();
+    const rest = parts.slice(1).join(' · ').trim();
+    const opOk = operator.length > 0 && operator.length <= 42;
+    return { text: opOk ? operator : '', hasNote: !!rest || (!!operator && !opOk) };
+  }
+  if(step.kind === 'flight'){
+    if(sub.length <= 48) return { text: sub, hasNote: false };
+    return { text: '', hasNote: true };
+  }
+  if(step.kind === 'advance'){
+    const t = previewTime(step);
+    if(t && (sub === t || sub.startsWith(t))) return { text: '', hasNote: false };
+  }
+  if(sub.length > 48 || sub.includes('\n')) return { text: '', hasNote: true };
+  return { text: sub, hasNote: false };
+}
+
+function previewTime(step){
+  if(step.time) return step.time;
+  if(step.kind === 'advance' && /^\d{1,2}:\d{2}\b/.test(String(step.sub || '').trim())){
+    return String(step.sub).trim().slice(0, 5);
+  }
+  return '';
+}
+
+function compactKeepIds(tl){
+  const n = tl.length;
+  if(n <= PREVIEW_SOFT_LIMIT) return { ids: tl.map(s => s.id), hidden: 0 };
+  const keep = new Set();
+  const setIdx = tl.findIndex(s => s.kind === 'set');
+  tl.forEach((s, i) => {
+    if(timelineTier(s) !== 'logistics' || s.kind === 'flight' || s.kind === 'hotel') keep.add(i);
+  });
+  const focus = setIdx >= 0 ? setIdx : tl.findIndex(s => timelineTier(s) === 'milestone');
+  if(focus >= 0){
+    for(let i = Math.max(0, focus - 2); i <= Math.min(n - 1, focus + 2); i++) keep.add(i);
+  }
+  if(keep.size > PREVIEW_SOFT_CAP){
+    const extras = [...keep].filter(i => {
+      const s = tl[i];
+      return timelineTier(s) === 'logistics' && s.kind !== 'flight' && s.kind !== 'hotel';
+    }).sort((a, b) => {
+      const origin = focus >= 0 ? focus : 0;
+      return Math.abs(b - origin) - Math.abs(a - origin);
+    });
+    for(const i of extras){
+      if(keep.size <= PREVIEW_SOFT_CAP) break;
+      keep.delete(i);
+    }
+  }
+  const ids = [...keep].sort((a, b) => a - b).map(i => tl[i].id);
+  return { ids, hidden: n - ids.length };
 }
 
 function TimelineStepTitle({ step }){
@@ -23,10 +109,6 @@ function TimelineStepTitle({ step }){
     if(html) return <div className="tl-route" dangerouslySetInnerHTML={{ __html: html }} />;
   }
   return <b>{step.title || 'Step'}</b>;
-}
-
-function stepShowsRoute(step){
-  return (step.kind === 'flight' || step.kind === 'transport') && !!(step.from || step.to);
 }
 
 function openTimelineStep(show, s){
@@ -51,34 +133,83 @@ function groupedTimelineDays(show, tl){
   return { multi: false, groups: [{ date: show.date || '', label: '', today: false, steps: tl }] };
 }
 
+function previewRows(show, tl){
+  const { multi, groups } = groupedTimelineDays(show, tl);
+  const { ids, hidden } = compactKeepIds(tl);
+  const keep = new Set(ids);
+  const rows = [];
+  groups.forEach((g, i) => {
+    const steps = (g.steps || []).filter(s => keep.has(s.id));
+    if(!steps.length) return;
+    if(multi && g.label){
+      rows.push({ type: 'day', key: 'day-' + (g.date || i), label: g.label, today: !!g.today });
+    }
+    steps.forEach(s => rows.push({ type: 'step', key: s.id, step: s }));
+  });
+  if(hidden > 0) rows.push({ type: 'more', key: 'more', hidden });
+  return rows;
+}
+
 function TimelineStepRow({ show, step: s }){
+  const tier = timelineTier(s);
+  const bits = previewSecondary(s);
+  const time = previewTime(s);
+  const icon = timelineIcon(s.kind, s.icon);
+  const showTypeIcon = !stepShowsRoute(s);
   return (
-    <div className={`tl-item ${s.done ? 'done' : ''}`} data-id={s.id}>
-      <div className="tl-time">{s.time || '—'}</div>
-      <button
-        type="button"
-        className="tl-node"
-        aria-label={s.done ? 'Mark not done' : 'Mark done'}
-        onClick={ev => {
-          ev.stopPropagation();
-          call('toggleShowTimelineStep', show.id, s.id);
-        }}
-      />
+    <div className={`tl-item is-${tier}${s.done ? ' done' : ''}`} data-id={s.id}>
+      <div className="tl-time">{time}</div>
+      <div className="tl-rail">
+        <button
+          type="button"
+          className="tl-node"
+          aria-label={s.done ? 'Mark not done' : 'Mark done'}
+          onClick={ev => {
+            ev.stopPropagation();
+            call('toggleShowTimelineStep', show.id, s.id);
+          }}
+        />
+      </div>
       <div
-        className={`tl-card ${s.kind === 'set' ? 'is-set' : ''}${stepShowsRoute(s) ? ' has-route' : ''}`}
+        className={`tl-content is-${tier}${stepShowsRoute(s) ? ' has-route' : ''}`}
         role="button"
         tabIndex={0}
         onClick={() => openTimelineStep(show, s)}
         onKeyDown={ev => { if(ev.key === 'Enter' || ev.key === ' '){ ev.preventDefault(); openTimelineStep(show, s); } }}
       >
-        {stepShowsRoute(s) ? null : (
-          <div className="tl-card-ic"><Icon name={timelineIcon(s.kind, s.icon)} size={16} /></div>
-        )}
-        <div className="tl-card-body">
+        {showTypeIcon ? (
+          <div className="tl-type-ic" aria-hidden="true"><Icon name={icon} size={tier === 'performance' ? 16 : 13} /></div>
+        ) : null}
+        <div className="tl-body">
           <TimelineStepTitle step={s} />
-          {s.sub ? <span>{s.sub}</span> : null}
+          {bits.text ? <span className="tl-sub">{bits.text}</span> : null}
+          {bits.hasNote ? (
+            <span className="tl-note"><Icon name="note" size={11} /> Note</span>
+          ) : null}
         </div>
       </div>
+    </div>
+  );
+}
+
+function TimelineDayRow({ label, today }){
+  return (
+    <div className={`tl-day-row${today ? ' today' : ''}`}>
+      <div className="tl-time" />
+      <div className="tl-rail" />
+      <div className="tl-day-head">{label}</div>
+    </div>
+  );
+}
+
+function TimelineMoreRow({ hidden, onOpen }){
+  return (
+    <div className="tl-more-row">
+      <div className="tl-time" />
+      <div className="tl-rail" />
+      <button type="button" className="tl-more" onClick={onOpen}>
+        +{hidden} more itinerary item{hidden === 1 ? '' : 's'}
+      </button>
     </div>
   );
 }
@@ -86,41 +217,42 @@ function TimelineStepRow({ show, step: s }){
 /** Always-visible day plan at the top of a show page. */
 export function DayOverview({ show }){
   const tl = call('showDayTimeline', show) || show.timeline || [];
-  const done = tl.filter(s => s.done).length;
-  const { multi, groups } = groupedTimelineDays(show, tl);
+  const rows = tl.length ? previewRows(show, tl) : [];
+  const openFull = () => call('sheetShowTimeline', show.id);
+  const copy = tl.length
+    ? `${tl.length} timeline item${tl.length === 1 ? '' : 's'} · Travel, hotel and show details update automatically`
+    : 'Builds from flights, hotel, transport and set time';
   return (
     <section className="show-day-overview">
       <div className="show-day-overview-head">
         <div>
           <div className="block-title">Show timeline</div>
-          <div className="show-day-overview-sub">
-            {tl.length
-              ? `${done}/${tl.length} done · flights, hotel, transport and set fill in automatically`
-              : 'Builds from flights, hotel, transport and set time'}
-          </div>
+          <div className="show-day-overview-sub">{copy}</div>
         </div>
-        <button type="button" className="show-day-overview-edit" onClick={() => call('sheetShowTimeline', show.id)}>
-          {tl.length ? 'Edit' : 'Add'}
-        </button>
+        <div className="show-day-overview-actions">
+          {tl.length ? (
+            <button type="button" className="show-day-overview-link" onClick={openFull}>
+              View full timeline
+            </button>
+          ) : null}
+          <button type="button" className="show-day-overview-edit" onClick={openFull}>
+            {tl.length ? 'Edit' : 'Add'}
+          </button>
+        </div>
       </div>
       {tl.length ? (
-        <div className="timeline show-day-timeline">
-          {groups.map((g, i) => (
-            <div key={g.date || i} className="tl-day">
-              {multi && g.label ? (
-                <div className={`tl-day-head${g.today ? ' today' : ''}`}>{g.label}</div>
-              ) : null}
-              {g.steps.map(s => (
-                <TimelineStepRow key={s.id} show={show} step={s} />
-              ))}
-            </div>
-          ))}
+        <div className="timeline show-day-timeline tl-preview">
+          {rows.map(row => {
+            if(row.type === 'day') return <TimelineDayRow key={row.key} label={row.label} today={row.today} />;
+            if(row.type === 'more') return <TimelineMoreRow key={row.key} hidden={row.hidden} onOpen={openFull} />;
+            return <TimelineStepRow key={row.key} show={show} step={row.step} />;
+          })}
         </div>
       ) : (
         <EmptyTap
           icon="clock"
           title="Add show details — this overview fills in automatically"
-          onClick={() => call('sheetShowTimeline', show.id)}
+          onClick={openFull}
         />
       )}
     </section>

@@ -856,13 +856,11 @@ function dayOverviewStepRow(e, s){
   const tier = timelinePreviewTier(s);
   const bits = timelinePreviewSecondary(s);
   const time = timelinePreviewTime(s);
-  let titleHtml = esc(s.title||'Step');
+  let titleHtml = `<b>${esc(s.title||'Step')}</b>`;
   if(s.kind==='flight' && (s.from||s.to) && typeof flightRouteHtml==='function'){
-    titleHtml = flightRouteHtml(s.from, s.to);
+    titleHtml = `<div class="tl-route">${flightRouteHtml(s.from, s.to)}</div>`;
   } else if(s.kind==='transport' && (s.from||s.to) && typeof groundRouteHtml==='function'){
-    titleHtml = groundRouteHtml(s.from, s.to, s.icon || 'car');
-  } else {
-    titleHtml = `<b>${titleHtml}</b>`;
+    titleHtml = `<div class="tl-route">${groundRouteHtml(s.from, s.to, s.icon || 'car')}</div>`;
   }
   const note = bits.hasNote ? `<span class="tl-note">${ICON.note(11)} Note</span>` : '';
   const sub = bits.text ? `<span class="tl-sub">${esc(bits.text)}</span>` : '';
@@ -872,7 +870,7 @@ function dayOverviewStepRow(e, s){
     <div class="tl-rail"><button type="button" class="tl-node" aria-label="${s.done?'Mark not done':'Mark done'}" onclick="event.stopPropagation();toggleShowTimelineStep('${eid}','${s.id}')"></button></div>
     <div class="tl-content is-${tier}${hasRoute?' has-route':''}" ${labelClick}>
       ${typeIc}
-      <div class="tl-body"><div class="tl-route">${titleHtml}</div>${sub}${note}</div>
+      <div class="tl-body">${titleHtml}${sub}${note}</div>
     </div>
   </div>`;
 }
