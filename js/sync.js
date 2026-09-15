@@ -116,6 +116,8 @@ function editingInline(){
 }
 function uiBusyForQuietSync(){
   return !!(
+    (typeof itineraryReviewActiveId !== 'undefined' && itineraryReviewActiveId) ||
+    (typeof document !== 'undefined' && document.querySelector('#app .sheet')) ||
     (typeof sheetEl !== 'undefined' && sheetEl) ||
     (typeof dtPickerEl !== 'undefined' && dtPickerEl) ||
     editingInline()

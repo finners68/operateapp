@@ -135,7 +135,9 @@ export function SheetHost(){
     }
     if(scrim){
       scrim.classList.add('on');
-      scrim.onclick = () => call('closeSheet');
+      scrim.onclick = (sheet.opts && sheet.opts.scrimClose === false)
+        ? null
+        : () => call('closeSheet');
     }
     if(appEl) appEl.classList.add('sheet-open');
     if(sheet.closing){
@@ -145,6 +147,19 @@ export function SheetHost(){
     const id = requestAnimationFrame(() => requestAnimationFrame(() => setShown(true)));
     return () => cancelAnimationFrame(id);
   }, [sheet, sheet?.open, sheet?.key, sheet?.closing]);
+
+  useEffect(() => {
+    const bump = () => {
+      if(sheet?.open && !sheet.closing) setShown(true);
+    };
+    const onVis = () => { if(!document.hidden) bump(); };
+    document.addEventListener('visibilitychange', onVis);
+    window.addEventListener('pageshow', bump);
+    return () => {
+      document.removeEventListener('visibilitychange', onVis);
+      window.removeEventListener('pageshow', bump);
+    };
+  }, [sheet?.open, sheet?.closing]);
 
   useEffect(() => {
     if(!sheet?.open || !sheetRef.current) return;

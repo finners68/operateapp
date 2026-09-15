@@ -25,6 +25,20 @@ function _mergeDirtyById(cloudRows, prevRows, dirtyIds, patchFn){
   });
   return [...byId.values()];
 }
+/* Keep an in-progress itinerary review if a cloud pull arrives before prefs sync. */
+function mergePendingItineraries(cloud, local){
+  const list = (cloud || []).slice();
+  const activeId = (typeof itineraryReviewActiveId !== 'undefined') ? itineraryReviewActiveId : null;
+  (local || []).forEach(it => {
+    if(!it || !it.id) return;
+    const pending = !it.showId && (it.scanFields || (it.imgs && it.imgs.length));
+    if(!pending && it.id !== activeId) return;
+    const idx = list.findIndex(x => x && x.id === it.id);
+    if(idx >= 0) list[idx] = it;
+    else list.unshift(it);
+  });
+  return list;
+}
 
 async function loadFromSupabaseV2(orgId, sb){
   const prevOrgId = store?.organisationId || null;
@@ -60,6 +74,7 @@ async function loadFromSupabaseV2(orgId, sb){
   const prevDirtyMarkers = orgChanged ? new Set() : _dirtyIdSet('schedule_items');
   const prevDirtyTours = orgChanged ? new Set() : _dirtyIdSet('tours');
   const prevTrips = orgChanged ? [] : (store?.trips || []).slice();
+  const prevItineraries = orgChanged ? [] : (store?.itineraries || []).slice();
   const keepDirtySnap = orgChanged ? null : ((typeof cloneDirty === 'function') ? cloneDirty(store?._dirty) : null);
 
   const v2 = await v2RepoFetchOrg(sb, orgId);
@@ -101,7 +116,7 @@ async function loadFromSupabaseV2(orgId, sb){
   store.noteFolders = view.noteFolders || [];
   store.contacts = view.contacts;
   store.invoices = view.invoices;
-  store.itineraries = view.itineraries;
+  store.itineraries = mergePendingItineraries(view.itineraries, prevItineraries);
   store.packing = prevPacking;
   store.reminders = prevReminders;
 
@@ -243,6 +258,7 @@ async function loadFromSupabaseV2(orgId, sb){
 /* Rebuild view projection from current store.v2 without hitting the network. */
 async function rebuildViewFromLocalV2(){
   if(!store?.v2) return;
+  const prevItineraries = (store.itineraries || []).slice();
   const view = await composeViewFromV2(store.v2, { prevEvents: store.events || [] });
   store.settings = Object.assign({}, store.settings, view.settings, {
     security: store.settings?.security || view.settings.security,
@@ -256,6 +272,6 @@ async function rebuildViewFromLocalV2(){
   store.noteFolders = view.noteFolders || [];
   store.contacts = view.contacts;
   store.invoices = view.invoices;
-  store.itineraries = view.itineraries;
+  store.itineraries = mergePendingItineraries(view.itineraries, prevItineraries);
   if(typeof normalizeNotesFolderIds === 'function') normalizeNotesFolderIds();
 }

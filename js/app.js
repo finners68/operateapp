@@ -34,7 +34,16 @@ function boot(){
   // on another tab, in an overlay/sheet, or when the app is backgrounded.
   const canTick = () => store.tab==='home' && !overlay && !sheetEl && !document.hidden;
   setInterval(()=>{ if(canTick()) tickCountdowns(); }, 30000);
-  document.addEventListener('visibilitychange', ()=>{ if(document.hidden) saveNavState(); else { if(canTick()) tickCountdowns(); if(typeof checkDueReminders==='function') checkDueReminders(); } });
+  document.addEventListener('visibilitychange', ()=>{
+    if(document.hidden){
+      saveNavState();
+      return;
+    }
+    if(canTick()) tickCountdowns();
+    if(typeof checkDueReminders==='function') checkDueReminders();
+    restoreForegroundSheets();
+  });
+  window.addEventListener('pageshow', restoreForegroundSheets);
   window.addEventListener('pagehide', saveNavState);
   if(typeof checkDueReminders==='function'){ checkDueReminders(); setInterval(checkDueReminders, 60000); }
   if(typeof resumeItineraryUploadWatchers === 'function'){
@@ -657,6 +666,16 @@ function sheetCallback(key, fn){
   window.__sheetCallbacks = window.__sheetCallbacks || {};
   window.__sheetCallbacks[key] = fn;
   return key;
+}
+function restoreForegroundSheets(){
+  if(typeof closeDateTimePicker === 'function') closeDateTimePicker(true);
+  const sheet = document.querySelector('#app .sheet');
+  if(sheet && !sheet.classList.contains('closing')) sheet.classList.add('on');
+  const btn = document.getElementById('itn-rev-save');
+  if(btn) btn.disabled = false;
+  if(typeof itineraryReviewActiveId !== 'undefined' && itineraryReviewActiveId && typeof itineraryReviewSnapshot !== 'undefined' && itineraryReviewSnapshot){
+    itineraryForReview(itineraryReviewActiveId);
+  }
 }
 function closeSheet(instant, opts={}){
   const app = $('#app');
@@ -1355,6 +1374,9 @@ function setItineraryUploadState(showId, state){
 }
 /* Itinerary id currently open on the show-basics review sheet (awaiting confirm/cancel). */
 let itineraryReviewActiveId = null;
+/* Copy of the review itinerary so Create show still works if a cloud pull
+   replaces store.itineraries while this sheet is open. */
+let itineraryReviewSnapshot = null;
 /* Prevents ghost taps (e.g. after file picker) from auto-cancelling the review. */
 let itineraryReviewCancelArmed = false;
 let itineraryReviewArmTimer = null;
@@ -1734,6 +1756,7 @@ async function fetchItineraryScanFields(it){
 function sheetItineraryReview(id){
   const it=(store.itineraries||[]).find(x=>x.id===id); if(!it) return;
   itineraryReviewActiveId = id;
+  itineraryReviewSnapshot = it;
   itineraryReviewCancelArmed = false;
   if(itineraryReviewArmTimer){ clearTimeout(itineraryReviewArmTimer); itineraryReviewArmTimer = null; }
   const f=it.scanFields||{};
@@ -1764,7 +1787,8 @@ function sheetItineraryReview(id){
 
   openSheetReact('Show basics', 'itinerary.review', { id, fields: f }, {
     closeHandler: 'abandonItineraryReview',
-    closeArg: id
+    closeArg: id,
+    scrimClose: false
   });
   if(sheetEl){
     sheetEl.style.setProperty('--sheet-tone', initC);
@@ -1804,8 +1828,19 @@ function notifyItineraryDecision(it, status, extra={}){
 }
 function clearItineraryReviewGuards(){
   itineraryReviewActiveId = null;
+  itineraryReviewSnapshot = null;
   itineraryReviewCancelArmed = false;
   if(itineraryReviewArmTimer){ clearTimeout(itineraryReviewArmTimer); itineraryReviewArmTimer = null; }
+}
+function itineraryForReview(id){
+  const live = (store.itineraries||[]).find(x=>x.id===id);
+  if(live) return live;
+  if(itineraryReviewSnapshot && itineraryReviewSnapshot.id === id){
+    store.itineraries = store.itineraries || [];
+    if(!store.itineraries.some(x => x && x.id === id)) store.itineraries.unshift(itineraryReviewSnapshot);
+    return itineraryReviewSnapshot;
+  }
+  return null;
 }
 function abandonItineraryReview(id){
   /* Only the X button uses this — and only after the sheet has been open briefly. */
@@ -1837,7 +1872,11 @@ function discardItineraryReview(id){
   }, 50);
 }
 async function saveItineraryReview(id){
-  const it=(store.itineraries||[]).find(x=>x.id===id); if(!it) return;
+  const it=itineraryForReview(id);
+  if(!it){
+    toast('That upload is still open — tap Create show again','x');
+    return;
+  }
   const eventName=val('itn-rev-event-name');
   const venue=val('itn-rev-venue');
   const date=rawVal('itn-rev-date');
