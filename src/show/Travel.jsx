@@ -2,6 +2,16 @@ import { call, flightHasDetails, fmtDate, legSort } from '../api/operate.js';
 import { Subsection, EmptyTap, SourceLabel, LegacyHtml, FieldTx, DetailTx, Icon } from './ui.jsx';
 import { NoteItemsRead } from './NoteItems.jsx';
 
+const TRAVEL_MODES = [
+  { key: 'flight', icon: 'plane', title: 'Flight', sub: 'Number, times, passengers and boarding passes' },
+  { key: 'train', icon: 'train', title: 'Train', sub: 'Stations, times and service number' },
+  { key: 'coach', icon: 'bus', title: 'Coach', sub: 'Service and times' },
+  { key: 'ferry', icon: 'ferry', title: 'Ferry', sub: 'Ports and times' },
+  { key: 'ground', icon: 'car', title: 'Ground', sub: 'Driver, Uber or taxi' },
+  { key: 'walk', icon: 'walk', title: 'Walk', sub: 'On foot between places' },
+  { key: 'cycle', icon: 'cycle', title: 'Cycle', sub: 'Bike between places' }
+];
+
 function legsOf(showId){
   return call('showLegs', showId) || [];
 }
@@ -44,6 +54,17 @@ function manualFlights(show){
   return Array.isArray(sorted) ? sorted : list;
 }
 
+function hasAnyTravel(show){
+  const drivers = call('showDrivers', show) || [];
+  return !!(
+    flightLegs(show).length
+    || manualFlights(show).length
+    || driverLegs(show).length
+    || drivers.length
+    || transferLegs(show).length
+  );
+}
+
 function JourneyCards({ legs }){
   if(!legs.length) return null;
   return (
@@ -56,47 +77,59 @@ function JourneyCards({ legs }){
   );
 }
 
+export function AddTravelPicker({ show, inSheet }){
+  return (
+    <div className="edit-section-grid" style={inSheet ? undefined : { marginBottom: 12 }}>
+      {TRAVEL_MODES.map(m => (
+        <button
+          type="button"
+          key={m.key}
+          className="edit-section-btn"
+          onClick={() => call('addTravelMode', show.id, m.key)}
+        >
+          <Icon name={m.icon} size={16} />
+          <span>
+            <b>{m.title}</b>
+            <small>{m.sub}</small>
+          </span>
+        </button>
+      ))}
+    </div>
+  );
+}
+
 function Flights({ show }){
   const legs = flightLegs(show);
   const manual = manualFlights(show);
   const has = !!(legs.length || manual.length);
+  if(!has) return null;
   return (
     <Subsection
       id={`ss-${show.id}-flights`}
       title="Flights"
       addLabel="Add"
-      onAdd={() => call('sheetFlight', show.id)}
-      defaultOpen={has}
+      onAdd={() => call('sheetFlight', show.id, '__new__')}
+      defaultOpen
     >
-      {!has ? (
-        <EmptyTap
-          icon="plane"
-          title="Add flight"
-          sub="Number, times, passengers and boarding passes"
-          onClick={() => call('sheetFlight', show.id)}
-        />
-      ) : (
+      <JourneyCards legs={legs} />
+      {manual.length ? (
         <>
-          <JourneyCards legs={legs} />
-          {manual.length ? (
-            <>
-              {legs.length ? <SourceLabel text="Added to show" /> : null}
-              {manual.map(f => (
-                <div className="card flush flight-card-wrap" key={f.id}>
-                  <LegacyHtml html={call('flightLine', show.id, f)} />
-                </div>
-              ))}
-            </>
-          ) : null}
+          {legs.length ? <SourceLabel text="Added to show" /> : null}
+          {manual.map(f => (
+            <div className="card flush flight-card-wrap" key={f.id}>
+              <LegacyHtml html={call('flightLine', show.id, f)} />
+            </div>
+          ))}
         </>
-      )}
+      ) : null}
     </Subsection>
   );
 }
 
-function Hotel({ show }){
+function Accommodation({ show }){
   const legs = stayLegs(show);
   const h = show.hotel;
+  const none = !!show.noAccommodation && !h && !legs.length;
   const has = !!(legs.length || h);
   const addr = h
     ? (call('formatHotelAddress', h)
@@ -108,19 +141,12 @@ function Hotel({ show }){
   return (
     <Subsection
       id={`ss-${show.id}-hotel`}
-      title="Hotel"
-      addLabel={h ? 'Edit' : 'Add'}
+      title="Accommodation"
+      addLabel={has ? 'Edit' : 'Add'}
       onAdd={() => call('sheetHotel', show.id)}
-      defaultOpen={has}
+      defaultOpen={!has}
     >
-      {!has ? (
-        <EmptyTap
-          icon="bed"
-          title="Add hotel details"
-          sub="Name, dates, confirmation and maps"
-          onClick={() => call('sheetHotel', show.id)}
-        />
-      ) : (
+      {has ? (
         <>
           <JourneyCards legs={legs} />
           {h ? (
@@ -129,7 +155,7 @@ function Hotel({ show }){
               <div className="card flush">
                 <div className="info-line info-line-stacked">
                   <div className="ic"><Icon name="bed" size={17} /></div>
-                  <DetailTx title={h.name || 'Hotel'} primary={addr || 'Tap to add address'} />
+                  <DetailTx title={h.name || 'Accommodation'} primary={addr || 'Tap to add address'} />
                   <button type="button" className="header-btn" style={{ width: 34, height: 34, alignSelf: 'center' }} onClick={() => call('openMaps', mapQ)}>
                     <Icon name="map" size={16} />
                   </button>
@@ -167,6 +193,37 @@ function Hotel({ show }){
             </>
           ) : null}
         </>
+      ) : none ? (
+        <div className="card" style={{ textAlign: 'center', color: 'var(--text-3)', padding: 20 }}>
+          <Icon name="bed" size={22} />
+          <div style={{ marginTop: 6, fontWeight: 600 }}>No accommodation for this show</div>
+          <div style={{ marginTop: 4, fontSize: 12, fontWeight: 500 }}>You can add a stay later if that changes</div>
+          <button
+            type="button"
+            className="btn secondary"
+            style={{ marginTop: 12, maxWidth: 240 }}
+            onClick={() => call('sheetHotel', show.id)}
+          >
+            Add accommodation
+          </button>
+        </div>
+      ) : (
+        <>
+          <EmptyTap
+            icon="bed"
+            title="Add accommodation"
+            sub="Name, dates, confirmation and maps"
+            onClick={() => call('sheetHotel', show.id)}
+          />
+          <button
+            type="button"
+            className="btn secondary"
+            style={{ marginTop: 10 }}
+            onClick={() => call('markNoAccommodation', show.id)}
+          >
+            No accommodation for this show
+          </button>
+        </>
       )}
     </Subsection>
   );
@@ -177,6 +234,7 @@ function Transport({ show }){
   const drivers = call('showDrivers', show) || [];
   const has = !!(legs.length || drivers.length);
   const ordered = call('orderedDrivers', show) || drivers.map((d, idx) => ({ d, idx }));
+  if(!has) return null;
 
   return (
     <Subsection
@@ -184,28 +242,17 @@ function Transport({ show }){
       title="Ground transport"
       addLabel="Add"
       onAdd={() => call('sheetDriver', show.id)}
-      defaultOpen={has}
+      defaultOpen
     >
-      {!has ? (
-        <EmptyTap
-          icon="car"
-          title="Add transport"
-          sub="Driver details, pickup, or Uber / taxi"
-          onClick={() => call('sheetDriver', show.id)}
-        />
-      ) : (
+      <JourneyCards legs={legs} />
+      {drivers.length ? (
         <>
-          <JourneyCards legs={legs} />
-          {drivers.length ? (
-            <>
-              {legs.length ? <SourceLabel text="Added to show" /> : null}
-              {ordered.map(o => (
-                <LegacyHtml key={o.d.id || o.idx} html={call('driverCard', show.id, o.d, o.idx)} />
-              ))}
-            </>
-          ) : null}
+          {legs.length ? <SourceLabel text="Added to show" /> : null}
+          {ordered.map(o => (
+            <LegacyHtml key={o.d.id || o.idx} html={call('driverCard', show.id, o.d, o.idx)} />
+          ))}
         </>
-      )}
+      ) : null}
     </Subsection>
   );
 }
@@ -216,9 +263,9 @@ function Transfers({ show }){
   return (
     <Subsection
       id={`ss-${show.id}-transfers`}
-      title="Transfers"
+      title="Other travel"
       addLabel="Add"
-      onAdd={() => call('addLogisticFor', show.id)}
+      onAdd={() => call('sheetAddTravel', show.id)}
       defaultOpen
     >
       <JourneyCards legs={legs} />
@@ -227,12 +274,30 @@ function Transfers({ show }){
 }
 
 export default function TravelGroup({ show }){
+  const hasTravel = hasAnyTravel(show);
   return (
     <>
-      <Flights show={show} />
-      <Hotel show={show} />
-      <Transport show={show} />
-      <Transfers show={show} />
+      {hasTravel ? (
+        <>
+          <Flights show={show} />
+          <Transport show={show} />
+          <Transfers show={show} />
+          <button
+            type="button"
+            className="btn secondary"
+            style={{ margin: '4px 0 12px' }}
+            onClick={() => call('sheetAddTravel', show.id)}
+          >
+            <Icon name="plus" size={15} /> Add travel
+          </button>
+        </>
+      ) : (
+        <>
+          <div className="block-title" style={{ margin: '2px 2px 8px' }}>Add travel</div>
+          <AddTravelPicker show={show} />
+        </>
+      )}
+      <Accommodation show={show} />
     </>
   );
 }

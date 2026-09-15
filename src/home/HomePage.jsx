@@ -120,7 +120,7 @@ function NextShowHero({ show }){
         ) : null}
         {show.hotel ? (
           <button type="button" className="hero-link" onClick={e => { e.stopPropagation(); call('openMaps', hotelQ); }}>
-            <Icon name="bed" size={14} /> {show.hotel.name || 'Hotel'}
+            <Icon name="bed" size={14} /> {show.hotel.name || 'Accommodation'}
           </button>
         ) : null}
         <button type="button" className="hero-link" onClick={e => { e.stopPropagation(); call('openMaps', venueQ); }}>

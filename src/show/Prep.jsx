@@ -220,7 +220,7 @@ export function DayOverview({ show }){
   const rows = tl.length ? previewRows(show, tl) : [];
   const openFull = () => call('sheetShowTimeline', show.id);
   const copy = tl.length
-    ? `${tl.length} timeline item${tl.length === 1 ? '' : 's'} · Travel, hotel and show details update automatically`
+    ? `${tl.length} timeline item${tl.length === 1 ? '' : 's'} · Travel, stay and show details update automatically`
     : 'Builds from flights, hotel, transport and set time';
   return (
     <section className="show-day-overview">

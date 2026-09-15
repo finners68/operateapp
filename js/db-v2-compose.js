@@ -28,7 +28,8 @@ function showDisplay(show, venue, artist){
     venuePostcode: venue?.postal_code || '',
     notes: (typeof noteItemsFromDb === 'function' ? noteItemsFromDb(show.internal_notes) : (show.internal_notes || '')),
     content: show.content_plan || '',
-    setDone: !!show.is_set_done
+    setDone: !!show.is_set_done,
+    noAccommodation: !!show.no_accommodation
   };
 }
 
@@ -514,9 +515,11 @@ async function composeViewFromV2(v2, opts){
         return c;
       }).filter(Boolean);
 
+    const showHotel = embeddedHotelByShow[s.id] || null;
     const showCtx = Object.assign({}, base, {
-      hotel: embeddedHotelByShow[s.id] || null,
-      flights: fl
+      hotel: showHotel,
+      flights: fl,
+      noAccommodation: !!(s.no_accommodation) && !showHotel
     });
     const drivers = (driverJourneysByShow[s.id] || [])
       .sort((a,b) => (a.sort_order||0) - (b.sort_order||0))
@@ -645,7 +648,7 @@ async function composeViewFromV2(v2, opts){
       kind: 'stay',
       date: b.check_in_date,
       showId: st.showId,
-      title: h?.hotel_name || 'Hotel',
+      title: h?.hotel_name || 'Accommodation',
       start: '',
       end: '',
       icon: 'bed',

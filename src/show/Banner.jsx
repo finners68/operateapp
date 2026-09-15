@@ -9,7 +9,7 @@ export function UploadBanner({ showId }){
   if(st.status === 'uploading'){
     return (
       <div className="hint" style={{ textAlign: 'left', margin: '0 0 14px', padding: '12px 14px', borderRadius: 12, background: 'rgba(99,102,241,.12)', color: 'var(--text-1)', fontWeight: 650 }}>
-        {call('publicItineraryMessage', st.message, 'Uploading itinerary details… Hotel, travel and the rest will appear on this show.') || st.message}
+        {call('publicItineraryMessage', st.message, 'Uploading itinerary details… Accommodation, travel and the rest will appear on this show.') || st.message}
       </div>
     );
   }
@@ -91,7 +91,7 @@ export function QuickLinks({ show }){
       ? call('hotelMapQuery', show)
       : `${(hotelItem.place || hotelItem.title || '').replace(/^hotel\s*[-–:]?\s*/i, '').trim()} ${show.city || ''}`.trim();
     tiles.push(
-      <ActTile key="hotel" icon="bed" color="var(--orange)" label="Directions to hotel" onClick={() => call('openMaps', q)} />
+      <ActTile key="hotel" icon="bed" color="var(--orange)" label="Directions to accommodation" onClick={() => call('openMaps', q)} />
     );
   }
 

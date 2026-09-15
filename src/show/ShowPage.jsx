@@ -148,7 +148,7 @@ export default function ShowPage({ showId }){
         <DayOverview show={show} />
 
         <div className="show-groups">
-          <Group id={`sg-${show.id}-travel`} title="Travel" icon={iconHtml('plane', 20)} summary={travelSummary}>
+          <Group id={`sg-${show.id}-travel`} title="Travel & stay" icon={iconHtml('plane', 20)} summary={travelSummary}>
             <TravelGroup show={show} />
           </Group>
           <Group id={`sg-${show.id}-venue`} title="Venue & show day" icon={iconHtml('pin', 20)} summary={venueSummary}>

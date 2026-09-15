@@ -59,7 +59,7 @@ test('logisticTypeLabel uses travel mode and ground subtype', () => {
   assert.equal(S.logisticTypeLabel({ kind: 'travel', icon: 'cycle' }), 'Cycle');
   assert.equal(S.logisticTypeLabel({ kind: 'travel', icon: 'bus' }), 'Coach');
   assert.equal(S.logisticTypeLabel({ kind: 'travel', icon: 'car', groundType: 'uber' }), 'Uber');
-  assert.equal(S.logisticTypeLabel({ kind: 'stay' }), 'Hotel');
+  assert.equal(S.logisticTypeLabel({ kind: 'stay' }), 'Accommodation');
 });
 
 function loadJourneyHelpers() {

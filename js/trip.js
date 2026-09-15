@@ -234,7 +234,7 @@ function stepPills(s){
       else { const wa=d.whatsapp||d.phone||''; if(wa) pills.push(`<div class="pill" onclick="event.stopPropagation();whatsapp('${jsAttr(wa)}')"><div class="ic">${ICON.chat(16)}</div><div class="tx"><b>Message</b><span>WhatsApp</span></div></div>`); if(d.phone) pills.push(`<div class="pill" onclick="event.stopPropagation();callNumber('${jsAttr(d.phone)}')"><div class="ic">${ICON.phone(16)}</div><div class="tx"><b>Call</b><span>Now</span></div></div>`); }
       if(sh) pills.push(`<div class="pill" onclick="event.stopPropagation();openTourContacts('${sh.id}')"><div class="ic">${ICON.users(16)}</div><div class="tx"><b>Key contacts</b><span>Call someone</span></div></div>`);
       if(mq) pills.push(mapPill('Destination','Open in Maps'));
-    } else if(mq){ pills.push(mapPill(s.kind==='stay'?'Hotel':'Maps','Open in Maps')); }
+    } else if(mq){ pills.push(mapPill(s.kind==='stay'?'Accommodation':'Maps','Open in Maps')); }
     if(sh) pills.push(`<div class="pill" onclick="event.stopPropagation();openView('event','${sh.id}')"><div class="ic">${ICON.music(16)}</div><div class="tx"><b>Show</b><span>All details</span></div></div>`);
     return pills.join('');
   }
@@ -258,7 +258,7 @@ function stepPills(s){
       if(mq) pills.push(mapPill('Destination','Open in Maps'));
     }
   } else if(s.kind==='stay'){
-    if(mq) pills.push(mapPill('Hotel','Open in Maps'));
+    if(mq) pills.push(mapPill('Accommodation','Open in Maps'));
     if(sh) pills.push(`<div class="pill" onclick="event.stopPropagation();openView('event','${sh.id}')"><div class="ic">${ICON.bed(16)}</div><div class="tx"><b>Details</b><span>Full show</span></div></div>`);
   } else if(s.kind==='set'){
     if(sh){

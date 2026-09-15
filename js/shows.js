@@ -235,7 +235,7 @@ function viewHome(){
           ${hasContacts?`<button type="button" class="hero-link" onclick="event.stopPropagation();openTourContacts('${e.id}')">${ICON.users(14)} Key contacts</button>`:''}
           ${hasTransport?`<button type="button" class="hero-link" onclick="event.stopPropagation();showTransport('${e.id}')">${ICON.car(14)} Transport</button>`:''}
           ${liaisonReach?`<button type="button" class="hero-link" onclick="event.stopPropagation();contactPromoter('${e.id}')">${ICON.chat(14)} Liaison</button>`:''}
-          ${e.hotel?`<button type="button" class="hero-link" onclick="event.stopPropagation();openMaps('${jsAttr(hotelMapQuery(e))}')">${ICON.bed(14)} ${esc(e.hotel.name||'Hotel')}</button>`:''}
+          ${e.hotel?`<button type="button" class="hero-link" onclick="event.stopPropagation();openMaps('${jsAttr(hotelMapQuery(e))}')">${ICON.bed(14)} ${esc(e.hotel.name||'Accommodation')}</button>`:''}
           <button type="button" class="hero-link" onclick="event.stopPropagation();openMaps('${jsAttr(venueMapQuery(e))}')">${ICON.pin(14)} Venue</button>
           <button type="button" class="hero-link" onclick="event.stopPropagation();shareDaySheet('${e.id}')">${ICON.share(14)} Day sheet</button>
         </div>
@@ -430,18 +430,19 @@ function travelGroupSummary(e){
   const flightLegs = showLegs(e.id).filter(x=>x.kind==='travel' && (x.icon||'plane')==='plane').length;
   const manualFlights = (e.flights&&e.flights.length)||0;
   const flightN = flightLegs + manualFlights;
-  const hotel = !!(e.hotel || showLegs(e.id).some(x=>x.kind==='stay'));
+  const stay = !!(e.hotel || showLegs(e.id).some(x=>x.kind==='stay'));
   const drvList = showDrivers(e);
   const driver = !!(drvList.some(d=>!d.noGround) || showLegs(e.id).some(x=>x.kind==='travel' && isDriverItem(x)));
   const noGround = drvList.some(d=>d.noGround);
   const transferN = showLegs(e.id).filter(x=>x.kind==='travel' && (x.icon||'plane')!=='plane' && !isDriverItem(x)).length;
   const parts = [];
   if(flightN) parts.push(flightN+' flight'+(flightN>1?'s':''));
-  if(hotel) parts.push('hotel');
-  if(driver) parts.push('driver');
+  if(transferN) parts.push(transferN+' other'+(transferN>1?'':'')+' travel');
+  if(driver) parts.push('ground');
   if(noGround) parts.push('Uber/taxi');
-  if(transferN) parts.push(transferN+' transfer'+(transferN>1?'s':''));
-  return parts.length ? parts.join(' · ') : 'Add flights, hotel or transport';
+  if(stay) parts.push('accommodation');
+  else if(e.noAccommodation) parts.push('no accommodation');
+  return parts.length ? parts.join(' · ') : 'Add travel or accommodation';
 }
 function venueGroupSummary(e){
   const n = countAdvanceFields(e.advance);
@@ -476,18 +477,14 @@ function flightsSubsection(e){
     (e.flights||[]).filter(f => typeof flightHasDetails!=='function' || flightHasDetails(f)),
     e.date
   );
+  if(!legs.length && !manual.length) return '';
   let body = '';
-  if(!legs.length && !manual.length){
-    body = `<div class="card tap" onclick="sheetFlight('${e.id}')" style="text-align:center;color:var(--text-3);padding:20px">${ICON.plane(22)}<div style="margin-top:6px;font-weight:600">Add flight</div><div style="margin-top:4px;font-size:12px;font-weight:500">Number, times, passengers and boarding passes</div></div>`;
-  } else {
-    if(legs.length) body += showSourceLabel('From journey')+`<div class="card flush">${legs.map(journeyRow).join('')}</div>`;
-    if(manual.length){
-      if(legs.length) body += showSourceLabel('Added to show');
-      body += manual.map(f=>`<div class="card flush flight-card-wrap">${flightLine(e.id,f)}</div>`).join('');
-    }
+  if(legs.length) body += showSourceLabel('From journey')+`<div class="card flush">${legs.map(journeyRow).join('')}</div>`;
+  if(manual.length){
+    if(legs.length) body += showSourceLabel('Added to show');
+    body += manual.map(f=>`<div class="card flush flight-card-wrap">${flightLine(e.id,f)}</div>`).join('');
   }
-  const has = !!(legs.length || manual.length);
-  return showSubsection('ss-'+e.id+'-flights', 'Flights', `<button type="button" class="add" onclick="sheetFlight('${e.id}')">Add</button>`, body, has);
+  return showSubsection('ss-'+e.id+'-flights', 'Flights', `<button type="button" class="add" onclick="sheetFlight('${e.id}','__new__')">Add</button>`, body, true);
 }
 /* A UK show — UK postcodes are granular (a postcode ≈ a building) so they land
    exactly; postcodes elsewhere cover a wide area and Maps resolves them to the
@@ -546,7 +543,7 @@ function hotelSubsection(e){
       : [e.hotel.address, e.hotel.postcode].filter(Boolean).join(', ');
     const conf = typeof hotelBookingRef === 'function' ? hotelBookingRef(e.hotel) : (e.hotel.conf || e.hotel.bookingRef || '');
     body += `<div class="card flush">
-      <div class="info-line info-line-stacked"><div class="ic">${ICON.bed(17)}</div>${detailTx(esc(e.hotel.name||'Hotel'), esc(addr || 'Tap to add address'))}
+      <div class="info-line info-line-stacked"><div class="ic">${ICON.bed(17)}</div>${detailTx(esc(e.hotel.name||'Accommodation'), esc(addr || 'Tap to add address'))}
         <button class="header-btn" style="width:34px;height:34px;align-self:center" onclick="openMaps('${jsAttr(hotelMapQuery(e))}')">${ICON.map(16)}</button></div>
       <div class="info-line"><div class="ic">${ICON.clock(17)}</div>${fieldTx('Check in / out', `${e.hotel.checkin?fmtDate(e.hotel.checkin):'—'} → ${e.hotel.checkout?fmtDate(e.hotel.checkout):'—'}`)}</div>
       ${conf?`<div class="info-line" onclick="copyText('${jsAttr(conf)}')"><div class="ic">${ICON.ticket(17)}</div>${fieldTx('Confirmation', esc(conf))}<button class="header-btn" style="width:34px;height:34px;align-self:center">${ICON.copy(16)}</button></div>`:''}
@@ -555,9 +552,15 @@ function hotelSubsection(e){
       ${noteItemsHas(e.hotel.notes)?`<div class="info-line" style="align-items:flex-start"><div class="ic">${ICON.note(17)}</div>${noteItemsReadHtml('Room notes', e.hotel.notes)}</div>`:''}
     </div>`;
   }
-  if(!body) body = `<div class="card tap" onclick="sheetHotel('${e.id}')" style="text-align:center;color:var(--text-3);padding:20px">${ICON.bed(22)}<div style="margin-top:6px;font-weight:600">Add hotel details</div><div style="margin-top:4px;font-size:12px;font-weight:500">Name, dates, confirmation and maps</div></div>`;
+  if(!body){
+    if(e.noAccommodation){
+      body = `<div class="card" style="text-align:center;color:var(--text-3);padding:20px">${ICON.bed(22)}<div style="margin-top:6px;font-weight:600">No accommodation for this show</div><div style="margin-top:4px;font-size:12px;font-weight:500">You can add a stay later if that changes</div><button type="button" class="btn secondary" style="margin-top:12px;max-width:240px" onclick="sheetHotel('${e.id}')">Add accommodation</button></div>`;
+    } else {
+      body = `<div class="card tap" onclick="sheetHotel('${e.id}')" style="text-align:center;color:var(--text-3);padding:20px">${ICON.bed(22)}<div style="margin-top:6px;font-weight:600">Add accommodation</div><div style="margin-top:4px;font-size:12px;font-weight:500">Name, dates, confirmation and maps</div></div><button type="button" class="btn secondary" style="margin-top:10px" onclick="markNoAccommodation('${e.id}')">No accommodation for this show</button>`;
+    }
+  }
   const has = !!(legs.length || e.hotel);
-  return showSubsection('ss-'+e.id+'-hotel', 'Hotel', `<button type="button" class="add" onclick="sheetHotel('${e.id}')">${e.hotel?'Edit':'Add'}</button>`, body, has);
+  return showSubsection('ss-'+e.id+'-hotel', 'Accommodation', `<button type="button" class="add" onclick="sheetHotel('${e.id}')">${e.hotel?'Edit':'Add'}</button>`, body, !has);
 }
 /* Chronological rank for a driver by its journey: arrival → set → departure.
    Blank / custom journeys sort after the known ones, keeping their add order. */
@@ -640,7 +643,7 @@ function driverSubsection(e){
     if(legs.length) body += showSourceLabel('Added to show');
     body += orderedDrivers(e).map(o=>driverCard(e.id,o.d,o.idx)).join('');
   }
-  if(!body) body = `<div class="card tap" onclick="sheetDriver('${e.id}')" style="text-align:center;color:var(--text-3);padding:20px">${ICON.car(22)}<div style="margin-top:6px;font-weight:600">Add transport</div><div style="margin-top:4px;font-size:12px;font-weight:500">Driver details, pickup, or Uber / taxi</div></div>`;
+  if(!body) return '';
   const has = !!(legs.length || drivers.length);
   return showSubsection('ss-'+e.id+'-driver', 'Ground transport', `<button type="button" class="add" onclick="sheetDriver('${e.id}')">Add</button>`, body, has);
 }
@@ -648,10 +651,29 @@ function transfersSubsection(e){
   const legs = showLegs(e.id).filter(x=>x.kind==='travel' && (x.icon||'plane')!=='plane' && !isDriverItem(x)).sort(legSort);
   if(!legs.length) return '';
   const body = showSourceLabel('From journey')+`<div class="card flush">${legs.map(journeyRow).join('')}</div>`;
-  return showSubsection('ss-'+e.id+'-transfers', 'Transfers', `<button type="button" class="add" onclick="addLogisticFor('${e.id}')">Add</button>`, body, true);
+  return showSubsection('ss-'+e.id+'-transfers', 'Other travel', `<button type="button" class="add" onclick="sheetAddTravel('${e.id}')">Add</button>`, body, true);
+}
+function addTravelPickerHtml(eid){
+  const modes = [
+    ['flight','plane','Flight','Number, times, passengers and boarding passes'],
+    ['train','train','Train','Stations, times and service number'],
+    ['coach','bus','Coach','Service and times'],
+    ['ferry','ferry','Ferry','Ports and times'],
+    ['ground','car','Ground','Driver, Uber or taxi'],
+    ['walk','walk','Walk','On foot between places'],
+    ['cycle','cycle','Cycle','Bike between places']
+  ];
+  return `<div class="block-title" style="margin:2px 2px 8px">Add travel</div><div class="edit-section-grid" style="margin-bottom:12px">${modes.map(([key,icon,title,sub])=>`<button type="button" class="edit-section-btn" onclick="addTravelMode('${eid}','${key}')"><span class="ic">${(ICON[icon]||ICON.plane)(16)}</span><span><b>${title}</b><small>${sub}</small></span></button>`).join('')}</div>`;
 }
 function travelGroupBody(e){
-  return flightsSubsection(e)+hotelSubsection(e)+driverSubsection(e)+transfersSubsection(e);
+  const flights = flightsSubsection(e);
+  const drivers = driverSubsection(e);
+  const transfers = transfersSubsection(e);
+  const hasTravel = !!(flights || drivers || transfers);
+  const travel = hasTravel
+    ? (flights+drivers+transfers+`<button type="button" class="btn secondary" style="margin:4px 0 12px" onclick="sheetAddTravel('${e.id}')">${ICON.plus(15)} Add travel</button>`)
+    : addTravelPickerHtml(e.id);
+  return travel+hotelSubsection(e);
 }
 function venueSubsection(e){
   const addr = formatVenueAddress(e);
@@ -842,7 +864,7 @@ function compactShowTimelineIds(tl){
 }
 function showTimelineOverviewCopy(tl){
   if(!tl.length) return 'Builds from flights, hotel, transport and set time';
-  return tl.length+' timeline item'+(tl.length===1?'':'s')+' · Travel, hotel and show details update automatically';
+  return tl.length+' timeline item'+(tl.length===1?'':'s')+' · Travel, stay and show details update automatically';
 }
 function dayOverviewStepRow(e, s){
   const eid = e.id;
@@ -1020,7 +1042,7 @@ function viewEvent(id){
     ${dayOverviewBlock(e)}
 
     <div class="show-groups">
-      ${showGroup('sg-'+e.id+'-travel', 'Travel', ICON.plane(20), travelGroupSummary(e), travelGroupBody(e))}
+      ${showGroup('sg-'+e.id+'-travel', 'Travel & stay', ICON.plane(20), travelGroupSummary(e), travelGroupBody(e))}
       ${showGroup('sg-'+e.id+'-venue', 'Venue & show day', ICON.pin(20), venueGroupSummary(e), venueGroupBody(e))}
       ${showGroup('sg-'+e.id+'-deal', 'Fee & deal', ICON.coins(20), dealGroupSummary(e), moneyGroupBody(e))}
       ${showGroup('sg-'+e.id+'-prep', 'Day prep', ICON.checkList(20), prepGroupSummary(e), prepGroupBody(e))}
@@ -1246,13 +1268,14 @@ function offerAssign(eid){ /* shows auto-group into tours — nothing to assign 
 function sheetHotel(eid){
   const e=sel.event(eid); const h=e.hotel||{};
   const conf = typeof hotelBookingRef === 'function' ? hotelBookingRef(h) : (h.conf || h.bookingRef || '');
-  openSheetReact('Hotel', 'show.hotel', { eid });
+  openSheetReact('Accommodation', 'show.hotel', { eid });
 }
 function saveHotel(eid){
   const e=sel.event(eid);
   withButton($('#ho-save'), ()=>{
     const prev = e.hotel || {};
     const conf = val('ho-conf');
+    e.noAccommodation = false;
     e.hotel = {
       ...prev,
       name: val('ho-name'),
@@ -1274,8 +1297,41 @@ function saveHotel(eid){
     if(typeof pushShowNow === 'function') pushShowNow(eid);
     closeSheet();
     renderView();
-  }, 'Hotel saved');
+  }, 'Accommodation saved');
 }
+function sheetAddTravel(eid){
+  const e=sel.event(eid); if(!e) return;
+  openSheetReact('Add travel', 'show.addTravel', { eid });
+}
+window.sheetAddTravel = sheetAddTravel;
+function addTravelMode(eid, mode){
+  closeSheet();
+  if(mode === 'flight'){ sheetFlight(eid, '__new__'); return; }
+  if(mode === 'ground'){ sheetDriver(eid); return; }
+  const icon = mode === 'coach' ? 'bus' : (mode || 'train');
+  const e=sel.event(eid);
+  openSheetReact('Add travel', 'calendar.addLogistic', { showId: eid, event: e, presetKind: 'travel', presetIcon: icon });
+  setTimeout(()=>{ if(typeof toggleLogisticAddFields==='function') toggleLogisticAddFields(); }, 30);
+}
+window.addTravelMode = addTravelMode;
+function markNoAccommodation(eid){
+  const e=sel.event(eid); if(!e) return;
+  const apply=()=>{
+    e.noAccommodation = true;
+    e.hotel = null;
+    persist('shows', eid);
+    if(typeof pushShowNow==='function') pushShowNow(eid);
+    closeSheet();
+    softRender();
+    toast('No accommodation for this show','check');
+  };
+  if(e.hotel && (e.hotel.name || e.hotel.address)){
+    confirmSheet('No accommodation', 'This will remove the saved stay from this show.', 'No accommodation', apply);
+    return;
+  }
+  apply();
+}
+window.markNoAccommodation = markNoAccommodation;
 function sheetFlight(eid, fid){
   const e=sel.event(eid); if(!e) return;
   migrateShowFlightInfo(e);
@@ -2022,7 +2078,7 @@ function toggleShowTimelineStep(eid,sid){
       ov.textContent = typeof showTimelineOverviewCopy==='function'
         ? showTimelineOverviewCopy(tl)
         : (tl.length
-          ? (tl.length+' timeline item'+(tl.length===1?'':'s')+' · Travel, hotel and show details update automatically')
+          ? (tl.length+' timeline item'+(tl.length===1?'':'s')+' · Travel, stay and show details update automatically')
           : 'Builds from flights, hotel, transport and set time');
     }
     const prep = document.getElementById('fold-sg-'+eid+'-prep');

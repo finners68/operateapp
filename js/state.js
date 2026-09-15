@@ -81,6 +81,7 @@ const ICON = {
   ban:       p=>I('<circle cx="12" cy="12" r="9"/><path d="M5.6 5.6l12.8 12.8"/>',p),
   walk:      p=>I('<circle cx="13" cy="4" r="1.6"/><path d="M11 21l1.5-6L10 12l1-5 3 3 3 1M8 21l2.5-6"/>',p),
   cycle:     p=>I('<circle cx="6.5" cy="17" r="3"/><circle cx="17.5" cy="17" r="3"/><path d="M6.5 17l4-9h5l3 9M10.5 8l4 9"/>',p),
+  bus:       p=>I('<path d="M4 15h16v3H4Z"/><path d="M6 15V6a3 3 0 0 1 3-3h6a3 3 0 0 1 3 3v9"/><path d="M7 18v2M17 18v2"/><path d="M8 8h8M8 11h8"/>',p),
   refresh:   p=>I('<path d="M21 12a9 9 0 1 1-2.6-6.2"/><path d="M21 3v6h-6"/>',p),
 };
 
@@ -421,7 +422,7 @@ function showDayTimeline(e){
     const hotelDate = e.hotel.checkin||e.date;
     rows.push({
       id:'auto:hotel', auto:true, kind:'hotel', icon:'bed',
-      time:'', title:e.hotel.name||'Hotel', sub:when,
+      time:'', title:e.hotel.name||'Accommodation', sub:when,
       done:!!e.hotel.done, trueDate:hotelDate, dayOffset:dateDiffDays(e.date, hotelDate)
     });
   }
@@ -774,7 +775,7 @@ function showSourceLabel(text){
 /* ---------- Logistics items (journey legs on a show) ---------- */
 function logisticTypeLabel(l){
   if(!l) return '';
-  if(l.kind==='stay') return 'Hotel';
+  if(l.kind==='stay') return 'Accommodation';
   const ic = l.icon || 'plane';
   if(ic==='plane') return 'Flight';
   if(ic==='car'){
@@ -814,7 +815,7 @@ function parseLogisticRouteFromLegacy(title){
   return { from: m[1].trim(), to: m[2].trim() };
 }
 function isNormalizedLogisticTitle(title){
-  return ['Flight','Hotel','Driver','Ferry','Walk','Train','Transfer','Cycle','Coach','Uber','Taxi','Shuttle','Minibus','Bus','Chauffeur','Private car'].includes(title);
+  return ['Flight','Hotel','Accommodation','Driver','Ferry','Walk','Train','Transfer','Cycle','Coach','Uber','Taxi','Shuttle','Minibus','Bus','Chauffeur','Private car'].includes(title);
 }
 function extractFlightNoFromTitle(title){
   const t = String(title||'');
@@ -905,7 +906,7 @@ function normalizeLogisticItem(e){
   }
   if(e.kind==='stay'){
     extractLegacyStayFields(e);
-    e.title = 'Hotel';
+    e.title = 'Accommodation';
   }
 }
 function logisticRoute(l){
@@ -1542,7 +1543,7 @@ function runTimeline(run){
     }
     if(r.kind==='stay'){
       const e=r.ref||{};
-      return !!(e.place||e.addr||e.bookingRef||(r.sub&&String(r.sub).trim())||(r.title&&r.title!=='Hotel'));
+      return !!(e.place||e.addr||e.bookingRef||(r.sub&&String(r.sub).trim())||(r.title&&r.title!=='Hotel'&&r.title!=='Accommodation'));
     }
     return true;
   });
@@ -1572,7 +1573,7 @@ function runTimeline(run){
         : [s.hotel.address, s.hotel.postcode].filter(Boolean).join(', ');
       const stayDate = s.hotel.checkin||s.date;
       rows.push({id:'shhotel_'+s.id, kind:'stay', icon:'bed', date:stayDate, showId:s.id, showDate:s.date, trueDate:stayDate, dayOffset:dateDiffDays(s.date, stayDate), time:'',
-        title:s.hotel.name||'Hotel', sub:hSub,
+        title:s.hotel.name||'Accommodation', sub:hSub,
         done:!!s.hotel.done, embedded:true, ref:{kind:'stay', icon:'bed', showId:s.id, place:s.hotel.name, addr:hSub || s.hotel.address, embedded:true}});
     }
     if(!hasCar.has(s.id)){

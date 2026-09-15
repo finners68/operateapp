@@ -2118,7 +2118,7 @@ async function watchItineraryUploadComplete(showId, itineraryId){
         status:'uploading',
         title:'Itinerary is being uploaded',
         message: elapsed > 45000
-          ? 'Still working — please keep this show open. Hotel, travel and contacts will appear when ready.'
+          ? 'Still working — please keep this show open. Accommodation, travel and contacts will appear when ready.'
           : 'Please wait — hotel, travel and the rest will appear on this show.',
         itineraryId,
         baselineScore: baseline,
@@ -2404,7 +2404,7 @@ function delItemPass(itemId, passId){
   else it.passes=[];
   persist('shows', itemId || eid); softRender(); toast('Boarding pass removed','trash');
 }
-function removeHotel(eid){ const e=sel.event(eid); if(e){ e.hotel=null; } persist('shows', eid); if(typeof pushShowNow==='function') pushShowNow(eid); closeSheet(); softRender(); toast('Hotel removed','trash'); }
+function removeHotel(eid){ const e=sel.event(eid); if(e){ e.hotel=null; e.noAccommodation=false; } persist('shows', eid); if(typeof pushShowNow==='function') pushShowNow(eid); closeSheet(); softRender(); toast('Accommodation removed','trash'); }
 function removeDriver(eid, idx){ const e=sel.event(eid); if(e){ const list=showDrivers(e); if(idx!=null) list.splice(idx,1); e.driver=list.find(d=>!d.noGround)||null; } persist('shows', eid); closeSheet(); softRender(); toast('Removed','trash'); }
 function removePromoter(eid){ const e=sel.event(eid); if(e){ e.promoter=null; } persist('shows', eid); closeSheet(); softRender(); toast('Contact removed','trash'); }
 /* ============================================================

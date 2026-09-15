@@ -1,4 +1,5 @@
 import { NoteItemsField } from '../../show/NoteItems.jsx';
+import { AddTravelPicker } from '../../show/Travel.jsx';
 import { Icon } from '../../show/ui.jsx';
 import { call, getCats, getDaySheetText, getDriverJourneys, getEvent, getPassFileAccept, getStore, parseDT } from '../../api/operate.js';
 
@@ -94,11 +95,20 @@ export function ShowEventSheet({ eid, event }){
   </>;
 }
 
+export function ShowAddTravelSheet({ eid }){
+  const e = eventOf({ eid });
+  if(!e) return <div className="hint">Show not found.</div>;
+  return <>
+    <p className="sheet-lede">Choose how you are getting there.</p>
+    <AddTravelPicker show={e} inSheet />
+    <Spacer />
+  </>;
+}
 export function ShowHotelSheet(props){
   const e=eventOf(props), h=props.hotel || e.hotel || {};
   const conf=call('hotelBookingRef',h) || h.conf || h.bookingRef || '';
   return <>
-    <Field label="Hotel name" id="ho-name" value={h.name} placeholder="Kimpton De Witt" />
+    <Field label="Accommodation name" id="ho-name" value={h.name} placeholder="Kimpton De Witt" />
     <Field label="Address" id="ho-addr" value={h.address} placeholder="Street and number" />
     <Field label="Address line 2" id="ho-addr2" value={h.address2} placeholder="Building, floor, unit (optional)" />
     <div className="row-2"><Field label="City" id="ho-city" value={h.city} placeholder={e.city||'Amsterdam'} /><Field label="Region" id="ho-region" value={h.region} placeholder="North Holland" /></div>
@@ -107,8 +117,8 @@ export function ShowHotelSheet(props){
     <div className="row-2"><Field label="Check in" id="ho-in" type="date" value={h.checkin||e.date} /><Field label="Check out" id="ho-out" type="date" value={h.checkout} /></div>
     <Field label="Confirmation #" id="ho-conf" value={conf} placeholder="Booking reference" />
     <NoteItemsField label="Room notes" listId="ho-notes" value={h.notes} placeholder="Late checkout, floor, etc." />
-    <button className="btn" id="ho-save" onClick={()=>call('saveHotel',props.eid||props.id)}>Save hotel</button>
-    {e.hotel ? <button className="btn danger" style={{marginTop:10}} onClick={()=>call('removeHotel',props.eid||props.id)}><Icon name="trash" size={16}/> Remove hotel</button>:null}<Spacer />
+    <button className="btn" id="ho-save" onClick={()=>call('saveHotel',props.eid||props.id)}>Save accommodation</button>
+    {e.hotel ? <button className="btn danger" style={{marginTop:10}} onClick={()=>call('removeHotel',props.eid||props.id)}><Icon name="trash" size={16}/> Remove accommodation</button>:null}<Spacer />
   </>;
 }
 
@@ -364,7 +374,7 @@ export function ShowTimelineSheet({eid,steps}){
         {grouped.multi && g.label ? <div className={`tl-day-head${g.today?' today':''}`} style={{margin:'10px 8px 4px'}}>{g.label}</div> : null}
         {(g.steps||[]).map(renderStep)}
       </div>
-    ))}</div>:<div className="hint" style={{padding:'8px 4px 12px'}}>Add travel, hotel, transport or set time to build this timeline.</div>}
+    ))}</div>:<div className="hint" style={{padding:'8px 4px 12px'}}>Add travel, accommodation, transport or set time to build this timeline.</div>}
     <button className="btn secondary" style={{marginTop:12}} onClick={()=>call('sheetShowTimelineStep',eid)}><Icon name="plus" size={16}/> Add custom step</button>
     <Spacer />
   </>;
@@ -373,5 +383,5 @@ export function ShowTimelineStepSheet({eid,sid,step}){const e=eventOf({eid}),s=s
 export function ShowTimelineAddSheet({tid}){return <><div className="row-2"><Field label="Time" id="ts-time" type="time"/><Field label="What" id="ts-title" placeholder="Soundcheck"/></div><Field label="Detail (optional)" id="ts-sub" placeholder="Venue, note…"/><button className="btn" id="ts-save" onClick={()=>call('saveTimelineStep',tid)}>Add step</button><Spacer /></>;}
 export function ShowEmergencySheet({tid}){return <><Field label="Name" id="em-name" placeholder="Manager — Alex"/><Field label="Phone" id="em-phone" type="tel" placeholder="+44 7700 900123"/><button className="btn" id="em-save" onClick={()=>call('saveEmergency',tid)}>Add contact</button><Spacer /></>;}
 export function ShowDealSheet({eid,finance}){const e=eventOf({eid}),f=finance||e.finance||{},s=getStore()?.settings||{},currencies=Object.keys(s.fx||{});return <><div className="row-2"><Field label="Fee" id="fi-fee" type="number" inputMode="decimal" value={f.fee} placeholder="8000"/><Field label="Currency"><select id="fi-cur" className="input" defaultValue={f.currency||s.baseCurrency}>{currencies.map(c=><option key={c}>{c}</option>)}</select></Field></div><Field label="Deal type"><Seg id="fi-deal" values={['Guarantee','Guarantee + Bonus','Door split','Fee + Travel']} selected={f.dealType||'Guarantee'}/></Field><div className="row-2"><Field label="Agent commission %" id="fi-comm" type="number" inputMode="decimal" value={f.commission} placeholder="10"/><Field label="Per diem" id="fi-pd" type="number" inputMode="decimal" value={f.perDiem} placeholder="150"/></div><Field label="Payment status"><Seg id="fi-paid" values={[['0','Unpaid'],['1','Paid']]} selected={f.paid?'1':'0'}/></Field><Field label="Fee visibility"><Seg id="fi-nd" values={[['0','Show fee'],['1','Not disclosed']]} selected={f.notDisclosed?'1':'0'}/></Field><button className="btn" id="fi-save" onClick={()=>call('saveFinance',eid)}>Save deal</button><div className="hint" style={{textAlign:'left',paddingTop:10}}>Foreign fees auto-convert to {s.baseCurrency}.</div><Spacer /></>;}
-export function ShowExpenseSheet({eid}){return <><div className="row-2"><Field label="What" id="ex-label" placeholder="Flights, hotel, gear…"/><Field label="Amount" id="ex-amt" type="number" inputMode="decimal" placeholder="220"/></div><button className="btn" onClick={()=>call('saveExpense',eid)}>Add expense</button><Spacer /></>;}
+export function ShowExpenseSheet({eid}){return <><div className="row-2"><Field label="What" id="ex-label" placeholder="Flights, accommodation, gear…"/><Field label="Amount" id="ex-amt" type="number" inputMode="decimal" placeholder="220"/></div><button className="btn" onClick={()=>call('saveExpense',eid)}>Add expense</button><Spacer /></>;}
 export function ShowDaySheet({eid,text,share=true}){const value=text ?? getDaySheetText() ?? '';return <><div className="card" style={{whiteSpace:'pre-wrap',fontSize:13.5,lineHeight:1.55,fontFamily:'ui-monospace,Menlo,monospace',color:'var(--text-2)',maxHeight:'52dvh',overflow:'auto'}}>{value}</div><Spacer/><div style={{display:'flex',gap:9}}><button className="btn" style={{flex:1}} onClick={()=>{call('copyText',value);call('closeSheet')}}><Icon name="copy" size={16}/> Copy</button>{share&&typeof navigator!=='undefined'&&navigator.share?<button className="btn secondary" style={{flex:1}} onClick={()=>call('daySheetShare')}><Icon name="share" size={16}/> Share</button>:null}</div>{eid?<button className="btn secondary" style={{marginTop:9}} onClick={()=>call('printDaySheet',eid)}><Icon name="file" size={16}/> Print / Save as PDF</button>:null}<Spacer /></>;}

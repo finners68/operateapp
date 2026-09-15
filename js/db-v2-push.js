@@ -751,7 +751,8 @@ async function pushToSupabaseV2(orgId, dirtyIn){
         set_end_date: (typeof resolveSetEndDate === 'function' ? resolveSetEndDate(s) : (s.setEndDate || s.date)) || s.date || null,
         internal_notes: (typeof noteItemsForDb === 'function' ? noteItemsForDb(s.notes) : (s.notes || null)),
         content_plan: s.content || null,
-        is_set_done: !!s.setDone
+        is_set_done: !!s.setDone,
+        no_accommodation: !!s.noAccommodation && !(s.hotel && (s.hotel.name || s.hotel.address || s.hotel.city))
       });
     }
     if(showRows.length) await v2UpsertById(sb, 'shows', orgId, showRows);
