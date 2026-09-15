@@ -1616,29 +1616,35 @@ select.input{appearance:none;-webkit-appearance:none;background-image:url("data:
 body{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;}
 input,textarea,[contenteditable="true"],.selectable{-webkit-user-select:text;user-select:text;-webkit-touch-callout:default;}
 img{-webkit-touch-callout:none;}
-#screen{overscroll-behavior:contain;}
+html,body{overscroll-behavior:none;}
+#screen{overscroll-behavior:none;}
 
-/* Mobile pull-to-refresh: page content tracks the finger */
-#view.ptr-dragging{
+/* Mobile pull-to-refresh: the whole screen tracks the finger as one piece */
+#screen.ptr-dragging{
   transition:none !important;
   will-change:transform;
 }
-#view.ptr-settling{
+#screen.ptr-settling{
   transition:transform .28s cubic-bezier(.2,.85,.25,1);
   will-change:transform;
 }
+#app.is-ptr #screen{
+  overflow:hidden;
+  -webkit-overflow-scrolling:auto;
+}
 
-/* Mobile pull-to-refresh indicator (hidden on desktop) */
+/* Spinner sits in the gap revealed behind the moving screen */
 .pull-refresh{
   position:absolute;
   left:0;right:0;
   top:0;
-  z-index:30;
+  height:var(--pull, 0px);
+  z-index:5;
   display:flex;
+  align-items:center;
   justify-content:center;
   pointer-events:none;
   opacity:0;
-  transform:translateY(calc(var(--pull, 0px) * 0.35));
   transition:opacity .15s ease;
 }
 .pull-refresh.visible{opacity:1;}
@@ -1646,7 +1652,7 @@ img{-webkit-touch-callout:none;}
   display:flex;
   align-items:center;
   gap:8px;
-  margin-top:calc(var(--safe-top) + 10px);
+  margin:0;
   padding:8px 14px;
   border-radius:999px;
   background:rgba(26,26,32,.92);

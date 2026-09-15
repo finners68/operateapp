@@ -146,7 +146,8 @@ function pullRefreshBusyUi(){
 
 function initPullToRefresh(){
   const screen = document.getElementById('screen');
-  if(!screen || screen.dataset.ptrInit === '1') return;
+  const app = document.getElementById('app');
+  if(!screen || !app || screen.dataset.ptrInit === '1') return;
   screen.dataset.ptrInit = '1';
 
   let indicator = document.getElementById('pull-refresh');
@@ -156,10 +157,10 @@ function initPullToRefresh(){
     indicator.className = 'pull-refresh';
     indicator.setAttribute('aria-hidden', 'true');
     indicator.innerHTML = `<div class="pull-refresh-inner"><span class="pull-refresh-icon">${typeof ICON !== 'undefined' ? ICON.refresh(18) : ''}</span><span class="pull-refresh-label">Pull to refresh</span></div>`;
-    screen.insertBefore(indicator, screen.firstChild);
   }
+  /* Sit behind the moving screen so the real page slides as one piece. */
+  if(indicator.parentElement !== app) app.insertBefore(indicator, screen);
 
-  const view = () => document.getElementById('view');
   const THRESH = 78;
   let startY = 0;
   let pulling = false;
@@ -169,15 +170,13 @@ function initPullToRefresh(){
   const isDesktop = () => window.matchMedia('(min-width:900px)').matches;
 
   const setContentPull = (px, mode) => {
-    const el = view();
     const y = Math.max(0, px || 0);
+    app.classList.toggle('is-ptr', y > 0 || mode === 'drag' || mode === 'hold');
+    screen.classList.toggle('ptr-dragging', mode === 'drag');
+    screen.classList.toggle('ptr-settling', mode === 'settle' || mode === 'hold');
     indicator.style.setProperty('--pull', y + 'px');
     screen.style.setProperty('--ptr-shift', y + 'px');
-    if(!el) return;
-    el.classList.toggle('ptr-dragging', mode === 'drag');
-    el.classList.toggle('ptr-settling', mode === 'settle' || mode === 'hold');
-    if(y > 0) el.style.transform = 'translate3d(0,' + y + 'px,0)';
-    else el.style.transform = '';
+    screen.style.transform = y > 0 ? 'translate3d(0,' + y + 'px,0)' : '';
   };
 
   const reset = () => {
@@ -188,16 +187,14 @@ function initPullToRefresh(){
     const label = indicator.querySelector('.pull-refresh-label');
     if(label) label.textContent = 'Pull to refresh';
     setContentPull(0, 'settle');
-    const el = view();
-    if(el){
-      const clear = () => {
-        el.classList.remove('ptr-settling', 'ptr-dragging');
-        el.style.transform = '';
-        screen.style.setProperty('--ptr-shift', '0px');
-      };
-      el.addEventListener('transitionend', clear, { once: true });
-      setTimeout(clear, 320);
-    }
+    const clear = () => {
+      screen.classList.remove('ptr-settling', 'ptr-dragging');
+      screen.style.transform = '';
+      screen.style.removeProperty('--ptr-shift');
+      app.classList.remove('is-ptr');
+    };
+    screen.addEventListener('transitionend', clear, { once: true });
+    setTimeout(clear, 320);
   };
 
   screen.addEventListener('touchstart', (e) => {
@@ -208,11 +205,8 @@ function initPullToRefresh(){
     pulling = true;
     armed = false;
     dy = 0;
-    const el = view();
-    if(el){
-      el.classList.remove('ptr-settling');
-      el.classList.add('ptr-dragging');
-    }
+    screen.classList.remove('ptr-settling');
+    screen.classList.add('ptr-dragging');
   }, { passive: true });
 
   screen.addEventListener('touchmove', (e) => {
@@ -223,7 +217,7 @@ function initPullToRefresh(){
     }
     dy = e.touches[0].clientY - startY;
     if(dy < 8) return;
-    /* Keep the page attached to the finger — block native overscroll. */
+    /* Keep the page attached to the finger — block native overscroll copies. */
     if(e.cancelable) e.preventDefault();
     const pull = Math.min(dy * 0.55, 120);
     armed = pull >= THRESH * 0.55;
