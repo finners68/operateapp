@@ -208,6 +208,9 @@ async function loadFromSupabaseV2(orgId, sb){
     });
     store.events = [...byId.values()];
   }
+  /* A fetch that started before a flight save can come back without that
+     journey. Keep locally added flights on the show so they do not vanish. */
+  v2KeepLocalShowFlights(prevEvents, store.events);
 
   const knownIds = [];
   store.events.forEach(e => {
@@ -255,17 +258,41 @@ async function loadFromSupabaseV2(orgId, sb){
   db.write(store);
 }
 
+/* Keep show flights the user just added if a stale compose missed them. */
+function v2KeepLocalShowFlights(prevEvents, events){
+  if(!Array.isArray(prevEvents) || !Array.isArray(events)) return events;
+  const prevById = new Map();
+  prevEvents.forEach(e => { if(e && e.id) prevById.set(e.id, e); });
+  events.forEach(cloud => {
+    if(!cloud || (cloud.kind && cloud.kind !== 'show')) return;
+    const local = prevById.get(cloud.id);
+    if(!local || !Array.isArray(local.flights) || !local.flights.length) return;
+    const cloudFlights = Array.isArray(cloud.flights) ? cloud.flights.slice() : [];
+    const seen = new Set(cloudFlights.map(f => f && f.id).filter(Boolean));
+    local.flights.forEach(f => {
+      if(!f || !f.id || seen.has(f.id)) return;
+      if(typeof flightHasDetails === 'function' && !flightHasDetails(f)) return;
+      cloudFlights.push(f);
+      seen.add(f.id);
+    });
+    cloud.flights = cloudFlights;
+  });
+  return events;
+}
+
 /* Rebuild view projection from current store.v2 without hitting the network. */
 async function rebuildViewFromLocalV2(){
   if(!store?.v2) return;
   const prevItineraries = (store.itineraries || []).slice();
-  const view = await composeViewFromV2(store.v2, { prevEvents: store.events || [] });
+  const prevEvents = (store.events || []).slice();
+  const view = await composeViewFromV2(store.v2, { prevEvents });
   store.settings = Object.assign({}, store.settings, view.settings, {
     security: store.settings?.security || view.settings.security,
     homeHeader: store.settings?.homeHeader || view.settings.homeHeader
   });
   store.artists = view.artists;
   store.events = view.events;
+  v2KeepLocalShowFlights(prevEvents, store.events);
   store.trips = view.trips;
   store.ideas = view.ideas;
   store.notes = view.notes;
@@ -274,4 +301,5 @@ async function rebuildViewFromLocalV2(){
   store.invoices = view.invoices;
   store.itineraries = mergePendingItineraries(view.itineraries, prevItineraries);
   if(typeof normalizeNotesFolderIds === 'function') normalizeNotesFolderIds();
+  if(typeof notifyStore === 'function') notifyStore();
 }

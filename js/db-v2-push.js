@@ -512,6 +512,19 @@ async function pushToSupabaseV2(orgId, dirtyIn){
         if(Array.isArray(s.drivers)){
           copy.drivers = s.drivers.map(d => (d && typeof d === 'object') ? Object.assign({}, d) : d);
         }
+        if(Array.isArray(s.flights)){
+          copy.flights = s.flights.map(f => {
+            if(!f || typeof f !== 'object') return f;
+            const row = Object.assign({}, f);
+            row.passengers = Array.isArray(f.passengers)
+              ? f.passengers.map(p => (p && typeof p === 'object')
+                ? Object.assign({}, p, { passes: Array.isArray(p.passes) ? p.passes.slice() : [] })
+                : p)
+              : [];
+            row.passes = Array.isArray(f.passes) ? f.passes.slice() : [];
+            return row;
+          });
+        }
         return copy;
       })
     : [];

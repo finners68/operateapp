@@ -286,8 +286,15 @@ function startRealtime(orgId){
           }
         } else {
           const row = payload.new || payload.old;
-          if(payload.eventType === 'DELETE' && row?.id) v2RepoRemoveLocal(table, row.id);
-          else if(row?.id) v2RepoPatchLocal(table, row);
+          if(payload.eventType === 'DELETE'){
+            const gone = payload.old || row;
+            if(gone?.id) v2RepoRemoveLocal(table, gone.id);
+            else if(gone?.journey_id && store?.v2 && Array.isArray(store.v2[table])){
+              store.v2[table] = store.v2[table].filter(r => r && r.journey_id !== gone.journey_id);
+            }
+          } else if(row){
+            v2RepoPatchLocal(table, row);
+          }
         }
       }catch(e){}
       scheduleLocalRealtimeRefresh();

@@ -1459,6 +1459,10 @@ function saveFlight(eid, fid){
     }
     /* Clear legacy show-level flight info once it lives on the flight. */
     e.flightNo=''; e.terminal=''; e.gate=''; e.fstatus=''; e.delay='';
+    if(typeof setFoldOpen === 'function'){
+      setFoldOpen('sg-'+eid+'-travel', true);
+      setFoldOpen('ss-'+eid+'-flights', true);
+    }
     persist('shows', eid);
     if(typeof pushShowNow === 'function') pushShowNow(eid);
     closeSheet();
