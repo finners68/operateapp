@@ -128,7 +128,7 @@ export function EventMenuSheet({ eid }){
         <button type="button" className="edit-section-btn" onClick={open('sheetEvent')}><Icon name="edit" size={16}/><span><b>Show basics</b><small>Venue, date, times, status</small></span></button>
         <button type="button" className="edit-section-btn" onClick={open('sheetHotel')}><Icon name="bed" size={16}/><span><b>Accommodation</b><small>Stay & confirmation</small></span></button>
         <button type="button" className="edit-section-btn" onClick={open('sheetFlight')}><Icon name="plane" size={16}/><span><b>Flights</b><small>Route, gate, seats & passes</small></span></button>
-        <button type="button" className="edit-section-btn" onClick={open('sheetDriver')}><Icon name="car" size={16}/><span><b>Transport</b><small>Driver, Uber or taxi</small></span></button>
+        <button type="button" className="edit-section-btn" onClick={open('sheetDriver')}><Icon name="car" size={16}/><span><b>Transport</b><small>Pre-arranged or arrange at time</small></span></button>
         <button type="button" className="edit-section-btn" onClick={open('sheetPromoter')}><Icon name="users" size={16}/><span><b>Artist Liaison</b><small>Show-day contact</small></span></button>
         <button type="button" className="edit-section-btn" onClick={open('sheetAdvance')}><Icon name="file" size={16}/><span><b>Show-day details</b><small>Stage, catering, access</small></span></button>
         <button type="button" className="edit-section-btn" onClick={open('sheetFinance')}><Icon name="coins" size={16}/><span><b>Deal</b><small>Fee, expenses, paid</small></span></button>

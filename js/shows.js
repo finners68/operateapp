@@ -439,7 +439,7 @@ function travelGroupSummary(e){
   if(flightN) parts.push(flightN+' flight'+(flightN>1?'s':''));
   if(transferN) parts.push(transferN+' other'+(transferN>1?'':'')+' travel');
   if(driver) parts.push('ground');
-  if(noGround) parts.push('Uber/taxi');
+  if(noGround) parts.push('arrange at time');
   if(stay) parts.push('accommodation');
   else if(e.noAccommodation) parts.push('no accommodation');
   return parts.length ? parts.join(' · ') : 'Add travel or accommodation';
@@ -575,6 +575,19 @@ function orderedDrivers(e){
       || String(a.d.time||'').localeCompare(String(b.d.time||''))
       || a.idx-b.idx);
 }
+function groundPreferredKey(d){
+  const gt=String((d&&d.groundType)||'').toLowerCase();
+  if(gt==='uber'||gt==='taxi') return gt;
+  return 'either';
+}
+function groundArrangeSummary(d){
+  const k=groundPreferredKey(d);
+  if(k==='uber') return 'Arrange at time — Uber';
+  if(k==='taxi') return 'Arrange at time — Taxi';
+  return 'Arrange at time — Uber or taxi';
+}
+window.groundPreferredKey = groundPreferredKey;
+window.groundArrangeSummary = groundArrangeSummary;
 /* Resolve a journey's DESTINATION (arrival location) to a Maps query. */
 function driverDestMapQuery(e, d){
   ensureDriverLocations(d);
@@ -595,7 +608,7 @@ function driverCard(eid, d, idx){
   ensureDriverLocations(d);
   const ev = sel.event(eid);
   const dest = ev ? driverDestMapQuery(ev, d) : '';
-  const label = driverJourneyLabel(d) || (d.noGround ? 'Transport' : 'Driver');
+  const label = driverJourneyLabel(d) || (d.noGround ? 'Ground' : (d.name || 'Ground'));
   const phone = d.phone || '';
   const wa = d.whatsapp || d.phone || '';
   const actions = d.noGround
@@ -619,16 +632,19 @@ function driverCard(eid, d, idx){
   if(d.noGround){
     return `<div class="card flush driver-card" style="margin-bottom:10px">
       ${head}
-      <div class="driver-contact info-line"><div class="ic">${ICON.car(15)}</div>${fieldTx('Booking', 'Please book an Uber / taxi')}</div>
+      <div class="driver-contact info-line"><div class="ic">${ICON.car(15)}</div>${fieldTx('Arrangement', esc(groundArrangeSummary(d)))}</div>
+      ${noteItemsHas(d.notes)?`<div class="info-line" style="align-items:flex-start"><div class="ic">${ICON.note(17)}</div>${noteItemsReadHtml('Notes', d.notes)}</div>`:''}
     </div>`;
   }
+  const contact = d.name || d.vehicle || 'Pre-arranged';
+  const meta = [d.vehicle && d.name ? d.vehicle : '', d.pickup].filter(Boolean).join(' · ');
   return `<div class="card flush driver-card" style="margin-bottom:10px">
     ${head}
     <div class="driver-contact info-line"><div class="ic">${ICON.user(15)}</div>
       <div class="tx">
-        <div class="k">Contact</div>
-        <div class="v">${esc(d.name||'Driver')}</div>
-        ${d.pickup?`<div class="detail-meta">${esc(d.pickup)}</div>`:''}
+        <div class="k">${d.name?'Contact':'Arrangement'}</div>
+        <div class="v">${esc(contact)}</div>
+        ${meta?`<div class="detail-meta">${esc(meta)}</div>`:''}
       </div>
     </div>
     ${noteItemsHas(d.notes)?`<div class="info-line" style="align-items:flex-start"><div class="ic">${ICON.note(17)}</div>${noteItemsReadHtml('Notes', d.notes)}</div>`:''}
@@ -659,7 +675,7 @@ function addTravelPickerHtml(eid){
     ['train','train','Train','Stations, times and service number'],
     ['coach','bus','Coach','Service and times'],
     ['ferry','ferry','Ferry','Ports and times'],
-    ['ground','car','Ground','Driver, Uber or taxi'],
+    ['ground','car','Ground','Pre-arranged or arrange at time'],
     ['walk','walk','Walk','On foot between places'],
     ['cycle','cycle','Cycle','Bike between places']
   ];
@@ -819,7 +835,7 @@ function timelinePreviewSecondary(s){
   if(s.kind==='set') return { text:s.endTime?('until '+s.endTime):'', hasNote:false };
   if(!sub) return { text:'', hasNote:false };
   if(s.kind==='transport'){
-    if(sub==='No grounds') return { text:'Uber / taxi', hasNote:false };
+    if(sub==='No grounds' || /^Arrange at time/.test(sub)) return { text: sub==='No grounds' ? 'Uber / taxi' : sub, hasNote:false };
     const parts=sub.split(' · ');
     const operator=(parts[0]||'').trim();
     const rest=parts.slice(1).join(' · ').trim();
@@ -1680,13 +1696,13 @@ function showTransport(eid){
   if(!list.length){ sheetDriver(eid); return; }
   const rows = orderedDrivers(e).map(({d})=>{
     ensureDriverLocations(d);
-    const title = esc(driverJourneyLabel(d) || (d.noGround?'Transport':(d.name||'Driver'))) + (d.time?' · '+esc(d.time):'');
+    const title = esc(driverJourneyLabel(d) || (d.noGround?'Ground':(d.name||'Ground'))) + (d.time?' · '+esc(d.time):'');
     if(d.noGround){
-      return `<div class="info-line"><div class="ic">${ICON.car(17)}</div>${fieldTx(title,'No grounds — Uber / taxi')}
+      return `<div class="info-line"><div class="ic">${ICON.car(17)}</div>${fieldTx(title,esc(groundArrangeSummary(d)))}
         <button class="header-btn" style="width:34px;height:34px;align-self:center" onclick="openExternal('https://m.uber.com/','uber://')">${ICON.car(16)}</button></div>`;
     }
     const wa=d.whatsapp||d.phone||'';
-    return `<div class="info-line"><div class="ic">${ICON.user(17)}</div>${fieldTx(title, esc(d.name||'Driver')+(d.phone?' · '+esc(d.phone):''))}
+    return `<div class="info-line"><div class="ic">${ICON.user(17)}</div>${fieldTx(title, esc(d.name||d.vehicle||'Pre-arranged')+(d.phone?' · '+esc(d.phone):''))}
       ${d.phone?`<button class="header-btn" style="width:34px;height:34px;align-self:center" title="Call" onclick="callNumber('${jsAttr(d.phone)}')">${ICON.phone(16)}</button>`:''}
       ${wa?`<button class="header-btn" style="width:34px;height:34px;align-self:center" title="WhatsApp" onclick="whatsapp('${jsAttr(wa)}')">${ICON.chat(16)}</button>`:''}
       ${d.phone?`<button class="header-btn" style="width:34px;height:34px;align-self:center" title="Copy" onclick="copyText('${jsAttr(d.phone)}')">${ICON.copy(16)}</button>`:''}</div>`;
@@ -1797,43 +1813,51 @@ function clearFlightInfo(id){
 function sheetDriver(eid, idx){
   const e=sel.event(eid); const list=showDrivers(e);
   const editing = idx!=null && list[idx];
-  const d = editing ? list[idx] : {};
-  const none = !!d.noGround;
-  const chips = DRIVER_JOURNEYS.map(j=>`<button type="button" class="chip" onclick="document.getElementById('dr-journey').value='${j}';haptic()">${j}</button>`).join('');
   openSheetReact(editing?'Edit ground':'Add ground', 'show.transport', { eid, idx });
 }
-function drModeToggle(){
-  const none = getSeg('dr-mode')==='none';
-  const c=document.getElementById('dr-contact'); if(c) c.style.display = none?'none':'';
-  const h=document.getElementById('dr-none-hint'); if(h) h.style.display = none?'':'none';
+function inferPrearrangedGroundType(vehicle){
+  if(typeof v2InferGroundTransportType !== 'function') return '';
+  const inferred = v2InferGroundTransportType(vehicle);
+  if(!inferred || inferred==='uber' || inferred==='taxi' || inferred==='other') return '';
+  return inferred;
 }
 function saveDriver(eid, idx){
   const e=sel.event(eid);
-  const none = getSeg('dr-mode')==='none';
-  const name = val('dr-name');
-  if(!none && !name){ toast('Add a name','x'); return; }
+  const arrangeAtTime = getSeg('dr-mode')==='time';
   const list=showDrivers(e);
+  const prev = (idx!=null && list[idx]) ? list[idx] : {};
   withButton($('#dr-save'), ()=>{
     const from = generalizePlaceLabel(val('dr-from'), e);
     const to = generalizePlaceLabel(val('dr-to'), e);
     const journey = driverJourneyLabel({ from, to });
     const time = val('dr-time');
+    const notes = typeof collectNoteItems==='function' ? collectNoteItems('dr-notes') : val('dr-notes');
     const base = {
-      id:(idx!=null&&list[idx]&&list[idx].id)||uid('drv'),
+      id: prev.id || uid('drv'),
       from, to, journey,
       time,
-      date: (typeof showItemTrueDate === 'function' ? showItemTrueDate(e, time) : e.date) || e.date
+      date: (typeof showItemTrueDate === 'function' ? showItemTrueDate(e, time) : e.date) || e.date,
+      notes,
+      pickup: prev.pickup || '',
+      whatsapp: prev.whatsapp || ''
     };
-    const typeVal = val('dr-type') || getSeg('dr-type') || '';
-    const drv = none
-      ? Object.assign(base, { noGround:true, groundType: typeVal || 'uber' })
+    const pref = getSeg('dr-pref');
+    const drv = arrangeAtTime
+      ? Object.assign(base, {
+          noGround: true,
+          groundType: (pref==='uber' || pref==='taxi') ? pref : 'other',
+          name: '',
+          phone: '',
+          vehicle: '',
+          whatsapp: ''
+        })
       : Object.assign(base, {
-          name,
-          phone:val('dr-phone'),
-          whatsapp: val('dr-wa') || (idx!=null && list[idx] && list[idx].whatsapp) || '',
-          pickup:val('dr-pick'),
-          groundType: typeVal,
-          notes: typeof collectNoteItems==='function' ? collectNoteItems('dr-notes') : val('dr-notes')
+          noGround: false,
+          name: val('dr-name'),
+          phone: val('dr-phone'),
+          whatsapp: prev.whatsapp || '',
+          vehicle: val('dr-vehicle'),
+          groundType: inferPrearrangedGroundType(val('dr-vehicle'))
         });
     ensureDriverLocations(drv);
     if(idx!=null && list[idx]) list[idx]=drv; else list.push(drv);
@@ -2290,8 +2314,8 @@ function buildDaySheet(e){
     ensureDriverLocations(d);
     const jLabel = driverJourneyLabel(d);
     const tag = `${jLabel?' ('+jLabel+')':''}${d.time?' '+d.time:''}`;
-    if(d.noGround) contacts.push(`  Transport${tag} — No grounds, use Uber/taxi`);
-    else if(d.name||d.phone) contacts.push(`  Driver${tag} — ${d.name||''} ${d.phone||''}`);
+    if(d.noGround) contacts.push(`  Transport${tag} — ${groundArrangeSummary(d)}`);
+    else if(d.name||d.phone||d.vehicle) contacts.push(`  Driver${tag} — ${[d.name, d.phone, d.vehicle].filter(Boolean).join(' ')}`);
   });
   if(e.promoter) contacts.push(`  Artist Liaison — ${e.promoter.name||''} ${e.promoter.phone||e.promoter.whatsapp||''}`);
   if(contacts.length){ L.push(''); L.push('📞 CONTACTS'); contacts.forEach(x=>L.push(x)); }

@@ -7,7 +7,7 @@ const TRAVEL_MODES = [
   { key: 'train', icon: 'train', title: 'Train', sub: 'Stations, times and service number' },
   { key: 'coach', icon: 'bus', title: 'Coach', sub: 'Service and times' },
   { key: 'ferry', icon: 'ferry', title: 'Ferry', sub: 'Ports and times' },
-  { key: 'ground', icon: 'car', title: 'Ground', sub: 'Driver, Uber or taxi' },
+  { key: 'ground', icon: 'car', title: 'Ground', sub: 'Pre-arranged or arrange at time' },
   { key: 'walk', icon: 'walk', title: 'Walk', sub: 'On foot between places' },
   { key: 'cycle', icon: 'cycle', title: 'Cycle', sub: 'Bike between places' }
 ];

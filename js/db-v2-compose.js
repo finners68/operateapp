@@ -533,6 +533,11 @@ async function composeViewFromV2(v2, opts){
         if(from && to) journey = from + ' → ' + to;
         else if(from || to) journey = from || to;
         else journey = j.journey_title || '';
+        const groundType = (j.ground_details && j.ground_details.ground_transport_type) || '';
+        const rawName = (c?.display_name || j.operator_name || '').trim();
+        const named = rawName && !/^driver$/i.test(rawName);
+        const gt = String(groundType).toLowerCase();
+        const noGround = !named && (gt === 'uber' || gt === 'taxi' || gt === 'other');
         const row = {
           id: j.id,
           from,
@@ -540,14 +545,14 @@ async function composeViewFromV2(v2, opts){
           journey,
           time: j.departure_at ? v2TimeFromTs(j.departure_at) : '',
           date: j.departure_at ? v2DateFromTs(j.departure_at) : '',
-          phone: c?.phone_number || '',
-          whatsapp: c?.whatsapp_number || '',
-          name: c?.display_name || j.vehicle_details || '',
+          phone: noGround ? '' : (c?.phone_number || ''),
+          whatsapp: noGround ? '' : (c?.whatsapp_number || ''),
+          name: noGround ? '' : rawName,
           notes: (typeof noteItemsFromDb === 'function' ? noteItemsFromDb(j.note_items) : ''),
           pickup: (j.ground_details && j.ground_details.pickup_instructions) || j.pickup_instructions || '',
-          groundType: (j.ground_details && j.ground_details.ground_transport_type) || '',
-          vehicle: (j.ground_details && j.ground_details.vehicle_details) || j.vehicle_details || '',
-          noGround: false
+          groundType,
+          vehicle: noGround ? '' : ((j.ground_details && j.ground_details.vehicle_details) || ''),
+          noGround
         };
         /* If title looks like "A → B" and locations are empty, split it. */
         if(!from && !to && journey && typeof parseDriverJourney === 'function'){

@@ -43,7 +43,7 @@ function previewSecondary(step){
   }
   if(!sub) return { text: '', hasNote: false };
   if(step.kind === 'transport'){
-    if(sub === 'No grounds') return { text: 'Uber / taxi', hasNote: false };
+    if(sub === 'No grounds' || /^Arrange at time/.test(sub)) return { text: sub === 'No grounds' ? 'Uber / taxi' : sub, hasNote: false };
     const parts = sub.split(' · ');
     const operator = (parts[0] || '').trim();
     const rest = parts.slice(1).join(' · ').trim();

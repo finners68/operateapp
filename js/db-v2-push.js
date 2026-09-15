@@ -955,12 +955,17 @@ async function pushToSupabaseV2(orgId, dirtyIn){
     }
 
     for(const [i, d] of showDrivers(s).entries()){
-      if(!d.name && !d.phone) continue;
+      if(!(d.noGround || d.name || d.phone || d.from || d.to || d.time || d.vehicle)) continue;
       if(typeof ensureDriverLocations === 'function') ensureDriverLocations(d);
-      const cid = await v2EnsureContact(sb, orgId, { id: d.id, name: d.name || 'Driver', phone: d.phone, whatsapp: d.whatsapp }, contactCache);
+      const cid = (d.name || d.phone || d.whatsapp)
+        ? await v2EnsureContact(sb, orgId, { id: d.id, name: d.name || 'Driver', phone: d.phone, whatsapp: d.whatsapp }, contactCache)
+        : null;
       const driverLegacy = 'show_driver_journey:' + (d.id || (sid + ':' + i));
       const title = (typeof driverJourneyLabel === 'function' ? driverJourneyLabel(d) : d.journey) || 'Transfer';
       const places = v2UniversalFromTo(d.from, d.to);
+      const groundType = d.noGround
+        ? (d.groundType === 'uber' || d.groundType === 'taxi' ? d.groundType : 'other')
+        : (d.groundType || null);
       const jRow = await v2UpsertOneByLegacy(sb, 'journeys', orgId, {
         id: v2IdForLegacy('journeys', driverLegacy, d.id),
         organisation_id: orgId,
@@ -975,7 +980,7 @@ async function pushToSupabaseV2(orgId, dirtyIn){
         pickup_location: d.from || null,
         pickup_instructions: (d.pickup || '').trim() || null,
         dropoff_location: d.to || null,
-        vehicle_details: d.name || d.vehicle || null,
+        vehicle_details: d.vehicle || null,
         departure_at: v2CombineDateTime(
           d.date || (typeof showItemTrueDate === 'function' ? showItemTrueDate(s, d.time) : s.date),
           d.time
@@ -986,7 +991,7 @@ async function pushToSupabaseV2(orgId, dirtyIn){
       await v2AfterJourneyWrite(sb, orgId, jRow, {
         pickup_instructions: (d.pickup || '').trim() || null,
         vehicle_details: d.vehicle || null,
-        ground_transport_type: d.groundType || (d.noGround ? 'uber' : null),
+        ground_transport_type: groundType,
         name: d.name
       });
       if(cid && jRow){

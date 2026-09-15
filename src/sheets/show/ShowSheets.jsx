@@ -15,8 +15,8 @@ const TextArea = ({ label, id, value = '', placeholder, style }) => (
 );
 const Spacer = () => <div className="spacer" />;
 const picker = id => call('openInputPicker', id);
-const Seg = ({ id, values, selected, onPick }) => (
-  <div className="seg" id={id}>{values.map(v => {
+const Seg = ({ id, values, selected, onPick, className = '' }) => (
+  <div className={`seg${className ? ' '+className : ''}`} id={id}>{values.map(v => {
     const [value, label = value] = Array.isArray(v) ? v : [v, `${v[0].toUpperCase()}${v.slice(1)}`];
     return <button type="button" key={value} data-v={value} className={selected === value ? 'on' : ''} onClick={e => { call('segPick', e.currentTarget); if(onPick) onPick(value); }}>{label}</button>;
   })}</div>
@@ -371,7 +371,7 @@ export function ShowTransportListSheet({ eid, drivers }){
       <div className="ic"><Icon name={d.noGround?'car':'user'} size={17}/></div>
       <div className="tx" style={{flex:1}}>
         <div className="k">{label}{d.time?` · ${d.time}`:''}</div>
-        <div className="v">{d.noGround?'No grounds — Uber / taxi':`${d.name||'Driver'}${d.phone?` · ${d.phone}`:''}`}</div>
+        <div className="v">{d.noGround?(call('groundArrangeSummary',d)||'Arrange at time'):`${d.name||d.vehicle||'Pre-arranged'}${d.phone?` · ${d.phone}`:''}`}</div>
       </div>
       {d.noGround
         ? <button className="header-btn" onClick={()=>call('openExternal','https://m.uber.com/','uber://')}><Icon name="car" size={16}/></button>
@@ -406,12 +406,30 @@ export function ShowFlightInfoSheet({ id, item }){
   return <><Field label="Flight number" id="fi-no" value={e.flightNo} placeholder="KL1008"/><div className="row-2"><Field label="Terminal" id="fi-term" value={e.terminal} placeholder="2"/><Field label="Gate" id="fi-gate" value={e.gate} placeholder="B12"/></div><div className="row-2"><Field label="Status" id="fi-status" value={e.fstatus} placeholder="On time / Boarding / Delayed"/><Field label="Delay" id="fi-delay" value={e.delay} placeholder="+25 min"/></div><div className="hint" style={{padding:'6px 2px'}}>Enter what you know now.</div><button className="btn" id="fi-save" onClick={()=>call('saveFlightInfo',id)}>Save flight info</button>{has?<button className="btn danger" style={{marginTop:10}} onClick={()=>call('clearFlightInfo',id)}><Icon name="trash" size={15}/> Clear flight info</button>:null}<Spacer /></>;
 }
 
+function groundVehiclePrefill(d){
+  if(d.vehicle) return d.vehicle;
+  if(d.noGround) return '';
+  const gt=String(d.groundType||'').toLowerCase();
+  if(gt==='private_car') return 'Private car';
+  if(gt==='chauffeur') return 'Chauffeur';
+  if(gt==='shuttle') return 'Shuttle';
+  if(gt==='minibus') return 'Minibus';
+  if(gt==='bus') return 'Bus';
+  return '';
+}
+function groundPreferredKey(d){
+  const gt=String(d.groundType||'').toLowerCase();
+  if(gt==='uber'||gt==='taxi') return gt;
+  return 'either';
+}
+
 export function ShowTransportSheet({ eid, idx, driver, journeys }){
   const e=eventOf({eid});
   const list=call('showDrivers',e)||[];
   const raw=driver || (idx!=null?list[idx]:null) || {};
   const d=call('applyGeneralDriverPlaces', Object.assign({}, raw), e) || call('ensureDriverLocations', raw) || raw;
-  const [none, setNone]=useState(!!d.noGround);
+  const [arrange, setArrange]=useState(d.noGround?'time':'pre');
+  const [pref, setPref]=useState(groundPreferredKey(d));
   const presets=journeys || getDriverJourneys() || [];
   const kinds= (typeof window!=='undefined' && window.DRIVER_PLACE_KINDS) || ['Airport','Hotel','Venue'];
   const from=d.from || '';
@@ -421,19 +439,19 @@ export function ShowTransportSheet({ eid, idx, driver, journeys }){
     if(current && !opts.some(k=>k.toLowerCase()===String(current).toLowerCase())) opts.push(current);
     return opts;
   };
-  const types=[
-    ['','Not sure yet'],
-    ['uber','Uber'],
-    ['taxi','Taxi'],
-    ['private_car','Private car'],
-    ['chauffeur','Chauffeur'],
-    ['shuttle','Shuttle'],
-    ['minibus','Minibus'],
-    ['bus','Bus'],
-    ['other','Other']
-  ];
+  const atTime = arrange==='time';
   return <>
-    <p className="sheet-lede">Airport, hotel or venue — then who is driving.</p>
+    <p className="sheet-lede">Already organised, or sort it when you travel.</p>
+    <Field label="Arrangement">
+      <Seg
+        id="dr-mode"
+        className="seg-wrap"
+        values={[['pre','Pre-arranged'],['time','Arrange at time']]}
+        selected={arrange}
+        onPick={setArrange}
+      />
+    </Field>
+    <Field label="Time" id="dr-time" type="time" value={d.time}/>
     <div className="chips" style={{marginTop:2,marginBottom:10,flexWrap:'wrap',overflow:'visible'}}>
       {presets.map(j=>(
         <button type="button" className="chip" key={j} onClick={()=>call('applyDriverJourneyPreset', j)}>{j}</button>
@@ -453,28 +471,24 @@ export function ShowTransportSheet({ eid, idx, driver, journeys }){
         </select>
       </Field>
     </div>
-    <Field label="Time (optional)" id="dr-time" type="time" value={d.time}/>
-    <Field label="Arrangement">
-      <Seg
-        id="dr-mode"
-        values={[['driver','Driver'],['none','Uber / taxi']]}
-        selected={none?'none':'driver'}
-        onPick={v=>setNone(v==='none')}
-      />
-    </Field>
-    {none ? (
-      <div className="hint" style={{padding:'2px 2px 12px'}}>No driver booked — use Uber or a taxi for this run.</div>
+    {atTime ? (
+      <>
+        <Field label="Preferred method (optional)">
+          <Seg
+            id="dr-pref"
+            values={[['uber','Uber'],['taxi','Taxi'],['either','Either']]}
+            selected={pref}
+            onPick={setPref}
+          />
+        </Field>
+        <NoteItemsField label="Notes (optional)" listId="dr-notes" value={d.notes} placeholder="Meet at Arrivals, etc." />
+      </>
     ) : (
       <>
-        <Field label="Type (optional)">
-          <select id="dr-type" className="input" defaultValue={d.groundType || ''}>
-            {types.map(([v,l])=><option value={v} key={v||'none'}>{l}</option>)}
-          </select>
-        </Field>
-        <Field label="Driver name" id="dr-name" value={d.name} placeholder="Jan"/>
-        <Field label="Phone" id="dr-phone" type="tel" value={d.phone} placeholder="+31 6 12345678"/>
-        <Field label="Pickup notes (optional)" id="dr-pick" value={d.pickup} placeholder="Meet at Arrivals door 3"/>
-        <NoteItemsField label="Notes" listId="dr-notes" value={d.notes} placeholder="Vehicle, plate, etc." />
+        <Field label="Driver / company" id="dr-name" value={d.name} placeholder="Jan / ABC Cars"/>
+        <Field label="Driver phone" id="dr-phone" type="tel" value={d.phone} placeholder="+31 6 12345678"/>
+        <Field label="Vehicle / transport type (optional)" id="dr-vehicle" value={groundVehiclePrefill(d)} placeholder="Van, black car, minibus…"/>
+        <NoteItemsField label="Notes (optional)" listId="dr-notes" value={d.notes} placeholder="Plate, meeting point, etc." />
       </>
     )}
     <button className="btn" id="dr-save" onClick={()=>call('saveDriver',eid,idx??null)}>{idx!=null?'Save':'Add'}</button>

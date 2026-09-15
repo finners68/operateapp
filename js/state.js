@@ -430,13 +430,14 @@ function showDayTimeline(e){
   showDrivers(e).forEach((d, idx)=>{
     ensureDriverLocations(d);
     const label = driverJourneyLabel(d);
-    if(!(d.time||label||d.name||d.noGround)) return;
+    if(!(d.time||label||d.name||d.noGround||d.from||d.to)) return;
     const id = d.id || ('i'+idx);
+    const arrangeSub = typeof groundArrangeSummary === 'function' ? groundArrangeSummary(d) : 'Arrange at time';
     rows.push(Object.assign({
       id:'auto:drv:'+id, auto:true, kind:'transport', icon:'car', refId:id,
       from:d.from||'', to:d.to||'',
-      title:label||(d.noGround?'Uber / taxi':(d.name||'Transport')),
-      sub:d.noGround?'No grounds':[d.name,d.pickup].filter(Boolean).join(' · '),
+      title:label||(d.noGround?'Ground':(d.name||'Ground')),
+      sub:d.noGround?arrangeSub:[d.name,d.vehicle].filter(Boolean).join(' · '),
       done:!!d.done
     }, stamp(d.time||'', d.date)));
   });
@@ -1591,8 +1592,8 @@ function runTimeline(run){
         const label = driverJourneyLabel(d);
         const drvDate = showItemTrueDate(s, d.time, d.date);
         rows.push({id:'shdrv_'+d.id, kind:'travel', icon:'car', date:drvDate, showId:s.id, showDate:s.date, time:d.time,
-          title:label||(d.noGround?'Transport':(d.name||'Driver')),
-          sub:d.noGround?'No grounds — Uber/taxi':[d.name, d.phone].filter(Boolean).join(' · '),
+          title:label||(d.noGround?'Ground':(d.name||'Ground')),
+          sub:d.noGround?(typeof groundArrangeSummary==='function'?groundArrangeSummary(d):'Arrange at time'):[d.name, d.phone].filter(Boolean).join(' · '),
           done:!!d.done, embedded:true, trueDate:drvDate, dayOffset:dateDiffDays(s.date, drvDate),
           ref:Object.assign({kind:'travel', icon:'car', showId:s.id, embedded:true}, d, {
             from: d.from || '', to: d.to || '', title: label||'', legacyTitle: label||'', date: drvDate
