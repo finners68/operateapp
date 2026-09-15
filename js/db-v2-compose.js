@@ -313,8 +313,13 @@ async function composeViewFromV2(v2, opts){
   async function passengersFromJourney(j){
     const tickets = ticketsByJourney[j.id] || [];
     const fromRows = (typeof v2PassengerMetaFromRows === 'function')
-      ? v2PassengerMetaFromRows(j.passenger_rows, j.passengers)
-      : null;
+      ? v2PassengerMetaFromRows(j.passenger_rows)
+      : (j.passenger_rows || []).map(r => ({
+          id: r.id, name: r.name || '', seat: r.seat || '',
+          booking_reference: r.booking_reference || ''
+        }));
+    /* Table is source of truth. JSON leftover is only used when this journey
+       has no journey_passengers rows yet (inbound Make/OCR before an app save). */
     const meta = fromRows && fromRows.length
       ? fromRows
       : normalizeJourneyPassengersMeta(j.passengers);

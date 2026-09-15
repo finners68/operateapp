@@ -176,12 +176,23 @@ function v2PassengerMetaFromRows(rows, fallbackJson){
   return [];
 }
 
+function v2PassengerIdInUseElsewhere(id, journeyId){
+  if(!id) return false;
+  const list = store && store.v2 && store.v2.journey_passengers;
+  if(!Array.isArray(list)) return false;
+  return list.some(r => r && r.id === id && r.journey_id !== journeyId);
+}
+
 function v2PassengerRowsForDb(orgId, journeyId, passengers){
+  const seen = new Set();
   return (passengers || []).map(p => {
     if(!p) return null;
-    const id = (p.id && typeof isUuid === 'function' && isUuid(p.id))
-      ? p.id
-      : ((typeof newUuid === 'function') ? newUuid() : p.id);
+    let id = (p.id && typeof isUuid === 'function' && isUuid(p.id)) ? p.id : null;
+    if(!id || seen.has(id) || v2PassengerIdInUseElsewhere(id, journeyId)){
+      id = (typeof newUuid === 'function') ? newUuid() : id;
+    }
+    seen.add(id);
+    p.id = id;
     const booking = v2Nz(p.booking_reference || p.bookingRef);
     return {
       id,
@@ -322,7 +333,7 @@ async function v2ReplaceJourneyPassengers(sb, orgId, journeyId, passengers){
   const stale = existing.filter(r => r.id && !keepIds.has(r.id));
   for(const gone of stale){
     const { error } = await sb.from('journey_passengers')
-      .delete().eq('organisation_id', orgId).eq('journey_id', journeyId).eq('id', gone.id);
+      .delete().eq('organisation_id', orgId).eq('id', gone.id);
     if(typeof v2Throw === 'function') v2Throw(error, 'journey_passengers delete');
     else if(error) throw error;
   }
@@ -331,14 +342,25 @@ async function v2ReplaceJourneyPassengers(sb, orgId, journeyId, passengers){
       !r || r.journey_id !== journeyId || keepIds.has(r.id)
     );
   }
-  if(!rows.length) return [];
+  if(!rows.length){
+    const { error } = await sb.from('journey_passengers')
+      .delete().eq('organisation_id', orgId).eq('journey_id', journeyId);
+    if(typeof v2Throw === 'function') v2Throw(error, 'journey_passengers delete empty');
+    else if(error) throw error;
+    if(store && store.v2 && Array.isArray(store.v2.journey_passengers)){
+      store.v2.journey_passengers = store.v2.journey_passengers.filter(r =>
+        !r || r.journey_id !== journeyId
+      );
+    }
+    return [];
+  }
   const { data, error } = await sb.from('journey_passengers')
-    .upsert(rows, { onConflict: 'journey_id,id' }).select('*');
+    .upsert(rows, { onConflict: 'id' }).select('*');
   if(typeof v2Throw === 'function') v2Throw(error, 'journey_passengers upsert');
   else if(error) throw error;
   (data || []).forEach(r => {
     if(!r || !store || !store.v2 || !Array.isArray(store.v2.journey_passengers)) return;
-    const i = store.v2.journey_passengers.findIndex(x => x && x.journey_id === r.journey_id && x.id === r.id);
+    const i = store.v2.journey_passengers.findIndex(x => x && x.id === r.id);
     if(i >= 0) store.v2.journey_passengers[i] = Object.assign({}, store.v2.journey_passengers[i], r);
     else store.v2.journey_passengers.push(r);
   });
