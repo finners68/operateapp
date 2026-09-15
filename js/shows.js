@@ -1305,12 +1305,10 @@ function sheetAddTravel(eid){
 }
 window.sheetAddTravel = sheetAddTravel;
 function addTravelMode(eid, mode){
-  closeSheet();
   if(mode === 'flight'){ sheetFlight(eid, '__new__'); return; }
   if(mode === 'ground'){ sheetDriver(eid); return; }
   const icon = mode === 'coach' ? 'bus' : (mode || 'train');
-  const e=sel.event(eid);
-  openSheetReact('Add travel', 'calendar.addLogistic', { showId: eid, event: e, presetKind: 'travel', presetIcon: icon });
+  openSheetReact('Add travel', 'calendar.addLogistic', { showId: eid, presetKind: 'travel', presetIcon: icon });
   setTimeout(()=>{ if(typeof toggleLogisticAddFields==='function') toggleLogisticAddFields(); }, 30);
 }
 window.addTravelMode = addTravelMode;

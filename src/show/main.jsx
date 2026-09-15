@@ -15,6 +15,14 @@ let appRoot = null;
 let appMounted = false;
 let toastTimer = null;
 let sheetKey = 0;
+let sheetCloseTimer = null;
+
+function cancelPendingSheetClose(){
+  if(sheetCloseTimer){
+    clearTimeout(sheetCloseTimer);
+    sheetCloseTimer = null;
+  }
+}
 
 export function mountApp(el){
   prepareAppBoot();
@@ -81,6 +89,7 @@ export function chromeToast(msg, icon = 'check'){
 }
 
 export function chromeOpenSheet(title, bodyHTML, opts = {}){
+  cancelPendingSheetClose();
   sheetKey += 1;
   setSheetState({
     key: sheetKey,
@@ -95,6 +104,7 @@ export function chromeOpenSheet(title, bodyHTML, opts = {}){
 }
 
 export function chromeOpenSheetReact(title, bodyKind, bodyProps = {}, opts = {}){
+  cancelPendingSheetClose();
   sheetKey += 1;
   setSheetState({
     key: sheetKey,
@@ -109,7 +119,9 @@ export function chromeOpenSheetReact(title, bodyKind, bodyProps = {}, opts = {})
 }
 
 export function chromeCloseSheet(instant, onDone){
+  cancelPendingSheetClose();
   const finish = () => {
+    sheetCloseTimer = null;
     setSheetState(null);
     if(typeof window !== 'undefined') window.sheetEl = null;
     if(typeof onDone === 'function') onDone();
@@ -123,7 +135,7 @@ export function chromeCloseSheet(instant, onDone){
     return;
   }
   setSheetState(Object.assign({}, sheetState, { closing: true }));
-  setTimeout(finish, 280);
+  sheetCloseTimer = setTimeout(finish, 280);
 }
 
 export function chromeOpenViewer(src){
