@@ -1,5 +1,5 @@
 /* Operate service worker — app-shell offline cache */
-const VERSION = 'operate-v232';
+const VERSION = 'operate-v233';
 const SHELL = [
   './',
   './index.html',
@@ -11,6 +11,7 @@ const SHELL = [
   './js/db-v2-state.js',
   './js/state.js',
   './js/db-v2-maps.js',
+  './js/db-v2-journeys.js',
   './js/db-v2-repo.js',
   './js/db-v2-compose.js',
   './js/db-v2-load.js',

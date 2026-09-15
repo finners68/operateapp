@@ -333,12 +333,14 @@ function saveLogisticFor(showId){
   if(kind==='travel'){
     const icon = getSeg('al-icon') || 'plane';
     it.icon = icon;
-    it.from = (val('al-from')||'').toUpperCase().trim();
-    it.to = (val('al-to')||'').toUpperCase().trim();
-    it.flightNo = (val('al-code')||'').toUpperCase().trim();
+    it.from = (val('al-from')||'').trim();
+    it.to = (val('al-to')||'').trim();
+    if(/^[A-Za-z]{3}$/.test(it.from)) it.from = it.from.toUpperCase();
+    if(/^[A-Za-z]{3}$/.test(it.to)) it.to = it.to.toUpperCase();
+    it.flightNo = (val('al-code')||'').trim();
     it.start = rawVal('al-start');
     it.end = rawVal('al-end');
-    if(icon==='car') it.driverName = val('al-driver-name');
+    if(icon==='car'){ it.driverName = val('al-driver-name'); it.operator = it.driverName; }
     if(!it.from && !it.to && !it.start && !it.driverName){ toast('Add a route, driver name, or time','x'); return; }
     it.title = logisticTypeLabel(it);
   } else {
@@ -360,7 +362,7 @@ function openItem(id){
   const e=store.events.find(x=>x.id===id); if(!e) return;
   normalizeLogisticItem(e);
   const label = e.kind==='travel'?'Travel':e.kind==='stay'?'Stay':'Note';
-  const iconOpts = ['plane','car','ferry','train','walk','bed'];
+  const iconOpts = ['plane','car','ferry','train','bus','walk','cycle','bed'];
   openSheetReact(label, 'calendar.item', { id, item: e });
 }
 function saveItem(id){
@@ -368,13 +370,17 @@ function saveItem(id){
   e.date=rawVal('it-date')||e.date;
   if(e.kind==='travel'){
     e.icon=getSeg('it-icon')||e.icon||'plane';
-    e.from=(val('it-from')||'').toUpperCase().trim();
-    e.to=(val('it-to')||'').toUpperCase().trim();
-    e.flightNo=(val('it-code')||'').toUpperCase().trim();
+    const rawFrom=(val('it-from')||'').trim();
+    const rawTo=(val('it-to')||'').trim();
+    e.from=/^[A-Za-z]{3}$/.test(rawFrom)?rawFrom.toUpperCase():rawFrom;
+    e.to=/^[A-Za-z]{3}$/.test(rawTo)?rawTo.toUpperCase():rawTo;
+    e.flightNo=(val('it-code')||'').trim();
     e.start=rawVal('it-start');
     e.end=rawVal('it-end');
-    if((e.icon||'plane')==='car') e.driverName=val('it-driver-name');
-    else e.driverName='';
+    if((e.icon||'plane')==='car'){
+      e.driverName=val('it-driver-name');
+      e.operator=e.driverName;
+    } else e.driverName='';
     e.title=logisticTypeLabel(e);
     if(isDriverItem(e)){ e.phone=val('it-phone'); e.whatsapp=val('it-wa'); }
   }

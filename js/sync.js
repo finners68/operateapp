@@ -267,7 +267,9 @@ function startRealtime(orgId){
     'shows', 'journeys', 'schedule_items', 'checklist_items', 'tours',
     'organisation_settings', 'files', 'travel_tickets', 'show_files',
     'hotel_bookings', 'ideas', 'notes', 'contacts', 'venues', 'hotels',
-    'show_advances', 'show_contacts', 'hotel_booking_shows', 'pending_show_imports'
+    'show_advances', 'show_contacts', 'hotel_booking_shows', 'pending_show_imports',
+    'journey_flight_details', 'journey_rail_details', 'journey_ground_details',
+    'journey_ferry_details', 'journey_coach_details', 'journey_passengers'
   ];
 
   realtimeChannel = sb.channel('operate:' + orgId);

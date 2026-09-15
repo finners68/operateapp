@@ -118,6 +118,9 @@ async function composeViewFromV2(v2, opts){
   (v2.travel_tickets || []).forEach(t => {
     (ticketsByJourney[t.journey_id] = ticketsByJourney[t.journey_id] || []).push(t);
   });
+  const journeyBags = (typeof v2JourneyBagsFromV2 === 'function')
+    ? v2JourneyBagsFromV2(v2)
+    : { flight:{}, rail:{}, ground:{}, ferry:{}, coach:{}, passengers:{} };
   const attachmentsByShow = {};
   (v2.show_files || []).forEach(link => {
     const f = fileById[link.file_id];
@@ -173,6 +176,7 @@ async function composeViewFromV2(v2, opts){
   const travelJourneys = [];
   const driverJourneysByShow = {};
   (v2.journeys || []).forEach(j => {
+    if(typeof v2AttachJourneyDetails === 'function') v2AttachJourneyDetails(j, journeyBags);
     const kind = v2ClassifyJourney(j);
     if(kind === 'show_primary_flight'){
       if(j.related_show_id){
@@ -308,7 +312,12 @@ async function composeViewFromV2(v2, opts){
      by passenger_name and still read name/seat from the ticket columns. */
   async function passengersFromJourney(j){
     const tickets = ticketsByJourney[j.id] || [];
-    const meta = normalizeJourneyPassengersMeta(j.passengers);
+    const fromRows = (typeof v2PassengerMetaFromRows === 'function')
+      ? v2PassengerMetaFromRows(j.passenger_rows, j.passengers)
+      : null;
+    const meta = fromRows && fromRows.length
+      ? fromRows
+      : normalizeJourneyPassengersMeta(j.passengers);
     const prevPax = (prevFlightById[j.id] && prevFlightById[j.id].passengers) || [];
     const stablePaxId = (idx, preferred) => {
       if(preferred && String(preferred).trim()) return String(preferred).trim();
@@ -439,22 +448,20 @@ async function composeViewFromV2(v2, opts){
       const notes = fromItems || (/^Legacy seat:\s*/i.test(notesRaw) ? '' : notesRaw);
       const row = {
         id: j.id,
-        code: j.flight_number || j.journey_title || '',
-        /* Codes shown in the header; names shown as the wrapped “second row”. */
-        fromCode: j.departure_location_code || j.departure_airport_iata || '',
-        toCode: j.arrival_location_code || j.arrival_airport_iata || '',
-        fromName: j.departure_location_name || j.departure_location_code || j.departure_airport_iata || '',
-        toName: j.arrival_location_name || j.arrival_location_code || j.arrival_airport_iata || '',
-        /* Back-compat: existing UI uses `from` / `to`. */
-        from: j.departure_location_code || j.departure_airport_iata || j.departure_location_name || '',
-        to: j.arrival_location_code || j.arrival_airport_iata || j.arrival_location_name || '',
+        code: (typeof v2JourneyFlightNumber === 'function' ? v2JourneyFlightNumber(j) : j.flight_number) || j.journey_title || '',
+        fromName: (typeof v2JourneyFromName === 'function' ? v2JourneyFromName(j) : (j.departure_location_name || '')) || '',
+        toName: (typeof v2JourneyToName === 'function' ? v2JourneyToName(j) : (j.arrival_location_name || '')) || '',
+        fromCode: (typeof v2JourneyDepIata === 'function' ? v2JourneyDepIata(j) : (j.departure_airport_iata || j.departure_location_code)) || '',
+        toCode: (typeof v2JourneyArrIata === 'function' ? v2JourneyArrIata(j) : (j.arrival_airport_iata || j.arrival_location_code)) || '',
+        from: (typeof v2JourneyFromName === 'function' ? v2JourneyFromName(j) : (j.departure_location_name || j.departure_location_code)) || '',
+        to: (typeof v2JourneyToName === 'function' ? v2JourneyToName(j) : (j.arrival_location_name || j.arrival_location_code)) || '',
         operator: j.operator_name || '',
         bookingRef: j.booking_reference || '',
         duration: flightDurationText(j.departure_at, j.arrival_at),
         dep: flightDateTimeLocal(j.departure_at),
         arr: flightDateTimeLocal(j.arrival_at),
-        terminal: j.departure_terminal || '',
-        gate: j.departure_gate || '',
+        terminal: (j.flight_details && j.flight_details.departure_terminal) || j.departure_terminal || '',
+        gate: (j.flight_details && j.flight_details.departure_gate) || j.departure_gate || '',
         fstatus: j.journey_status || '',
         delay: j.delay_description || '',
         fiUpdated: j.status_updated_at ? Date.parse(j.status_updated_at) : null,
@@ -512,8 +519,8 @@ async function composeViewFromV2(v2, opts){
         const jcs = journeyContactByJourney[j.id] || [];
         const jc = jcs[0];
         const c = jc ? contactById[jc.contact_id] : null;
-        const from = j.pickup_location || '';
-        const to = j.dropoff_location || '';
+        const from = (typeof v2JourneyFromName === 'function' ? v2JourneyFromName(j) : (j.departure_location_name || j.pickup_location)) || '';
+        const to = (typeof v2JourneyToName === 'function' ? v2JourneyToName(j) : (j.arrival_location_name || j.dropoff_location)) || '';
         let journey = '';
         if(from && to) journey = from + ' → ' + to;
         else if(from || to) journey = from || to;
@@ -529,7 +536,9 @@ async function composeViewFromV2(v2, opts){
           whatsapp: c?.whatsapp_number || '',
           name: c?.display_name || j.vehicle_details || '',
           notes: (typeof noteItemsFromDb === 'function' ? noteItemsFromDb(j.note_items) : ''),
-          pickup: j.pickup_instructions || '',
+          pickup: (j.ground_details && j.ground_details.pickup_instructions) || j.pickup_instructions || '',
+          groundType: (j.ground_details && j.ground_details.ground_transport_type) || '',
+          vehicle: (j.ground_details && j.ground_details.vehicle_details) || j.vehicle_details || '',
           noGround: false
         };
         /* If title looks like "A → B" and locations are empty, split it. */
@@ -560,9 +569,9 @@ async function composeViewFromV2(v2, opts){
 
     const primary = fj.primary;
     events.push(Object.assign(base, {
-      flightNo: primary?.flight_number || '',
-      terminal: primary?.departure_terminal || '',
-      gate: primary?.departure_gate || '',
+      flightNo: (primary && typeof v2JourneyFlightNumber === 'function' ? v2JourneyFlightNumber(primary) : primary?.flight_number) || '',
+      terminal: (primary && primary.flight_details && primary.flight_details.departure_terminal) || primary?.departure_terminal || '',
+      gate: (primary && primary.flight_details && primary.flight_details.departure_gate) || primary?.departure_gate || '',
       fstatus: primary?.journey_status || '',
       delay: primary?.delay_description || '',
       fiUpdated: primary?.status_updated_at ? new Date(primary.status_updated_at).getTime() : null,
@@ -599,11 +608,24 @@ async function composeViewFromV2(v2, opts){
       allDay: false,
       done: j.is_done,
       passes,
-      from: j.departure_location_code || j.departure_location_name || '',
-      to: j.arrival_location_code || j.arrival_location_name || '',
-      flightNo: j.flight_number || '',
-      gate: j.departure_gate || '',
-      terminal: j.departure_terminal || '',
+      from: (typeof v2JourneyFromName === 'function' ? v2JourneyFromName(j) : (j.departure_location_name || j.departure_location_code)) || '',
+      to: (typeof v2JourneyToName === 'function' ? v2JourneyToName(j) : (j.arrival_location_name || j.arrival_location_code)) || '',
+      flightNo: (typeof v2JourneyFlightNumber === 'function' ? v2JourneyFlightNumber(j) : j.flight_number)
+        || (typeof v2JourneyTrainNumber === 'function' ? v2JourneyTrainNumber(j) : '')
+        || (typeof v2JourneyFerryNumber === 'function' ? v2JourneyFerryNumber(j) : '')
+        || (typeof v2JourneyCoachNumber === 'function' ? v2JourneyCoachNumber(j) : '')
+        || '',
+      gate: (j.flight_details && j.flight_details.departure_gate) || j.departure_gate || '',
+      terminal: (j.flight_details && j.flight_details.departure_terminal) || j.departure_terminal || '',
+      operator: j.operator_name || '',
+      bookingRef: j.booking_reference || '',
+      trainNo: (typeof v2JourneyTrainNumber === 'function' ? v2JourneyTrainNumber(j) : j.train_number) || '',
+      ferryNo: (typeof v2JourneyFerryNumber === 'function' ? v2JourneyFerryNumber(j) : j.ferry_service_number) || '',
+      coachNo: (typeof v2JourneyCoachNumber === 'function' ? v2JourneyCoachNumber(j) : j.coach_service_number) || '',
+      platform: (j.rail_details && (j.rail_details.departure_platform || j.rail_details.arrival_platform)) || j.departure_platform || '',
+      groundType: (j.ground_details && j.ground_details.ground_transport_type) || '',
+      pickup: (j.ground_details && j.ground_details.pickup_instructions) || j.pickup_instructions || '',
+      vehicle: (j.ground_details && j.ground_details.vehicle_details) || j.vehicle_details || '',
       fstatus: j.journey_status || '',
       delay: j.delay_description || ''
     };

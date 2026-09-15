@@ -767,13 +767,82 @@ function timelineAutoOpen(eid, s){
   return '';
 }
 function timelineIconName(kind, icon){
-  if(kind==='flight' || icon==='planeTop' || icon==='plane') return 'planeTop';
-  if(kind==='hotel' || icon==='bed') return 'bed';
-  if(kind==='transport' || icon==='car') return 'car';
-  if(kind==='arrival' || icon==='pin') return 'pin';
-  if(kind==='set' || icon==='music') return 'music';
-  if(kind==='advance' || icon==='clock') return 'clock';
+  const ic=String(icon||'').toLowerCase();
+  if(kind==='flight' || ic==='planetop' || ic==='plane') return 'planeTop';
+  if(kind==='hotel' || ic==='bed') return 'bed';
+  if(ic==='train' || ic==='rail') return 'train';
+  if(ic==='ferry' || ic==='boat') return 'ferry';
+  if(ic==='walk') return 'walk';
+  if(kind==='transport' || ic==='car') return 'car';
+  if(kind==='arrival' || ic==='pin') return 'pin';
+  if(kind==='set' || ic==='music') return 'music';
+  if(kind==='advance' || ic==='clock') return 'clock';
   return icon || 'clock';
+}
+function timelinePreviewTier(s){
+  if(s.kind==='set') return 'performance';
+  if(s.kind==='arrival' || s.kind==='advance') return 'milestone';
+  const t=String(s.title||'').toLowerCase();
+  if(s.kind==='custom' && /sound\s*check|meet\s*(&|and)?\s*greet|deadline|curfew|load[\s-]?in|doors|press|interview|performance|\bshow\b/.test(t)) return 'milestone';
+  return 'logistics';
+}
+function timelinePreviewTime(s){
+  if(s.time) return s.time;
+  const sub=String(s.sub||'').trim();
+  if(s.kind==='advance' && /^\d{1,2}:\d{2}\b/.test(sub)) return sub.slice(0,5);
+  return '';
+}
+function timelinePreviewSecondary(s){
+  const sub=String(s.sub||'').trim();
+  if(s.kind==='set') return { text:s.endTime?('until '+s.endTime):'', hasNote:false };
+  if(!sub) return { text:'', hasNote:false };
+  if(s.kind==='transport'){
+    if(sub==='No grounds') return { text:'Uber / taxi', hasNote:false };
+    const parts=sub.split(' · ');
+    const operator=(parts[0]||'').trim();
+    const rest=parts.slice(1).join(' · ').trim();
+    const opOk=operator.length>0 && operator.length<=42;
+    return { text:opOk?operator:'', hasNote:!!rest || (!!operator && !opOk) };
+  }
+  if(s.kind==='flight') return sub.length<=48 ? { text:sub, hasNote:false } : { text:'', hasNote:true };
+  if(s.kind==='advance'){
+    const t=timelinePreviewTime(s);
+    if(t && (sub===t || sub.startsWith(t))) return { text:'', hasNote:false };
+  }
+  if(sub.length>48 || sub.includes('\n')) return { text:'', hasNote:true };
+  return { text:sub, hasNote:false };
+}
+function compactShowTimelineIds(tl){
+  const n=tl.length;
+  if(n<=8) return { ids:tl.map(s=>s.id), hidden:0 };
+  const keep=new Set();
+  const setIdx=tl.findIndex(s=>s.kind==='set');
+  tl.forEach((s,i)=>{
+    if(timelinePreviewTier(s)!=='logistics' || s.kind==='flight' || s.kind==='hotel') keep.add(i);
+  });
+  const focus=setIdx>=0?setIdx:tl.findIndex(s=>timelinePreviewTier(s)==='milestone');
+  if(focus>=0){
+    for(let i=Math.max(0,focus-2);i<=Math.min(n-1,focus+2);i++) keep.add(i);
+  }
+  if(keep.size>9){
+    const extras=[...keep].filter(i=>{
+      const s=tl[i];
+      return timelinePreviewTier(s)==='logistics' && s.kind!=='flight' && s.kind!=='hotel';
+    }).sort((a,b)=>{
+      const origin=focus>=0?focus:0;
+      return Math.abs(b-origin)-Math.abs(a-origin);
+    });
+    for(const i of extras){
+      if(keep.size<=9) break;
+      keep.delete(i);
+    }
+  }
+  const ids=[...keep].sort((a,b)=>a-b).map(i=>tl[i].id);
+  return { ids, hidden:n-ids.length };
+}
+function showTimelineOverviewCopy(tl){
+  if(!tl.length) return 'Builds from flights, hotel, transport and set time';
+  return tl.length+' timeline item'+(tl.length===1?'':'s')+' · Travel, hotel and show details update automatically';
 }
 function dayOverviewStepRow(e, s){
   const eid = e.id;
@@ -784,39 +853,48 @@ function dayOverviewStepRow(e, s){
   const icName = timelineIconName(s.kind, s.icon);
   const icFn = ICON[icName] || ICON.clock;
   const hasRoute = (s.kind==='flight' || s.kind==='transport') && (s.from||s.to);
+  const tier = timelinePreviewTier(s);
+  const bits = timelinePreviewSecondary(s);
+  const time = timelinePreviewTime(s);
   let titleHtml = esc(s.title||'Step');
   if(s.kind==='flight' && (s.from||s.to) && typeof flightRouteHtml==='function'){
     titleHtml = flightRouteHtml(s.from, s.to);
   } else if(s.kind==='transport' && (s.from||s.to) && typeof groundRouteHtml==='function'){
     titleHtml = groundRouteHtml(s.from, s.to, s.icon || 'car');
+  } else {
+    titleHtml = `<b>${titleHtml}</b>`;
   }
-  return `<div class="tl-item ${s.done?'done':''}" data-id="${esc(s.id)}">
-    <div class="tl-time">${esc(s.time||'—')}</div>
-    <button type="button" class="tl-node" aria-label="${s.done?'Mark not done':'Mark done'}" onclick="event.stopPropagation();toggleShowTimelineStep('${eid}','${s.id}')"></button>
-    <div class="tl-card ${s.kind==='set'?'is-set':''}${hasRoute?' has-route':''}" ${labelClick}>
-      ${hasRoute?'':`<div class="tl-card-ic">${icFn(16)}</div>`}
-      <div class="tl-card-body"><div class="tl-route">${titleHtml}</div>${s.sub?`<span>${esc(s.sub)}</span>`:''}</div>
+  const note = bits.hasNote ? `<span class="tl-note">${ICON.note(11)} Note</span>` : '';
+  const sub = bits.text ? `<span class="tl-sub">${esc(bits.text)}</span>` : '';
+  const typeIc = hasRoute ? '' : `<div class="tl-type-ic">${icFn(tier==='performance'?16:13)}</div>`;
+  return `<div class="tl-item is-${tier} ${s.done?'done':''}" data-id="${esc(s.id)}">
+    <div class="tl-time">${esc(time)}</div>
+    <div class="tl-rail"><button type="button" class="tl-node" aria-label="${s.done?'Mark not done':'Mark done'}" onclick="event.stopPropagation();toggleShowTimelineStep('${eid}','${s.id}')"></button></div>
+    <div class="tl-content is-${tier}${hasRoute?' has-route':''}" ${labelClick}>
+      ${typeIc}
+      <div class="tl-body"><div class="tl-route">${titleHtml}</div>${sub}${note}</div>
     </div>
   </div>`;
 }
 function dayOverviewBlock(e){
   const tl = typeof showDayTimeline==='function' ? showDayTimeline(e) : (e.timeline||[]);
-  const done = tl.filter(s=>s.done).length;
   const editBtn = `<button type="button" class="show-day-overview-edit" onclick="sheetShowTimeline('${e.id}')">${tl.length?'Edit':'Add'}</button>`;
-  const sub = tl.length
-    ? `${done}/${tl.length} done · flights, hotel, transport and set fill in automatically`
-    : 'Builds from flights, hotel, transport and set time';
+  const fullBtn = tl.length ? `<button type="button" class="show-day-overview-link" onclick="sheetShowTimeline('${e.id}')">View full timeline</button>` : '';
   const grouped = typeof groupShowTimelineByDay==='function' ? groupShowTimelineByDay(e, tl) : { multi:false, groups:[{ steps:tl }] };
+  const compact = compactShowTimelineIds(tl);
+  const keep = new Set(compact.ids);
   const body = tl.length
-    ? `<div class="timeline show-day-timeline">${(grouped.groups||[]).map(g=>{
-        const head = grouped.multi && g.label ? `<div class="tl-day-head${g.today?' today':''}">${esc(g.label)}</div>` : '';
-        return `<div class="tl-day">${head}${(g.steps||[]).map(s=>dayOverviewStepRow(e,s)).join('')}</div>`;
-      }).join('')}</div>`
+    ? `<div class="timeline show-day-timeline tl-preview">${(grouped.groups||[]).map(g=>{
+        const steps=(g.steps||[]).filter(s=>keep.has(s.id));
+        if(!steps.length) return '';
+        const head = grouped.multi && g.label ? `<div class="tl-day-row${g.today?' today':''}"><div class="tl-time"></div><div class="tl-rail"></div><div class="tl-day-head">${esc(g.label)}</div></div>` : '';
+        return head+steps.map(s=>dayOverviewStepRow(e,s)).join('');
+      }).join('')}${compact.hidden?`<div class="tl-more-row"><div class="tl-time"></div><div class="tl-rail"></div><button type="button" class="tl-more" onclick="sheetShowTimeline('${e.id}')">+${compact.hidden} more itinerary item${compact.hidden===1?'':'s'}</button></div>`:''}</div>`
     : `<div class="card tap" onclick="sheetShowTimeline('${e.id}')" style="text-align:center;color:var(--text-3);padding:18px;font-weight:600">${ICON.clock(20)} Add show details — this overview fills in automatically</div>`;
   return `<section class="show-day-overview">
     <div class="show-day-overview-head">
-      <div><div class="block-title">Show timeline</div><div class="show-day-overview-sub">${esc(sub)}</div></div>
-      ${editBtn}
+      <div><div class="block-title">Show timeline</div><div class="show-day-overview-sub">${esc(showTimelineOverviewCopy(tl))}</div></div>
+      <div class="show-day-overview-actions">${fullBtn}${editBtn}</div>
     </div>
     ${body}
   </section>`;
@@ -1348,12 +1426,21 @@ function saveFlight(eid, fid){
   const existing = fid ? (e.flights||[]).find(x=>x.id===fid) : null;
   if(existing && typeof ensureFlightPassengers==='function') ensureFlightPassengers(existing);
   const passengers = collectFlightPaxFromSheet(eid, fid, existing && existing.passengers);
+  const rawFrom = (val('fl-from') || '').trim();
+  const rawTo = (val('fl-to') || '').trim();
+  const place = /^[A-Za-z]{3}$/.test(rawFrom) ? rawFrom.toUpperCase() : rawFrom;
+  const dest = /^[A-Za-z]{3}$/.test(rawTo) ? rawTo.toUpperCase() : rawTo;
   withButton($('#fl-save'), ()=>{
     const payload = {
       id: existing ? existing.id : uid('fl'),
       code,
-      from: val('fl-from').toUpperCase(),
-      to: val('fl-to').toUpperCase(),
+      from: place,
+      to: dest,
+      fromName: place,
+      toName: dest,
+      fromCode: /^[A-Za-z]{3}$/.test(place) ? place.toUpperCase() : (existing && existing.fromCode) || '',
+      toCode: /^[A-Za-z]{3}$/.test(dest) ? dest.toUpperCase() : (existing && existing.toCode) || '',
+      operator: val('fl-operator'),
       dep,
       arr: existing ? (existing.arr||'') : '',
       terminal: val('fl-term'),
@@ -1606,8 +1693,8 @@ function saveDriver(eid, idx){
       date: (typeof showItemTrueDate === 'function' ? showItemTrueDate(e, time) : e.date) || e.date
     };
     const drv = none
-      ? Object.assign(base, { noGround:true })
-      : Object.assign(base, { name, phone:val('dr-phone'), whatsapp:val('dr-wa'), pickup:val('dr-pick'), notes: typeof collectNoteItems==='function' ? collectNoteItems('dr-notes') : val('dr-notes') });
+      ? Object.assign(base, { noGround:true, groundType: getSeg('dr-type') || 'uber' })
+      : Object.assign(base, { name, phone:val('dr-phone'), whatsapp:val('dr-wa'), pickup:val('dr-pick'), groundType: getSeg('dr-type') || '', notes: typeof collectNoteItems==='function' ? collectNoteItems('dr-notes') : val('dr-notes') });
     ensureDriverLocations(drv);
     if(idx!=null && list[idx]) list[idx]=drv; else list.push(drv);
     e.driver = list.find(x=>!x.noGround) || null;
@@ -1930,10 +2017,11 @@ function toggleShowTimelineStep(eid,sid){
     const ov = document.querySelector('.show-day-overview-sub');
     if(ov && typeof showDayTimeline==='function'){
       const tl = showDayTimeline(e);
-      const nDone = tl.filter(s=>s.done).length;
-      ov.textContent = tl.length
-        ? (nDone+'/'+tl.length+' done · flights, hotel, transport and set fill in automatically')
-        : 'Builds from flights, hotel, transport and set time';
+      ov.textContent = typeof showTimelineOverviewCopy==='function'
+        ? showTimelineOverviewCopy(tl)
+        : (tl.length
+          ? (tl.length+' timeline item'+(tl.length===1?'':'s')+' · Travel, hotel and show details update automatically')
+          : 'Builds from flights, hotel, transport and set time');
     }
     const prep = document.getElementById('fold-sg-'+eid+'-prep');
     const sub = prep && prep.querySelector('.show-group-titles span');

@@ -17,7 +17,9 @@ declare
     'invoices','invoice_line_items','packing_lists','packing_list_items',
     'itinerary_submissions','itinerary_submission_files','companies','company_contacts',
     'show_contacts','tour_contacts','journey_contacts','reminders','organisation_members',
-    'pending_show_imports'
+    'pending_show_imports','journey_flight_details','journey_rail_details',
+    'journey_ground_details','journey_ferry_details','journey_coach_details',
+    'journey_passengers'
   ];
 begin
   for r in

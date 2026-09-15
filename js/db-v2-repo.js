@@ -29,6 +29,12 @@ async function v2RepoFetchOrg(sb, orgId){
     { data: show_financials, error: e9 },
     { data: show_expenses, error: e10 },
     { data: journeys, error: e11 },
+    { data: journey_flight_details, error: e11a },
+    { data: journey_rail_details, error: e11b },
+    { data: journey_ground_details, error: e11c },
+    { data: journey_ferry_details, error: e11d },
+    { data: journey_coach_details, error: e11e },
+    { data: journey_passengers, error: e11f },
     { data: hotels, error: e12 },
     { data: hotel_bookings, error: e13 },
     { data: hotel_booking_shows, error: e14 },
@@ -63,6 +69,12 @@ async function v2RepoFetchOrg(sb, orgId){
     q('show_financials'),
     q('show_expenses', { order: 'sort_order' }),
     q('journeys', { order: 'sort_order' }),
+    q('journey_flight_details'),
+    q('journey_rail_details'),
+    q('journey_ground_details'),
+    q('journey_ferry_details'),
+    q('journey_coach_details'),
+    q('journey_passengers'),
     q('hotels'),
     q('hotel_bookings'),
     q('hotel_booking_shows'),
@@ -86,7 +98,7 @@ async function v2RepoFetchOrg(sb, orgId){
     q('notes', { order: 'sort_order' })
   ]);
 
-  const errs = [e0,e1,e2,e3,e4,e5,e6,e7,e8,e9,e10,e11,e12,e13,e14,e15,e16,e17,e18,e19,e20,e21,e22,e23,e24,e25,e26,e27,e28,e29,e30,e31,e32];
+  const errs = [e0,e1,e2,e3,e4,e5,e6,e7,e8,e9,e10,e11,e11a,e11b,e11c,e11d,e11e,e11f,e12,e13,e14,e15,e16,e17,e18,e19,e20,e21,e22,e23,e24,e25,e26,e27,e28,e29,e30,e31,e32];
   const first = errs.find(Boolean);
   if(first) v2RepoThrow(first, 'v2RepoFetchOrg');
 
@@ -103,6 +115,12 @@ async function v2RepoFetchOrg(sb, orgId){
     show_financials: show_financials || [],
     show_expenses: show_expenses || [],
     journeys: journeys || [],
+    journey_flight_details: journey_flight_details || [],
+    journey_rail_details: journey_rail_details || [],
+    journey_ground_details: journey_ground_details || [],
+    journey_ferry_details: journey_ferry_details || [],
+    journey_coach_details: journey_coach_details || [],
+    journey_passengers: journey_passengers || [],
     hotels: hotels || [],
     hotel_bookings: hotel_bookings || [],
     hotel_booking_shows: hotel_booking_shows || [],
@@ -156,13 +174,16 @@ async function v2RepoDeleteWhere(sb, table, filters){
 
 /* Patch a row into the in-memory v2 collection by id. */
 function v2RepoPatchLocal(table, row){
-  if(!store || !store.v2 || !row || !row.id) return;
+  if(!store || !store.v2 || !row) return;
   const list = store.v2[table];
   if(!Array.isArray(list)){
     store.v2[table] = row;
     return;
   }
-  const i = list.findIndex(r => r.id === row.id);
+  const key = row.id != null ? 'id' : (row.journey_id != null ? 'journey_id' : 'id');
+  const val = row[key];
+  if(val == null) return;
+  const i = list.findIndex(r => r && r[key] === val);
   if(i >= 0) list[i] = Object.assign({}, list[i], row);
   else list.push(row);
 }

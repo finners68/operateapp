@@ -80,6 +80,7 @@ const ICON = {
   ferry:     p=>I('<path d="M3 14l1.5 5.5a2 2 0 0 0 1.9 1.5h11.2a2 2 0 0 0 1.9-1.5L22 14M4 14l8-3 8 3M12 4v7M8 8h8"/>',p),
   ban:       p=>I('<circle cx="12" cy="12" r="9"/><path d="M5.6 5.6l12.8 12.8"/>',p),
   walk:      p=>I('<circle cx="13" cy="4" r="1.6"/><path d="M11 21l1.5-6L10 12l1-5 3 3 3 1M8 21l2.5-6"/>',p),
+  cycle:     p=>I('<circle cx="6.5" cy="17" r="3"/><circle cx="17.5" cy="17" r="3"/><path d="M6.5 17l4-9h5l3 9M10.5 8l4 9"/>',p),
   refresh:   p=>I('<path d="M21 12a9 9 0 1 1-2.6-6.2"/><path d="M21 3v6h-6"/>',p),
 };
 
@@ -776,16 +777,30 @@ function logisticTypeLabel(l){
   if(l.kind==='stay') return 'Hotel';
   const ic = l.icon || 'plane';
   if(ic==='plane') return 'Flight';
-  if(ic==='car') return 'Driver';
+  if(ic==='car'){
+    const gt = String(l.groundType || '').toLowerCase();
+    if(gt === 'uber') return 'Uber';
+    if(gt === 'taxi') return 'Taxi';
+    if(gt === 'shuttle') return 'Shuttle';
+    if(gt === 'minibus') return 'Minibus';
+    if(gt === 'bus') return 'Bus';
+    if(gt === 'chauffeur') return 'Chauffeur';
+    if(gt === 'private_car') return 'Private car';
+    return 'Driver';
+  }
   if(ic==='ferry') return 'Ferry';
   if(ic==='walk') return 'Walk';
+  if(ic==='cycle' || ic==='bike') return 'Cycle';
   if(ic==='train') return 'Train';
+  if(ic==='bus') return 'Coach';
   return 'Transfer';
 }
 function inferIconFromLogisticTitle(title){
   const t = (title||'').toLowerCase();
   if(/ferry|boat/.test(t)) return 'ferry';
   if(/train|rail/.test(t)) return 'train';
+  if(/coach|bus/.test(t)) return 'bus';
+  if(/cycle|bike|cycling/.test(t)) return 'cycle';
   if(/driver|uber|taxi|transfer/.test(t)) return 'car';
   if(/walk/.test(t)) return 'walk';
   return 'plane';
@@ -799,7 +814,7 @@ function parseLogisticRouteFromLegacy(title){
   return { from: m[1].trim(), to: m[2].trim() };
 }
 function isNormalizedLogisticTitle(title){
-  return ['Flight','Hotel','Driver','Ferry','Walk','Train','Transfer'].includes(title);
+  return ['Flight','Hotel','Driver','Ferry','Walk','Train','Transfer','Cycle','Coach','Uber','Taxi','Shuttle','Minibus','Bus','Chauffeur','Private car'].includes(title);
 }
 function extractFlightNoFromTitle(title){
   const t = String(title||'');
@@ -909,7 +924,9 @@ function journeyRouteModeIcon(mode, size=13){
   }
   if(m==='ferry' || m==='boat') return ICON.ferry ? ICON.ferry(size) : '';
   if(m==='walk') return ICON.walk ? ICON.walk(size) : '';
+  if(m==='cycle' || m==='bike') return ICON.cycle ? ICON.cycle(size) : (ICON.walk ? ICON.walk(size) : '');
   if(m==='train' || m==='rail') return ICON.train ? ICON.train(size) : (ICON.car ? ICON.car(size) : '');
+  if(m==='bus' || m==='coach') return ICON.bus ? ICON.bus(size) : (ICON.car ? ICON.car(size) : '');
   return ICON.car ? ICON.car(size) : '';
 }
 function journeyRouteRailHtml(icon, isAir){
@@ -1016,7 +1033,15 @@ function logisticTimes(l){
 }
 function logisticMetaLine(l){
   const bits = [];
-  if(l.kind==='travel' && l.flightNo) bits.push(l.flightNo);
+  if(l.kind==='travel'){
+    if(l.flightNo) bits.push(l.flightNo);
+    else if(l.trainNo) bits.push(l.trainNo);
+    else if(l.ferryNo) bits.push(l.ferryNo);
+    else if(l.coachNo) bits.push(l.coachNo);
+    if(l.operator) bits.push(l.operator);
+    if(l.bookingRef) bits.push(l.bookingRef);
+    if(l.platform) bits.push('Plat ' + l.platform);
+  }
   const t = logisticTimes(l);
   if(t) bits.push(t);
   return bits.join(' · ');

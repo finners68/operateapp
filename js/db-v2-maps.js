@@ -18,11 +18,11 @@ function v2PrefixedLegacy(prefix, id){ return prefix + id; }
 
 const V2_ICON_TO_JOURNEY = {
   plane: 'flight', train: 'rail', car: 'ground_transfer', ferry: 'ferry',
-  bus: 'coach', walk: 'walk'
+  bus: 'coach', walk: 'walk', cycle: 'cycle', bike: 'cycle'
 };
 const V2_JOURNEY_TO_ICON = {
   flight: 'plane', rail: 'train', ground_transfer: 'car', ferry: 'ferry',
-  coach: 'bus', walk: 'walk', other: 'plane'
+  coach: 'bus', walk: 'walk', cycle: 'cycle', other: 'plane'
 };
 
 function v2JourneyTypeFromEvent(e){

@@ -190,7 +190,8 @@ export function ShowFlightSheet({ eid, fid, flight, passengers }){
   const pax=passengers || f.passengers || [{id:call('uid','pax'),name:'',seat:'',booking_reference:'',passes:[]}];
   return <>
     <Field label="Flight number" id="fl-code" value={f.code} placeholder="KL1008" />
-    <div className="row-2"><Field label="From" id="fl-from" value={f.from} placeholder="LHR"/><Field label="To" id="fl-to" value={f.to} placeholder="AMS"/></div>
+    <div className="row-2"><Field label="From" id="fl-from" value={f.fromName || f.from} placeholder="LHR or Heathrow"/><Field label="To" id="fl-to" value={f.toName || f.to} placeholder="AMS or Schiphol"/></div>
+    <Field label="Airline / operator (optional)" id="fl-operator" value={f.operator} placeholder="KLM" />
     <div className="row-2"><Field label="Date" id="fl-dep-date" type="date" value={dep.date||e.date}/><Field label="Departs" id="fl-dep-time" type="time" value={dep.time}/></div>
     <div className="block-title" style={{margin:'6px 2px 8px'}}>Day-of flight info</div>
     <div className="row-2"><Field label="Terminal" id="fl-term" value={f.terminal} placeholder="2"/><Field label="Gate" id="fl-gate" value={f.gate} placeholder="B12"/></div>
@@ -307,6 +308,7 @@ export function ShowTransportSheet({ eid, idx, driver, journeys }){
     </div>
     <div className="hint" style={{textAlign:'left',padding:'0 2px 10px'}}>The journey name is just Departure → Arrival, using general places (Airport, Hotel, Venue) — not the specific venue or hotel name.</div>
     <Field label="Time (optional)" id="dr-time" type="time" value={d.time}/>
+    <Field label="Transport type"><Seg id="dr-type" values={[['','Unspecified'],['taxi','Taxi'],['uber','Uber'],['private_car','Private car'],['chauffeur','Chauffeur'],['shuttle','Shuttle'],['minibus','Minibus'],['bus','Bus'],['other','Other']]} selected={d.groundType || ''} /></Field>
     <Field label="Arrangement"><Seg id="dr-mode" values={[['driver','Driver contact'],['none','No grounds · Uber/Taxi']]} selected={none?'none':'driver'} onPick={()=>call('drModeToggle')}/></Field>
     <div id="dr-none-hint" className="hint" style={{display:none?'':'none',padding:'2px 2px 12px'}}>No ground transport provided for this journey — book an Uber or taxi.</div>
     <div id="dr-contact" style={{display:none?'none':''}}>
@@ -332,6 +334,18 @@ export function ShowDayDetailsSheet(props){
 const ROLES=[['','Select role…'],['artist_liaison','Artist Liaison'],['promoter','Promoter'],['production','Production'],['venue_manager','Venue Manager'],['driver','Driver'],['emergency','Emergency'],['__other__','Other']];
 export function ShowContactSheet({eid,cid,contact}){const e=eventOf({eid}),c=contact||(e.contacts||[]).find(x=>x.id===cid)||{};const known=ROLES.some(x=>x[0]===c.role),selected=known?c.role:(c.role?'__other__':'');return <><Field label="Name" id="ct-name" value={c.name} placeholder="Alex"/><Field label="Role"><select id="ct-role" className="input" defaultValue={selected} onChange={()=>call('toggleEventContactRoleOther')}>{ROLES.map(([v,l])=><option value={v} key={v}>{l}</option>)}</select></Field><div className="field" id="ct-role-other-wrap" style={{display:selected==='__other__'?undefined:'none'}}><label>Custom role</label><input id="ct-role-other" className="input" defaultValue={known?'':c.role||''} placeholder="e.g. Stage manager"/></div><Field label="Phone" id="ct-phone" type="tel" value={c.phone} placeholder="+44 7…"/><Field label="WhatsApp (if different)" id="ct-wa" type="tel" value={c.whatsapp}/><button className="btn" id="ct-save" onClick={()=>call('saveEventContact',eid,cid||'')}>Save contact</button>{cid?<button className="btn danger" style={{marginTop:10}} onClick={()=>call('delEventContact',eid,cid)}><Icon name="trash" size={16}/> Remove</button>:null}<Spacer /></>;}
 export function ShowChecklistSheet({eid,items}){const list=items||eventOf({eid}).checklist||[];return <>{list.length?<div className="card flush">{list.map(i=><div className={`check${i.done?' done':''}`} data-id={i.id} key={i.id}><div className="box" onClick={()=>call('toggleEventCheck',eid,i.id)}><Icon name="check" size={15}/></div><div className="lbl" onClick={()=>call('toggleEventCheck',eid,i.id)}>{i.label}</div><button className="del" onClick={()=>call('delEventCheck',eid,i.id)}><Icon name="x" size={16}/></button></div>)}</div>:<div className="hint" style={{padding:'8px 4px 12px'}}>No items yet — add what you need to prep.</div>}<Field label="New item" id="ck-new" placeholder="e.g. Track ID list"/><button className="btn" onClick={()=>call('addEventCheckFromSheet',eid)}><Icon name="plus" size={16}/> Add item</button><Spacer /></>;}
+function openShowTimelineRow(eid, s){
+  if(!s.auto) return call('sheetShowTimelineStep', eid, s.id);
+  if(s.kind==='flight' && s.refId) return call('sheetFlight', eid, s.refId);
+  if(s.kind==='hotel') return call('sheetHotel', eid);
+  if(s.kind==='transport'){
+    const list=call('showDrivers', eventOf({eid}))||[];
+    const idx=list.findIndex(d=>String(d.id)===String(s.refId));
+    return idx>=0 ? call('sheetDriver', eid, idx) : call('sheetDriver', eid);
+  }
+  if(s.kind==='set' || s.kind==='arrival') return call('sheetEvent', eid);
+  if(s.kind==='advance') return call('sheetAdvance', eid);
+}
 export function ShowTimelineSheet({eid,steps}){
   const e=eventOf({eid});
   const list=steps||call('showDayTimeline',e)||e.timeline||[];
@@ -339,12 +353,12 @@ export function ShowTimelineSheet({eid,steps}){
   const renderStep=s=>(
     <div className={`check is-circle${s.done?' done':''}`} data-id={s.id} key={s.id}>
       <div className="box" onClick={()=>call('toggleShowTimelineStep',eid,s.id)}><Icon name="check" size={15}/></div>
-      <div className="lbl" onClick={()=>s.auto?call('toggleShowTimelineStep',eid,s.id):call('sheetShowTimelineStep',eid,s.id)}>{s.time?`${s.time} · `:''}{s.title}{s.sub?` — ${s.sub}`:''}</div>
+      <div className="lbl" onClick={()=>openShowTimelineRow(eid,s)}>{s.time?`${s.time} · `:''}{s.title}{s.sub?` — ${s.sub}`:''}</div>
       {!s.auto?<button className="del" onClick={()=>call('delShowTimelineStep',eid,s.id)}><Icon name="x" size={16}/></button>:null}
     </div>
   );
   return <>
-    <p className="sheet-lede">{list.filter(s=>s.auto).length||'No'} auto steps · {list.filter(s=>!s.auto).length} custom. Tick items off as you go.</p>
+    <p className="sheet-lede">Full itinerary. Tap a row for details. Tick the circle when a step is done.</p>
     {list.length?<div className="card flush">{(grouped.groups||[]).map((g,i)=>(
       <div key={g.date||i}>
         {grouped.multi && g.label ? <div className={`tl-day-head${g.today?' today':''}`} style={{margin:'10px 8px 4px'}}>{g.label}</div> : null}

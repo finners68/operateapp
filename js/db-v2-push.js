@@ -275,6 +275,33 @@ async function v2UpsertOneByLegacy(sb, table, orgId, row){
   const rows = await v2UpsertById(sb, table, orgId, row);
   return rows[0] || null;
 }
+
+async function v2AfterJourneyWrite(sb, orgId, jRow, extras){
+  extras = extras || {};
+  if(!jRow || !jRow.id) return jRow;
+  if(typeof v2SyncJourneySubtype === 'function'){
+    await v2SyncJourneySubtype(sb, orgId, jRow, extras);
+  }
+  if(extras.passengers && typeof v2ReplaceJourneyPassengers === 'function'){
+    await v2ReplaceJourneyPassengers(sb, orgId, jRow.id, extras.passengers);
+  }
+  return jRow;
+}
+
+function v2UniversalFromTo(fromVal, toVal){
+  const from = (typeof v2PlaceForDb === 'function' ? v2PlaceForDb(fromVal) : (fromVal || null));
+  const to = (typeof v2PlaceForDb === 'function' ? v2PlaceForDb(toVal) : (toVal || null));
+  const fromIata = typeof v2Iata === 'function' ? v2Iata(fromVal) : null;
+  const toIata = typeof v2Iata === 'function' ? v2Iata(toVal) : null;
+  return {
+    departure_location_name: from,
+    arrival_location_name: to,
+    departure_location_code: fromIata,
+    arrival_location_code: toIata,
+    departure_airport_iata: fromIata,
+    arrival_airport_iata: toIata
+  };
+}
 async function v2LoadLegacyIds(_sb, _table, _orgId){
   return {};
 }
@@ -919,6 +946,7 @@ async function pushToSupabaseV2(orgId, dirtyIn){
       const cid = await v2EnsureContact(sb, orgId, { id: d.id, name: d.name || 'Driver', phone: d.phone, whatsapp: d.whatsapp }, contactCache);
       const driverLegacy = 'show_driver_journey:' + (d.id || (sid + ':' + i));
       const title = (typeof driverJourneyLabel === 'function' ? driverJourneyLabel(d) : d.journey) || 'Transfer';
+      const places = v2UniversalFromTo(d.from, d.to);
       const jRow = await v2UpsertOneByLegacy(sb, 'journeys', orgId, {
         id: v2IdForLegacy('journeys', driverLegacy, d.id),
         organisation_id: orgId,
@@ -927,16 +955,25 @@ async function pushToSupabaseV2(orgId, dirtyIn){
         tour_id: s.tripId && tourUuidMap[s.tripId] ? tourUuidMap[s.tripId] : null,
         journey_type: 'ground_transfer',
         journey_title: title,
+        operator_name: d.name || null,
+        departure_location_name: places.departure_location_name,
+        arrival_location_name: places.arrival_location_name,
         pickup_location: d.from || null,
         pickup_instructions: (d.pickup || '').trim() || null,
         dropoff_location: d.to || null,
-        vehicle_details: d.name || null,
+        vehicle_details: d.name || d.vehicle || null,
         departure_at: v2CombineDateTime(
           d.date || (typeof showItemTrueDate === 'function' ? showItemTrueDate(s, d.time) : s.date),
           d.time
         ),
         note_items: (typeof noteItemsForDb === 'function' ? noteItemsForDb(d.notes) : (d.notes || null)),
         sort_order: i
+      });
+      await v2AfterJourneyWrite(sb, orgId, jRow, {
+        pickup_instructions: (d.pickup || '').trim() || null,
+        vehicle_details: d.vehicle || null,
+        ground_transport_type: d.groundType || (d.noGround ? 'uber' : null),
+        name: d.name
       });
       if(cid && jRow){
         await v2UpsertPk(sb, 'journey_contacts', {
@@ -999,7 +1036,7 @@ async function pushToSupabaseV2(orgId, dirtyIn){
 
     if(s.flightNo && !(s.flights || []).length){
       const primaryLegacy = 'show_primary_flight:' + sid;
-      await v2UpsertOneByLegacy(sb, 'journeys', orgId, {
+      const primaryRow = await v2UpsertOneByLegacy(sb, 'journeys', orgId, {
         id: v2IdForLegacy('journeys', primaryLegacy, s._primaryFlightId),
         organisation_id: orgId,
         legacy_id: primaryLegacy,
@@ -1015,6 +1052,11 @@ async function pushToSupabaseV2(orgId, dirtyIn){
         status_updated_at: s.fiUpdated ? new Date(s.fiUpdated).toISOString() : null,
         is_live_status: !!s.fiLive,
         sort_order: -1
+      });
+      await v2AfterJourneyWrite(sb, orgId, primaryRow, {
+        flight_number: s.flightNo,
+        departure_terminal: s.terminal || null,
+        departure_gate: s.gate || null
       });
     }
 
@@ -1032,6 +1074,9 @@ async function pushToSupabaseV2(orgId, dirtyIn){
         if(booking_reference) row.booking_reference = booking_reference;
         return row;
       });
+      const places = v2UniversalFromTo(f.fromName || f.from, f.toName || f.to);
+      const fromIata = v2Iata(f.fromCode || f.from);
+      const toIata = v2Iata(f.toCode || f.to);
       const jRow = await v2UpsertOneByLegacy(sb, 'journeys', orgId, {
         id: v2IdForLegacy('journeys', flightLegacy, f.id),
         organisation_id: orgId,
@@ -1040,9 +1085,15 @@ async function pushToSupabaseV2(orgId, dirtyIn){
         tour_id: s.tripId && tourUuidMap[s.tripId] ? tourUuidMap[s.tripId] : null,
         journey_type: 'flight',
         journey_title: f.code || 'Flight',
+        operator_name: f.operator || null,
+        booking_reference: f.bookingRef || null,
         flight_number: f.code || null,
-        departure_location_code: f.from || null,
-        arrival_location_code: f.to || null,
+        departure_location_name: places.departure_location_name,
+        arrival_location_name: places.arrival_location_name,
+        departure_location_code: fromIata || places.departure_location_code,
+        arrival_location_code: toIata || places.arrival_location_code,
+        departure_airport_iata: fromIata,
+        arrival_airport_iata: toIata,
         departure_at: flightTimes.departure_at,
         arrival_at: flightTimes.arrival_at,
         journey_notes: null,
@@ -1054,6 +1105,16 @@ async function pushToSupabaseV2(orgId, dirtyIn){
         status_updated_at: f.fiUpdated ? new Date(f.fiUpdated).toISOString() : null,
         passengers: paxMeta,
         sort_order: i
+      });
+      await v2AfterJourneyWrite(sb, orgId, jRow, {
+        flight_number: f.code || null,
+        departure_airport_iata: fromIata,
+        arrival_airport_iata: toIata,
+        departure_terminal: f.terminal || null,
+        departure_gate: f.gate || null,
+        from: f.from,
+        to: f.to,
+        passengers: f.passengers || paxMeta
       });
 
       for(const pax of (f.passengers || [])){
@@ -1151,6 +1212,8 @@ async function pushToSupabaseV2(orgId, dirtyIn){
         v2CombineDateTime(l.endDate || l.date, l.end)
       );
       const travelLegacy = 'logistics:' + l.id;
+      const places = v2UniversalFromTo(l.from, l.to);
+      const serviceNo = l.flightNo || l.trainNo || l.ferryNo || l.coachNo || null;
       const jRow = await v2UpsertOneByLegacy(sb, 'journeys', orgId, {
         id: v2IdForLegacy('journeys', travelLegacy, l.id),
         organisation_id: orgId,
@@ -1158,11 +1221,24 @@ async function pushToSupabaseV2(orgId, dirtyIn){
         related_show_id: showUuid,
         journey_type: jType,
         journey_title: l.title || logisticTypeLabel(l),
+        operator_name: l.operator || l.driverName || null,
+        booking_reference: l.bookingRef || null,
         departure_at: travelTimes.departure_at,
         arrival_at: travelTimes.arrival_at,
-        departure_location_name: l.from || null,
-        arrival_location_name: l.to || null,
-        flight_number: l.flightNo || null,
+        departure_location_name: places.departure_location_name,
+        arrival_location_name: places.arrival_location_name,
+        departure_location_code: places.departure_location_code,
+        arrival_location_code: places.arrival_location_code,
+        flight_number: jType === 'flight' ? serviceNo : null,
+        train_number: jType === 'rail' ? serviceNo : null,
+        ferry_service_number: jType === 'ferry' ? serviceNo : null,
+        coach_service_number: jType === 'coach' ? serviceNo : null,
+        departure_airport_iata: jType === 'flight' ? places.departure_airport_iata : null,
+        arrival_airport_iata: jType === 'flight' ? places.arrival_airport_iata : null,
+        pickup_location: jType === 'ground_transfer' ? (l.from || null) : null,
+        dropoff_location: jType === 'ground_transfer' ? (l.to || null) : null,
+        pickup_instructions: l.pickup || null,
+        vehicle_details: l.vehicle || null,
         departure_gate: l.gate || null,
         departure_terminal: l.terminal || null,
         journey_status: l.fstatus || null,
@@ -1170,6 +1246,20 @@ async function pushToSupabaseV2(orgId, dirtyIn){
         journey_notes: packLogisticInfo(l),
         is_done: !!l.done,
         sort_order: 0
+      });
+      await v2AfterJourneyWrite(sb, orgId, jRow, {
+        flight_number: jType === 'flight' ? serviceNo : null,
+        train_number: jType === 'rail' ? serviceNo : null,
+        ferry_service_number: jType === 'ferry' ? serviceNo : null,
+        coach_service_number: jType === 'coach' ? serviceNo : null,
+        departure_terminal: l.terminal || null,
+        departure_gate: l.gate || null,
+        pickup_instructions: l.pickup || null,
+        vehicle_details: l.vehicle || null,
+        ground_transport_type: l.groundType || null,
+        from: l.from,
+        to: l.to,
+        driverName: l.driverName
       });
 
       for(const pp of (l.passes || [])){

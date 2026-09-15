@@ -20,7 +20,7 @@ function loadState() {
   sandbox.self = sandbox.window;
   vm.createContext(sandbox);
   const src = readFileSync(join(root, 'js', 'state.js'), 'utf8')
-    + '\n;this.__x = { jsAttr, esc, setStartMs, parseDT, countdown };';
+    + '\n;this.__x = { jsAttr, esc, setStartMs, parseDT, countdown, logisticTypeLabel };';
   vm.runInContext(src, sandbox, { filename: 'state.js' });
   return sandbox.__x;
 }
@@ -51,4 +51,45 @@ test('countdown formats include minutes and never go negative', () => {
   assert.equal(c.done, false);
   assert.match(c.txt + c.unit, /\d/);
   assert.equal(S.countdown(Date.now() - 1000).done, true);
+});
+
+test('logisticTypeLabel uses travel mode and ground subtype', () => {
+  assert.equal(S.logisticTypeLabel({ kind: 'travel', icon: 'plane' }), 'Flight');
+  assert.equal(S.logisticTypeLabel({ kind: 'travel', icon: 'train' }), 'Train');
+  assert.equal(S.logisticTypeLabel({ kind: 'travel', icon: 'cycle' }), 'Cycle');
+  assert.equal(S.logisticTypeLabel({ kind: 'travel', icon: 'bus' }), 'Coach');
+  assert.equal(S.logisticTypeLabel({ kind: 'travel', icon: 'car', groundType: 'uber' }), 'Uber');
+  assert.equal(S.logisticTypeLabel({ kind: 'stay' }), 'Hotel');
+});
+
+function loadJourneyHelpers() {
+  const sandbox = {
+    window: {},
+    console,
+    isUuid: (v) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(v || '')),
+    newUuid: () => '11111111-1111-4111-8111-111111111111'
+  };
+  sandbox.self = sandbox.window;
+  vm.createContext(sandbox);
+  vm.runInContext(readFileSync(join(root, 'js', 'db-v2-journeys.js'), 'utf8'), sandbox, { filename: 'db-v2-journeys.js' });
+  vm.runInContext('this.__x = { v2JourneyFromName, v2JourneyToName, v2InferGroundTransportType };', sandbox);
+  return sandbox.__x;
+}
+
+test('universal journey route prefers location names over type-specific leftovers', () => {
+  const J = loadJourneyHelpers();
+  assert.equal(J.v2JourneyFromName({
+    journey_type: 'rail',
+    departure_location_name: 'Colwyn Bay',
+    departure_station_name: 'Old Station'
+  }), 'Colwyn Bay');
+  assert.equal(J.v2JourneyFromName({
+    journey_type: 'ground_transfer',
+    pickup_location: 'Airport'
+  }), 'Airport');
+  assert.equal(J.v2JourneyToName({
+    journey_type: 'ferry',
+    arrival_port_name: 'Hook of Holland'
+  }), 'Hook of Holland');
+  assert.equal(J.v2InferGroundTransportType('Please book an Uber'), 'uber');
 });
