@@ -104,6 +104,100 @@ export function ShowAddTravelSheet({ eid }){
     <Spacer />
   </>;
 }
+
+function travelLegIcon(mode){
+  if(mode === 'coach') return 'bus';
+  return mode || 'train';
+}
+
+function travelLegSpec(mode){
+  const icon = travelLegIcon(mode);
+  const specs = {
+    train: {
+      lede: 'Stations, times and the train number.',
+      from: 'From station',
+      to: 'To station',
+      fromPh: 'e.g. Amsterdam Centraal',
+      toPh: 'e.g. Brussel-Zuid',
+      code: 'Train number',
+      codePh: 'e.g. ICE 123',
+      save: 'Add train',
+      showCode: true,
+      showPlatform: true,
+      showOperator: true,
+      showBooking: true
+    },
+    bus: {
+      lede: 'Stops, times and the coach service.',
+      from: 'From',
+      to: 'To',
+      fromPh: 'Departure stop',
+      toPh: 'Arrival stop',
+      code: 'Service number',
+      codePh: 'e.g. FlixBus 1234',
+      save: 'Add coach',
+      showCode: true,
+      showOperator: true,
+      showBooking: true
+    },
+    ferry: {
+      lede: 'Ports, times and the sailing.',
+      from: 'From port',
+      to: 'To port',
+      fromPh: 'e.g. Dover',
+      toPh: 'e.g. Calais',
+      code: 'Sailing / service number',
+      codePh: 'e.g. DFDS 809',
+      save: 'Add ferry',
+      showCode: true,
+      showOperator: true,
+      showBooking: true
+    },
+    walk: {
+      lede: 'Where you walk, and roughly when.',
+      from: 'From',
+      to: 'To',
+      fromPh: 'Start',
+      toPh: 'Finish',
+      save: 'Add walk'
+    },
+    cycle: {
+      lede: 'Where you cycle, and roughly when.',
+      from: 'From',
+      to: 'To',
+      fromPh: 'Start',
+      toPh: 'Finish',
+      save: 'Add cycle'
+    }
+  };
+  return specs[icon] || specs.train;
+}
+
+export function ShowTravelLegSheet({ eid, mode }){
+  const e = eventOf({ eid });
+  const spec = travelLegSpec(mode);
+  const icon = travelLegIcon(mode);
+  if(!e || !e.id) return <div className="hint">Show not found.</div>;
+  return <>
+    <p className="sheet-lede">{spec.lede}</p>
+    <div className="row-2">
+      <Field label={spec.from} id="tl-from" placeholder={spec.fromPh} />
+      <Field label={spec.to} id="tl-to" placeholder={spec.toPh} />
+    </div>
+    <Field label="Date" id="tl-date" type="date" value={e.date} />
+    <div className="row-2">
+      <Field label="Departure" id="tl-start" type="time" />
+      <Field label="Arrival" id="tl-end" type="time" />
+    </div>
+    {spec.showCode ? <Field label={spec.code} id="tl-code" placeholder={spec.codePh} /> : null}
+    {spec.showPlatform ? <Field label="Platform (optional)" id="tl-platform" placeholder="e.g. 5a" /> : null}
+    {spec.showOperator ? <Field label="Operator (optional)" id="tl-operator" placeholder="Company or operator" /> : null}
+    {spec.showBooking ? <Field label="Booking reference (optional)" id="tl-ref" placeholder="Confirmation number" /> : null}
+    <TextArea label="Notes (optional)" id="tl-notes" placeholder="Anything else for this journey…" style={{ minHeight: 64 }} />
+    <button type="button" className="btn" id="tl-save" onClick={() => call('saveTravelLeg', eid, icon)}>{spec.save}</button>
+    <Spacer />
+  </>;
+}
 export function ShowHotelSheet(props){
   const e=eventOf(props), h=props.hotel || e.hotel || {};
   const conf=call('hotelBookingRef',h) || h.conf || h.bookingRef || '';

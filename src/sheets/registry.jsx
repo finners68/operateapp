@@ -1,7 +1,7 @@
 import { createElement } from 'react';
 import { ConfirmSheetBody, PromptSheetBody } from './common.jsx';
 import {
-  ShowEventSheet, ShowAddTravelSheet, ShowHotelSheet, ShowFlightsListSheet, ShowContactsListSheet, ShowFlightSheet,
+  ShowEventSheet, ShowAddTravelSheet, ShowTravelLegSheet, ShowHotelSheet, ShowFlightsListSheet, ShowContactsListSheet, ShowFlightSheet,
   ShowFlightPassengersSheet,
   ShowContactDriverSheet, ShowTransportListSheet, ShowContactLiaisonSheet,
   ShowReminderSheet, ShowFlightInfoSheet, ShowTransportSheet, ShowVenueSheet,
@@ -34,6 +34,7 @@ export const SHEET_KINDS = Object.freeze({
 
   'show.event': ShowEventSheet,
   'show.addTravel': ShowAddTravelSheet,
+  'show.travelLeg': ShowTravelLegSheet,
   'show.hotel': ShowHotelSheet,
   'show.flightsList': ShowFlightsListSheet,
   'show.contactsList': ShowContactsListSheet,

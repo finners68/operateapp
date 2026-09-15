@@ -1307,11 +1307,58 @@ window.sheetAddTravel = sheetAddTravel;
 function addTravelMode(eid, mode){
   if(mode === 'flight'){ sheetFlight(eid, '__new__'); return; }
   if(mode === 'ground'){ sheetDriver(eid); return; }
-  const icon = mode === 'coach' ? 'bus' : (mode || 'train');
-  openSheetReact('Add travel', 'calendar.addLogistic', { showId: eid, presetKind: 'travel', presetIcon: icon });
-  setTimeout(()=>{ if(typeof toggleLogisticAddFields==='function') toggleLogisticAddFields(); }, 30);
+  sheetTravelLeg(eid, mode);
 }
 window.addTravelMode = addTravelMode;
+function travelLegIcon(mode){
+  if(mode === 'coach') return 'bus';
+  return mode || 'train';
+}
+function sheetTravelLeg(eid, mode){
+  const e=sel.event(eid); if(!e) return;
+  const icon = travelLegIcon(mode);
+  const titles = { train:'Add train', bus:'Add coach', ferry:'Add ferry', walk:'Add walk', cycle:'Add cycle' };
+  openSheetReact(titles[icon] || 'Add travel', 'show.travelLeg', { eid, mode: icon });
+}
+window.sheetTravelLeg = sheetTravelLeg;
+function saveTravelLeg(eid, mode){
+  const e=sel.event(eid); if(!e) return;
+  const icon = travelLegIcon(mode);
+  const from = (val('tl-from')||'').trim();
+  const to = (val('tl-to')||'').trim();
+  const start = rawVal('tl-start');
+  const end = rawVal('tl-end');
+  const code = (val('tl-code')||'').trim();
+  if(!from && !to && !start){ toast('Add a route or a time','x'); return; }
+  const it = {
+    id: uid('evt'),
+    kind: 'travel',
+    date: rawVal('tl-date') || e.date,
+    showId: eid,
+    icon,
+    from: /^[A-Za-z]{3}$/.test(from) ? from.toUpperCase() : from,
+    to: /^[A-Za-z]{3}$/.test(to) ? to.toUpperCase() : to,
+    start,
+    end,
+    operator: val('tl-operator'),
+    bookingRef: val('tl-ref'),
+    platform: val('tl-platform'),
+    info: val('tl-notes')
+  };
+  if(icon === 'train') it.trainNo = code;
+  else if(icon === 'ferry') it.ferryNo = code;
+  else if(icon === 'bus') it.coachNo = code;
+  else if(code) it.flightNo = code;
+  it.title = logisticTypeLabel(it);
+  if(typeof normalizeLogisticItem === 'function') normalizeLogisticItem(it);
+  store.events.push(it);
+  persist('journeys', it.id);
+  if(typeof pushLogisticsNow === 'function') pushLogisticsNow(it.kind, it.id);
+  closeSheet();
+  renderView();
+  toast((it.title || 'Travel') + ' added', 'check');
+}
+window.saveTravelLeg = saveTravelLeg;
 function markNoAccommodation(eid){
   const e=sel.event(eid); if(!e) return;
   const apply=()=>{

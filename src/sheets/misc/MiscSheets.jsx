@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { Icon } from '../../show/ui.jsx';
 import { call, fmtMoney, getCats, getIdeaTypes, getRoles, getSel, getStore, showTitle } from '../../api/operate.js';
 
@@ -47,20 +48,36 @@ export function TripContactsSheet({runKey,contacts,grouped=true}){
   return <>{Object.entries(groups).map(([show,items])=><div key={show}>{grouped?<div className="prio-head" style={{margin:'14px 4px 8px'}}>{show}</div>:null}<div className="card flush">{items.map((c,i)=><div className="info-line info-line-stacked" key={i}><div className="ic"><Icon name="user" size={17}/></div><div className="tx" style={{flex:1,minWidth:0}}><div className="detail-title">{c.label||'Contact'}</div>{c.name?<div className="detail-primary">{c.name}</div>:null}{c.phone?<div className="detail-meta">{c.phone}</div>:null}</div>{c.whatsapp||c.phone?<button className="header-btn" onClick={()=>call('whatsapp',c.whatsapp||c.phone)}><Icon name="chat" size={15}/></button>:null}{c.phone?<button className="header-btn" onClick={()=>call('callNumber',c.phone)}><Icon name="phone" size={15}/></button>:null}</div>)}</div></div>)}<Spacer/></>;
 }
 
-export function CalendarAddLogisticSheet({showId,event,presetKind,presetIcon}){
+export function CalendarAddLogisticSheet({showId,event,presetKind,presetIcon,lockedMode}){
   const e=event||events().find(x=>x.id===showId)||{};
-  const kind=presetKind||'travel';
-  const icon=presetIcon||'plane';
+  const [kind,setKind]=useState(presetKind||'travel');
+  const [icon,setIcon]=useState(presetIcon||'plane');
   const stay=kind==='stay';
+  const locked=!!lockedMode;
   const modes=[['plane','Flight'],['car','Ground'],['ferry','Ferry'],['train','Train'],['bus','Coach'],['walk','Walk'],['cycle','Cycle']];
+  const travelCopy={
+    plane:{from:'From',to:'To',fromPh:'Departure',toPh:'Arrival',code:'Flight number',codePh:'KL1008'},
+    car:{from:'From',to:'To',fromPh:'Pickup',toPh:'Drop-off',code:'',codePh:''},
+    ferry:{from:'From port',to:'To port',fromPh:'e.g. Dover',toPh:'e.g. Calais',code:'Sailing / service number',codePh:'e.g. DFDS 809'},
+    train:{from:'From station',to:'To station',fromPh:'e.g. Amsterdam Centraal',toPh:'e.g. Brussel-Zuid',code:'Train number',codePh:'e.g. ICE 123'},
+    bus:{from:'From',to:'To',fromPh:'Departure stop',toPh:'Arrival stop',code:'Service number',codePh:'e.g. FlixBus 1234'},
+    walk:{from:'From',to:'To',fromPh:'Start',toPh:'Finish',code:'',codePh:''},
+    cycle:{from:'From',to:'To',fromPh:'Start',toPh:'Finish',code:'',codePh:''}
+  }[icon]||{from:'From',to:'To',fromPh:'Departure',toPh:'Arrival',code:'Service number',codePh:''};
+  const showCode=!!travelCopy.code;
+  const showDriver=!stay && icon==='car';
+  const showPlatform=!stay && icon==='train';
   return <>
-    <Field label="Type"><div className="seg" id="al-kind">{[['travel','Travel'],['stay','Accommodation']].map(([k,l])=><button type="button" data-v={k} className={kind===k?'on':''} key={k} onClick={x=>{call('segPick',x.currentTarget);call('toggleLogisticAddFields')}}>{l}</button>)}</div></Field>
+    {locked?null:<Field label="Type"><div className="seg" id="al-kind">{[['travel','Travel'],['stay','Accommodation']].map(([k,l])=><button type="button" data-v={k} className={kind===k?'on':''} key={k} onClick={x=>{call('segPick',x.currentTarget);setKind(k);}}>{l}</button>)}</div></Field>}
     <div id="al-travel-fields" style={stay?{display:'none'}:undefined}>
-      <Field label="Travel mode"><div className="seg" id="al-icon">{modes.map(([k,l])=><button type="button" data-v={k} className={icon===k?'on':''} key={k} onClick={x=>{call('segPick',x.currentTarget);call('toggleLogisticAddFields')}}>{l}</button>)}</div></Field>
-      <Field label="Service number (optional)" id="al-code" placeholder="KL1008 / train no."/>
-      <div className="row-2"><Field label="From" id="al-from" placeholder="Departure"/><Field label="To" id="al-to" placeholder="Arrival"/></div>
+      {locked?null:<Field label="Travel mode"><div className="seg" id="al-icon">{modes.map(([k,l])=><button type="button" data-v={k} className={icon===k?'on':''} key={k} onClick={x=>{call('segPick',x.currentTarget);setIcon(k);}}>{l}</button>)}</div></Field>}
+      {locked?<input type="hidden" id="al-icon-fixed" value={icon}/>:null}
+      {locked?<input type="hidden" id="al-kind-fixed" value="travel"/>:null}
+      {showCode?<Field label={travelCopy.code} id="al-code" placeholder={travelCopy.codePh}/>:null}
+      {showPlatform?<Field label="Platform (optional)" id="al-platform" placeholder="e.g. 5a"/>:null}
+      <div className="row-2"><Field label={travelCopy.from} id="al-from" placeholder={travelCopy.fromPh}/><Field label={travelCopy.to} id="al-to" placeholder={travelCopy.toPh}/></div>
       <div className="row-2"><Field label="Departure" id="al-start" type="time"/><Field label="Arrival" id="al-end" type="time"/></div>
-      <div id="al-driver-name-wrap" style={{display:(!stay && icon==='car')?'':'none'}}><Field label="Operator / driver" id="al-driver-name" placeholder="e.g. Marco · Uber"/></div>
+      <div id="al-driver-name-wrap" style={{display:showDriver?'':'none'}}><Field label="Operator / driver" id="al-driver-name" placeholder="e.g. Marco · Uber"/></div>
     </div>
     <div id="al-stay-fields" style={stay?undefined:{display:'none'}}>
       <Field label="Accommodation name" id="al-place" placeholder="e.g. Hilton"/>

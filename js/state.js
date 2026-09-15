@@ -863,6 +863,12 @@ function unpackLogisticInfoFields(e){
       if(o.from) e.from = o.from;
       if(o.to) e.to = o.to;
       if(o.flightNo) e.flightNo = o.flightNo;
+      if(o.trainNo) e.trainNo = o.trainNo;
+      if(o.ferryNo) e.ferryNo = o.ferryNo;
+      if(o.coachNo) e.coachNo = o.coachNo;
+      if(o.platform) e.platform = o.platform;
+      if(o.operator) e.operator = o.operator;
+      if(o.bookingRef) e.bookingRef = o.bookingRef;
       if(o.phone) e.phone = o.phone;
       if(o.whatsapp) e.whatsapp = o.whatsapp;
       if(o.driverName) e.driverName = o.driverName;
@@ -882,13 +888,15 @@ function unpackLogisticInfoFields(e){
 }
 function packLogisticInfo(e){
   if(e.kind==='travel'){
-    const has = e.from || e.to || e.flightNo || e.phone || e.whatsapp || e.driverName || e.gate || e.terminal || e.fstatus || e.delay || e.info;
+    const has = e.from || e.to || e.flightNo || e.trainNo || e.ferryNo || e.coachNo || e.phone || e.whatsapp || e.driverName || e.gate || e.terminal || e.fstatus || e.delay || e.info || e.platform || e.operator || e.bookingRef;
     if(has){
       return JSON.stringify({
-        v:2, from:e.from||'', to:e.to||'', flightNo:e.flightNo||'', note:e.info||'',
+        v:2, from:e.from||'', to:e.to||'', flightNo:e.flightNo||'', trainNo:e.trainNo||'', ferryNo:e.ferryNo||'', coachNo:e.coachNo||'',
+        note:e.info||'',
         phone:e.phone||'', whatsapp:e.whatsapp||'', driverName:e.driverName||'',
         legacyTitle:e.legacyTitle||'',
-        gate:e.gate||'', terminal:e.terminal||'', fstatus:e.fstatus||'', delay:e.delay||''
+        gate:e.gate||'', terminal:e.terminal||'', fstatus:e.fstatus||'', delay:e.delay||'',
+        platform:e.platform||'', operator:e.operator||'', bookingRef:e.bookingRef||''
       });
     }
   }

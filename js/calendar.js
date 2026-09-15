@@ -327,19 +327,24 @@ function addLogisticFor(showId){
   setTimeout(toggleLogisticAddFields, 30);
 }
 function saveLogisticFor(showId){
-  const kind=getSeg('al-kind')||'travel';
+  const kind=getSeg('al-kind')||val('al-kind-fixed')||'travel';
   const date=rawVal('al-date')|| sel.event(showId).date;
   const it={id:uid('evt'), kind, date, showId};
   if(kind==='travel'){
-    const icon = getSeg('al-icon') || 'plane';
+    const icon = getSeg('al-icon') || val('al-icon-fixed') || 'plane';
     it.icon = icon;
     it.from = (val('al-from')||'').trim();
     it.to = (val('al-to')||'').trim();
     if(/^[A-Za-z]{3}$/.test(it.from)) it.from = it.from.toUpperCase();
     if(/^[A-Za-z]{3}$/.test(it.to)) it.to = it.to.toUpperCase();
-    it.flightNo = (val('al-code')||'').trim();
+    const code = (val('al-code')||'').trim();
+    if(icon==='train') it.trainNo = code;
+    else if(icon==='ferry') it.ferryNo = code;
+    else if(icon==='bus') it.coachNo = code;
+    else it.flightNo = code;
     it.start = rawVal('al-start');
     it.end = rawVal('al-end');
+    it.platform = val('al-platform');
     if(icon==='car'){ it.driverName = val('al-driver-name'); it.operator = it.driverName; }
     if(!it.from && !it.to && !it.start && !it.driverName){ toast('Add a route, driver name, or time','x'); return; }
     it.title = logisticTypeLabel(it);
