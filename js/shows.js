@@ -1324,39 +1324,68 @@ window.sheetTravelLeg = sheetTravelLeg;
 function saveTravelLeg(eid, mode){
   const e=sel.event(eid); if(!e) return;
   const icon = travelLegIcon(mode);
-  const from = (val('tl-from')||'').trim();
-  const to = (val('tl-to')||'').trim();
-  const start = rawVal('tl-start');
-  const end = rawVal('tl-end');
-  const code = (val('tl-code')||'').trim();
-  if(!from && !to && !start){ toast('Add a route or a time','x'); return; }
-  const it = {
-    id: uid('evt'),
-    kind: 'travel',
-    date: rawVal('tl-date') || e.date,
-    showId: eid,
-    icon,
-    from: /^[A-Za-z]{3}$/.test(from) ? from.toUpperCase() : from,
-    to: /^[A-Za-z]{3}$/.test(to) ? to.toUpperCase() : to,
-    start,
-    end,
-    operator: val('tl-operator'),
-    bookingRef: val('tl-ref'),
-    platform: val('tl-platform'),
-    info: val('tl-notes')
-  };
-  if(icon === 'train') it.trainNo = code;
-  else if(icon === 'ferry') it.ferryNo = code;
-  else if(icon === 'bus') it.coachNo = code;
-  else if(code) it.flightNo = code;
-  it.title = logisticTypeLabel(it);
-  if(typeof normalizeLogisticItem === 'function') normalizeLogisticItem(it);
-  store.events.push(it);
-  persist('journeys', it.id);
-  if(typeof pushLogisticsNow === 'function') pushLogisticsNow(it.kind, it.id);
+  const date = rawVal('tl-date') || e.date;
+  const operator = val('tl-operator');
+  const bookingRef = val('tl-ref');
+  const notes = val('tl-notes');
+  const rows = [...document.querySelectorAll('#tl-legs .tl-leg')];
+  const legs = (rows.length ? rows : [document]).map(row => {
+    const fromEl = row.querySelector ? row.querySelector('.tl-from') : document.getElementById('tl-from');
+    const toEl = row.querySelector ? row.querySelector('.tl-to') : document.getElementById('tl-to');
+    const from = ((fromEl && fromEl.value) || '').trim();
+    const to = ((toEl && toEl.value) || '').trim();
+    const startEl = row.querySelector ? row.querySelector('.tl-start') : document.getElementById('tl-start');
+    const endEl = row.querySelector ? row.querySelector('.tl-end') : document.getElementById('tl-end');
+    const codeEl = row.querySelector ? row.querySelector('.tl-code') : document.getElementById('tl-code');
+    const platEl = row.querySelector ? row.querySelector('.tl-platform') : document.getElementById('tl-platform');
+    return {
+      from: /^[A-Za-z]{3}$/.test(from) ? from.toUpperCase() : from,
+      to: /^[A-Za-z]{3}$/.test(to) ? to.toUpperCase() : to,
+      start: ((startEl && startEl.value) || '').trim().slice(0, 5),
+      end: ((endEl && endEl.value) || '').trim().slice(0, 5),
+      code: ((codeEl && codeEl.value) || '').trim(),
+      platform: ((platEl && platEl.value) || '').trim()
+    };
+  }).filter(leg => leg.from || leg.to || leg.start);
+  if(!legs.length){ toast('Add a route or a time','x'); return; }
+  const created = [];
+  legs.forEach((leg, i) => {
+    const it = {
+      id: uid('evt'),
+      kind: 'travel',
+      date,
+      showId: eid,
+      icon,
+      from: leg.from,
+      to: leg.to,
+      start: leg.start,
+      end: leg.end,
+      operator,
+      bookingRef,
+      platform: leg.platform,
+      info: notes
+    };
+    if(icon === 'train') it.trainNo = leg.code;
+    else if(icon === 'ferry') it.ferryNo = leg.code;
+    else if(icon === 'bus') it.coachNo = leg.code;
+    else if(leg.code) it.flightNo = leg.code;
+    if(legs.length > 1){
+      it.routeIndex = i;
+      it.routeTotal = legs.length;
+    }
+    it.title = logisticTypeLabel(it);
+    if(typeof normalizeLogisticItem === 'function') normalizeLogisticItem(it);
+    store.events.push(it);
+    created.push(it);
+  });
+  created.forEach(it => {
+    persist('journeys', it.id);
+    if(typeof pushLogisticsNow === 'function') pushLogisticsNow(it.kind, it.id);
+  });
   closeSheet();
   renderView();
-  toast((it.title || 'Travel') + ' added', 'check');
+  const label = created.length > 1 ? (created.length + ' trains added') : ((created[0].title || 'Travel') + ' added');
+  toast(label, 'check');
 }
 window.saveTravelLeg = saveTravelLeg;
 function markNoAccommodation(eid){
@@ -1771,7 +1800,7 @@ function sheetDriver(eid, idx){
   const d = editing ? list[idx] : {};
   const none = !!d.noGround;
   const chips = DRIVER_JOURNEYS.map(j=>`<button type="button" class="chip" onclick="document.getElementById('dr-journey').value='${j}';haptic()">${j}</button>`).join('');
-  openSheetReact(editing?'Edit transport':'Add transport', 'show.transport', { eid, idx });
+  openSheetReact(editing?'Edit ground':'Add ground', 'show.transport', { eid, idx });
 }
 function drModeToggle(){
   const none = getSeg('dr-mode')==='none';
@@ -1795,9 +1824,17 @@ function saveDriver(eid, idx){
       time,
       date: (typeof showItemTrueDate === 'function' ? showItemTrueDate(e, time) : e.date) || e.date
     };
+    const typeVal = val('dr-type') || getSeg('dr-type') || '';
     const drv = none
-      ? Object.assign(base, { noGround:true, groundType: getSeg('dr-type') || 'uber' })
-      : Object.assign(base, { name, phone:val('dr-phone'), whatsapp:val('dr-wa'), pickup:val('dr-pick'), groundType: getSeg('dr-type') || '', notes: typeof collectNoteItems==='function' ? collectNoteItems('dr-notes') : val('dr-notes') });
+      ? Object.assign(base, { noGround:true, groundType: typeVal || 'uber' })
+      : Object.assign(base, {
+          name,
+          phone:val('dr-phone'),
+          whatsapp: val('dr-wa') || (idx!=null && list[idx] && list[idx].whatsapp) || '',
+          pickup:val('dr-pick'),
+          groundType: typeVal,
+          notes: typeof collectNoteItems==='function' ? collectNoteItems('dr-notes') : val('dr-notes')
+        });
     ensureDriverLocations(drv);
     if(idx!=null && list[idx]) list[idx]=drv; else list.push(drv);
     e.driver = list.find(x=>!x.noGround) || null;

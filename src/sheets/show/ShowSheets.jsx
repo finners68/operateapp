@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { NoteItemsField } from '../../show/NoteItems.jsx';
 import { AddTravelPicker } from '../../show/Travel.jsx';
 import { Icon } from '../../show/ui.jsx';
@@ -114,7 +115,7 @@ function travelLegSpec(mode){
   const icon = travelLegIcon(mode);
   const specs = {
     train: {
-      lede: 'Stations, times and the train number.',
+      lede: 'Add each train in the trip, including changes.',
       from: 'From station',
       to: 'To station',
       fromPh: 'e.g. Amsterdam Centraal',
@@ -177,20 +178,50 @@ export function ShowTravelLegSheet({ eid, mode }){
   const e = eventOf({ eid });
   const spec = travelLegSpec(mode);
   const icon = travelLegIcon(mode);
+  const isTrain = icon === 'train';
+  const [legs, setLegs] = useState([{ key: 'leg-1' }]);
   if(!e || !e.id) return <div className="hint">Show not found.</div>;
+
+  const addChange = () => {
+    const rows = document.querySelectorAll('#tl-legs .tl-leg');
+    const last = rows[rows.length - 1];
+    const prevTo = last && last.querySelector('.tl-to') ? last.querySelector('.tl-to').value : '';
+    setLegs(list => [...list, { key: 'leg-' + Date.now(), from: prevTo }]);
+  };
+  const removeLeg = key => setLegs(list => list.length <= 1 ? list : list.filter(l => l.key !== key));
+
+  const legFields = (leg, i) => (
+    <div className="tl-leg" key={leg.key}>
+      {isTrain ? (
+        <div className="tl-leg-head">
+          <span>{legs.length > 1 ? `Train ${i + 1}` : 'Train'}</span>
+          {legs.length > 1 ? (
+            <button type="button" className="add" onClick={() => removeLeg(leg.key)}>Remove</button>
+          ) : null}
+        </div>
+      ) : null}
+      <div className="row-2">
+        <Field label={spec.from}><input className="input tl-from" defaultValue={leg.from || ''} placeholder={spec.fromPh} /></Field>
+        <Field label={spec.to}><input className="input tl-to" defaultValue={leg.to || ''} placeholder={spec.toPh} /></Field>
+      </div>
+      <div className="row-2">
+        <Field label="Departure"><input className="input tl-start" type="time" defaultValue={leg.start || ''} /></Field>
+        <Field label="Arrival"><input className="input tl-end" type="time" defaultValue={leg.end || ''} /></Field>
+      </div>
+      {spec.showCode ? <Field label={spec.code}><input className="input tl-code" defaultValue={leg.code || ''} placeholder={spec.codePh} /></Field> : null}
+      {spec.showPlatform ? <Field label="Platform (optional)"><input className="input tl-platform" defaultValue={leg.platform || ''} placeholder="e.g. 5a" /></Field> : null}
+    </div>
+  );
+
   return <>
     <p className="sheet-lede">{spec.lede}</p>
-    <div className="row-2">
-      <Field label={spec.from} id="tl-from" placeholder={spec.fromPh} />
-      <Field label={spec.to} id="tl-to" placeholder={spec.toPh} />
-    </div>
     <Field label="Date" id="tl-date" type="date" value={e.date} />
-    <div className="row-2">
-      <Field label="Departure" id="tl-start" type="time" />
-      <Field label="Arrival" id="tl-end" type="time" />
-    </div>
-    {spec.showCode ? <Field label={spec.code} id="tl-code" placeholder={spec.codePh} /> : null}
-    {spec.showPlatform ? <Field label="Platform (optional)" id="tl-platform" placeholder="e.g. 5a" /> : null}
+    <div id="tl-legs">{isTrain ? legs.map(legFields) : legFields({ key: 'leg-1' }, 0)}</div>
+    {isTrain ? (
+      <button type="button" className="btn secondary" style={{ marginBottom: 12 }} onClick={addChange}>
+        <Icon name="plus" size={15} /> Add a change
+      </button>
+    ) : null}
     {spec.showOperator ? <Field label="Operator (optional)" id="tl-operator" placeholder="Company or operator" /> : null}
     {spec.showBooking ? <Field label="Booking reference (optional)" id="tl-ref" placeholder="Confirmation number" /> : null}
     <TextArea label="Notes (optional)" id="tl-notes" placeholder="Anything else for this journey…" style={{ minHeight: 64 }} />
@@ -380,7 +411,7 @@ export function ShowTransportSheet({ eid, idx, driver, journeys }){
   const list=call('showDrivers',e)||[];
   const raw=driver || (idx!=null?list[idx]:null) || {};
   const d=call('applyGeneralDriverPlaces', Object.assign({}, raw), e) || call('ensureDriverLocations', raw) || raw;
-  const none=!!d.noGround;
+  const [none, setNone]=useState(!!d.noGround);
   const presets=journeys || getDriverJourneys() || [];
   const kinds= (typeof window!=='undefined' && window.DRIVER_PLACE_KINDS) || ['Airport','Hotel','Venue'];
   const from=d.from || '';
@@ -390,38 +421,62 @@ export function ShowTransportSheet({ eid, idx, driver, journeys }){
     if(current && !opts.some(k=>k.toLowerCase()===String(current).toLowerCase())) opts.push(current);
     return opts;
   };
+  const types=[
+    ['','Not sure yet'],
+    ['uber','Uber'],
+    ['taxi','Taxi'],
+    ['private_car','Private car'],
+    ['chauffeur','Chauffeur'],
+    ['shuttle','Shuttle'],
+    ['minibus','Minibus'],
+    ['bus','Bus'],
+    ['other','Other']
+  ];
   return <>
+    <p className="sheet-lede">Airport, hotel or venue — then who is driving.</p>
+    <div className="chips" style={{marginTop:2,marginBottom:10,flexWrap:'wrap',overflow:'visible'}}>
+      {presets.map(j=>(
+        <button type="button" className="chip" key={j} onClick={()=>call('applyDriverJourneyPreset', j)}>{j}</button>
+      ))}
+    </div>
     <div className="row-2">
-      <Field label="Departure">
+      <Field label="From">
         <select id="dr-from" className="input" defaultValue={from}>
           <option value="">Select…</option>
           {placeOptions(from).map(k=><option value={k} key={'from-'+k}>{k}</option>)}
         </select>
       </Field>
-      <Field label="Arrival">
+      <Field label="To">
         <select id="dr-to" className="input" defaultValue={to}>
           <option value="">Select…</option>
           {placeOptions(to).map(k=><option value={k} key={'to-'+k}>{k}</option>)}
         </select>
       </Field>
     </div>
-    <div className="chips" style={{marginTop:2,marginBottom:10}}>
-      {presets.map(j=>(
-        <button type="button" className="chip" key={j} onClick={()=>call('applyDriverJourneyPreset', j)}>{j}</button>
-      ))}
-    </div>
-    <div className="hint" style={{textAlign:'left',padding:'0 2px 10px'}}>The journey name is just Departure → Arrival, using general places (Airport, Hotel, Venue) — not the specific venue or hotel name.</div>
     <Field label="Time (optional)" id="dr-time" type="time" value={d.time}/>
-    <Field label="Transport type"><Seg id="dr-type" values={[['','Unspecified'],['taxi','Taxi'],['uber','Uber'],['private_car','Private car'],['chauffeur','Chauffeur'],['shuttle','Shuttle'],['minibus','Minibus'],['bus','Bus'],['other','Other']]} selected={d.groundType || ''} /></Field>
-    <Field label="Arrangement"><Seg id="dr-mode" values={[['driver','Driver contact'],['none','No grounds · Uber/Taxi']]} selected={none?'none':'driver'} onPick={()=>call('drModeToggle')}/></Field>
-    <div id="dr-none-hint" className="hint" style={{display:none?'':'none',padding:'2px 2px 12px'}}>No ground transport provided for this journey — book an Uber or taxi.</div>
-    <div id="dr-contact" style={{display:none?'none':''}}>
-      <Field label="Name" id="dr-name" value={d.name} placeholder="Jan"/>
-      <Field label="Phone" id="dr-phone" type="tel" value={d.phone} placeholder="+31 6 12345678"/>
-      <Field label="WhatsApp (if different)" id="dr-wa" type="tel" value={d.whatsapp} placeholder="+31 6 12345678"/>
-      <Field label="Pickup notes" id="dr-pick" value={d.pickup} placeholder="Meet at Arrivals door 3"/>
-      <NoteItemsField label="Notes" listId="dr-notes" value={d.notes} placeholder="Vehicle, plate, etc." />
-    </div>
+    <Field label="Arrangement">
+      <Seg
+        id="dr-mode"
+        values={[['driver','Driver'],['none','Uber / taxi']]}
+        selected={none?'none':'driver'}
+        onPick={v=>setNone(v==='none')}
+      />
+    </Field>
+    {none ? (
+      <div className="hint" style={{padding:'2px 2px 12px'}}>No driver booked — use Uber or a taxi for this run.</div>
+    ) : (
+      <>
+        <Field label="Type (optional)">
+          <select id="dr-type" className="input" defaultValue={d.groundType || ''}>
+            {types.map(([v,l])=><option value={v} key={v||'none'}>{l}</option>)}
+          </select>
+        </Field>
+        <Field label="Driver name" id="dr-name" value={d.name} placeholder="Jan"/>
+        <Field label="Phone" id="dr-phone" type="tel" value={d.phone} placeholder="+31 6 12345678"/>
+        <Field label="Pickup notes (optional)" id="dr-pick" value={d.pickup} placeholder="Meet at Arrivals door 3"/>
+        <NoteItemsField label="Notes" listId="dr-notes" value={d.notes} placeholder="Vehicle, plate, etc." />
+      </>
+    )}
     <button className="btn" id="dr-save" onClick={()=>call('saveDriver',eid,idx??null)}>{idx!=null?'Save':'Add'}</button>
     {idx!=null?<button className="btn danger" style={{marginTop:10}} onClick={()=>call('removeDriver',eid,idx)}><Icon name="trash" size={16}/> Remove</button>:null}
     <Spacer />

@@ -160,6 +160,10 @@ body{touch-action:manipulation;}
 .edit-section-btn svg{flex-shrink:0;color:var(--accent-2);}
 .edit-section-btn b{display:block;font-size:15px;font-weight:750;}
 .edit-section-btn small{display:block;font-size:12px;font-weight:600;color:var(--text-3);margin-top:2px;}
+.tl-leg{padding:12px 0 4px;border-top:1px solid rgba(255,255,255,0.06);}
+.tl-leg:first-child{border-top:none;padding-top:0;}
+.tl-leg-head{display:flex;align-items:center;justify-content:space-between;gap:10px;font-size:11px;font-weight:650;letter-spacing:.03em;color:var(--text-3);margin:0 0 8px;}
+.tl-leg-head .add{color:var(--text-3);font-size:13px;font-weight:550;}
 .home-main,.home-aside{display:flex;flex-direction:column;gap:14px;}
 .home-panel{background:var(--card);border:1px solid var(--stroke);border-radius:var(--radius-lg);overflow:hidden;}
 .home-panel-head{padding:13px 16px 8px;font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.07em;color:var(--text-3);}
