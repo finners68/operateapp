@@ -1,7 +1,8 @@
 -- PENDING / DO NOT APPLY YET
 -- Destructive cleanup of obsolete journeys columns.
--- Only run after the app has been verified on the parent + subtype architecture
--- and no code still reads or writes these columns.
+-- Passenger backup tables (journey_passengers_legacy, journey_passenger_id_map)
+-- were dropped in 020 after row counts were verified.
+-- Only run this file after the app and Make stop reading/writing these columns.
 
 -- Columns that will be removed from public.journeys:
 --   departure_location_code, arrival_location_code
