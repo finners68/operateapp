@@ -1,6 +1,12 @@
 /* ---------- PWA: register offline service worker ---------- */
 if('serviceWorker' in navigator && location.protocol.startsWith('http')){
   window.addEventListener('load', ()=>{ navigator.serviceWorker.register('sw.js').catch(()=>{}); });
+  let refreshing = false;
+  navigator.serviceWorker.addEventListener('controllerchange', ()=>{
+    if(refreshing) return;
+    refreshing = true;
+    location.reload();
+  });
   // Tapping a reminder notification opens the relevant show
   navigator.serviceWorker.addEventListener('message', (ev)=>{
     const d=ev.data||{};

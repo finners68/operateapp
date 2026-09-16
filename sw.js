@@ -1,5 +1,5 @@
 /* Operate service worker — app-shell offline cache */
-const VERSION = 'operate-v248';
+const VERSION = 'operate-v249';
 const SHELL = [
   './',
   './index.html',
@@ -7,7 +7,8 @@ const SHELL = [
   './manifest.json',
   './js/config.js',
   './js/supabase.js',
-  './js/cloud-logistics-catalog.js',
+  './js/tour-logistics-catalog.js',
+  './js/geo.js',
   './js/db-v2-state.js',
   './js/state.js',
   './js/db-v2-maps.js',
@@ -25,6 +26,7 @@ const SHELL = [
   './js/ideas.js',
   './js/notes.js',
   './js/app.js',
+  './js/wrapped.js',
   './js/react-show.js',
   './js/pwa.js',
   './icons/icon-180.png',
@@ -34,7 +36,9 @@ const SHELL = [
 
 self.addEventListener('install', (e) => {
   e.waitUntil(
-    caches.open(VERSION).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting())
+    caches.open(VERSION).then(async (c) => {
+      await Promise.all(SHELL.map((url) => c.add(url).catch(() => {})));
+    }).then(() => self.skipWaiting())
   );
 });
 
