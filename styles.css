@@ -2686,6 +2686,65 @@ html.is-refreshing .pull-refresh-icon svg{
     gap:4px;
   }
   .show-day-timeline .tl-content.is-performance{padding:9px 10px;}
+
+  /* Travel cards: keep the desktop layout, but stop names wrapping into the rail on phones. */
+  .show-detail .flight-card-wrap{overflow-x:hidden;}
+  .show-detail .flight-card-body,
+  .show-detail .flight-journey-header{
+    padding:12px 52px 12px 12px;
+    gap:10px;
+  }
+  .show-detail .flight-route-stack{
+    display:flex;
+    width:100%;
+    max-width:100%;
+    align-items:center;
+  }
+  .show-detail .flight-route-end{
+    flex:1 1 0;
+    min-width:0;
+    max-width:none;
+  }
+  .show-detail .flight-route-end.is-to{
+    align-items:flex-end;
+    text-align:right;
+  }
+  .show-detail .flight-route-end.is-to .flight-route-code,
+  .show-detail .flight-route-end.is-to .flight-route-name{
+    text-align:right;
+  }
+  .show-detail .flight-route-stack.is-place .flight-route-end,
+  .show-detail .flight-route-stack.is-place .flight-route-code{
+    max-width:none;
+  }
+  .show-detail .flight-route-stack.is-place .flight-route-code{
+    white-space:normal;
+    overflow-wrap:break-word;
+    word-break:normal;
+  }
+  .show-detail .flight-route-name{
+    position:static;
+    left:auto;
+    top:auto;
+    transform:none;
+    width:auto;
+    max-width:100%;
+    margin-top:2px;
+    overflow-wrap:break-word;
+  }
+  .show-detail .flight-route-stack:has(.flight-route-name){padding-bottom:0;}
+  .show-detail .flight-route-stack .flight-route-rail{
+    flex:0 0 48px;
+    width:48px;
+    min-width:48px;
+    max-width:48px;
+    align-self:center;
+  }
+  .show-detail .flight-side-kv{grid-template-columns:44px minmax(0,1fr);}
+  .show-detail .flight-journey-heading{min-width:0;}
+  .show-detail .flight-journey-code{overflow-wrap:break-word;}
+  .edit-section-btn span{min-width:0;flex:1;}
+  .edit-section-btn small{overflow-wrap:break-word;}
 }
 @media (max-width:380px){
   :root{--pad-x:16px;}
