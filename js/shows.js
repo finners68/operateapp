@@ -562,7 +562,7 @@ function hotelSubsection(e){
   }
   if(!body){
     if(e.noAccommodation){
-      body = `<div class="card" style="text-align:center;color:var(--text-3);padding:20px">${ICON.bed(22)}<div style="margin-top:6px;font-weight:600">No accommodation for this show</div><div style="margin-top:4px;font-size:12px;font-weight:500">You can add a stay later if that changes</div><button type="button" class="btn secondary" style="margin-top:12px;max-width:240px" onclick="sheetHotel('${e.id}')">Add accommodation</button></div>`;
+      body = `<div class="card" style="text-align:center;color:var(--text-3);padding:20px">${ICON.bed(22)}<div style="margin-top:6px;font-weight:600">No accommodation for this show</div><div style="margin-top:4px;font-size:12px;font-weight:500">You can add a stay later if that changes</div><button type="button" class="quiet-add" onclick="sheetHotel('${e.id}')">Add accommodation</button></div>`;
     } else {
       body = `<div class="card tap" onclick="sheetHotel('${e.id}')" style="text-align:center;color:var(--text-3);padding:20px">${ICON.bed(22)}<div style="margin-top:6px;font-weight:600">Add accommodation</div><div style="margin-top:4px;font-size:12px;font-weight:500">Name, dates, confirmation and maps</div></div><button type="button" class="btn secondary" style="margin-top:10px" onclick="markNoAccommodation('${e.id}')">No accommodation for this show</button>`;
     }
@@ -792,7 +792,7 @@ function travelGroupBody(e){
   const types = trains+coaches+ferries+walks+cycles;
   const hasTravel = !!(flights || drivers || types);
   const travel = hasTravel
-    ? (flights+trains+coaches+ferries+drivers+walks+cycles+`<button type="button" class="btn secondary" style="margin:4px 0 12px" onclick="sheetAddTravel('${e.id}')">${ICON.plus(15)} Add travel</button>`)
+    ? (flights+trains+coaches+ferries+drivers+walks+cycles+`<button type="button" class="quiet-add" onclick="sheetAddTravel('${e.id}')">Add travel</button>`)
     : addTravelPickerHtml(e.id);
   return travel+hotelSubsection(e);
 }

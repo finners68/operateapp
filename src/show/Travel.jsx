@@ -215,8 +215,7 @@ function Accommodation({ show }){
           <div style={{ marginTop: 4, fontSize: 12, fontWeight: 500 }}>You can add a stay later if that changes</div>
           <button
             type="button"
-            className="btn secondary"
-            style={{ marginTop: 12, maxWidth: 240 }}
+            className="quiet-add"
             onClick={() => call('sheetHotel', show.id)}
           >
             Add accommodation
@@ -311,11 +310,10 @@ export default function TravelGroup({ show }){
           {afterGround.map(spec => <TravelTypeSection key={spec.key} show={show} spec={spec} />)}
           <button
             type="button"
-            className="btn secondary"
-            style={{ margin: '4px 0 12px' }}
+            className="quiet-add"
             onClick={() => call('sheetAddTravel', show.id)}
           >
-            <Icon name="plus" size={15} /> Add travel
+            Add travel
           </button>
         </>
       ) : (
