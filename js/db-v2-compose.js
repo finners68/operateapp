@@ -427,8 +427,8 @@ async function composeViewFromV2(v2, opts){
         toName: (typeof v2JourneyToName === 'function' ? v2JourneyToName(j) : (j.arrival_location_name || '')) || '',
         fromCode: (typeof v2JourneyDepIata === 'function' ? v2JourneyDepIata(j) : '') || '',
         toCode: (typeof v2JourneyArrIata === 'function' ? v2JourneyArrIata(j) : '') || '',
-        from: (typeof v2JourneyFromName === 'function' ? v2JourneyFromName(j) : (j.departure_location_name || '')) || '',
-        to: (typeof v2JourneyToName === 'function' ? v2JourneyToName(j) : (j.arrival_location_name || '')) || '',
+        from: (typeof v2JourneyCompactFrom === 'function' ? v2JourneyCompactFrom(j) : (j.departure_location_name || '')) || '',
+        to: (typeof v2JourneyCompactTo === 'function' ? v2JourneyCompactTo(j) : (j.arrival_location_name || '')) || '',
         operator: j.operator_name || '',
         bookingRef: j.booking_reference || '',
         duration: flightDurationText(j.departure_at, j.arrival_at),
@@ -493,42 +493,19 @@ async function composeViewFromV2(v2, opts){
       .sort((a,b) => (a.sort_order||0) - (b.sort_order||0))
       .map(j => {
         const jcs = journeyContactByJourney[j.id] || [];
-        const jc = jcs[0];
-        const c = jc ? contactById[jc.contact_id] : null;
-        const from = (typeof v2JourneyFromName === 'function' ? v2JourneyFromName(j) : (j.departure_location_name || '')) || '';
-        const to = (typeof v2JourneyToName === 'function' ? v2JourneyToName(j) : (j.arrival_location_name || '')) || '';
-        let journey = '';
-        if(from && to) journey = from + ' → ' + to;
-        else if(from || to) journey = from || to;
-        else journey = j.journey_title || '';
-        const groundType = (j.ground_details && j.ground_details.ground_transport_type) || '';
-        const rawName = (c?.display_name || j.operator_name || '').trim();
-        const named = rawName && !/^driver$/i.test(rawName);
-        const gt = String(groundType).toLowerCase();
-        const noGround = !named && (gt === 'uber' || gt === 'taxi' || gt === 'other');
-        const row = {
-          id: j.id,
-          from,
-          to,
-          journey,
-          time: j.departure_at ? v2TimeFromTs(j.departure_at) : '',
-          date: j.departure_at ? v2DateFromTs(j.departure_at) : '',
-          phone: noGround ? '' : (c?.phone_number || ''),
-          whatsapp: noGround ? '' : (c?.whatsapp_number || ''),
-          name: noGround ? '' : rawName,
-          notes: (typeof noteItemsFromDb === 'function' ? noteItemsFromDb(j.note_items) : ''),
-          pickup: (j.ground_details && j.ground_details.pickup_instructions) || '',
-          groundType,
-          vehicle: noGround ? '' : ((j.ground_details && j.ground_details.vehicle_details) || ''),
-          noGround
-        };
-        /* If title looks like "A → B" and locations are empty, split it. */
-        if(!from && !to && journey && typeof parseDriverJourney === 'function'){
-          const p = parseDriverJourney(journey);
-          row.from = p.from;
-          row.to = p.to;
-          row.journey = (p.from && p.to) ? (p.from + ' → ' + p.to) : journey;
-        }
+        const driverLink = jcs.find(x => x && x.contact_role === 'driver') || jcs[0];
+        const c = driverLink ? contactById[driverLink.contact_id] : null;
+        const row = (typeof v2ComposeGroundFrontend === 'function')
+          ? v2ComposeGroundFrontend(j, c)
+          : {
+              id: j.id,
+              from: j.departure_location_name || '',
+              to: j.arrival_location_name || '',
+              time: j.departure_at ? v2TimeFromTs(j.departure_at) : '',
+              name: (c?.display_name || j.operator_name || ''),
+              groundType: (j.ground_details && j.ground_details.ground_transport_type) || '',
+              noGround: false
+            };
         if(typeof applyGeneralDriverPlaces === 'function') applyGeneralDriverPlaces(row, showCtx);
         else if(typeof ensureDriverLocations === 'function') ensureDriverLocations(row);
         return row;
@@ -589,8 +566,14 @@ async function composeViewFromV2(v2, opts){
       allDay: false,
       done: j.is_done,
       passes,
-      from: (typeof v2JourneyFromName === 'function' ? v2JourneyFromName(j) : (j.departure_location_name || '')) || '',
-      to: (typeof v2JourneyToName === 'function' ? v2JourneyToName(j) : (j.arrival_location_name || '')) || '',
+      from: (typeof v2JourneyCompactFrom === 'function' ? v2JourneyCompactFrom(j) : (j.departure_location_name || '')) || '',
+      to: (typeof v2JourneyCompactTo === 'function' ? v2JourneyCompactTo(j) : (j.arrival_location_name || '')) || '',
+      fromName: (typeof v2JourneyFromName === 'function' ? v2JourneyFromName(j) : (j.departure_location_name || '')) || '',
+      toName: (typeof v2JourneyToName === 'function' ? v2JourneyToName(j) : (j.arrival_location_name || '')) || '',
+      fromKind: j.departure_location_kind || '',
+      toKind: j.arrival_location_kind || '',
+      fromAddress: j.departure_location_address || '',
+      toAddress: j.arrival_location_address || '',
       flightNo: (typeof v2JourneyFlightNumber === 'function' ? v2JourneyFlightNumber(j) : '')
         || (typeof v2JourneyTrainNumber === 'function' ? v2JourneyTrainNumber(j) : '')
         || (typeof v2JourneyFerryNumber === 'function' ? v2JourneyFerryNumber(j) : '')
@@ -605,11 +588,22 @@ async function composeViewFromV2(v2, opts){
       coachNo: (typeof v2JourneyCoachNumber === 'function' ? v2JourneyCoachNumber(j) : '') || '',
       platform: (j.rail_details && (j.rail_details.departure_platform || j.rail_details.arrival_platform)) || '',
       groundType: (j.ground_details && j.ground_details.ground_transport_type) || '',
+      arrangement: (j.ground_details && j.ground_details.arrangement) || '',
+      preferredMethod: (j.ground_details && j.ground_details.preferred_method) || '',
       pickup: (j.ground_details && j.ground_details.pickup_instructions) || '',
       vehicle: (j.ground_details && j.ground_details.vehicle_details) || '',
       fstatus: j.journey_status || '',
       delay: j.delay_description || ''
     };
+    const travelDriver = (journeyContactByJourney[j.id] || []).find(x => x && x.contact_role === 'driver');
+    const travelContact = travelDriver ? contactById[travelDriver.contact_id] : null;
+    if(travelContact){
+      it.driverName = travelContact.display_name || '';
+      it.phone = travelContact.phone_number || '';
+      it.whatsapp = travelContact.whatsapp_number || '';
+    } else if(j.journey_type === 'ground_transfer' && j.operator_name && !(j.ground_details && j.ground_details.arrangement)){
+      it.driverName = j.operator_name;
+    }
     if(typeof normalizeLogisticItem === 'function') normalizeLogisticItem(it);
     events.push(it);
   }

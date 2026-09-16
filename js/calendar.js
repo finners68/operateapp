@@ -345,7 +345,10 @@ function saveLogisticFor(showId){
     it.start = rawVal('al-start');
     it.end = rawVal('al-end');
     it.platform = val('al-platform');
-    if(icon==='car'){ it.driverName = val('al-driver-name'); it.operator = it.driverName; }
+    if(icon==='car'){
+      it.driverName = val('al-driver-name');
+      it.operator = val('al-operator') || '';
+    }
     if(!it.from && !it.to && !it.start && !it.driverName){ toast('Add a route, driver name, or time','x'); return; }
     it.title = logisticTypeLabel(it);
   } else {
@@ -384,7 +387,7 @@ function saveItem(id){
     e.end=rawVal('it-end');
     if((e.icon||'plane')==='car'){
       e.driverName=val('it-driver-name');
-      e.operator=e.driverName;
+      e.operator=val('it-operator') || '';
     } else e.driverName='';
     e.title=logisticTypeLabel(e);
     if(isDriverItem(e)){ e.phone=val('it-phone'); e.whatsapp=val('it-wa'); }

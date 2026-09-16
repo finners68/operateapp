@@ -418,9 +418,26 @@ function groundVehiclePrefill(d){
   return '';
 }
 function groundPreferredKey(d){
+  if(typeof window!=='undefined' && typeof window.groundPreferredKey==='function'){
+    return window.groundPreferredKey(d);
+  }
+  const stored=String(d.preferredMethod||d.preferred_method||'').toLowerCase();
+  if(stored==='uber'||stored==='taxi'||stored==='either') return stored;
   const gt=String(d.groundType||'').toLowerCase();
   if(gt==='uber'||gt==='taxi') return gt;
   return 'either';
+}
+
+function uiPlaceKind(kind, name){
+  if(typeof window!=='undefined' && typeof window.v2UiPlaceKind==='function'){
+    return window.v2UiPlaceKind(kind, name) || '';
+  }
+  const k=String(kind||'').toLowerCase();
+  if(k==='airport'||k==='hotel'||k==='venue'||k==='custom') return k;
+  const t=String(name||'').trim().toLowerCase();
+  if(t==='airport'||t==='hotel'||t==='venue') return t;
+  if(name) return 'custom';
+  return '';
 }
 
 export function ShowTransportSheet({ eid, idx, driver, journeys }){
@@ -428,18 +445,36 @@ export function ShowTransportSheet({ eid, idx, driver, journeys }){
   const list=call('showDrivers',e)||[];
   const raw=driver || (idx!=null?list[idx]:null) || {};
   const d=call('applyGeneralDriverPlaces', Object.assign({}, raw), e) || call('ensureDriverLocations', raw) || raw;
-  const [arrange, setArrange]=useState(d.noGround?'time':'pre');
+  const [arrange, setArrange]=useState(d.noGround || d.arrangement==='arrange_at_time'?'time':'pre');
   const [pref, setPref]=useState(groundPreferredKey(d));
+  const [fromKind, setFromKind]=useState(uiPlaceKind(d.fromKind, d.fromName || d.from));
+  const [toKind, setToKind]=useState(uiPlaceKind(d.toKind, d.toName || d.to));
   const presets=journeys || getDriverJourneys() || [];
-  const kinds= (typeof window!=='undefined' && window.DRIVER_PLACE_KINDS) || ['Airport','Hotel','Venue'];
-  const from=d.from || '';
-  const to=d.to || '';
-  const placeOptions = current => {
-    const opts=[...kinds];
-    if(current && !opts.some(k=>k.toLowerCase()===String(current).toLowerCase())) opts.push(current);
-    return opts;
+  const kinds=[
+    ['airport','Airport'],
+    ['hotel','Hotel'],
+    ['venue','Venue'],
+    ['custom','Custom']
+  ];
+  const groundTypes=[
+    ['','Select…'],
+    ['taxi','Taxi'],
+    ['uber','Uber'],
+    ['private_car','Private car'],
+    ['chauffeur','Chauffeur'],
+    ['shuttle','Shuttle'],
+    ['minibus','Minibus'],
+    ['bus','Bus'],
+    ['other','Other']
+  ];
+  const applyPreset = j => {
+    const p = call('parseDriverJourney', j) || {};
+    setFromKind(uiPlaceKind('', p.from));
+    setToKind(uiPlaceKind('', p.to));
   };
   const atTime = arrange==='time';
+  const customFrom = fromKind==='custom';
+  const customTo = toKind==='custom';
   return <>
     <p className="sheet-lede">Already organised, or sort it when you travel.</p>
     <Field label="Arrangement">
@@ -454,23 +489,39 @@ export function ShowTransportSheet({ eid, idx, driver, journeys }){
     <Field label="Time" id="dr-time" type="time" value={d.time}/>
     <div className="chips" style={{marginTop:2,marginBottom:10,flexWrap:'wrap',overflow:'visible'}}>
       {presets.map(j=>(
-        <button type="button" className="chip" key={j} onClick={()=>call('applyDriverJourneyPreset', j)}>{j}</button>
+        <button type="button" className="chip" key={j} onClick={()=>applyPreset(j)}>{j}</button>
       ))}
     </div>
     <div className="row-2">
       <Field label="From">
-        <select id="dr-from" className="input" defaultValue={from}>
+        <select id="dr-from" className="input" value={fromKind} onChange={ev=>setFromKind(ev.target.value)}>
           <option value="">Select…</option>
-          {placeOptions(from).map(k=><option value={k} key={'from-'+k}>{k}</option>)}
+          {kinds.map(([k,l])=><option value={k} key={'from-'+k}>{l}</option>)}
         </select>
       </Field>
       <Field label="To">
-        <select id="dr-to" className="input" defaultValue={to}>
+        <select id="dr-to" className="input" value={toKind} onChange={ev=>setToKind(ev.target.value)}>
           <option value="">Select…</option>
-          {placeOptions(to).map(k=><option value={k} key={'to-'+k}>{k}</option>)}
+          {kinds.map(([k,l])=><option value={k} key={'to-'+k}>{l}</option>)}
         </select>
       </Field>
     </div>
+    {(customFrom || customTo) ? (
+      <>
+        {customFrom ? (
+          <>
+            <Field label="From name" id="dr-from-name" value={fromKind==='custom'?(d.fromName || (!['Airport','Hotel','Venue'].includes(d.from)?d.from:'')) : ''} placeholder="Artist Entrance"/>
+            <Field label="From address (optional)" id="dr-from-addr" value={d.fromAddress || ''} placeholder="Street, city…"/>
+          </>
+        ) : null}
+        {customTo ? (
+          <>
+            <Field label="To name" id="dr-to-name" value={toKind==='custom'?(d.toName || (!['Airport','Hotel','Venue'].includes(d.to)?d.to:'')) : ''} placeholder="Backstage gate"/>
+            <Field label="To address (optional)" id="dr-to-addr" value={d.toAddress || ''} placeholder="Street, city…"/>
+          </>
+        ) : null}
+      </>
+    ) : null}
     {atTime ? (
       <>
         <Field label="Preferred method (optional)">
@@ -485,9 +536,15 @@ export function ShowTransportSheet({ eid, idx, driver, journeys }){
       </>
     ) : (
       <>
-        <Field label="Driver / company" id="dr-name" value={d.name} placeholder="Jan / ABC Cars"/>
+        <Field label="Transport type">
+          <select id="dr-ground-type" className="input" defaultValue={d.groundType || ''}>
+            {groundTypes.map(([k,l])=><option value={k} key={'gt-'+k}>{l}</option>)}
+          </select>
+        </Field>
+        <Field label="Transport company (optional)" id="dr-company" value={d.operator || ''} placeholder="Parklife Ground Transport"/>
+        <Field label="Driver name" id="dr-name" value={d.name} placeholder="John Smith"/>
         <Field label="Driver phone" id="dr-phone" type="tel" value={d.phone} placeholder="+31 6 12345678"/>
-        <Field label="Vehicle / transport type (optional)" id="dr-vehicle" value={groundVehiclePrefill(d)} placeholder="Van, black car, minibus…"/>
+        <Field label="Vehicle details (optional)" id="dr-vehicle" value={groundVehiclePrefill(d)} placeholder="Van, black car, minibus…"/>
         <NoteItemsField label="Notes (optional)" listId="dr-notes" value={d.notes} placeholder="Plate, meeting point, etc." />
       </>
     )}

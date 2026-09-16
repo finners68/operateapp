@@ -132,6 +132,33 @@ function resolvePlace(token, sh, city, role, legDate){
   if(/^[A-Za-z]{3}$/.test(t)) return t.toUpperCase()+' airport';   // a bare IATA code
   return t + (city && !t.toLowerCase().includes(city.toLowerCase()) ? ' '+city : '');
 }
+function resolveJourneyEndpoint(leg, side, sh, city, role, legDate){
+  if(!leg) return '';
+  const isFrom = side === 'from' || side === 'origin' || side === 'departure';
+  const kind = isFrom ? (leg.fromKind || '') : (leg.toKind || '');
+  const name = isFrom ? (leg.fromName || leg.from) : (leg.toName || leg.to);
+  const address = isFrom ? (leg.fromAddress || '') : (leg.toAddress || '');
+  const iata = isFrom
+    ? (leg.fromCode || (leg.flight_details && leg.flight_details.departure_airport_iata) || '')
+    : (leg.toCode || (leg.flight_details && leg.flight_details.arrival_airport_iata) || '');
+  const ctx = {
+    hotelQuery: sh && typeof hotelMapQuery === 'function' ? hotelMapQuery(sh) : '',
+    venueQuery: typeof venueMapQuery === 'function' ? venueMapQuery(sh) : '',
+    airportQuery: (typeof transferAirportCode === 'function')
+      ? (function(){
+          const code = transferAirportCode(sh, role !== 'destination', legDate);
+          return code ? code + ' airport' : '';
+        })()
+      : '',
+    city: city || ''
+  };
+  const query = (typeof v2MapQueryForEndpoint === 'function')
+    ? v2MapQueryForEndpoint({ kind, name, address, iata }, ctx)
+    : '';
+  if(query) return query;
+  return resolvePlace(name, sh, city, role, legDate);
+}
+window.resolveJourneyEndpoint = resolveJourneyEndpoint;
 /* Clean venue search — the venue NAME leads (it identifies the exact place),
    with city/country as context. The free-text venue address is deliberately
    NOT used: like a foreign hotel postcode, a slightly-off address drags Maps to
@@ -156,9 +183,9 @@ function driverRoute(l){
   if(l) normalizeLogisticItem(l);
   const sh=(l&&l.showId)?sel.event(l.showId):null; const city=sh?(sh.city||''):'';
   const legDate=l&&l.date;
-  if(l && (l.from || l.to)){
-    const origin=resolvePlace(l.from, sh, city, 'origin', legDate);
-    const dest=resolvePlace(l.to, sh, city, 'destination', legDate);
+  if(l && (l.from || l.to || l.fromAddress || l.toAddress || l.fromKind || l.toKind)){
+    const origin=resolveJourneyEndpoint(l, 'from', sh, city, 'origin', legDate);
+    const dest=resolveJourneyEndpoint(l, 'to', sh, city, 'destination', legDate);
     if(origin&&dest) return {origin, dest};
   }
   const route=(l&&l.title||'').replace(/^\[?[^-\]]*\]?\s*-\s*/,'');
@@ -214,6 +241,10 @@ function tlMapsQuery(s){
       if(leg) dest=leg.to.trim();
     }
     // Resolve the destination to a genuine location from the show info.
+    if(it){
+      const destQ = resolveJourneyEndpoint(it, 'to', sh, city, 'destination', it.date||s.date);
+      if(destQ) return destQ;
+    }
     if(/^venue$/i.test(dest)) return venueMapQuery(sh) || dest;
     if(/^hotel$/i.test(dest)){ const hq=sh?hotelMapQuery(sh):''; return hq || ('hotel '+(city||'')); }
     if(/^airport$/i.test(dest)){ const code=transferAirportCode(sh,false,it.date||s.date); return code?code+' airport':(city?city+' ':'')+'airport'; }

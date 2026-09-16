@@ -194,6 +194,14 @@ function ensureDriverLocations(d){
 function applyGeneralDriverPlaces(d, show){
   if(!d) return d;
   ensureDriverLocations(d);
+  if(d.fromKind || d.toKind){
+    if(typeof v2CompactLocationLabel === 'function'){
+      if(d.fromKind) d.from = v2CompactLocationLabel(d.fromKind, d.fromName || d.from);
+      if(d.toKind) d.to = v2CompactLocationLabel(d.toKind, d.toName || d.to);
+    }
+    d.journey = driverJourneyLabel(d);
+    return d;
+  }
   const from = generalizePlaceLabel(d.from, show);
   const to = generalizePlaceLabel(d.to, show);
   if(from) d.from = from;

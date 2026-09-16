@@ -294,7 +294,32 @@ async function v2AfterJourneyWrite(sb, orgId, jRow, extras){
   return jRow;
 }
 
-function v2UniversalFromTo(fromVal, toVal){
+async function v2SyncJourneyDriverContact(sb, orgId, journeyId, contactId){
+  if(!sb || !orgId || !journeyId) return;
+  if(!contactId){
+    const { error } = await sb.from('journey_contacts')
+      .delete().eq('organisation_id', orgId).eq('journey_id', journeyId).eq('contact_role', 'driver');
+    v2Throw(error, 'journey_contacts driver delete');
+    if(store?.v2?.journey_contacts){
+      store.v2.journey_contacts = store.v2.journey_contacts.filter(r =>
+        !(r && r.journey_id === journeyId && r.contact_role === 'driver')
+      );
+    }
+    return;
+  }
+  await v2UpsertPk(sb, 'journey_contacts', {
+    organisation_id: orgId,
+    journey_id: journeyId,
+    contact_id: contactId,
+    contact_role: 'driver',
+    sort_order: 0
+  }, 'journey_id,contact_id,contact_role');
+}
+
+function v2UniversalFromTo(fromVal, toVal, extras){
+  if(typeof v2PlacesFromEndpoints === 'function'){
+    return v2PlacesFromEndpoints(fromVal, toVal, extras || {});
+  }
   const from = (typeof v2PlaceForDb === 'function' ? v2PlaceForDb(fromVal) : (fromVal || null));
   const to = (typeof v2PlaceForDb === 'function' ? v2PlaceForDb(toVal) : (toVal || null));
   return {
@@ -955,18 +980,27 @@ async function pushToSupabaseV2(orgId, dirtyIn){
     }
 
     for(const [i, d] of showDrivers(s).entries()){
-      if(!(d.noGround || d.name || d.phone || d.from || d.to || d.time || d.vehicle)) continue;
+      if(!(d.noGround || d.name || d.phone || d.from || d.to || d.time || d.vehicle || d.arrangement)) continue;
       if(typeof ensureDriverLocations === 'function') ensureDriverLocations(d);
-      const cid = (d.name || d.phone || d.whatsapp)
+      const arrangeAtTime = d.noGround || d.arrangement === 'arrange_at_time';
+      const cid = (!arrangeAtTime && (d.name || d.phone || d.whatsapp))
         ? await v2EnsureContact(sb, orgId, { id: d.id, name: d.name || 'Driver', phone: d.phone, whatsapp: d.whatsapp }, contactCache)
         : null;
       const driverLegacy = 'show_driver_journey:' + (d.id || (sid + ':' + i));
       const title = (typeof driverJourneyLabel === 'function' ? driverJourneyLabel(d) : d.journey) || 'Transfer';
-      const places = v2UniversalFromTo(d.from, d.to);
-      const groundType = d.noGround
-        ? (d.groundType === 'uber' || d.groundType === 'taxi' ? d.groundType : 'other')
+      const places = v2UniversalFromTo(d.fromName || d.from, d.toName || d.to, {
+        fromKind: d.fromKind,
+        toKind: d.toKind,
+        fromName: d.fromName || d.from,
+        toName: d.toName || d.to,
+        fromAddress: d.fromAddress,
+        toAddress: d.toAddress,
+        journeyType: 'ground_transfer'
+      });
+      const groundType = arrangeAtTime
+        ? (d.preferredMethod === 'uber' || d.preferredMethod === 'taxi' ? d.preferredMethod : (d.groundType === 'uber' || d.groundType === 'taxi' ? d.groundType : null))
         : (d.groundType || null);
-      const jRow = await v2UpsertOneByLegacy(sb, 'journeys', orgId, {
+      const jPayload = {
         id: v2IdForLegacy('journeys', driverLegacy, d.id),
         organisation_id: orgId,
         legacy_id: driverLegacy,
@@ -974,31 +1008,30 @@ async function pushToSupabaseV2(orgId, dirtyIn){
         tour_id: s.tripId && tourUuidMap[s.tripId] ? tourUuidMap[s.tripId] : null,
         journey_type: 'ground_transfer',
         journey_title: title,
-        operator_name: d.name || null,
+        departure_location_kind: places.departure_location_kind,
         departure_location_name: places.departure_location_name,
+        departure_location_address: places.departure_location_address,
+        arrival_location_kind: places.arrival_location_kind,
         arrival_location_name: places.arrival_location_name,
+        arrival_location_address: places.arrival_location_address,
         departure_at: v2CombineDateTime(
           d.date || (typeof showItemTrueDate === 'function' ? showItemTrueDate(s, d.time) : s.date),
           d.time
         ),
         note_items: (typeof noteItemsForDb === 'function' ? noteItemsForDb(d.notes) : (d.notes || null)),
         sort_order: i
-      });
+      };
+      if(d.operator) jPayload.operator_name = d.operator;
+      else if(arrangeAtTime) jPayload.operator_name = null;
+      const jRow = await v2UpsertOneByLegacy(sb, 'journeys', orgId, jPayload);
       await v2AfterJourneyWrite(sb, orgId, jRow, {
         pickup_instructions: (d.pickup || '').trim() || null,
-        vehicle_details: d.vehicle || null,
+        vehicle_details: arrangeAtTime ? null : (d.vehicle || null),
         ground_transport_type: groundType,
-        name: d.name
+        arrangement: arrangeAtTime ? 'arrange_at_time' : 'pre_arranged',
+        preferred_method: arrangeAtTime ? (d.preferredMethod || d.preferred_method || null) : null
       });
-      if(cid && jRow){
-        await v2UpsertPk(sb, 'journey_contacts', {
-          organisation_id: orgId,
-          journey_id: jRow.id,
-          contact_id: cid,
-          contact_role: 'driver',
-          sort_order: 0
-        }, 'journey_id,contact_id,contact_role');
-      }
+      if(jRow) await v2SyncJourneyDriverContact(sb, orgId, jRow.id, arrangeAtTime ? null : cid);
     }
 
     if(s.hotel && (s.hotel.name || s.hotel.address || s.hotel.city)){
@@ -1086,7 +1119,13 @@ async function pushToSupabaseV2(orgId, dirtyIn){
         if(booking_reference) row.booking_reference = booking_reference;
         return row;
       });
-      const places = v2UniversalFromTo(f.fromName || f.from, f.toName || f.to);
+      const places = v2UniversalFromTo(f.fromName || f.from, f.toName || f.to, {
+        fromKind: f.fromKind || 'airport',
+        toKind: f.toKind || 'airport',
+        fromAddress: f.fromAddress,
+        toAddress: f.toAddress,
+        journeyType: 'flight'
+      });
       const fromIata = v2Iata(f.fromCode || f.from);
       const toIata = v2Iata(f.toCode || f.to);
       const jRow = await v2UpsertOneByLegacy(sb, 'journeys', orgId, {
@@ -1099,8 +1138,12 @@ async function pushToSupabaseV2(orgId, dirtyIn){
         journey_title: f.code || 'Flight',
         operator_name: f.operator || null,
         booking_reference: f.bookingRef || null,
+        departure_location_kind: places.departure_location_kind || 'airport',
         departure_location_name: places.departure_location_name,
+        departure_location_address: places.departure_location_address,
+        arrival_location_kind: places.arrival_location_kind || 'airport',
         arrival_location_name: places.arrival_location_name,
+        arrival_location_address: places.arrival_location_address,
         departure_at: flightTimes.departure_at,
         arrival_at: flightTimes.arrival_at,
         note_items: (typeof noteItemsForDb === 'function' ? noteItemsForDb(f.notes) : ((f.notes && String(f.notes).trim()) ? String(f.notes).trim() : null)),
@@ -1215,27 +1258,43 @@ async function pushToSupabaseV2(orgId, dirtyIn){
         v2CombineDateTime(l.endDate || l.date, l.end)
       );
       const travelLegacy = 'logistics:' + l.id;
-      const places = v2UniversalFromTo(l.from, l.to);
+      const places = v2UniversalFromTo(l.fromName || l.from, l.toName || l.to, {
+        fromKind: l.fromKind,
+        toKind: l.toKind,
+        fromAddress: l.fromAddress,
+        toAddress: l.toAddress,
+        journeyType: jType
+      });
       const serviceNo = l.flightNo || l.trainNo || l.ferryNo || l.coachNo || null;
-      const jRow = await v2UpsertOneByLegacy(sb, 'journeys', orgId, {
+      const jPayload = {
         id: v2IdForLegacy('journeys', travelLegacy, l.id),
         organisation_id: orgId,
         legacy_id: travelLegacy,
         related_show_id: showUuid,
         journey_type: jType,
         journey_title: l.title || logisticTypeLabel(l),
-        operator_name: l.operator || l.driverName || null,
         booking_reference: l.bookingRef || null,
         departure_at: travelTimes.departure_at,
         arrival_at: travelTimes.arrival_at,
+        departure_location_kind: places.departure_location_kind,
         departure_location_name: places.departure_location_name,
+        departure_location_address: places.departure_location_address,
+        arrival_location_kind: places.arrival_location_kind,
         arrival_location_name: places.arrival_location_name,
+        arrival_location_address: places.arrival_location_address,
         journey_status: l.fstatus || null,
         delay_description: l.delay || null,
         note_items: (typeof noteItemsForDb === 'function' ? noteItemsForDb(l.info) : null),
         is_done: !!l.done,
         sort_order: 0
-      });
+      };
+      if(jType === 'ground_transfer'){
+        if(l.operator && l.operator !== l.driverName) jPayload.operator_name = l.operator;
+        else if(l.arrangement === 'arrange_at_time' || l.noGround) jPayload.operator_name = null;
+      } else {
+        jPayload.operator_name = l.operator || null;
+      }
+      const jRow = await v2UpsertOneByLegacy(sb, 'journeys', orgId, jPayload);
       await v2AfterJourneyWrite(sb, orgId, jRow, {
         flight_number: jType === 'flight' ? serviceNo : null,
         train_number: jType === 'rail' ? serviceNo : null,
@@ -1246,11 +1305,18 @@ async function pushToSupabaseV2(orgId, dirtyIn){
         pickup_instructions: l.pickup || null,
         vehicle_details: l.vehicle || null,
         ground_transport_type: l.groundType || null,
+        arrangement: l.arrangement || (jType === 'ground_transfer' && (l.noGround ? 'arrange_at_time' : (l.driverName || l.vehicle ? 'pre_arranged' : null))) || null,
+        preferred_method: l.preferredMethod || l.preferred_method || null,
         platform: l.platform || null,
         from: l.from,
-        to: l.to,
-        driverName: l.driverName
+        to: l.to
       });
+      if(jType === 'ground_transfer' && jRow){
+        const driverCid = (l.driverName || l.phone || l.whatsapp)
+          ? await v2EnsureContact(sb, orgId, { name: l.driverName || 'Driver', phone: l.phone, whatsapp: l.whatsapp }, contactCache)
+          : null;
+        await v2SyncJourneyDriverContact(sb, orgId, jRow.id, driverCid);
+      }
 
       for(const pp of (l.passes || [])){
         const path = await ensurePassUploaded(pp, l.showId || l.id, l.id);

@@ -584,6 +584,13 @@ function orderedDrivers(e){
       || a.idx-b.idx);
 }
 function groundPreferredKey(d){
+  const stored = String((d&&d.preferredMethod)||(d&&d.preferred_method)||'').toLowerCase();
+  if(stored==='uber'||stored==='taxi'||stored==='either') return stored;
+  if((d&&d.arrangement)==='arrange_at_time' || (d&&d.noGround)){
+    const gt=String((d&&d.groundType)||'').toLowerCase();
+    if(gt==='uber'||gt==='taxi') return gt;
+    return 'either';
+  }
   const gt=String((d&&d.groundType)||'').toLowerCase();
   if(gt==='uber'||gt==='taxi') return gt;
   return 'either';
@@ -599,7 +606,11 @@ window.groundArrangeSummary = groundArrangeSummary;
 /* Resolve a journey's DESTINATION (arrival location) to a Maps query. */
 function driverDestMapQuery(e, d){
   ensureDriverLocations(d);
-  const destRaw = (d && d.to) || '';
+  if(typeof resolveJourneyEndpoint === 'function'){
+    const q = resolveJourneyEndpoint(d, 'to', e, (e && e.city) || '', 'destination', (d && d.date) || (e && e.date));
+    if(q) return q;
+  }
+  const destRaw = (d && (d.toName || d.to)) || '';
   const j = destRaw || ((d && d.journey) || '');
   const parts = j.split(/→|->|>|–|-/);
   const dest = (destRaw || (parts.length>1 ? parts[parts.length-1] : (parts[0]||''))).trim().toLowerCase();
@@ -1943,20 +1954,52 @@ function inferPrearrangedGroundType(vehicle){
   if(!inferred || inferred==='uber' || inferred==='taxi' || inferred==='other') return '';
   return inferred;
 }
+function groundPlaceFromForm(kind, side, e){
+  const key = side === 'to' ? 'to' : 'from';
+  const customName = (typeof val === 'function' ? val('dr-'+key+'-name') : '') || '';
+  const customAddr = (typeof val === 'function' ? val('dr-'+key+'-addr') : '') || '';
+  const k = String(kind || '').toLowerCase();
+  if(k === 'hotel'){
+    const h = e && e.hotel;
+    const addr = (typeof formatHotelAddress === 'function' && h) ? formatHotelAddress(h) : ((h && h.address) || '');
+    return { kind:'hotel', compact:'Hotel', name:(h && h.name) || 'Hotel', address: addr || '' };
+  }
+  if(k === 'venue'){
+    const addr = (typeof formatVenueAddress === 'function')
+      ? formatVenueAddress(e)
+      : [e && e.venueAddr, e && e.venueAddr2, e && e.city, e && e.venuePostcode].filter(Boolean).join(', ');
+    return { kind:'venue', compact:'Venue', name:(e && e.venue) || 'Venue', address: addr || '' };
+  }
+  if(k === 'airport'){
+    const code = (typeof transferAirportCode === 'function')
+      ? transferAirportCode(e, key === 'from', e && e.date)
+      : null;
+    return { kind:'airport', compact: code || 'Airport', name: code || 'Airport', address:'' };
+  }
+  return { kind:'custom', compact: customName, name: customName, address: customAddr };
+}
 function saveDriver(eid, idx){
   const e=sel.event(eid);
   const arrangeAtTime = getSeg('dr-mode')==='time';
   const list=showDrivers(e);
   const prev = (idx!=null && list[idx]) ? list[idx] : {};
   withButton($('#dr-save'), ()=>{
-    const from = generalizePlaceLabel(val('dr-from'), e);
-    const to = generalizePlaceLabel(val('dr-to'), e);
+    const fromPlace = groundPlaceFromForm(val('dr-from'), 'from', e);
+    const toPlace = groundPlaceFromForm(val('dr-to'), 'to', e);
+    const from = fromPlace.compact || fromPlace.name;
+    const to = toPlace.compact || toPlace.name;
     const journey = driverJourneyLabel({ from, to });
     const time = val('dr-time');
     const notes = typeof collectNoteItems==='function' ? collectNoteItems('dr-notes') : val('dr-notes');
     const base = {
       id: prev.id || uid('drv'),
       from, to, journey,
+      fromKind: fromPlace.kind,
+      toKind: toPlace.kind,
+      fromName: fromPlace.name,
+      toName: toPlace.name,
+      fromAddress: fromPlace.address,
+      toAddress: toPlace.address,
       time,
       date: (typeof showItemTrueDate === 'function' ? showItemTrueDate(e, time) : e.date) || e.date,
       notes,
@@ -1964,22 +2007,29 @@ function saveDriver(eid, idx){
       whatsapp: prev.whatsapp || ''
     };
     const pref = getSeg('dr-pref');
+    const groundTypeSel = val('dr-ground-type');
     const drv = arrangeAtTime
       ? Object.assign(base, {
           noGround: true,
-          groundType: (pref==='uber' || pref==='taxi') ? pref : 'other',
+          arrangement: 'arrange_at_time',
+          preferredMethod: (pref==='uber' || pref==='taxi' || pref==='either') ? pref : 'either',
+          groundType: (pref==='uber' || pref==='taxi') ? pref : '',
           name: '',
+          operator: '',
           phone: '',
           vehicle: '',
           whatsapp: ''
         })
       : Object.assign(base, {
           noGround: false,
+          arrangement: 'pre_arranged',
+          preferredMethod: '',
           name: val('dr-name'),
+          operator: val('dr-company'),
           phone: val('dr-phone'),
           whatsapp: prev.whatsapp || '',
           vehicle: val('dr-vehicle'),
-          groundType: inferPrearrangedGroundType(val('dr-vehicle'))
+          groundType: groundTypeSel || inferPrearrangedGroundType(val('dr-vehicle'))
         });
     ensureDriverLocations(drv);
     if(idx!=null && list[idx]) list[idx]=drv; else list.push(drv);
