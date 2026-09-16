@@ -26,6 +26,9 @@ function v2SlimJourneyParentRow(row){
   V2_JOURNEY_PARENT_COLUMNS.forEach(k => {
     if(Object.prototype.hasOwnProperty.call(row, k)) out[k] = row[k];
   });
+  ['departure_location_kind', 'arrival_location_kind'].forEach(k => {
+    if(out[k] === '') out[k] = null;
+  });
   return out;
 }
 

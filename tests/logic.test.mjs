@@ -327,3 +327,18 @@ test('legacy generalizePlaceLabel still maps tokens for compact display', () => 
   assert.equal(kept.to, 'Festival Parking');
 });
 
+test('unknown PostgREST columns are identified so leftover journey fields can be stripped', () => {
+  const sandbox = { window: {}, console };
+  sandbox.self = sandbox.window;
+  vm.createContext(sandbox);
+  vm.runInContext(readFileSync(join(root, 'js', 'db-v2-repo.js'), 'utf8'), sandbox, { filename: 'db-v2-repo.js' });
+  assert.equal(sandbox.v2UnknownColumnFromError({
+    message: "Could not find the 'pickup_location' column of 'journeys' in the schema cache"
+  }, 'journeys'), 'pickup_location');
+  const rows = [{ id: '1', pickup_location: 'Hotel', vehicle_details: 'Van' }];
+  assert.equal(sandbox.v2StripUnknownColumn(rows, 'pickup_location'), true);
+  assert.equal('pickup_location' in rows[0], false);
+  assert.equal(rows[0].vehicle_details, 'Van');
+});
+
+

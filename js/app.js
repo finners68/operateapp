@@ -2015,7 +2015,7 @@ async function queryShowEnrichmentScore(showId){
   try{
     const [journeys, hotels, contacts, schedule] = await Promise.all([
       sb.from('journeys').select('id', { count:'exact', head:true }).eq('organisation_id', orgId).eq('related_show_id', showId),
-      sb.from('hotel_booking_shows').select('id', { count:'exact', head:true }).eq('organisation_id', orgId).eq('show_id', showId),
+      sb.from('hotel_booking_shows').select('show_id', { count:'exact', head:true }).eq('organisation_id', orgId).eq('show_id', showId),
       sb.from('show_contacts').select('id', { count:'exact', head:true }).eq('organisation_id', orgId).eq('show_id', showId),
       sb.from('schedule_items').select('id', { count:'exact', head:true }).eq('organisation_id', orgId).eq('show_id', showId)
     ]);

@@ -8,6 +8,35 @@ function v2RepoThrow(error, label){
   throw e;
 }
 
+/* PostgREST PGRST204: payload includes a column that no longer exists. */
+function v2UnknownColumnFromError(error, table){
+  const msg = String((error && (error.message || error.details || error.hint || error.error_description)) || error || '');
+  const tableBit = table ? (" of '" + table + "'") : '';
+  const patterns = [
+    new RegExp("Could not find the '([^']+)' column" + tableBit, 'i'),
+    /Could not find the '([^']+)' column/i,
+    /column "([^"]+)" of relation/i,
+    /column ([a-z_][a-z0-9_]*) does not exist/i
+  ];
+  for(let i = 0; i < patterns.length; i++){
+    const m = msg.match(patterns[i]);
+    if(m && m[1]) return m[1];
+  }
+  return null;
+}
+
+function v2StripUnknownColumn(rows, col){
+  if(!col) return false;
+  let stripped = false;
+  (rows || []).forEach(r => {
+    if(r && Object.prototype.hasOwnProperty.call(r, col)){
+      delete r[col];
+      stripped = true;
+    }
+  });
+  return stripped;
+}
+
 async function v2RepoFetchOrg(sb, orgId){
   const q = (table, opts) => {
     let chain = sb.from(table).select('*').eq('organisation_id', orgId);
@@ -149,7 +178,16 @@ async function v2RepoUpsert(sb, table, rowOrRows, onConflict){
   const rows = (Array.isArray(rowOrRows) ? rowOrRows : [rowOrRows]).filter(Boolean);
   if(!rows.length) return [];
   const conflict = onConflict || 'id';
-  const { data, error } = await sb.from(table).upsert(rows, { onConflict: conflict }).select('*');
+  let data = null;
+  let error = null;
+  for(let attempt = 0; attempt < 8; attempt++){
+    const res = await sb.from(table).upsert(rows, { onConflict: conflict }).select('*');
+    data = res.data;
+    error = res.error;
+    if(!error) break;
+    const col = v2UnknownColumnFromError(error, table);
+    if(!col || !v2StripUnknownColumn(rows, col)) break;
+  }
   v2RepoThrow(error, table + ' upsert');
   return data || [];
 }
