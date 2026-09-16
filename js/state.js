@@ -156,6 +156,15 @@ function generalizePlaceLabel(raw, show){
   if(eventName && lower === eventName.toLowerCase()) return 'Venue';
   return s;
 }
+function displayPlaceLabel(v){
+  const s = String(v == null ? '' : v).trim();
+  if(!s) return '';
+  if(/^[A-Z]{3}$/.test(s)) return s;
+  if(s.length > 1 && s === s.toUpperCase() && /[A-Z]/.test(s)){
+    return s.toLowerCase().replace(/(^|[\s/()-])([a-z])/g, (m, a, b) => a + b.toUpperCase());
+  }
+  return s;
+}
 function driverJourneyLabel(d){
   if(!d) return '';
   const from = String(d.from || '').trim();
@@ -1010,24 +1019,34 @@ function flightRouteEndParts(code, name){
   return { primary: primary || '?', secondary };
 }
 /* Codes on one row with the connector; city names sit under each code, centred, with no second rail. */
-function flightRouteStackedHtml(fromCode, fromName, toCode, toName){
-  const a = flightRouteEndParts(fromCode, fromName);
-  const b = flightRouteEndParts(toCode, toName);
-  const icon = journeyRouteModeIcon('planeTop');
+function travelRouteStackedHtml(fromCode, fromName, toCode, toName, mode){
+  const m = String(mode || 'plane').toLowerCase();
+  const isAir = m==='plane' || m==='flight' || m==='planetop';
+  const a = isAir
+    ? flightRouteEndParts(fromCode, fromName)
+    : { primary: displayPlaceLabel(fromCode || fromName) || '?', secondary: '' };
+  const b = isAir
+    ? flightRouteEndParts(toCode, toName)
+    : { primary: displayPlaceLabel(toCode || toName) || '?', secondary: '' };
+  const icon = journeyRouteModeIcon(isAir ? 'planeTop' : m);
   const end = (side, parts) => `<span class="flight-route-end is-${side}">
     <span class="flight-route-code">${esc(parts.primary)}</span>
     ${parts.secondary ? `<span class="flight-route-name">${esc(parts.secondary)}</span>` : ''}
   </span>`;
-  return `<span class="flight-route-stack" aria-label="${esc(a.primary)} to ${esc(b.primary)}">
+  return `<span class="flight-route-stack${isAir?'':' is-place'}" aria-label="${esc(a.primary)} to ${esc(b.primary)}">
     ${end('from', a)}
     <span class="flight-route-rail" aria-hidden="true">
       <span class="flight-route-line"></span>
-      <span class="flight-route-icon is-air">${icon}</span>
+      <span class="flight-route-icon${isAir?' is-air':''}">${icon}</span>
       <span class="flight-route-line"></span>
     </span>
     ${end('to', b)}
   </span>`;
 }
+function flightRouteStackedHtml(fromCode, fromName, toCode, toName){
+  return travelRouteStackedHtml(fromCode, fromName, toCode, toName, 'plane');
+}
+window.travelRouteStackedHtml = travelRouteStackedHtml;
 window.flightRouteStackedHtml = flightRouteStackedHtml;
 /* Back-compat alias — ground journeys now use the flight-style rail with a mode icon. */
 function groundRouteHtml(from, to, mode){

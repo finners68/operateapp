@@ -612,50 +612,66 @@ function driverDestMapQuery(e, d){
   if(dest) return dest + (e.city && !dest.includes(e.city.toLowerCase()) ? ' '+e.city : '');
   return '';
 }
+function travelRouteFromPlaces(from, to, mode, fromName, toName){
+  if(!(from || to || fromName || toName)) return '';
+  const m = mode || 'car';
+  if(typeof travelRouteStackedHtml === 'function'){
+    if(m==='plane' || m==='flight' || m==='planetop'){
+      const fromCode = (typeof flightIataFromPlace==='function' ? flightIataFromPlace(from || fromName) : '') || from || '';
+      const toCode = (typeof flightIataFromPlace==='function' ? flightIataFromPlace(to || toName) : '') || to || '';
+      const lookedFrom = (typeof airportName==='function' ? airportName(fromCode) : '') || fromName || '';
+      const lookedTo = (typeof airportName==='function' ? airportName(toCode) : '') || toName || '';
+      return travelRouteStackedHtml(fromCode, lookedFrom, toCode, lookedTo, 'plane');
+    }
+    return travelRouteStackedHtml(from || '', fromName || '', to || '', toName || '', m);
+  }
+  if(typeof groundRouteHtml === 'function') return groundRouteHtml(from || '?', to || '?', m);
+  return esc((from || '?')+' → '+(to || '?'));
+}
 function driverCard(eid, d, idx){
   ensureDriverLocations(d);
-  const ev = sel.event(eid);
-  const dest = ev ? driverDestMapQuery(ev, d) : '';
-  const label = driverJourneyLabel(d) || (d.noGround ? 'Ground' : (d.name || 'Ground'));
-  const phone = d.phone || '';
-  const wa = d.whatsapp || d.phone || '';
-  const actions = d.noGround
-    ? `<button type="button" class="header-btn" style="width:34px;height:34px" title="Open Uber" onclick="openExternal('https://m.uber.com/','uber://')">${ICON.car(16)}</button>
-       ${dest?`<button type="button" class="header-btn" style="width:34px;height:34px" title="Destination" onclick="openMaps('${jsAttr(dest)}')">${ICON.map(16)}</button>`
-         :`<button type="button" class="header-btn" style="width:34px;height:34px" title="Taxis nearby" onclick="openMaps('${jsAttr(('taxi near '+((ev&&(ev.city||ev.venue))||'').trim()).trim())}')">${ICON.map(16)}</button>`}`
-    : `${phone?`<button type="button" class="header-btn" style="width:34px;height:34px" title="Call" onclick="callNumber('${jsAttr(phone)}')">${ICON.phone(16)}</button>`:''}
-       ${wa?`<button type="button" class="header-btn" style="width:34px;height:34px" title="WhatsApp" onclick="whatsapp('${jsAttr(wa)}')">${ICON.chat(16)}</button>`:''}
-       ${phone?`<button type="button" class="header-btn" style="width:34px;height:34px" title="Copy number" onclick="copyText('${jsAttr(phone)}')">${ICON.copy(16)}</button>`:''}
-       ${dest?`<button type="button" class="header-btn" style="width:34px;height:34px" title="Destination" onclick="openMaps('${jsAttr(dest)}')">${ICON.map(16)}</button>`:''}`;
-  const head = `<div class="driver-head">
-      <div class="driver-title-wrap">
-        <div class="driver-title">${(d.from && d.to && typeof groundRouteHtml==='function') ? groundRouteHtml(d.from, d.to, 'car') : `<span>${ICON.car(16)} ${esc(label)}</span>`}</div>
-        ${d.time?`<div class="driver-title-meta">${esc(d.time)}</div>`:''}
+  const heading = d.noGround
+    ? (groundPreferredKey(d)==='uber' ? 'Uber' : groundPreferredKey(d)==='taxi' ? 'Taxi' : 'Ground')
+    : (d.name || 'Ground');
+  const dateLabel = (d.date && typeof fmtDate==='function') ? fmtDate(d.date) : '';
+  const routeHtml = travelRouteFromPlaces(d.from, d.to, 'car');
+  const kvRow = (k, v) => v
+    ? `<div class="flight-side-kv"><div class="flight-side-k">${esc(k)}</div><div class="flight-side-v">${esc(v)}</div></div>`
+    : '';
+  const notes = typeof parseNoteItems==='function'
+    ? parseNoteItems(d.notes)
+    : (String(d.notes || '').trim() ? [{id:'legacy',text:String(d.notes)}] : []);
+  const metaHtml = [
+    kvRow('Dep', d.time || ''),
+    kvRow('Contact', (!d.noGround && d.name && d.name !== heading) ? d.name : ''),
+    kvRow('Phone', d.phone || ''),
+    kvRow('Vehicle', d.vehicle || ''),
+    kvRow('Pickup', d.pickup || ''),
+    kvRow('Arrangement', d.noGround
+      ? (heading === 'Ground' ? groundArrangeSummary(d) : '')
+      : (heading === 'Ground' ? 'Pre-arranged' : ''))
+  ].filter(Boolean).join('');
+  return `<div class="card flush flight-card-wrap">
+    <div class="flight-block">
+      <div class="flight-card-tools">
+        <button type="button" class="flight-card-tool" title="Edit" onclick="event.stopPropagation();sheetDriver('${eid}',${idx})">${ICON.edit(15)}</button>
+        <button type="button" class="flight-card-tool is-danger" title="Remove" onclick="event.stopPropagation();confirmRemoveDriver('${eid}',${idx})">${ICON.trash(15)}</button>
       </div>
-      <div class="driver-head-actions">
-        ${actions}
-        <button type="button" class="add" onclick="sheetDriver('${eid}',${idx})">Edit</button>
-      </div>
-    </div>`;
-  if(d.noGround){
-    return `<div class="card flush driver-card" style="margin-bottom:10px">
-      ${head}
-      <div class="driver-contact info-line"><div class="ic">${ICON.car(15)}</div>${fieldTx('Arrangement', esc(groundArrangeSummary(d)))}</div>
-      ${noteItemsHas(d.notes)?`<div class="info-line" style="align-items:flex-start"><div class="ic">${ICON.note(17)}</div>${noteItemsReadHtml('Notes', d.notes)}</div>`:''}
-    </div>`;
-  }
-  const contact = d.name || d.vehicle || 'Pre-arranged';
-  const meta = [d.vehicle && d.name ? d.vehicle : '', d.pickup].filter(Boolean).join(' · ');
-  return `<div class="card flush driver-card" style="margin-bottom:10px">
-    ${head}
-    <div class="driver-contact info-line"><div class="ic">${ICON.user(15)}</div>
-      <div class="tx">
-        <div class="k">${d.name?'Contact':'Arrangement'}</div>
-        <div class="v">${esc(contact)}</div>
-        ${meta?`<div class="detail-meta">${esc(meta)}</div>`:''}
+      <div class="flight-card-body">
+        <div class="flight-journey-main">
+          <div class="flight-card-title">
+            <span class="flight-journey-ic">${ICON.car(17)}</span>
+            <div class="flight-journey-heading">
+              <b class="flight-journey-code">${esc(heading)}</b>
+              ${dateLabel?`<span class="flight-journey-date">${esc(dateLabel)}</span>`:''}
+            </div>
+          </div>
+          ${routeHtml?`<div class="flight-card-route">${routeHtml}</div>`:''}
+        </div>
+        ${metaHtml ? `<div class="flight-journey-side">${metaHtml}</div>` : ''}
+        ${notes.length ? `<div class="flight-card-notes"><div class="flight-side-notes-k">Notes</div>${notes.map(n=>`<div class="flight-side-notes-v">${esc(n.text)}</div>`).join('')}</div>` : ''}
       </div>
     </div>
-    ${noteItemsHas(d.notes)?`<div class="info-line" style="align-items:flex-start"><div class="ic">${ICON.note(17)}</div>${noteItemsReadHtml('Notes', d.notes)}</div>`:''}
   </div>`;
 }
 function driverSubsection(e){
@@ -705,16 +721,7 @@ function travelLegCard(l){
   const dateLabel = (l.date && typeof fmtDate==='function') ? fmtDate(l.date) : (l.date || '');
   const sub = [hop ? (code ? type+' '+hop : hop) : '', dateLabel].filter(Boolean).join(' · ');
   const ic = (ICON[icon] && typeof ICON[icon]==='function') ? ICON[icon] : ICON.train;
-  let routeHtml = '';
-  if(l.from || l.to){
-    if(icon==='plane' && typeof flightRouteStackedHtml==='function'){
-      routeHtml = flightRouteStackedHtml(l.from || '', '', l.to || '', '');
-    } else if(typeof groundRouteHtml==='function'){
-      routeHtml = groundRouteHtml(l.from || '?', l.to || '?', icon);
-    } else {
-      routeHtml = esc((l.from || '?')+' → '+(l.to || '?'));
-    }
-  }
+  let routeHtml = travelRouteFromPlaces(l.from, l.to, icon);
   const kvRow = (k, v) => v
     ? `<div class="flight-side-kv"><div class="flight-side-k">${esc(k)}</div><div class="flight-side-v">${esc(v)}</div></div>`
     : '';
@@ -768,6 +775,7 @@ function travelTypeSubsections(e){
 }
 window.travelTypeKey = travelTypeKey;
 window.travelLegCard = travelLegCard;
+window.driverCard = driverCard;
 window.TRAVEL_TYPE_SECTIONS = TRAVEL_TYPE_SECTIONS;
 function addTravelPickerHtml(eid){
   const modes = [
@@ -1191,16 +1199,15 @@ function flightLine(eid,f){
   const dateLabel = typeof flightDepDateLabel==='function' ? flightDepDateLabel(f, fallbackDate) : '';
   const depTime = parsed.time || (f.dep ? (String(f.dep).split(' ')[1] || (String(f.dep).includes(':')&&!String(f.dep).includes('-')?f.dep:'')) : '');
   const arrTime = f.arr ? (String(f.arr).split(' ')[1] || (String(f.arr).includes(':')&&!String(f.arr).includes('-')?f.arr:'')) : '';
-  const routeHtml = (typeof flightRouteStackedHtml === 'function')
-    ? flightRouteStackedHtml(
-      f.fromCode || f.from || '',
-      f.fromName || '',
-      f.toCode || f.to || '',
-      f.toName || ''
-    )
-    : (typeof flightRouteHtml === 'function'
-      ? flightRouteHtml(f.fromCode || f.from || '?', f.toCode || f.to || '?')
-      : esc(`${f.from||'?'} → ${f.to||'?'}`));
+  const routeHtml = travelRouteFromPlaces(
+    f.fromCode || f.from,
+    f.toCode || f.to,
+    'plane',
+    f.fromName,
+    f.toName
+  ) || (typeof flightRouteHtml === 'function'
+    ? flightRouteHtml(f.fromCode || f.from || '?', f.toCode || f.to || '?')
+    : esc(`${f.from||'?'} → ${f.to||'?'}`));
   const pax = (typeof flightPassengers==='function' ? flightPassengers(f) : (f.passengers||[]));
   const kvRow = (k, v) => v
     ? `<div class="flight-side-kv"><div class="flight-side-k">${esc(k)}</div><div class="flight-side-v">${esc(v)}</div></div>`
@@ -1740,6 +1747,16 @@ function confirmRemoveTravelLeg(id){
   );
 }
 window.confirmRemoveTravelLeg = confirmRemoveTravelLeg;
+function confirmRemoveDriver(eid, idx){
+  confirmSheet(
+    'Remove ground?',
+    'Remove this ground arrangement from the show.',
+    'Remove',
+    ()=>{ if(typeof removeDriver==='function') removeDriver(eid, idx); },
+    true
+  );
+}
+window.confirmRemoveDriver = confirmRemoveDriver;
 function delFlightPassenger(eid, fid, paxId){
   const e=sel.event(eid); if(!e || !fid || !paxId) return;
   const f=(e.flights||[]).find(x=>x.id===fid); if(!f) return;

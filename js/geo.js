@@ -118,6 +118,51 @@ function airportCC(code){
   const c = (code||'').toString().trim().toUpperCase();
   return /^[A-Z]{3}$/.test(c) ? (AIRPORT_CC[c] || null) : null;
 }
+/* Short names shown under IATA codes on flight cards. */
+const AIRPORT_NAMES = {
+  LHR:'Heathrow',LGW:'Gatwick',STN:'Stansted',LTN:'Luton',LCY:'London City',MAN:'Manchester',BHX:'Birmingham',EDI:'Edinburgh',GLA:'Glasgow',BRS:'Bristol',NCL:'Newcastle',LPL:'Liverpool',LBA:'Leeds',BFS:'Belfast',EMA:'East Midlands',ABZ:'Aberdeen',CWL:'Cardiff',SOU:'Southampton',EXT:'Exeter',INV:'Inverness',DSA:'Doncaster',SEN:'Southend',BOH:'Bournemouth',NQY:'Newquay',
+  DUB:'Dublin',ORK:'Cork',SNN:'Shannon',
+  CDG:'Paris',ORY:'Orly',NCE:'Nice',LYS:'Lyon',MRS:'Marseille',TLS:'Toulouse',BOD:'Bordeaux',NTE:'Nantes',
+  AMS:'Amsterdam',BRU:'Brussels',CRL:'Charleroi',LUX:'Luxembourg',
+  FRA:'Frankfurt',MUC:'Munich',DUS:'Düsseldorf',CGN:'Cologne',HAM:'Hamburg',BER:'Berlin',STR:'Stuttgart',HAJ:'Hanover',NUE:'Nuremberg',LEJ:'Leipzig',BRE:'Bremen',
+  ZRH:'Zurich',GVA:'Geneva',BSL:'Basel',VIE:'Vienna',SZG:'Salzburg',INN:'Innsbruck',
+  MXP:'Milan',LIN:'Linate',BGY:'Bergamo',FCO:'Rome',CIA:'Ciampino',VCE:'Venice',NAP:'Naples',BLQ:'Bologna',PSA:'Pisa',FLR:'Florence',TRN:'Turin',BRI:'Bari',CTA:'Catania',PMO:'Palermo',CAG:'Cagliari',
+  BCN:'Barcelona',MAD:'Madrid',AGP:'Malaga',PMI:'Palma',IBZ:'Ibiza',VLC:'Valencia',SVQ:'Seville',BIO:'Bilbao',ALC:'Alicante',GRX:'Granada',SCQ:'Santiago',LPA:'Gran Canaria',TFS:'Tenerife',ACE:'Lanzarote',FUE:'Fuerteventura',
+  LIS:'Lisbon',OPO:'Porto',FAO:'Faro',FNC:'Madeira',
+  CPH:'Copenhagen',ARN:'Stockholm',BMA:'Bromma',GOT:'Gothenburg',OSL:'Oslo',BGO:'Bergen',TRD:'Trondheim',HEL:'Helsinki',KEF:'Reykjavik',RIX:'Riga',TLL:'Tallinn',VNO:'Vilnius',
+  PRG:'Prague',WAW:'Warsaw',KRK:'Krakow',GDN:'Gdansk',WRO:'Wroclaw',POZ:'Poznan',BUD:'Budapest',OTP:'Bucharest',SOF:'Sofia',BEG:'Belgrade',ZAG:'Zagreb',SPU:'Split',DBV:'Dubrovnik',ZAD:'Zadar',LJU:'Ljubljana',TIA:'Tirana',
+  ATH:'Athens',SKG:'Thessaloniki',JMK:'Mykonos',JTR:'Santorini',HER:'Heraklion',RHO:'Rhodes',CFU:'Corfu',CHQ:'Chania',
+  IST:'Istanbul',SAW:'Sabiha',AYT:'Antalya',ESB:'Ankara',ADB:'Izmir',DXB:'Dubai',AUH:'Abu Dhabi',DOH:'Doha',TLV:'Tel Aviv',RUH:'Riyadh',JED:'Jeddah',BAH:'Bahrain',KWI:'Kuwait',MCT:'Muscat',AMM:'Amman',BEY:'Beirut',
+  JFK:'New York',LGA:'LaGuardia',EWR:'Newark',BOS:'Boston',PHL:'Philadelphia',IAD:'Washington',DCA:'Reagan',BWI:'Baltimore',ATL:'Atlanta',MIA:'Miami',FLL:'Fort Lauderdale',MCO:'Orlando',TPA:'Tampa',ORD:'Chicago',MDW:'Midway',DTW:'Detroit',MSP:'Minneapolis',DEN:'Denver',LAS:'Las Vegas',LAX:'Los Angeles',SFO:'San Francisco',SJC:'San Jose',OAK:'Oakland',SAN:'San Diego',SEA:'Seattle',PDX:'Portland',PHX:'Phoenix',DFW:'Dallas',IAH:'Houston',AUS:'Austin',MSY:'New Orleans',BNA:'Nashville',CLT:'Charlotte',RDU:'Raleigh',SLC:'Salt Lake City',HNL:'Honolulu',
+  YYZ:'Toronto',YUL:'Montreal',YVR:'Vancouver',YYC:'Calgary',YOW:'Ottawa',YEG:'Edmonton',YWG:'Winnipeg',YHZ:'Halifax',
+  MEX:'Mexico City',CUN:'Cancun',GDL:'Guadalajara',PVR:'Puerto Vallarta',BOG:'Bogota',MDE:'Medellin',LIM:'Lima',SCL:'Santiago',EZE:'Buenos Aires',AEP:'Aeroparque',GIG:'Rio',GRU:'Sao Paulo',BSB:'Brasilia',MVD:'Montevideo',UIO:'Quito',PTY:'Panama',SJO:'San Jose',HAV:'Havana',
+  NRT:'Narita',HND:'Haneda',KIX:'Osaka',NGO:'Nagoya',ICN:'Seoul',GMP:'Gimpo',PEK:'Beijing',PKX:'Daxing',PVG:'Shanghai',SHA:'Hongqiao',CAN:'Guangzhou',SZX:'Shenzhen',HKG:'Hong Kong',TPE:'Taipei',BKK:'Bangkok',DMK:'Don Mueang',SIN:'Singapore',KUL:'Kuala Lumpur',CGK:'Jakarta',DPS:'Bali',MNL:'Manila',SGN:'Ho Chi Minh',HAN:'Hanoi',DEL:'Delhi',BOM:'Mumbai',BLR:'Bangalore',MAA:'Chennai',HYD:'Hyderabad',CMB:'Colombo',KTM:'Kathmandu',
+  SYD:'Sydney',MEL:'Melbourne',BNE:'Brisbane',PER:'Perth',ADL:'Adelaide',AKL:'Auckland',WLG:'Wellington',CHC:'Christchurch',NAN:'Nadi',
+  CMN:'Casablanca',RAK:'Marrakech',CAI:'Cairo',CPT:'Cape Town',JNB:'Johannesburg',DUR:'Durban',LOS:'Lagos',ABV:'Abuja',NBO:'Nairobi',ADD:'Addis Ababa',ACC:'Accra',DAR:'Dar es Salaam',TUN:'Tunis'
+};
+function flightIata(v){
+  const s = String(v == null ? '' : v).trim().toUpperCase();
+  if(/^[A-Z]{3}$/.test(s)) return s;
+  const m = s.match(/\b([A-Z]{3})\b/);
+  return m ? m[1] : '';
+}
+function airportName(code){
+  const c = flightIata(code);
+  return c ? (AIRPORT_NAMES[c] || '') : '';
+}
+function airportCodeFromName(name){
+  const n = String(name == null ? '' : name).trim().toLowerCase();
+  if(!n) return '';
+  const iata = flightIata(n);
+  if(iata && AIRPORT_NAMES[iata]) return iata;
+  for(const code in AIRPORT_NAMES){
+    if(AIRPORT_NAMES[code].toLowerCase() === n) return code;
+  }
+  return '';
+}
+function flightIataFromPlace(v){
+  return flightIata(v) || airportCodeFromName(v);
+}
 /* Great-circle distance in km between two [lat,lng] points (haversine). */
 function haversineKm(a, b){
   if(!a || !b) return 0;
