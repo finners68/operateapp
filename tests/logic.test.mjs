@@ -76,7 +76,7 @@ function loadJourneyHelpers() {
   return sandbox.__x;
 }
 
-test('universal journey route prefers location names over type-specific leftovers', () => {
+test('universal journey route uses shared location names only', () => {
   const J = loadJourneyHelpers();
   assert.equal(J.v2JourneyFromName({
     journey_type: 'rail',
@@ -86,10 +86,42 @@ test('universal journey route prefers location names over type-specific leftover
   assert.equal(J.v2JourneyFromName({
     journey_type: 'ground_transfer',
     pickup_location: 'Airport'
-  }), 'Airport');
+  }), '');
   assert.equal(J.v2JourneyToName({
     journey_type: 'ferry',
-    arrival_port_name: 'Hook of Holland'
+    arrival_location_name: 'Hook of Holland',
+    arrival_port_name: 'Hoek'
   }), 'Hook of Holland');
   assert.equal(J.v2InferGroundTransportType('Please book an Uber'), 'uber');
+});
+
+test('journey parent writes drop type-specific leftover columns', () => {
+  const sandbox = {
+    window: {},
+    console,
+    isUuid: (v) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(v || '')),
+    newUuid: () => '11111111-1111-4111-8111-111111111111'
+  };
+  sandbox.self = sandbox.window;
+  vm.createContext(sandbox);
+  vm.runInContext(readFileSync(join(root, 'js', 'db-v2-journeys.js'), 'utf8'), sandbox, { filename: 'db-v2-journeys.js' });
+  const slim = sandbox.v2SlimJourneyParentRow({
+    id: '11111111-1111-4111-8111-111111111111',
+    organisation_id: '22222222-2222-4222-8222-222222222222',
+    journey_type: 'flight',
+    journey_title: 'BA123',
+    departure_location_name: 'Heathrow',
+    arrival_location_name: 'JFK',
+    flight_number: 'BA123',
+    departure_airport_iata: 'LHR',
+    pickup_location: 'Terminal 5',
+    passengers: [{ name: 'Jake' }],
+    journey_notes: 'old'
+  });
+  assert.equal(slim.journey_title, 'BA123');
+  assert.equal(slim.departure_location_name, 'Heathrow');
+  assert.equal('flight_number' in slim, false);
+  assert.equal('passengers' in slim, false);
+  assert.equal('pickup_location' in slim, false);
+  assert.equal('journey_notes' in slim, false);
 });

@@ -9,6 +9,25 @@ const V2_JOURNEY_DETAIL_TABLES = {
   coach: 'journey_coach_details'
 };
 
+/* Shared route/times only. Type-specific fields belong on the detail tables. */
+const V2_JOURNEY_PARENT_COLUMNS = [
+  'id', 'organisation_id', 'legacy_id', 'tour_id', 'related_show_id',
+  'journey_type', 'journey_title', 'booking_reference', 'operator_name',
+  'departure_at', 'arrival_at',
+  'departure_location_name', 'arrival_location_name',
+  'journey_status', 'delay_description', 'status_updated_at',
+  'is_live_status', 'is_done', 'note_items', 'sort_order', 'deleted_at'
+];
+
+function v2SlimJourneyParentRow(row){
+  if(!row) return row;
+  const out = {};
+  V2_JOURNEY_PARENT_COLUMNS.forEach(k => {
+    if(Object.prototype.hasOwnProperty.call(row, k)) out[k] = row[k];
+  });
+  return out;
+}
+
 const V2_GROUND_TRANSPORT_TYPES = [
   'taxi', 'uber', 'private_car', 'chauffeur', 'shuttle', 'minibus', 'bus', 'other'
 ];
@@ -73,60 +92,39 @@ function v2NormalizeGroundTransportType(v){
   return v2InferGroundTransportType(v);
 }
 
-/* Canonical route labels — always the universal name fields, with
-   type-specific leftovers only as a backfill while old columns remain. */
+/* Canonical route labels — always the universal name fields. */
 function v2JourneyFromName(j){
   if(!j) return '';
-  return v2Blank(
-    j.departure_location_name
-    || (j.journey_type === 'rail' ? j.departure_station_name : '')
-    || (j.journey_type === 'ferry' ? j.departure_port_name : '')
-    || (j.journey_type === 'ground_transfer' ? j.pickup_location : '')
-    || j.departure_location_code
-  );
+  return v2Blank(j.departure_location_name);
 }
 
 function v2JourneyToName(j){
   if(!j) return '';
-  return v2Blank(
-    j.arrival_location_name
-    || (j.journey_type === 'rail' ? j.arrival_station_name : '')
-    || (j.journey_type === 'ferry' ? j.arrival_port_name : '')
-    || (j.journey_type === 'ground_transfer' ? j.dropoff_location : '')
-    || j.arrival_location_code
-  );
+  return v2Blank(j.arrival_location_name);
 }
 
 function v2JourneyFlightNumber(j){
-  return v2Blank((j && j.flight_details && j.flight_details.flight_number) || (j && j.flight_number));
+  return v2Blank(j && j.flight_details && j.flight_details.flight_number);
 }
 
 function v2JourneyTrainNumber(j){
-  return v2Blank((j && j.rail_details && j.rail_details.train_number) || (j && j.train_number));
+  return v2Blank(j && j.rail_details && j.rail_details.train_number);
 }
 
 function v2JourneyFerryNumber(j){
-  return v2Blank((j && j.ferry_details && j.ferry_details.ferry_service_number) || (j && j.ferry_service_number));
+  return v2Blank(j && j.ferry_details && j.ferry_details.ferry_service_number);
 }
 
 function v2JourneyCoachNumber(j){
-  return v2Blank((j && j.coach_details && j.coach_details.coach_service_number) || (j && j.coach_service_number));
+  return v2Blank(j && j.coach_details && j.coach_details.coach_service_number);
 }
 
 function v2JourneyDepIata(j){
-  return v2IataCode(
-    (j && j.flight_details && j.flight_details.departure_airport_iata)
-    || (j && j.departure_airport_iata)
-    || (j && j.departure_location_code)
-  );
+  return v2IataCode(j && j.flight_details && j.flight_details.departure_airport_iata);
 }
 
 function v2JourneyArrIata(j){
-  return v2IataCode(
-    (j && j.flight_details && j.flight_details.arrival_airport_iata)
-    || (j && j.arrival_airport_iata)
-    || (j && j.arrival_location_code)
-  );
+  return v2IataCode(j && j.flight_details && j.flight_details.arrival_airport_iata);
 }
 
 function v2AttachJourneyDetails(j, bags){
@@ -148,32 +146,13 @@ function v2PlaceForDb(v){
   return s;
 }
 
-function v2PassengerMetaFromRows(rows, fallbackJson){
-  const fromTable = (rows || []).map(r => ({
+function v2PassengerMetaFromRows(rows){
+  return (rows || []).map(r => ({
     id: r.id,
     name: r.name || '',
     seat: r.seat || '',
     booking_reference: r.booking_reference || ''
   })).filter(p => p.id || p.name || p.seat || p.booking_reference);
-  if(fromTable.length) return fromTable;
-  if(typeof fallbackJson === 'undefined') return [];
-  if(Array.isArray(fallbackJson)){
-    return fallbackJson.filter(m => m && typeof m === 'object').map(m => ({
-      id: m.id,
-      name: m.name || '',
-      seat: m.seat || '',
-      booking_reference: m.booking_reference || m.bookingRef || ''
-    }));
-  }
-  if(fallbackJson && typeof fallbackJson === 'object'){
-    return [{
-      id: fallbackJson.id,
-      name: fallbackJson.name || '',
-      seat: fallbackJson.seat || '',
-      booking_reference: fallbackJson.booking_reference || fallbackJson.bookingRef || ''
-    }];
-  }
-  return [];
 }
 
 function v2PassengerIdInUseElsewhere(id, journeyId){
@@ -270,24 +249,24 @@ async function v2SyncJourneySubtype(sb, orgId, journey, extras){
     row = {
       journey_id: journey.id,
       organisation_id: orgId,
-      flight_number: v2Nz(extras.flight_number || journey.flight_number),
-      departure_airport_iata: v2IataCode(extras.departure_airport_iata || journey.departure_airport_iata || extras.from || journey.departure_location_code),
-      arrival_airport_iata: v2IataCode(extras.arrival_airport_iata || journey.arrival_airport_iata || extras.to || journey.arrival_location_code),
-      departure_terminal: v2Nz(extras.departure_terminal || journey.departure_terminal),
-      arrival_terminal: v2Nz(extras.arrival_terminal || journey.arrival_terminal),
-      departure_gate: v2Nz(extras.departure_gate || journey.departure_gate),
-      arrival_gate: v2Nz(extras.arrival_gate || journey.arrival_gate)
+      flight_number: v2Nz(extras.flight_number),
+      departure_airport_iata: v2IataCode(extras.departure_airport_iata || extras.from),
+      arrival_airport_iata: v2IataCode(extras.arrival_airport_iata || extras.to),
+      departure_terminal: v2Nz(extras.departure_terminal),
+      arrival_terminal: v2Nz(extras.arrival_terminal),
+      departure_gate: v2Nz(extras.departure_gate),
+      arrival_gate: v2Nz(extras.arrival_gate)
     };
     if(!v2HasFlightEnrichment(row)) row = null;
   } else if(type === 'rail'){
     row = {
       journey_id: journey.id,
       organisation_id: orgId,
-      train_number: v2Nz(extras.train_number || journey.train_number),
-      departure_station_code: v2Nz(extras.departure_station_code || v2LocationCode(journey.departure_location_code)),
-      arrival_station_code: v2Nz(extras.arrival_station_code || v2LocationCode(journey.arrival_location_code)),
-      departure_platform: v2Nz(extras.departure_platform || journey.departure_platform),
-      arrival_platform: v2Nz(extras.arrival_platform || journey.arrival_platform)
+      train_number: v2Nz(extras.train_number),
+      departure_station_code: v2Nz(extras.departure_station_code || v2LocationCode(extras.from)),
+      arrival_station_code: v2Nz(extras.arrival_station_code || v2LocationCode(extras.to)),
+      departure_platform: v2Nz(extras.departure_platform || extras.platform),
+      arrival_platform: v2Nz(extras.arrival_platform)
     };
     if(!v2HasRailEnrichment(row)) row = null;
   } else if(type === 'ground_transfer'){
@@ -298,24 +277,24 @@ async function v2SyncJourneySubtype(sb, orgId, journey, extras){
         extras.ground_transport_type || extras.groundType
         || v2InferGroundTransportType(extras.vehicle_details, extras.pickup_instructions, extras.name, extras.driverName)
       ),
-      pickup_instructions: v2Nz(extras.pickup_instructions || extras.pickup || journey.pickup_instructions),
-      vehicle_details: v2Nz(extras.vehicle_details || extras.vehicle || journey.vehicle_details)
+      pickup_instructions: v2Nz(extras.pickup_instructions || extras.pickup),
+      vehicle_details: v2Nz(extras.vehicle_details || extras.vehicle)
     };
     if(!v2HasGroundEnrichment(row)) row = null;
   } else if(type === 'ferry'){
     row = {
       journey_id: journey.id,
       organisation_id: orgId,
-      ferry_service_number: v2Nz(extras.ferry_service_number || extras.flightNo || journey.ferry_service_number),
-      departure_port_code: v2Nz(extras.departure_port_code || v2LocationCode(journey.departure_location_code)),
-      arrival_port_code: v2Nz(extras.arrival_port_code || v2LocationCode(journey.arrival_location_code))
+      ferry_service_number: v2Nz(extras.ferry_service_number || extras.flightNo),
+      departure_port_code: v2Nz(extras.departure_port_code || v2LocationCode(extras.from)),
+      arrival_port_code: v2Nz(extras.arrival_port_code || v2LocationCode(extras.to))
     };
     if(!v2HasFerryEnrichment(row)) row = null;
   } else if(type === 'coach'){
     row = {
       journey_id: journey.id,
       organisation_id: orgId,
-      coach_service_number: v2Nz(extras.coach_service_number || extras.flightNo || journey.coach_service_number)
+      coach_service_number: v2Nz(extras.coach_service_number || extras.flightNo)
     };
     if(!v2HasCoachEnrichment(row)) row = null;
   }

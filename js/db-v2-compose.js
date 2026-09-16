@@ -281,26 +281,6 @@ async function composeViewFromV2(v2, opts){
     return out;
   }
 
-  /* Make / OCR often writes passengers as a single object, a JSON string, or
-     comma-separated objects — not a clean [{id,name,seat}] array. Normalize. */
-  function normalizeJourneyPassengersMeta(raw){
-    if(raw == null || raw === '') return [];
-    if(Array.isArray(raw)) return raw.filter(m => m && typeof m === 'object');
-    if(typeof raw === 'object') return [raw];
-    if(typeof raw === 'string'){
-      const s = raw.trim();
-      if(!s) return [];
-      try{
-        return normalizeJourneyPassengersMeta(JSON.parse(s));
-      }catch(_){}
-      try{
-        return normalizeJourneyPassengersMeta(JSON.parse('[' + s + ']'));
-      }catch(_){}
-      return [];
-    }
-    return [];
-  }
-
   function paxNamesMatch(a, b){
     const x = String(a || '').trim().toLowerCase();
     const y = String(b || '').trim().toLowerCase();
@@ -319,11 +299,7 @@ async function composeViewFromV2(v2, opts){
           id: r.id, name: r.name || '', seat: r.seat || '',
           booking_reference: r.booking_reference || ''
         }));
-    /* Table is source of truth. JSON leftover is only used when this journey
-       has no journey_passengers rows yet (inbound Make/OCR before an app save). */
-    const meta = fromRows && fromRows.length
-      ? fromRows
-      : normalizeJourneyPassengersMeta(j.passengers);
+    const meta = fromRows || [];
     const prevPax = (prevFlightById[j.id] && prevFlightById[j.id].passengers) || [];
     const stablePaxId = (idx, preferred) => {
       if(preferred && String(preferred).trim()) return String(preferred).trim();
@@ -378,9 +354,6 @@ async function composeViewFromV2(v2, opts){
     });
 
     if(!pax.length){
-      const notesRaw = String(j.journey_notes || '').trim();
-      const legacySeatMatch = notesRaw.match(/^Legacy seat:\s*(.+)$/i);
-      const legacySeat = legacySeatMatch ? legacySeatMatch[1].trim() : '';
       const pool = unassigned.slice();
       Object.keys(byRef).forEach(k => { pool.push(...byRef[k]); });
       if(pool.length){
@@ -398,12 +371,10 @@ async function composeViewFromV2(v2, opts){
         pax = order.map((key, idx) => ({
           id: stablePaxId(idx),
           name: byName[key].name,
-          seat: byName[key].seat || legacySeat || '',
+          seat: byName[key].seat || '',
           booking_reference: '',
           passes: byName[key].passes
         }));
-      } else if(legacySeat){
-        pax = [{ id: stablePaxId(0), name: '', seat: legacySeat, booking_reference: '', passes: [] }];
       }
     } else {
       const leftover = unassigned.filter((_, i) => !usedUnassigned.has(i));
@@ -448,26 +419,23 @@ async function composeViewFromV2(v2, opts){
     const fl = [];
     for(const j of fj.flights.sort((a,b) => (a.sort_order||0) - (b.sort_order||0))){
       const passengers = await passengersFromJourney(j);
-      const fromItems = (typeof noteItemsFromDb === 'function') ? noteItemsFromDb(j.note_items) : '';
-      const notesRaw = (typeof j.journey_notes === 'string') ? j.journey_notes.trim() : '';
-      /* Old rows stored "Legacy seat: 12A" in notes — that is seat data, not notes. */
-      const notes = fromItems || (/^Legacy seat:\s*/i.test(notesRaw) ? '' : notesRaw);
+      const notes = (typeof noteItemsFromDb === 'function') ? noteItemsFromDb(j.note_items) : '';
       const row = {
         id: j.id,
-        code: (typeof v2JourneyFlightNumber === 'function' ? v2JourneyFlightNumber(j) : j.flight_number) || j.journey_title || '',
+        code: (typeof v2JourneyFlightNumber === 'function' ? v2JourneyFlightNumber(j) : '') || j.journey_title || '',
         fromName: (typeof v2JourneyFromName === 'function' ? v2JourneyFromName(j) : (j.departure_location_name || '')) || '',
         toName: (typeof v2JourneyToName === 'function' ? v2JourneyToName(j) : (j.arrival_location_name || '')) || '',
-        fromCode: (typeof v2JourneyDepIata === 'function' ? v2JourneyDepIata(j) : (j.departure_airport_iata || j.departure_location_code)) || '',
-        toCode: (typeof v2JourneyArrIata === 'function' ? v2JourneyArrIata(j) : (j.arrival_airport_iata || j.arrival_location_code)) || '',
-        from: (typeof v2JourneyFromName === 'function' ? v2JourneyFromName(j) : (j.departure_location_name || j.departure_location_code)) || '',
-        to: (typeof v2JourneyToName === 'function' ? v2JourneyToName(j) : (j.arrival_location_name || j.arrival_location_code)) || '',
+        fromCode: (typeof v2JourneyDepIata === 'function' ? v2JourneyDepIata(j) : '') || '',
+        toCode: (typeof v2JourneyArrIata === 'function' ? v2JourneyArrIata(j) : '') || '',
+        from: (typeof v2JourneyFromName === 'function' ? v2JourneyFromName(j) : (j.departure_location_name || '')) || '',
+        to: (typeof v2JourneyToName === 'function' ? v2JourneyToName(j) : (j.arrival_location_name || '')) || '',
         operator: j.operator_name || '',
         bookingRef: j.booking_reference || '',
         duration: flightDurationText(j.departure_at, j.arrival_at),
         dep: flightDateTimeLocal(j.departure_at),
         arr: flightDateTimeLocal(j.arrival_at),
-        terminal: (j.flight_details && j.flight_details.departure_terminal) || j.departure_terminal || '',
-        gate: (j.flight_details && j.flight_details.departure_gate) || j.departure_gate || '',
+        terminal: (j.flight_details && j.flight_details.departure_terminal) || '',
+        gate: (j.flight_details && j.flight_details.departure_gate) || '',
         fstatus: j.journey_status || '',
         delay: j.delay_description || '',
         fiUpdated: j.status_updated_at ? Date.parse(j.status_updated_at) : null,
@@ -527,8 +495,8 @@ async function composeViewFromV2(v2, opts){
         const jcs = journeyContactByJourney[j.id] || [];
         const jc = jcs[0];
         const c = jc ? contactById[jc.contact_id] : null;
-        const from = (typeof v2JourneyFromName === 'function' ? v2JourneyFromName(j) : (j.departure_location_name || j.pickup_location)) || '';
-        const to = (typeof v2JourneyToName === 'function' ? v2JourneyToName(j) : (j.arrival_location_name || j.dropoff_location)) || '';
+        const from = (typeof v2JourneyFromName === 'function' ? v2JourneyFromName(j) : (j.departure_location_name || '')) || '';
+        const to = (typeof v2JourneyToName === 'function' ? v2JourneyToName(j) : (j.arrival_location_name || '')) || '';
         let journey = '';
         if(from && to) journey = from + ' → ' + to;
         else if(from || to) journey = from || to;
@@ -549,7 +517,7 @@ async function composeViewFromV2(v2, opts){
           whatsapp: noGround ? '' : (c?.whatsapp_number || ''),
           name: noGround ? '' : rawName,
           notes: (typeof noteItemsFromDb === 'function' ? noteItemsFromDb(j.note_items) : ''),
-          pickup: (j.ground_details && j.ground_details.pickup_instructions) || j.pickup_instructions || '',
+          pickup: (j.ground_details && j.ground_details.pickup_instructions) || '',
           groundType,
           vehicle: noGround ? '' : ((j.ground_details && j.ground_details.vehicle_details) || ''),
           noGround
@@ -582,9 +550,9 @@ async function composeViewFromV2(v2, opts){
 
     const primary = fj.primary;
     events.push(Object.assign(base, {
-      flightNo: (primary && typeof v2JourneyFlightNumber === 'function' ? v2JourneyFlightNumber(primary) : primary?.flight_number) || '',
-      terminal: (primary && primary.flight_details && primary.flight_details.departure_terminal) || primary?.departure_terminal || '',
-      gate: (primary && primary.flight_details && primary.flight_details.departure_gate) || primary?.departure_gate || '',
+      flightNo: (primary && typeof v2JourneyFlightNumber === 'function' ? v2JourneyFlightNumber(primary) : '') || '',
+      terminal: (primary && primary.flight_details && primary.flight_details.departure_terminal) || '',
+      gate: (primary && primary.flight_details && primary.flight_details.departure_gate) || '',
       fstatus: primary?.journey_status || '',
       delay: primary?.delay_description || '',
       fiUpdated: primary?.status_updated_at ? new Date(primary.status_updated_at).getTime() : null,
@@ -617,28 +585,28 @@ async function composeViewFromV2(v2, opts){
       end: arr ? `${String(arr.getUTCHours()).padStart(2,'0')}:${String(arr.getUTCMinutes()).padStart(2,'0')}` : '',
       endDate: (arr && dep && v2DateFromTs(j.arrival_at) !== v2DateFromTs(j.departure_at)) ? v2DateFromTs(j.arrival_at) : '',
       icon: v2IconFromJourneyType(j.journey_type),
-      info: j.journey_notes || '',
+      info: (typeof noteItemsFromDb === 'function' ? noteItemsFromDb(j.note_items) : '') || '',
       allDay: false,
       done: j.is_done,
       passes,
-      from: (typeof v2JourneyFromName === 'function' ? v2JourneyFromName(j) : (j.departure_location_name || j.departure_location_code)) || '',
-      to: (typeof v2JourneyToName === 'function' ? v2JourneyToName(j) : (j.arrival_location_name || j.arrival_location_code)) || '',
-      flightNo: (typeof v2JourneyFlightNumber === 'function' ? v2JourneyFlightNumber(j) : j.flight_number)
+      from: (typeof v2JourneyFromName === 'function' ? v2JourneyFromName(j) : (j.departure_location_name || '')) || '',
+      to: (typeof v2JourneyToName === 'function' ? v2JourneyToName(j) : (j.arrival_location_name || '')) || '',
+      flightNo: (typeof v2JourneyFlightNumber === 'function' ? v2JourneyFlightNumber(j) : '')
         || (typeof v2JourneyTrainNumber === 'function' ? v2JourneyTrainNumber(j) : '')
         || (typeof v2JourneyFerryNumber === 'function' ? v2JourneyFerryNumber(j) : '')
         || (typeof v2JourneyCoachNumber === 'function' ? v2JourneyCoachNumber(j) : '')
         || '',
-      gate: (j.flight_details && j.flight_details.departure_gate) || j.departure_gate || '',
-      terminal: (j.flight_details && j.flight_details.departure_terminal) || j.departure_terminal || '',
+      gate: (j.flight_details && j.flight_details.departure_gate) || '',
+      terminal: (j.flight_details && j.flight_details.departure_terminal) || '',
       operator: j.operator_name || '',
       bookingRef: j.booking_reference || '',
-      trainNo: (typeof v2JourneyTrainNumber === 'function' ? v2JourneyTrainNumber(j) : j.train_number) || '',
-      ferryNo: (typeof v2JourneyFerryNumber === 'function' ? v2JourneyFerryNumber(j) : j.ferry_service_number) || '',
-      coachNo: (typeof v2JourneyCoachNumber === 'function' ? v2JourneyCoachNumber(j) : j.coach_service_number) || '',
-      platform: (j.rail_details && (j.rail_details.departure_platform || j.rail_details.arrival_platform)) || j.departure_platform || '',
+      trainNo: (typeof v2JourneyTrainNumber === 'function' ? v2JourneyTrainNumber(j) : '') || '',
+      ferryNo: (typeof v2JourneyFerryNumber === 'function' ? v2JourneyFerryNumber(j) : '') || '',
+      coachNo: (typeof v2JourneyCoachNumber === 'function' ? v2JourneyCoachNumber(j) : '') || '',
+      platform: (j.rail_details && (j.rail_details.departure_platform || j.rail_details.arrival_platform)) || '',
       groundType: (j.ground_details && j.ground_details.ground_transport_type) || '',
-      pickup: (j.ground_details && j.ground_details.pickup_instructions) || j.pickup_instructions || '',
-      vehicle: (j.ground_details && j.ground_details.vehicle_details) || j.vehicle_details || '',
+      pickup: (j.ground_details && j.ground_details.pickup_instructions) || '',
+      vehicle: (j.ground_details && j.ground_details.vehicle_details) || '',
       fstatus: j.journey_status || '',
       delay: j.delay_description || ''
     };
