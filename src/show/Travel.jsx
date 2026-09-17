@@ -263,7 +263,9 @@ function Transport({ show }){
         <>
           {legs.length ? <SourceLabel text="Added to show" /> : null}
           {ordered.map(o => (
-            <LegacyHtml key={o.d.id || o.idx} html={call('driverCard', show.id, o.d, o.idx)} />
+            <div className="card flush flight-card-wrap" key={o.d.id || o.idx}>
+              <LegacyHtml html={call('driverCard', show.id, o.d, o.idx)} />
+            </div>
           ))}
         </>
       ) : null}

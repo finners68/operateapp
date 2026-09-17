@@ -695,9 +695,9 @@ function groundFactHtml(label, value, extras){
     .map(x => String(x || '').trim())
     .filter(Boolean);
   const extraHtml = extraList.map(x => `<div class="flight-pax-ref">${esc(x)}</div>`).join('');
-  return `<div class="ground-fact">
-    <div class="flight-pax-head">${esc(label)}</div>
+  return `<div class="flight-pax-row is-compact">
     <div class="flight-pax-name">${esc(value)}${extraHtml}</div>
+    <div class="flight-pax-pass-k">${label ? esc(label) : ''}</div>
   </div>`;
 }
 function driverCard(eid, d, idx){
@@ -728,22 +728,29 @@ function driverCard(eid, d, idx){
 
   let factsHtml = '';
   if(arrangeAtTime){
-    factsHtml += groundFactHtml('Preferred', preferred);
+    factsHtml += groundFactHtml('', preferred);
     if(typeLabel && !sameDisplayText(typeLabel, preferred)){
-      factsHtml += groundFactHtml('Ground type', typeLabel);
+      factsHtml += groundFactHtml('Type', typeLabel);
     }
   } else {
-    if(driverName) factsHtml += groundFactHtml('Driver', driverName, contactExtras);
-    else if(phone || whatsapp) factsHtml += groundFactHtml('Contact', phone || whatsapp, (phone && whatsapp && !sameDisplayText(whatsapp, phone)) ? whatsapp : '');
+    if(driverName) factsHtml += groundFactHtml('', driverName, contactExtras);
+    else if(phone || whatsapp) factsHtml += groundFactHtml('', phone || whatsapp, (phone && whatsapp && !sameDisplayText(whatsapp, phone)) ? whatsapp : '');
     if(operator && !sameDisplayText(operator, driverName)) factsHtml += groundFactHtml('Operator', operator);
     if(vehicle) factsHtml += groundFactHtml('Vehicle', vehicle);
     if(typeLabel
       && !sameDisplayText(typeLabel, vehicle)
       && !sameDisplayText(typeLabel, operator)
       && !sameDisplayText(typeLabel, driverName)){
-      factsHtml += groundFactHtml('Ground type', typeLabel);
+      factsHtml += groundFactHtml('Type', typeLabel);
     }
   }
+  const factsHeading = arrangeAtTime ? 'Preferred' : (driverName ? 'Driver' : (factsHtml ? 'Details' : ''));
+  const factsBlock = factsHtml
+    ? `<div class="flight-pax-wrap ground-facts">
+        <div class="flight-pax-head">${esc(factsHeading)}</div>
+        <div class="flight-pax-preview">${factsHtml}</div>
+      </div>`
+    : '';
 
   const arrTime = String(d.end || d.arr || '').trim();
   const duration = String(d.duration || '').trim() || groundDurationFromTimes(d.time, arrTime);
@@ -764,27 +771,25 @@ function driverCard(eid, d, idx){
     ? `<div class="flight-card-notes">${pickupBlock}${notesBlock}</div>`
     : '';
 
-  return `<div class="card flush flight-card-wrap">
-    <div class="flight-block">
-      <div class="flight-card-tools">
-        <button type="button" class="flight-card-tool" title="Edit" onclick="event.stopPropagation();sheetDriver('${eid}',${idx})">${ICON.edit(15)}</button>
-        <button type="button" class="flight-card-tool is-danger" title="Remove" onclick="event.stopPropagation();confirmRemoveDriver('${eid}',${idx})">${ICON.trash(15)}</button>
-      </div>
-      <div class="flight-card-body is-ground">
-        <div class="flight-journey-main">
-          <div class="flight-card-title">
-            <span class="flight-journey-ic">${ICON.car(17)}</span>
-            <div class="flight-journey-heading">
-              <b class="flight-journey-code">Ground</b>
-              ${dateLabel?`<span class="flight-journey-date">${esc(dateLabel)}</span>`:''}
-            </div>
+  return `<div class="flight-block">
+    <div class="flight-card-tools">
+      <button type="button" class="flight-card-tool" title="Edit" onclick="event.stopPropagation();sheetDriver('${eid}',${idx})">${ICON.edit(15)}</button>
+      <button type="button" class="flight-card-tool is-danger" title="Remove" onclick="event.stopPropagation();confirmRemoveDriver('${eid}',${idx})">${ICON.trash(15)}</button>
+    </div>
+    <div class="flight-card-body is-ground">
+      <div class="flight-journey-main">
+        <div class="flight-card-title">
+          <span class="flight-journey-ic">${ICON.car(17)}</span>
+          <div class="flight-journey-heading">
+            <b class="flight-journey-code">Ground</b>
+            ${dateLabel?`<span class="flight-journey-date">${esc(dateLabel)}</span>`:''}
           </div>
-          ${routeHtml?`<div class="flight-card-route">${routeHtml}</div>`:''}
         </div>
-        ${factsHtml ? `<div class="flight-pax-wrap ground-facts">${factsHtml}</div>` : ''}
-        ${metaHtml ? `<div class="flight-journey-side">${metaHtml}</div>` : ''}
-        ${bottomHtml}
+        ${routeHtml?`<div class="flight-card-route">${routeHtml}</div>`:''}
       </div>
+      ${factsBlock}
+      ${metaHtml ? `<div class="flight-journey-side">${metaHtml}</div>` : ''}
+      ${bottomHtml}
     </div>
   </div>`;
 }
@@ -795,7 +800,7 @@ function driverSubsection(e){
   if(legs.length) body += showSourceLabel('From journey')+legs.map(travelLegCard).join('');
   if(drivers.length){
     if(legs.length) body += showSourceLabel('Added to show');
-    body += orderedDrivers(e).map(o=>driverCard(e.id,o.d,o.idx)).join('');
+    body += orderedDrivers(e).map(o=>`<div class="card flush flight-card-wrap">${driverCard(e.id,o.d,o.idx)}</div>`).join('');
   }
   if(!body) return '';
   const has = !!(legs.length || drivers.length);

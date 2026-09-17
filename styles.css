@@ -1728,14 +1728,14 @@ select.input{appearance:none;-webkit-appearance:none;background-image:url("data:
   max-width:7.5em;
 }
 .flight-route-stack.is-place .flight-route-code{
-  letter-spacing:-0.01em;
-  font-variant-numeric:normal;
-  white-space:normal;
-  overflow-wrap:anywhere;
-  max-width:8.5em;
+  letter-spacing:0.04em;
+  font-variant-numeric:tabular-nums;
+  white-space:nowrap;
+  overflow:visible;
+  max-width:none;
 }
 .flight-route-stack.is-place .flight-route-end{
-  max-width:8.5em;
+  max-width:none;
 }
 
 .show-detail .flight-journey-side{
@@ -1795,12 +1795,11 @@ select.input{appearance:none;-webkit-appearance:none;background-image:url("data:
 .show-detail .ground-notes-block + .ground-notes-block{margin-top:12px;}
 .show-detail .flight-pax-wrap.ground-facts{
   cursor:default;
-  display:flex;
-  flex-direction:column;
-  gap:12px;
 }
 .show-detail .flight-pax-wrap.ground-facts:active{opacity:1;}
-.show-detail .ground-facts .flight-pax-head{margin-bottom:2px;}
+.show-detail .ground-facts .flight-pax-row.is-compact{
+  grid-template-columns:minmax(0,1fr) auto;
+}
 .show-detail .flight-card-body.is-ground .flight-side-kv{
   grid-template-columns:minmax(102px,max-content) minmax(0,1fr);
 }
