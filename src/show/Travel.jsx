@@ -1,5 +1,5 @@
 import { call, flightHasDetails, fmtDate, legSort } from '../api/operate.js';
-import { Subsection, EmptyTap, SourceLabel, LegacyHtml, FieldTx, DetailTx, Icon } from './ui.jsx';
+import { Subsection, CompactAddRow, LegacyHtml, Icon } from './ui.jsx';
 import { NoteItemsRead } from './NoteItems.jsx';
 
 const TRAVEL_MODES = [
@@ -76,17 +76,13 @@ function JourneyCards({ legs }){
   const stays = legs.every(l => l.kind === 'stay');
   if(stays){
     return (
-      <>
-        <SourceLabel text="From journey" />
-        <div className="card flush">
-          {legs.map(l => <LegacyHtml key={l.id} html={call('journeyRow', l)} />)}
-        </div>
-      </>
+      <div className="card flush">
+        {legs.map(l => <LegacyHtml key={l.id} html={call('journeyRow', l)} />)}
+      </div>
     );
   }
   return (
     <>
-      <SourceLabel text="From journey" />
       {legs.map(l => (
         <div className="card flush flight-card-wrap" key={l.id}>
           <LegacyHtml html={call('travelLegCard', l)} />
@@ -133,7 +129,6 @@ function Flights({ show }){
       <JourneyCards legs={legs} />
       {manual.length ? (
         <>
-          {legs.length ? <SourceLabel text="Added to show" /> : null}
           {manual.map(f => (
             <div className="card flush flight-card-wrap" key={f.id}>
               <LegacyHtml html={call('flightLine', show.id, f)} />
@@ -163,80 +158,57 @@ function Accommodation({ show }){
       title="Accommodation"
       addLabel={has ? 'Edit' : 'Add'}
       onAdd={() => call('sheetHotel', show.id)}
-      defaultOpen={!has}
+      defaultOpen
     >
       {has ? (
         <>
-          <JourneyCards legs={legs} />
+          {!h && legs.length ? <JourneyCards legs={legs} /> : null}
           {h ? (
-            <>
-              {legs.length ? <SourceLabel text="Added to show" /> : null}
-              <div className="card flush">
-                <div className="info-line info-line-stacked">
-                  <div className="ic"><Icon name="bed" size={17} /></div>
-                  <DetailTx title={h.name || 'Accommodation'} primary={addr || 'Tap to add address'} />
-                  <button type="button" className="header-btn" style={{ width: 34, height: 34, alignSelf: 'center' }} onClick={() => call('openMaps', mapQ)}>
-                    <Icon name="map" size={16} />
+            <div className="card flush show-stay-card" onClick={() => call('sheetHotel', show.id)}>
+              <div className="show-stay-main">
+                <div className="ic"><Icon name="bed" size={17} /></div>
+                <div className="show-stay-body">
+                  <div className="show-stay-name">{h.name || 'Accommodation'}</div>
+                  {addr ? <div className="show-stay-addr">{addr}</div> : null}
+                  {(() => {
+                    const inn = h.checkin && fmtDate ? fmtDate(h.checkin) : (h.checkin || '');
+                    const out = h.checkout && fmtDate ? fmtDate(h.checkout) : (h.checkout || '');
+                    const dates = [inn, out].filter(Boolean).join(' → ');
+                    return dates ? <div className="show-stay-meta">{dates}</div> : null;
+                  })()}
+                  {conf ? <div className="show-stay-meta">Ref {conf}</div> : null}
+                </div>
+                {mapQ ? (
+                  <button
+                    type="button"
+                    className="show-stay-maps"
+                    title="Open in Maps"
+                    onClick={e => { e.stopPropagation(); call('openMaps', mapQ); }}
+                  >
+                    <Icon name="map" size={16} /> Maps
                   </button>
-                </div>
-                <div className="info-line">
-                  <div className="ic"><Icon name="clock" size={17} /></div>
-                  <FieldTx
-                    label="Check in / out"
-                    value={`${h.checkin && fmtDate ? fmtDate(h.checkin) : (h.checkin || '—')} → ${h.checkout && fmtDate ? fmtDate(h.checkout) : (h.checkout || '—')}`}
-                  />
-                </div>
-                {conf ? (
-                  <div className="info-line" onClick={() => call('copyText', conf)}>
-                    <div className="ic"><Icon name="ticket" size={17} /></div>
-                    <FieldTx label="Confirmation" value={conf} />
-                    <button type="button" className="header-btn" style={{ width: 34, height: 34, alignSelf: 'center' }}><Icon name="copy" size={16} /></button>
-                  </div>
                 ) : null}
-                {h.phone ? (
-                  <div className="info-line" onClick={() => call('callNumber', h.phone)}>
-                    <div className="ic"><Icon name="phone" size={17} /></div>
-                    <FieldTx label="Phone" value={h.phone} />
-                    <button type="button" className="header-btn" style={{ width: 34, height: 34, alignSelf: 'center' }}><Icon name="phone" size={16} /></button>
-                  </div>
-                ) : null}
-                {h.email ? (
-                  <div className="info-line" onClick={() => call('copyText', h.email)}>
-                    <div className="ic"><Icon name="chat" size={17} /></div>
-                    <FieldTx label="Email" value={h.email} />
-                    <button type="button" className="header-btn" style={{ width: 34, height: 34, alignSelf: 'center' }}><Icon name="copy" size={16} /></button>
-                  </div>
-                ) : null}
-                <NoteItemsRead label="Room notes" value={h.notes} />
               </div>
-            </>
+              {h.phone ? (
+                <div className="show-stay-extra" onClick={e => { e.stopPropagation(); call('callNumber', h.phone); }}>
+                  {h.phone}
+                </div>
+              ) : null}
+              <NoteItemsRead label="Room notes" value={h.notes} />
+            </div>
           ) : null}
         </>
       ) : none ? (
-        <div className="card" style={{ textAlign: 'center', color: 'var(--text-3)', padding: 20 }}>
-          <Icon name="bed" size={22} />
-          <div style={{ marginTop: 6, fontWeight: 600 }}>No accommodation for this show</div>
-          <div style={{ marginTop: 4, fontSize: 12, fontWeight: 500 }}>You can add a stay later if that changes</div>
-          <button
-            type="button"
-            className="quiet-add"
-            onClick={() => call('sheetHotel', show.id)}
-          >
-            Add accommodation
-          </button>
-        </div>
+        <CompactAddRow label="No accommodation" onAdd={() => call('sheetHotel', show.id)} />
       ) : (
         <>
-          <EmptyTap
-            icon="bed"
-            title="Add accommodation"
-            sub="Name, dates, confirmation and maps"
-            onClick={() => call('sheetHotel', show.id)}
+          <CompactAddRow
+            label="Add accommodation"
+            onAdd={() => call('sheetHotel', show.id)}
           />
           <button
             type="button"
-            className="btn secondary"
-            style={{ marginTop: 10 }}
+            className="quiet-add"
             onClick={() => call('markNoAccommodation', show.id)}
           >
             No accommodation for this show
@@ -264,14 +236,11 @@ function Transport({ show }){
     >
       <JourneyCards legs={legs} />
       {drivers.length ? (
-        <>
-          {legs.length ? <SourceLabel text="Added to show" /> : null}
-          {ordered.map(o => (
-            <div className="card flush flight-card-wrap" key={o.d.id || o.idx}>
-              <LegacyHtml html={call('driverCard', show.id, o.d, o.idx)} />
-            </div>
-          ))}
-        </>
+        ordered.map(o => (
+          <div className="card flush flight-card-wrap" key={o.d.id || o.idx}>
+            <LegacyHtml html={call('driverCard', show.id, o.d, o.idx)} />
+          </div>
+        ))
       ) : null}
     </Subsection>
   );

@@ -1,6 +1,6 @@
 import { useRef } from 'react';
 import { call, getIdeaTypes, getStore } from '../api/operate.js';
-import { Subsection, EmptyTap, Icon } from './ui.jsx';
+import { Subsection, EmptyTap, CompactAddRow, Icon } from './ui.jsx';
 import { NoteItemsEditor } from './NoteItems.jsx';
 
 const PREVIEW_SOFT_LIMIT = 8;
@@ -220,7 +220,7 @@ export function DayOverview({ show }){
   const rows = tl.length ? previewRows(show, tl) : [];
   const openFull = () => call('sheetShowTimeline', show.id);
   const copy = tl.length
-    ? `${tl.length} timeline item${tl.length === 1 ? '' : 's'} · Travel, stay and show details update automatically`
+    ? 'Travel, stay and show schedule'
     : 'Builds from flights, hotel, transport and set time';
   return (
     <section className="show-day-overview">
@@ -230,13 +230,8 @@ export function DayOverview({ show }){
           <div className="show-day-overview-sub">{copy}</div>
         </div>
         <div className="show-day-overview-actions">
-          {tl.length ? (
-            <button type="button" className="show-day-overview-link" onClick={openFull}>
-              View full timeline
-            </button>
-          ) : null}
-          <button type="button" className="show-day-overview-edit" onClick={openFull}>
-            {tl.length ? 'Edit' : 'Add'}
+          <button type="button" className="show-day-overview-link" onClick={openFull}>
+            {tl.length ? 'View full timeline' : 'Add'}
           </button>
         </div>
       </div>
@@ -249,11 +244,10 @@ export function DayOverview({ show }){
           })}
         </div>
       ) : (
-        <EmptyTap
-          icon="clock"
-          title="Add show details — this overview fills in automatically"
-          onClick={openFull}
-        />
+        <div className="show-compact-row" onClick={openFull}>
+          <span>No schedule yet</span>
+          <button type="button" className="add" onClick={openFull}>Add</button>
+        </div>
       )}
     </section>
   );
@@ -308,33 +302,33 @@ export function Checklist({ show }){
   const list = show.checklist || [];
   const done = list.filter(i => i.done).length;
   const title = list.length ? `Checklist · ${done}/${list.length}` : 'Checklist';
+  if(!list.length){
+    return <CompactAddRow label="Checklist" onAdd={() => call('sheetShowChecklist', show.id)} />;
+  }
   return (
     <Subsection
       id={`ss-${show.id}-checklist`}
       title={title}
       addLabel="Add"
       onAdd={() => call('sheetShowChecklist', show.id)}
-      defaultOpen={list.length > 0}
+      defaultOpen
+      className="is-priority"
     >
-      {list.length ? (
-        <div className="card flush">
-          {list.map(item => (
-            <div key={item.id} className={`check ${item.done ? 'done' : ''}`} data-id={item.id}>
-              <div className="box" onClick={() => call('toggleEventCheck', show.id, item.id)}>
-                <Icon name="check" size={15} />
-              </div>
-              <div className="lbl" onClick={() => call('toggleEventCheck', show.id, item.id)}>
-                {item.label}
-              </div>
-              <button type="button" className="del" onClick={() => call('delEventCheck', show.id, item.id)}>
-                <Icon name="x" size={16} />
-              </button>
+      <div className="card flush">
+        {list.map(item => (
+          <div key={item.id} className={`check ${item.done ? 'done' : ''}`} data-id={item.id}>
+            <div className="box" onClick={() => call('toggleEventCheck', show.id, item.id)}>
+              <Icon name="check" size={15} />
             </div>
-          ))}
-        </div>
-      ) : (
-        <EmptyTap icon="checkList" title="Add a checklist item" onClick={() => call('sheetShowChecklist', show.id)} />
-      )}
+            <div className="lbl" onClick={() => call('toggleEventCheck', show.id, item.id)}>
+              {item.label}
+            </div>
+            <button type="button" className="del" onClick={() => call('delEventCheck', show.id, item.id)}>
+              <Icon name="x" size={16} />
+            </button>
+          </div>
+        ))}
+      </div>
     </Subsection>
   );
 }
@@ -342,6 +336,14 @@ export function Checklist({ show }){
 export function Notes({ show }){
   const editorRef = useRef(null);
   const has = !!(typeof call === 'function' && call('noteItemsHas', show.notes));
+  if(!has){
+    return (
+      <CompactAddRow
+        label="Internal notes"
+        onAdd={() => call('sheetEvent', show.id)}
+      />
+    );
+  }
   return (
     <Subsection
       id={`ss-${show.id}-notes`}
@@ -367,13 +369,16 @@ export function ContentBlock({ show }){
   const types = getIdeaTypes() || {};
   const has = !!(show.content || linked.length);
 
+  if(!has){
+    return <CompactAddRow label="Content" onAdd={() => call('attachIdeaPickForEvent', show.id)} />;
+  }
   return (
     <Subsection
       id={`ss-${show.id}-content`}
       title="Content to capture"
       addLabel="Add idea"
       onAdd={() => call('attachIdeaPickForEvent', show.id)}
-      defaultOpen={has}
+      defaultOpen
     >
       {show.content ? (
         <div className="card show-brief" style={{ background: 'linear-gradient(150deg,var(--accent-soft),var(--card))', margin: 10 }}>
@@ -400,21 +405,28 @@ export function ContentBlock({ show }){
           })}
         </div>
       ) : null}
-      {!has ? (
-        <EmptyTap
-          icon="camera"
-          title="Set what to film / capture"
-          onClick={() => call('sheetEvent', show.id)}
-        />
-      ) : null}
     </Subsection>
   );
 }
 
 export function Attachments({ show }){
   const list = show.attachments || [];
+  if(!list.length){
+    return (
+      <label className="show-compact-row">
+        <span>Attachments</span>
+        <span className="add">Add</span>
+        <input
+          type="file"
+          accept="image/*,application/pdf"
+          style={{ display: 'none' }}
+          onChange={e => call('uploadAttachment', show.id, e.target)}
+        />
+      </label>
+    );
+  }
   return (
-    <Subsection id={`ss-${show.id}-attachments`} title="Attachments" defaultOpen={list.length > 0}>
+    <Subsection id={`ss-${show.id}-attachments`} title="Attachments" defaultOpen>
       <div className="thumb-row">
         {list.map(a => (
           <div

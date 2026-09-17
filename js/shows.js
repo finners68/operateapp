@@ -463,6 +463,8 @@ function venueGroupSummary(e){
 }
 function prepGroupSummary(e){
   const cp = sel.eventChecklistProgress(e);
+  const remaining = cp.total ? Math.max(0, cp.total - cp.done) : 0;
+  if(remaining) return remaining+' task'+(remaining>1?'s':'')+' remaining';
   const ideas = store.ideas.filter(x=>x.eventId===e.id).length;
   const contentN = ideas + (e.content?1:0);
   const attachN = (e.attachments||[]).length;
@@ -471,7 +473,7 @@ function prepGroupSummary(e){
   if(contentN) parts.push(contentN+' content item'+(contentN>1?'s':''));
   if(attachN) parts.push(attachN+' attachment'+(attachN>1?'s':''));
   if(typeof noteItemsHas==='function' ? noteItemsHas(e.notes) : (e.notes&&e.notes.trim())) parts.push('notes');
-  return parts.length ? parts.join(' · ') : 'Checklist, content, notes — add what you need';
+  return parts.length ? parts.join(' · ') : 'Checklist, content, notes';
 }
 function dealGroupSummary(e){
   if(e.finance&&e.finance.notDisclosed) return 'Not disclosed';
@@ -487,9 +489,8 @@ function flightsSubsection(e){
   );
   if(!legs.length && !manual.length) return '';
   let body = '';
-  if(legs.length) body += showSourceLabel('From journey')+legs.map(l=>`<div class="card flush flight-card-wrap">${travelLegCard(l)}</div>`).join('');
+  if(legs.length) body += legs.map(l=>`<div class="card flush flight-card-wrap">${travelLegCard(l)}</div>`).join('');
   if(manual.length){
-    if(legs.length) body += showSourceLabel('Added to show');
     body += manual.map(f=>`<div class="card flush flight-card-wrap">${flightLine(e.id,f)}</div>`).join('');
   }
   return showSubsection('ss-'+e.id+'-flights', 'Flights', `<button type="button" class="add" onclick="sheetFlight('${e.id}','__new__')">Add</button>`, body, true);
@@ -543,9 +544,8 @@ function hotelMapQuery(e){
 function hotelSubsection(e){
   const legs = showLegs(e.id).filter(x=>x.kind==='stay').sort(legSort);
   let body = '';
-  if(legs.length) body += showSourceLabel('From journey')+`<div class="card flush">${legs.map(journeyRow).join('')}</div>`;
+  if(legs.length) body += `<div class="card flush">${legs.map(journeyRow).join('')}</div>`;
   if(e.hotel){
-    if(legs.length) body += showSourceLabel('Added to show');
     const addr = typeof formatHotelAddress === 'function'
       ? formatHotelAddress(e.hotel)
       : [e.hotel.address, e.hotel.postcode].filter(Boolean).join(', ');
@@ -797,9 +797,8 @@ function driverSubsection(e){
   const legs = showLegs(e.id).filter(x=>x.kind==='travel' && isDriverItem(x)).sort(legSort);
   const drivers = showDrivers(e);
   let body = '';
-  if(legs.length) body += showSourceLabel('From journey')+legs.map(l=>`<div class="card flush flight-card-wrap">${travelLegCard(l)}</div>`).join('');
+  if(legs.length) body += legs.map(l=>`<div class="card flush flight-card-wrap">${travelLegCard(l)}</div>`).join('');
   if(drivers.length){
-    if(legs.length) body += showSourceLabel('Added to show');
     body += orderedDrivers(e).map(o=>`<div class="card flush flight-card-wrap">${driverCard(e.id,o.d,o.idx)}</div>`).join('');
   }
   if(!body) return '';

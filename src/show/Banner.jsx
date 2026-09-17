@@ -35,8 +35,8 @@ export function UploadBanner({ showId }){
 
 function ActTile({ icon, color, label, onClick }){
   return (
-    <button type="button" className="act" onClick={onClick}>
-      <div className="ic" style={{ background: `${color}22`, color }}><Icon name={icon} size={20} /></div>
+    <button type="button" className="show-qa-chip" onClick={onClick}>
+      <div className="ic" style={{ background: `${color}22`, color }}><Icon name={icon} size={16} /></div>
       <span>{label}</span>
     </button>
   );
@@ -44,8 +44,8 @@ function ActTile({ icon, color, label, onClick }){
 
 function ActFileTile({ icon, color, label, itemId }){
   return (
-    <label className="act">
-      <div className="ic" style={{ background: `${color}22`, color }}><Icon name={icon} size={20} /></div>
+    <label className="show-qa-chip">
+      <div className="ic" style={{ background: `${color}22`, color }}><Icon name={icon} size={16} /></div>
       <span>{label}</span>
       <input
         type="file"
@@ -70,7 +70,7 @@ export function QuickLinks({ show }){
 
   const tiles = [];
   tiles.push(
-    <ActTile key="venue" icon="map" color="var(--blue)" label="Directions to venue" onClick={() => call('openMaps', venueQ)} />
+    <ActTile key="venue" icon="map" color="var(--blue)" label="Venue" onClick={() => call('openMaps', venueQ)} />
   );
 
   if(flights.length){
@@ -91,31 +91,31 @@ export function QuickLinks({ show }){
       ? call('hotelMapQuery', show)
       : `${(hotelItem.place || hotelItem.title || '').replace(/^hotel\s*[-–:]?\s*/i, '').trim()} ${show.city || ''}`.trim();
     tiles.push(
-      <ActTile key="hotel" icon="bed" color="var(--orange)" label="Directions to accommodation" onClick={() => call('openMaps', q)} />
+      <ActTile key="hotel" icon="bed" color="var(--orange)" label="Hotel" onClick={() => call('openMaps', q)} />
     );
   }
 
   const drvPhone = show.driver && show.driver.phone;
   if(drvPhone){
     tiles.push(
-      <ActTile key="drv" icon="car" color="var(--green)" label="Contact driver" onClick={() => call('contactDriver', show.id)} />
+      <ActTile key="drv" icon="car" color="var(--green)" label="Driver" onClick={() => call('contactDriver', show.id)} />
     );
   } else if(drivers.length){
     tiles.push(
-      <ActTile key="drv" icon="car" color="var(--green)" label="Contact driver" onClick={() => call('sheetDriver', show.id)} />
+      <ActTile key="drv" icon="car" color="var(--green)" label="Driver" onClick={() => call('sheetDriver', show.id)} />
     );
   }
 
   if(show.promoter && (show.promoter.phone || show.promoter.whatsapp)){
     tiles.push(
-      <ActTile key="contact" icon="user" color="var(--show-color, var(--accent-2))" label="Contact artist liaison" onClick={() => call('contactPromoter', show.id)} />
+      <ActTile key="contact" icon="user" color="var(--show-color, var(--accent-2))" label="Liaison" onClick={() => call('contactPromoter', show.id)} />
     );
   }
 
   const shown = tiles.slice(0, 4);
   if(!shown.length) return null;
   return (
-    <div className="act-grid" style={{ gridTemplateColumns: `repeat(${shown.length}, 1fr)` }}>
+    <div className={`show-qa-strip cols-${shown.length}`}>
       {shown}
     </div>
   );

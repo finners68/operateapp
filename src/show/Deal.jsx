@@ -1,15 +1,14 @@
 import { call, fmtBase, fmtMoney, getMoney, getStore } from '../api/operate.js';
-import { Icon } from './ui.jsx';
+import { CompactAddRow, Icon } from './ui.jsx';
 
 export default function DealGroup({ show }){
   const fin = show.finance || {};
   if(fin.notDisclosed){
     return (
-      <div className="card tap deal-card" style={{ padding: '15px 16px', display: 'flex', alignItems: 'center', gap: 12 }} onClick={() => call('sheetFinance', show.id)}>
-        <div className="deal-card-ic"><Icon name="coins" size={17} /></div>
-        <div className="deal-card-body">
-          <span className="deal-card-k">Deal</span>
-          <span className="deal-card-v">Not disclosed</span>
+      <div className="show-deal-row" onClick={() => call('sheetFinance', show.id)}>
+        <div>
+          <div className="deal-k">Deal</div>
+          <div className="deal-card-v">Not disclosed</div>
         </div>
         <Icon name="chevR" size={15} />
       </div>
@@ -22,16 +21,11 @@ export default function DealGroup({ show }){
   const base = store?.settings?.baseCurrency;
   const showBase = c.cur && base && c.cur !== base;
   if(!c.gross){
-    return (
-      <div className="card tap" style={{ textAlign: 'center', color: 'var(--text-3)', padding: 16 }} onClick={() => call('sheetFinance', show.id)}>
-        <Icon name="money" size={22} />
-        <div style={{ marginTop: 6, fontWeight: 600 }}>Add the deal / fee</div>
-      </div>
-    );
+    return <CompactAddRow label="No fee added" onAdd={() => call('sheetFinance', show.id)} />;
   }
 
   return (
-    <div className="card" style={{ padding: '14px 16px' }}>
+    <div className="show-deal-body">
       <div className="deal-head">
         <div>
           <div className="deal-k">{(fin.dealType || 'Fee')}{fin.estimated ? ' · est.' : ''}</div>

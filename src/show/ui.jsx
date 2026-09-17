@@ -45,10 +45,10 @@ export function Group({ id, title, icon, summary, defaultOpen = true, className,
   );
 }
 
-export function Subsection({ id, title, addLabel, onAdd, defaultOpen = false, children }){
+export function Subsection({ id, title, addLabel, onAdd, defaultOpen = false, className, children }){
   const open = isOpen(id, defaultOpen);
   return (
-    <div className={`show-subsection ${open ? 'open' : ''}`} id={`fold-${id}`}>
+    <div className={`show-subsection ${open ? 'open' : ''}${className ? ` ${className}` : ''}`} id={`fold-${id}`}>
       <div
         className="show-subsection-head"
         role="button"
@@ -82,6 +82,17 @@ export function EmptyTap({ icon, title, sub, onClick }){
       <Icon name={icon} size={22} />
       {title ? <div style={{ marginTop: 6, fontWeight: 600 }}>{title}</div> : null}
       {sub ? <div style={{ marginTop: 4, fontSize: 12, fontWeight: 500 }}>{sub}</div> : null}
+    </div>
+  );
+}
+
+export function CompactAddRow({ label, onAdd, addLabel = 'Add' }){
+  return (
+    <div className="show-compact-row" onClick={onAdd || undefined}>
+      <span>{label}</span>
+      {onAdd ? (
+        <button type="button" className="add" onClick={e => { e.stopPropagation(); onAdd(); }}>{addLabel}</button>
+      ) : null}
     </div>
   );
 }

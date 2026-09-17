@@ -1,19 +1,10 @@
 import { call } from '../api/operate.js';
-import { Subsection, EmptyTap, FieldTx, Icon } from './ui.jsx';
+import { CompactAddRow, FieldTx, Icon } from './ui.jsx';
 
-const COMPACT_LABELS = new Set([
-  'Stage / area',
-  'Sound check',
-  'Curfew',
-  'Parking',
-  'WiFi'
-]);
-
-function AdvRow({ icon, label, value, extra, compact }){
+function AdvRow({ icon, label, value, extra }){
   if(!value) return null;
-  const isCompact = compact || COMPACT_LABELS.has(label);
   return (
-    <div className={`info-line show-venue-row${isCompact ? ' is-compact' : ' is-block'}`} style={label === 'Running order' ? { alignItems: 'flex-start' } : undefined}>
+    <div className="info-line show-venue-row is-block">
       <div className="ic"><Icon name={icon} size={16} /></div>
       <div className="tx" style={{ width: '100%' }}>
         <div className="k">{label}</div>
@@ -24,27 +15,129 @@ function AdvRow({ icon, label, value, extra, compact }){
   );
 }
 
-function Mini({ title, children }){
-  if(!children) return null;
+function Mini({ title, action, children }){
+  const items = [].concat(children).filter(Boolean);
+  if(!items.length) return null;
   return (
     <div className="show-adv-mini">
-      <div className="show-adv-mini-head">{title}</div>
-      <div className="show-venue-stack">{children}</div>
+      <div className="show-adv-mini-head">
+        <span>{title}</span>
+        {action || null}
+      </div>
+      <div className="show-venue-stack">{items}</div>
     </div>
   );
 }
 
-function VenueBlock({ show }){
+function uniquePeople(show){
+  const out = [];
+  const seen = new Set();
+  const add = p => {
+    if(!p || !String(p.name || '').trim()) return;
+    const cid = p.contactId || p.contact_id || '';
+    const phone = String(p.phone || p.whatsapp || '').replace(/[^\d+]/g, '');
+    const name = String(p.name || '').trim().toLowerCase();
+    const keys = [];
+    if(cid) keys.push('id:' + cid);
+    if(phone) keys.push('ph:' + phone);
+    if(name) keys.push('n:' + name);
+    if(keys.some(k => seen.has(k))) return;
+    keys.forEach(k => seen.add(k));
+    out.push(p);
+  };
+
+  const promoter = show.promoter;
+  if(promoter && (promoter.name || promoter.phone)){
+    add({
+      role: 'Artist liaison',
+      name: promoter.name || 'Liaison',
+      phone: promoter.phone || '',
+      whatsapp: promoter.whatsapp || '',
+      kind: 'liaison',
+      contactId: promoter.id || promoter.contact_id || ''
+    });
+  }
+
+  (show.contacts || []).forEach(ct => {
+    const role = call('showContactRoleLabel', ct.role) || ct.role || 'Contact';
+    add({
+      role,
+      name: ct.name || 'Contact',
+      phone: ct.phone || '',
+      whatsapp: ct.whatsapp || '',
+      kind: 'contact',
+      id: ct.id,
+      contactId: ct.contactId || ct.contact_id || ''
+    });
+  });
+
+  const drivers = call('showDrivers', show) || [];
+  drivers.forEach((d, idx) => {
+    if(d.noGround || !d.name) return;
+    add({
+      role: 'Driver',
+      name: d.name,
+      phone: d.phone || '',
+      whatsapp: d.whatsapp || '',
+      kind: 'driver',
+      driverIdx: idx,
+      contactId: d.contactId || d.contact_id || ''
+    });
+  });
+
+  return out;
+}
+
+function openPerson(show, p){
+  if(p.kind === 'liaison') return call('sheetPromoter', show.id);
+  if(p.kind === 'driver') return call('sheetDriver', show.id, p.driverIdx);
+  return call('sheetEventContact', show.id, p.id);
+}
+
+function PersonRow({ show, person: p }){
+  return (
+    <div className="info-line show-venue-row is-compact">
+      <div className="ic"><Icon name="user" size={16} /></div>
+      <div className="tx" style={{ flex: 1, minWidth: 0 }} onClick={() => openPerson(show, p)}>
+        <div className="k">{p.role}</div>
+        <div className="v">{p.name}</div>
+      </div>
+      {p.phone ? (
+        <button type="button" className="show-venue-action" onClick={() => call('callNumber', p.phone)}>
+          <Icon name="phone" size={15} />
+        </button>
+      ) : null}
+      {(p.whatsapp || p.phone) ? (
+        <button
+          type="button"
+          className="show-venue-action"
+          onClick={() => call(p.kind === 'liaison' ? 'contactPromoter' : 'whatsapp', p.kind === 'liaison' ? show.id : (p.whatsapp || p.phone))}
+        >
+          <Icon name="chat" size={15} />
+        </button>
+      ) : null}
+    </div>
+  );
+}
+
+export default function VenueGroup({ show }){
   const addr = call('formatVenueAddress', show) || '';
   const addrDisplay = addr
-    || (show.city ? [show.city, show.country].filter(Boolean).join(', ') : '')
-    || 'Tap to add';
+    || (show.city ? [show.city, show.country].filter(Boolean).join(', ') : '');
   const mapQ = call('venueMapQuery', show) || '';
-  const p = show.promoter;
+  const a = show.advance || {};
+  const sched = (a.schedule || []).filter(s => s.time || s.label || s.title);
+  const people = uniquePeople(show);
+  const hasAdvance = (call('countAdvanceFields', a) || 0) > 0;
 
-  return (
-    <Subsection id={`ss-${show.id}-venue`} title="Venue & liaison" defaultOpen>
-      <div className="show-venue-stack">
+  const venueGroup = (
+    <Mini
+      title="Venue"
+      action={(
+        <button type="button" className="add" onClick={() => call('sheetVenueAddr', show.id)}>Edit</button>
+      )}
+    >
+      {addrDisplay ? (
         <div className="info-line show-venue-row is-block">
           <div className="ic"><Icon name="pin" size={16} /></div>
           <FieldTx label="Address"><span>{addrDisplay}</span></FieldTx>
@@ -53,185 +146,90 @@ function VenueBlock({ show }){
               <Icon name="map" size={16} />
             </button>
           ) : null}
-          <button type="button" className="header-btn show-venue-edit" title="Edit venue" onClick={() => call('sheetVenueAddr', show.id)}>
-            <Icon name="edit" size={15} />
+        </div>
+      ) : null}
+      <AdvRow icon="pin" label="Stage / area" value={a.stage} />
+      <AdvRow
+        icon="pin"
+        label="Navigation / artist entrance"
+        value={a.navAddr}
+        extra={a.navAddr ? (
+          <button type="button" className="show-venue-action" onClick={() => call('openMaps', a.navAddr)}>
+            <Icon name="map" size={16} />
           </button>
-        </div>
-        {p ? (
-          <div className="info-line show-venue-row is-compact">
-            <div className="ic"><Icon name="user" size={16} /></div>
-            <FieldTx label="Artist Liaison" value={p.name || 'Liaison'} />
-            {(p.phone || p.whatsapp) ? (
-              <button
-                type="button"
-                className="show-venue-action"
-                onClick={() => call('contactPromoter', show.id)}
-              >
-                <Icon name="chat" size={15} /> Contact
-              </button>
-            ) : null}
-            <button type="button" className="header-btn show-venue-edit" title="Edit liaison" onClick={() => call('sheetPromoter', show.id)}>
-              <Icon name="edit" size={15} />
-            </button>
-          </div>
-        ) : (
-          <div className="info-line show-venue-row" onClick={() => call('sheetPromoter', show.id)}>
-            <div className="ic"><Icon name="plus" size={16} /></div>
-            <div className="tx"><div className="v" style={{ color: 'var(--accent-2)' }}>Add artist liaison</div></div>
-          </div>
-        )}
-      </div>
-    </Subsection>
+        ) : null}
+      />
+    </Mini>
   );
-}
 
-function AdvanceBlock({ show }){
-  const a = show.advance || {};
-  const hasAny = (call('countAdvanceFields', a) || 0) > 0;
-  const sched = (a.schedule || []).filter(s => s.time || s.label || s.title);
-
-  return (
-    <Subsection
-      id={`ss-${show.id}-advancing`}
-      title="Show-day details"
-      addLabel={hasAny ? 'Edit' : 'Add'}
-      onAdd={() => call('sheetAdvance', show.id)}
-      defaultOpen={hasAny}
-    >
-      {!hasAny ? (
-        <div className="show-venue-empty">
-          <EmptyTap
-            icon="checkList"
-            title="Add show-day details"
-            sub="Access, soundcheck, running order, wifi…"
-            onClick={() => call('sheetAdvance', show.id)}
-          />
-        </div>
-      ) : (
-        <>
-          <Mini title="Schedule">
-            <AdvRow icon="pin" label="Stage / area" value={a.stage} />
-            {sched.length ? (
-              <div className="info-line show-venue-row is-block" style={{ alignItems: 'flex-start' }}>
-                <div className="ic"><Icon name="clock" size={16} /></div>
-                <div className="tx" style={{ width: '100%' }}>
-                  <div className="k">Running order</div>
-                  <div className="ro-list">
-                    {sched.map((s, i) => (
-                      <div key={i} className="ro-row">
-                        <div className="ro-lab">{s.label || s.title || ''}</div>
-                        <div className="ro-time">{s.time || ''}</div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            ) : null}
-          </Mini>
-          <Mini title="Access">
-            <AdvRow icon="planeUp" label="Access / arrival" value={a.access} />
-            <AdvRow icon="music" label="Sound check" value={a.soundcheck} />
-            <AdvRow icon="clock" label="Curfew" value={a.curfew} />
-            <AdvRow
-              icon="pin"
-              label="Navigation address"
-              value={a.navAddr}
-              extra={a.navAddr ? (
-                <button type="button" className="show-venue-action" onClick={() => call('openMaps', a.navAddr)}>
-                  <Icon name="map" size={16} />
-                </button>
-              ) : null}
-            />
-          </Mini>
-          <Mini title="Backstage">
-            <AdvRow icon="face" label="Dressing room" value={a.dressingRoom} />
-            <AdvRow icon="users" label="Guest list" value={a.guestlist} />
-            <AdvRow icon="bag" label="Catering / rider" value={a.catering} />
-            <AdvRow icon="car" label="Parking" value={a.parking} />
-            <AdvRow icon="globe" label="WiFi" value={a.wifi} />
-          </Mini>
-          <Mini title="Other">
-            <AdvRow icon="note" label="Remarks" value={a.remarks} />
-          </Mini>
-        </>
+  const peopleGroup = people.length ? (
+    <Mini
+      title="People"
+      action={(
+        <button type="button" className="add" onClick={() => call('sheetKeyContacts', show.id)}>Edit</button>
       )}
-    </Subsection>
-  );
-}
-
-function ContactsBlock({ show }){
-  const cs = show.contacts || [];
-  const p = show.promoter;
-  const has = !!(p || cs.length);
-  return (
-    <Subsection
-      id={`ss-${show.id}-contacts`}
-      title="Key contacts"
-      addLabel={has ? 'Edit' : 'Add'}
-      onAdd={() => has ? call('sheetKeyContacts', show.id) : call('sheetEventContact', show.id)}
-      defaultOpen={has}
     >
-      {!has ? (
-        <div className="show-venue-empty">
-          <EmptyTap icon="users" title="Add a key contact" onClick={() => call('sheetEventContact', show.id)} />
-        </div>
-      ) : (
-        <div className="show-venue-stack">
-          {p ? (
-            <div className="info-line info-line-stacked show-venue-row is-block">
-              <div className="ic"><Icon name="user" size={16} /></div>
-              <div className="tx" style={{ flex: 1, minWidth: 0 }} onClick={() => call('sheetPromoter', show.id)}>
-                <div className="detail-title">Artist Liaison</div>
-                <div className="detail-primary">{p.name || 'Liaison'}</div>
-                {p.phone ? <div className="detail-meta">{p.phone}</div> : null}
-              </div>
-              {p.phone ? (
-                <button type="button" className="show-venue-action" onClick={() => call('callNumber', p.phone)}>
-                  <Icon name="phone" size={15} />
-                </button>
-              ) : null}
-              {(p.whatsapp || p.phone) ? (
-                <button type="button" className="show-venue-action" onClick={() => call('whatsapp', p.whatsapp || p.phone)}>
-                  <Icon name="chat" size={15} />
-                </button>
-              ) : null}
+      {people.map((p, i) => <PersonRow key={p.contactId || p.id || p.role + p.name + i} show={show} person={p} />)}
+    </Mini>
+  ) : (
+    <CompactAddRow label="Add a contact" onAdd={() => call('sheetEventContact', show.id)} />
+  );
+
+  const arrivalGroup = (
+    <Mini
+      title="Arrival & access"
+      action={hasAdvance ? (
+        <button type="button" className="add" onClick={() => call('sheetAdvance', show.id)}>Edit</button>
+      ) : null}
+    >
+      <AdvRow icon="planeUp" label="Access / arrival" value={a.access} />
+      <AdvRow icon="car" label="Parking" value={a.parking} />
+      <AdvRow icon="music" label="Sound check" value={a.soundcheck} />
+      <AdvRow icon="clock" label="Curfew" value={a.curfew} />
+      {sched.length ? (
+        <div className="info-line show-venue-row is-block" style={{ alignItems: 'flex-start' }}>
+          <div className="ic"><Icon name="clock" size={16} /></div>
+          <div className="tx" style={{ width: '100%' }}>
+            <div className="k">Running order</div>
+            <div className="ro-list">
+              {sched.map((s, i) => (
+                <div key={i} className="ro-row">
+                  <div className="ro-lab">{s.label || s.title || ''}</div>
+                  <div className="ro-time">{s.time || ''}</div>
+                </div>
+              ))}
             </div>
-          ) : null}
-          {cs.map(ct => {
-            const role = call('showContactRoleLabel', ct.role) || ct.role || '';
-            return (
-              <div key={ct.id} className="info-line info-line-stacked show-venue-row is-block">
-                <div className="ic"><Icon name="user" size={16} /></div>
-                <div className="tx" style={{ flex: 1, minWidth: 0 }} onClick={() => call('sheetEventContact', show.id, ct.id)}>
-                  <div className="detail-title">{role || 'Contact'}</div>
-                  <div className="detail-primary">{ct.name || 'Contact'}</div>
-                  {ct.phone ? <div className="detail-meta">{ct.phone}</div> : null}
-                </div>
-                {ct.phone ? (
-                  <button type="button" className="show-venue-action" onClick={() => call('callNumber', ct.phone)}>
-                    <Icon name="phone" size={15} />
-                  </button>
-                ) : null}
-                {(ct.whatsapp || ct.phone) ? (
-                  <button type="button" className="show-venue-action" onClick={() => call('whatsapp', ct.whatsapp || ct.phone)}>
-                    <Icon name="chat" size={15} />
-                  </button>
-                ) : null}
-              </div>
-            );
-          })}
+          </div>
         </div>
-      )}
-    </Subsection>
+      ) : null}
+    </Mini>
   );
-}
 
-export default function VenueGroup({ show }){
+  const backstageGroup = (
+    <Mini title="Backstage">
+      <AdvRow icon="face" label="Dressing room" value={a.dressingRoom} />
+      <AdvRow icon="users" label="Guest list" value={a.guestlist} />
+      <AdvRow icon="bag" label="Catering / rider" value={a.catering} />
+      <AdvRow icon="globe" label="Wi-Fi" value={a.wifi} />
+      <AdvRow icon="note" label="Remarks" value={a.remarks} />
+    </Mini>
+  );
+
+  const hasVenue = !!(addrDisplay || a.stage || a.navAddr);
+  const hasArrival = !!(a.access || a.parking || a.soundcheck || a.curfew || sched.length);
+  const hasBackstage = !!(a.dressingRoom || a.guestlist || a.catering || a.wifi || a.remarks);
+
   return (
     <>
-      <VenueBlock show={show} />
-      <AdvanceBlock show={show} />
-      <ContactsBlock show={show} />
+      {hasVenue ? venueGroup : (
+        <CompactAddRow label="Add venue address" onAdd={() => call('sheetVenueAddr', show.id)} />
+      )}
+      {peopleGroup}
+      {hasArrival ? arrivalGroup : null}
+      {hasBackstage ? backstageGroup : null}
+      {!hasArrival && !hasBackstage ? (
+        <CompactAddRow label="Add show-day details" onAdd={() => call('sheetAdvance', show.id)} />
+      ) : null}
     </>
   );
 }
