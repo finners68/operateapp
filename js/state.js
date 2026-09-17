@@ -1026,16 +1026,30 @@ function flightRouteEndParts(code, name){
   }
   return { primary: primary || '?', secondary };
 }
+/* Compact label on top (Hotel / Venue / IATA); real place name underneath when it adds information. */
+function placeRouteEndParts(compact, realName){
+  const c = displayPlaceLabel(compact) || String(compact || '').trim();
+  const n = displayPlaceLabel(realName) || String(realName || '').trim();
+  if(isIataCode(c)){
+    const primary = c.toUpperCase();
+    return { primary, secondary: (n && n.toUpperCase() !== primary) ? n : '' };
+  }
+  if(!c && !n) return { primary: '?', secondary: '' };
+  if(!n || !c || n.toLowerCase() === c.toLowerCase()){
+    return { primary: c || n || '?', secondary: '' };
+  }
+  return { primary: c, secondary: n };
+}
 /* Codes on one row with the connector; city names sit under each code, centred, with no second rail. */
 function travelRouteStackedHtml(fromCode, fromName, toCode, toName, mode){
   const m = String(mode || 'plane').toLowerCase();
   const isAir = m==='plane' || m==='flight' || m==='planetop';
   const a = isAir
     ? flightRouteEndParts(fromCode, fromName)
-    : { primary: displayPlaceLabel(fromCode || fromName) || '?', secondary: '' };
+    : placeRouteEndParts(fromCode, fromName);
   const b = isAir
     ? flightRouteEndParts(toCode, toName)
-    : { primary: displayPlaceLabel(toCode || toName) || '?', secondary: '' };
+    : placeRouteEndParts(toCode, toName);
   const icon = journeyRouteModeIcon(isAir ? 'planeTop' : m);
   const end = (side, parts) => `<span class="flight-route-end is-${side}">
     <span class="flight-route-code">${esc(parts.primary)}</span>
@@ -1054,6 +1068,7 @@ function travelRouteStackedHtml(fromCode, fromName, toCode, toName, mode){
 function flightRouteStackedHtml(fromCode, fromName, toCode, toName){
   return travelRouteStackedHtml(fromCode, fromName, toCode, toName, 'plane');
 }
+window.placeRouteEndParts = placeRouteEndParts;
 window.travelRouteStackedHtml = travelRouteStackedHtml;
 window.flightRouteStackedHtml = flightRouteStackedHtml;
 /* Back-compat alias — ground journeys now use the flight-style rail with a mode icon. */

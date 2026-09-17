@@ -20,7 +20,7 @@ function loadState() {
   sandbox.self = sandbox.window;
   vm.createContext(sandbox);
   const src = readFileSync(join(root, 'js', 'state.js'), 'utf8')
-    + '\n;this.__x = { jsAttr, esc, setStartMs, parseDT, countdown, logisticTypeLabel };';
+    + '\n;this.__x = { jsAttr, esc, setStartMs, parseDT, countdown, logisticTypeLabel, placeRouteEndParts };';
   vm.runInContext(src, sandbox, { filename: 'state.js' });
   return sandbox.__x;
 }
@@ -339,6 +339,27 @@ test('unknown PostgREST columns are identified so leftover journey fields can be
   assert.equal(sandbox.v2StripUnknownColumn(rows, 'pickup_location'), true);
   assert.equal('pickup_location' in rows[0], false);
   assert.equal(rows[0].vehicle_details, 'Van');
+});
+
+test('ground route ends show a compact label over the real place name', () => {
+  const hotel = S.placeRouteEndParts('Hotel', 'The Midland Manchester');
+  assert.equal(hotel.primary, 'Hotel');
+  assert.equal(hotel.secondary, 'The Midland Manchester');
+  const venue = S.placeRouteEndParts('Venue', 'Heaton Park');
+  assert.equal(venue.primary, 'Venue');
+  assert.equal(venue.secondary, 'Heaton Park');
+  const same = S.placeRouteEndParts('The Midland Manchester', 'The Midland Manchester');
+  assert.equal(same.primary, 'The Midland Manchester');
+  assert.equal(same.secondary, '');
+  const iata = S.placeRouteEndParts('MAN', 'Manchester Airport');
+  assert.equal(iata.primary, 'MAN');
+  assert.equal(iata.secondary, 'Manchester Airport');
+  const custom = S.placeRouteEndParts('Artist Entrance', "St Monica's High School");
+  assert.equal(custom.primary, 'Artist Entrance');
+  assert.equal(custom.secondary, "St Monica's High School");
+  const nameOnly = S.placeRouteEndParts('', 'Heaton Park');
+  assert.equal(nameOnly.primary, 'Heaton Park');
+  assert.equal(nameOnly.secondary, '');
 });
 
 

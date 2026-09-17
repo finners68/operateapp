@@ -1617,6 +1617,13 @@ select.input{appearance:none;-webkit-appearance:none;background-image:url("data:
 .show-detail .flight-pax-wrap{grid-area:pax;}
 .show-detail .flight-journey-side{grid-area:meta;}
 .show-detail .flight-card-notes{grid-area:notes;}
+.show-detail .flight-card-body.is-ground{
+  grid-template-areas:
+    "route"
+    "meta"
+    "pax"
+    "notes";
+}
 .show-detail .flight-card-title{
   display:flex;
   align-items:center;
@@ -1785,6 +1792,21 @@ select.input{appearance:none;-webkit-appearance:none;background-image:url("data:
   line-height:1.4;
 }
 .show-detail .flight-side-notes-v + .flight-side-notes-v{margin-top:8px;}
+.show-detail .ground-notes-block + .ground-notes-block{margin-top:12px;}
+.show-detail .flight-pax-wrap.ground-facts{
+  cursor:default;
+  display:flex;
+  flex-direction:column;
+  gap:12px;
+}
+.show-detail .flight-pax-wrap.ground-facts:active{opacity:1;}
+.show-detail .ground-facts .flight-pax-head{margin-bottom:2px;}
+.show-detail .flight-card-body.is-ground .flight-side-kv{
+  grid-template-columns:minmax(102px,max-content) minmax(0,1fr);
+}
+.flight-route-stack.is-place .flight-route-name{
+  max-width:12em;
+}
 
 .note-items{display:flex;flex-direction:column;gap:8px;margin:10px 10px 12px;}
 .field > .note-items{margin:0;}
@@ -1877,6 +1899,7 @@ select.input{appearance:none;-webkit-appearance:none;background-image:url("data:
 /* Tablet: route + times, passengers under the route */
 @container flight-card (min-width:560px){
   .show-detail .flight-card-body,
+  .show-detail .flight-card-body.is-ground,
   .show-detail .flight-journey-header{
     grid-template-columns:minmax(0,1.35fr) minmax(168px,.9fr);
     grid-template-areas:
@@ -1888,6 +1911,7 @@ select.input{appearance:none;-webkit-appearance:none;background-image:url("data:
     padding:14px 44px 14px 16px;
   }
   .show-detail .flight-card-body:not(:has(.flight-pax-wrap)),
+  .show-detail .flight-card-body.is-ground:not(:has(.flight-pax-wrap)),
   .show-detail .flight-journey-header:not(:has(.flight-pax-wrap)){
     grid-template-areas:
       "route meta"
@@ -1898,6 +1922,7 @@ select.input{appearance:none;-webkit-appearance:none;background-image:url("data:
 /* Desktop: route | passengers | times */
 @container flight-card (min-width:760px){
   .show-detail .flight-card-body,
+  .show-detail .flight-card-body.is-ground,
   .show-detail .flight-journey-header{
     grid-template-columns:minmax(200px,1.05fr) minmax(220px,1.2fr) minmax(148px,.78fr);
     grid-template-areas:
@@ -1907,6 +1932,7 @@ select.input{appearance:none;-webkit-appearance:none;background-image:url("data:
     row-gap:12px;
   }
   .show-detail .flight-card-body:not(:has(.flight-journey-side)),
+  .show-detail .flight-card-body.is-ground:not(:has(.flight-journey-side)),
   .show-detail .flight-journey-header:not(:has(.flight-journey-side)){
     grid-template-columns:minmax(200px,1.05fr) minmax(220px,1.2fr);
     grid-template-areas:
@@ -1914,6 +1940,7 @@ select.input{appearance:none;-webkit-appearance:none;background-image:url("data:
       "notes notes";
   }
   .show-detail .flight-card-body:not(:has(.flight-pax-wrap)),
+  .show-detail .flight-card-body.is-ground:not(:has(.flight-pax-wrap)),
   .show-detail .flight-journey-header:not(:has(.flight-pax-wrap)){
     grid-template-columns:minmax(200px,1.05fr) minmax(148px,.78fr);
     grid-template-areas:
@@ -2741,6 +2768,9 @@ html.is-refreshing .pull-refresh-icon svg{
     align-self:center;
   }
   .show-detail .flight-side-kv{grid-template-columns:44px minmax(0,1fr);}
+  .show-detail .flight-card-body.is-ground .flight-side-kv{
+    grid-template-columns:minmax(102px,max-content) minmax(0,1fr);
+  }
   .show-detail .flight-journey-heading{min-width:0;}
   .show-detail .flight-journey-code{overflow-wrap:break-word;}
   .edit-section-btn span{min-width:0;flex:1;}

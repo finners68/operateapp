@@ -639,48 +639,151 @@ function travelRouteFromPlaces(from, to, mode, fromName, toName){
   if(typeof groundRouteHtml === 'function') return groundRouteHtml(from || '?', to || '?', m);
   return esc((from || '?')+' → '+(to || '?'));
 }
+function sameDisplayText(a, b){
+  return String(a || '').trim().toLowerCase() === String(b || '').trim().toLowerCase();
+}
+function groundTypeDisplayLabel(gt){
+  const k = String(gt || '').toLowerCase().replace(/[\s-]+/g, '_');
+  const map = {
+    taxi: 'Taxi',
+    uber: 'Uber',
+    private_car: 'Private car',
+    chauffeur: 'Chauffeur',
+    shuttle: 'Shuttle',
+    minibus: 'Minibus',
+    bus: 'Bus',
+    other: 'Other'
+  };
+  return map[k] || '';
+}
+function groundPreferredDisplay(d){
+  const k = String((d && d.preferredMethod) || '').toLowerCase();
+  if(k === 'uber') return 'Uber';
+  if(k === 'taxi') return 'Taxi';
+  if(k === 'either') return 'Either';
+  return '';
+}
+function groundArrangementDisplay(d){
+  const a = String((d && d.arrangement) || '').toLowerCase();
+  if(a === 'pre_arranged') return 'Pre-arranged';
+  if(a === 'arrange_at_time') return 'Arrange at time';
+  return '';
+}
+function groundDurationFromTimes(dep, arr){
+  const parse = t => {
+    const m = String(t || '').trim().match(/^(\d{1,2}):(\d{2})$/);
+    if(!m) return null;
+    const h = Number(m[1]);
+    const min = Number(m[2]);
+    if(h > 23 || min > 59) return null;
+    return h * 60 + min;
+  };
+  const a = parse(dep);
+  const b = parse(arr);
+  if(a == null || b == null) return '';
+  let mins = b - a;
+  if(mins <= 0) mins += 24 * 60;
+  if(mins <= 0) return '';
+  if(mins < 60) return mins + 'm';
+  const h = Math.floor(mins / 60);
+  const m = mins % 60;
+  return m ? (h + 'h ' + m + 'm') : (h + 'h');
+}
+function groundFactHtml(label, value, extras){
+  if(!String(value || '').trim()) return '';
+  const extraList = (Array.isArray(extras) ? extras : [extras])
+    .map(x => String(x || '').trim())
+    .filter(Boolean);
+  const extraHtml = extraList.map(x => `<div class="flight-pax-ref">${esc(x)}</div>`).join('');
+  return `<div class="ground-fact">
+    <div class="flight-pax-head">${esc(label)}</div>
+    <div class="flight-pax-name">${esc(value)}${extraHtml}</div>
+  </div>`;
+}
 function driverCard(eid, d, idx){
   ensureDriverLocations(d);
-  const heading = d.noGround
-    ? (groundPreferredKey(d)==='uber' ? 'Uber' : groundPreferredKey(d)==='taxi' ? 'Taxi' : 'Ground')
-    : (d.name || 'Ground');
   const dateLabel = (d.date && typeof fmtDate==='function') ? fmtDate(d.date) : '';
-  const routeHtml = travelRouteFromPlaces(d.from, d.to, 'car');
+  const routeHtml = travelRouteFromPlaces(d.from, d.to, 'car', d.fromName, d.toName);
   const kvRow = (k, v) => v
     ? `<div class="flight-side-kv"><div class="flight-side-k">${esc(k)}</div><div class="flight-side-v">${esc(v)}</div></div>`
     : '';
+  const pickup = String(d.pickup || '').trim();
   const notes = typeof parseNoteItems==='function'
     ? parseNoteItems(d.notes)
     : (String(d.notes || '').trim() ? [{id:'legacy',text:String(d.notes)}] : []);
+  const noteItems = notes.filter(n => {
+    const t = String((n && n.text) || '').trim();
+    return t && !sameDisplayText(t, pickup);
+  });
+  const arrangeAtTime = d.arrangement === 'arrange_at_time' || (!d.arrangement && !!d.noGround);
+  const preferred = groundPreferredDisplay(d);
+  const typeLabel = groundTypeDisplayLabel(d.groundType);
+  const driverName = String(d.name || '').trim();
+  const operator = String(d.operator || '').trim();
+  const vehicle = String(d.vehicle || '').trim();
+  const phone = String(d.phone || '').trim();
+  const whatsapp = String(d.whatsapp || '').trim();
+  const contactExtras = [phone];
+  if(whatsapp && !sameDisplayText(whatsapp, phone)) contactExtras.push(whatsapp);
+
+  let factsHtml = '';
+  if(arrangeAtTime){
+    factsHtml += groundFactHtml('Preferred', preferred);
+    if(typeLabel && !sameDisplayText(typeLabel, preferred)){
+      factsHtml += groundFactHtml('Ground type', typeLabel);
+    }
+  } else {
+    if(driverName) factsHtml += groundFactHtml('Driver', driverName, contactExtras);
+    else if(phone || whatsapp) factsHtml += groundFactHtml('Contact', phone || whatsapp, (phone && whatsapp && !sameDisplayText(whatsapp, phone)) ? whatsapp : '');
+    if(operator && !sameDisplayText(operator, driverName)) factsHtml += groundFactHtml('Operator', operator);
+    if(vehicle) factsHtml += groundFactHtml('Vehicle', vehicle);
+    if(typeLabel
+      && !sameDisplayText(typeLabel, vehicle)
+      && !sameDisplayText(typeLabel, operator)
+      && !sameDisplayText(typeLabel, driverName)){
+      factsHtml += groundFactHtml('Ground type', typeLabel);
+    }
+  }
+
+  const arrTime = String(d.end || d.arr || '').trim();
+  const duration = String(d.duration || '').trim() || groundDurationFromTimes(d.time, arrTime);
   const metaHtml = [
     kvRow('Dep', d.time || ''),
-    kvRow('Contact', (!d.noGround && d.name && d.name !== heading) ? d.name : ''),
-    kvRow('Phone', d.phone || ''),
-    kvRow('Vehicle', d.vehicle || ''),
-    kvRow('Pickup', d.pickup || ''),
-    kvRow('Arrangement', d.noGround
-      ? (heading === 'Ground' ? groundArrangeSummary(d) : '')
-      : (heading === 'Ground' ? 'Pre-arranged' : ''))
+    kvRow('Arr', arrTime),
+    kvRow('Arrangement', groundArrangementDisplay(d)),
+    kvRow('Duration', duration)
   ].filter(Boolean).join('');
+
+  const pickupBlock = pickup
+    ? `<div class="ground-notes-block"><div class="flight-side-notes-k">Pickup</div><div class="flight-side-notes-v">${esc(pickup)}</div></div>`
+    : '';
+  const notesBlock = noteItems.length
+    ? `<div class="ground-notes-block"><div class="flight-side-notes-k">Notes</div>${noteItems.map(n=>`<div class="flight-side-notes-v">${esc(n.text)}</div>`).join('')}</div>`
+    : '';
+  const bottomHtml = (pickupBlock || notesBlock)
+    ? `<div class="flight-card-notes">${pickupBlock}${notesBlock}</div>`
+    : '';
+
   return `<div class="card flush flight-card-wrap">
     <div class="flight-block">
       <div class="flight-card-tools">
         <button type="button" class="flight-card-tool" title="Edit" onclick="event.stopPropagation();sheetDriver('${eid}',${idx})">${ICON.edit(15)}</button>
         <button type="button" class="flight-card-tool is-danger" title="Remove" onclick="event.stopPropagation();confirmRemoveDriver('${eid}',${idx})">${ICON.trash(15)}</button>
       </div>
-      <div class="flight-card-body">
+      <div class="flight-card-body is-ground">
         <div class="flight-journey-main">
           <div class="flight-card-title">
             <span class="flight-journey-ic">${ICON.car(17)}</span>
             <div class="flight-journey-heading">
-              <b class="flight-journey-code">${esc(heading)}</b>
+              <b class="flight-journey-code">Ground</b>
               ${dateLabel?`<span class="flight-journey-date">${esc(dateLabel)}</span>`:''}
             </div>
           </div>
           ${routeHtml?`<div class="flight-card-route">${routeHtml}</div>`:''}
         </div>
+        ${factsHtml ? `<div class="flight-pax-wrap ground-facts">${factsHtml}</div>` : ''}
         ${metaHtml ? `<div class="flight-journey-side">${metaHtml}</div>` : ''}
-        ${notes.length ? `<div class="flight-card-notes"><div class="flight-side-notes-k">Notes</div>${notes.map(n=>`<div class="flight-side-notes-v">${esc(n.text)}</div>`).join('')}</div>` : ''}
+        ${bottomHtml}
       </div>
     </div>
   </div>`;
