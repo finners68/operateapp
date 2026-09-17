@@ -487,7 +487,7 @@ function flightsSubsection(e){
   );
   if(!legs.length && !manual.length) return '';
   let body = '';
-  if(legs.length) body += showSourceLabel('From journey')+legs.map(travelLegCard).join('');
+  if(legs.length) body += showSourceLabel('From journey')+legs.map(l=>`<div class="card flush flight-card-wrap">${travelLegCard(l)}</div>`).join('');
   if(manual.length){
     if(legs.length) body += showSourceLabel('Added to show');
     body += manual.map(f=>`<div class="card flush flight-card-wrap">${flightLine(e.id,f)}</div>`).join('');
@@ -797,7 +797,7 @@ function driverSubsection(e){
   const legs = showLegs(e.id).filter(x=>x.kind==='travel' && isDriverItem(x)).sort(legSort);
   const drivers = showDrivers(e);
   let body = '';
-  if(legs.length) body += showSourceLabel('From journey')+legs.map(travelLegCard).join('');
+  if(legs.length) body += showSourceLabel('From journey')+legs.map(l=>`<div class="card flush flight-card-wrap">${travelLegCard(l)}</div>`).join('');
   if(drivers.length){
     if(legs.length) body += showSourceLabel('Added to show');
     body += orderedDrivers(e).map(o=>`<div class="card flush flight-card-wrap">${driverCard(e.id,o.d,o.idx)}</div>`).join('');
@@ -838,9 +838,9 @@ function travelLegCard(l){
   const code = l.trainNo || l.ferryNo || l.coachNo || l.flightNo || '';
   const heading = code || type;
   const dateLabel = (l.date && typeof fmtDate==='function') ? fmtDate(l.date) : (l.date || '');
-  const sub = [hop ? (code ? type+' '+hop : hop) : '', dateLabel].filter(Boolean).join(' · ');
+  const dateLine = [dateLabel, hop].filter(Boolean).join(' · ');
   const ic = (ICON[icon] && typeof ICON[icon]==='function') ? ICON[icon] : ICON.train;
-  let routeHtml = travelRouteFromPlaces(l.from, l.to, icon);
+  const routeHtml = travelRouteFromPlaces(l.from, l.to, icon, l.fromName, l.toName);
   const kvRow = (k, v) => v
     ? `<div class="flight-side-kv"><div class="flight-side-k">${esc(k)}</div><div class="flight-side-v">${esc(v)}</div></div>`
     : '';
@@ -848,33 +848,34 @@ function travelLegCard(l){
   const notes = typeof parseNoteItems==='function'
     ? parseNoteItems(notesRaw)
     : (String(notesRaw).trim() ? [{id:'legacy',text:String(notesRaw)}] : []);
+  const duration = String(l.duration || '').trim() || groundDurationFromTimes(l.start, l.end);
   const metaHtml = [
     kvRow('Dep', l.start || ''),
     kvRow('Arr', l.end || ''),
     kvRow('Operator', l.operator || ''),
     kvRow('Platform', l.platform || ''),
-    kvRow('Booking', l.bookingRef || '')
+    kvRow('Duration', duration),
+    kvRow('Booking', l.bookingRef || ''),
+    kvRow('Status', l.fstatus || '')
   ].filter(Boolean).join('');
-  return `<div class="card flush flight-card-wrap">
-    <div class="flight-block">
-      <div class="flight-card-tools">
-        <button type="button" class="flight-card-tool" title="Edit" onclick="event.stopPropagation();openItem('${l.id}')">${ICON.edit(15)}</button>
-        <button type="button" class="flight-card-tool is-danger" title="Remove" onclick="event.stopPropagation();confirmRemoveTravelLeg('${l.id}')">${ICON.trash(15)}</button>
-      </div>
-      <div class="flight-card-body">
-        <div class="flight-journey-main">
-          <div class="flight-card-title">
-            <span class="flight-journey-ic">${ic(17)}</span>
-            <div class="flight-journey-heading">
-              <b class="flight-journey-code">${esc(heading)}</b>
-              ${sub?`<span class="flight-journey-date">${esc(sub)}</span>`:''}
-            </div>
+  return `<div class="flight-block">
+    <div class="flight-card-tools">
+      <button type="button" class="flight-card-tool" title="Edit" onclick="event.stopPropagation();openItem('${l.id}')">${ICON.edit(15)}</button>
+      <button type="button" class="flight-card-tool is-danger" title="Remove" onclick="event.stopPropagation();confirmRemoveTravelLeg('${l.id}')">${ICON.trash(15)}</button>
+    </div>
+    <div class="flight-card-body">
+      <div class="flight-journey-main">
+        <div class="flight-card-title">
+          <span class="flight-journey-ic">${ic(17)}</span>
+          <div class="flight-journey-heading">
+            <b class="flight-journey-code">${esc(heading)}</b>
+            ${dateLine?`<span class="flight-journey-date">${esc(dateLine)}</span>`:''}
           </div>
-          ${routeHtml?`<div class="flight-card-route">${routeHtml}</div>`:''}
         </div>
-        ${metaHtml ? `<div class="flight-journey-side">${metaHtml}</div>` : ''}
-        ${notes.length ? `<div class="flight-card-notes"><div class="flight-side-notes-k">Notes</div>${notes.map(n=>`<div class="flight-side-notes-v">${esc(n.text)}</div>`).join('')}</div>` : ''}
+        ${routeHtml?`<div class="flight-card-route">${routeHtml}</div>`:''}
       </div>
+      ${metaHtml ? `<div class="flight-journey-side">${metaHtml}</div>` : ''}
+      ${notes.length ? `<div class="flight-card-notes"><div class="flight-side-notes-k">Notes</div>${notes.map(n=>`<div class="flight-side-notes-v">${esc(n.text)}</div>`).join('')}</div>` : ''}
     </div>
   </div>`;
 }
@@ -885,7 +886,7 @@ function travelTypeSubsection(e, spec){
     'ss-'+e.id+'-'+spec.key,
     spec.title,
     `<button type="button" class="add" onclick="sheetTravelLeg('${e.id}','${spec.mode}')">Add</button>`,
-    legs.map(travelLegCard).join(''),
+    legs.map(l=>`<div class="card flush flight-card-wrap">${travelLegCard(l)}</div>`).join(''),
     true
   );
 }

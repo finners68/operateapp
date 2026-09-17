@@ -87,7 +87,11 @@ function JourneyCards({ legs }){
   return (
     <>
       <SourceLabel text="From journey" />
-      {legs.map(l => <LegacyHtml key={l.id} html={call('travelLegCard', l)} />)}
+      {legs.map(l => (
+        <div className="card flush flight-card-wrap" key={l.id}>
+          <LegacyHtml html={call('travelLegCard', l)} />
+        </div>
+      ))}
     </>
   );
 }
@@ -285,7 +289,9 @@ function TravelTypeSection({ show, spec }){
       defaultOpen
     >
       {legs.map(l => (
-        <LegacyHtml key={l.id} html={call('travelLegCard', l)} />
+        <div className="card flush flight-card-wrap" key={l.id}>
+          <LegacyHtml html={call('travelLegCard', l)} />
+        </div>
       ))}
     </Subsection>
   );
