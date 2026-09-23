@@ -191,23 +191,52 @@ function ensureDriverLocations(d){
   }
   return d;
 }
+function keepRealPlaceName(compact, currentName, raw){
+  if(String(currentName || '').trim()) return String(currentName).trim();
+  const r = String(raw || '').trim();
+  if(!r) return '';
+  if(canonicalPlaceKind(r)) return '';
+  if(r.toLowerCase() === String(compact || '').toLowerCase()) return '';
+  return r;
+}
 function applyGeneralDriverPlaces(d, show){
   if(!d) return d;
   ensureDriverLocations(d);
+  const rawFrom = String(d.from || '').trim();
+  const rawTo = String(d.to || '').trim();
   if(d.fromKind || d.toKind){
     if(typeof v2CompactLocationLabel === 'function'){
       if(d.fromKind) d.from = v2CompactLocationLabel(d.fromKind, d.fromName || d.from);
       if(d.toKind) d.to = v2CompactLocationLabel(d.toKind, d.toName || d.to);
     }
-    d.journey = driverJourneyLabel(d);
-    return d;
+  } else {
+    if(rawFrom) d.from = generalizePlaceLabel(rawFrom, show);
+    if(rawTo) d.to = generalizePlaceLabel(rawTo, show);
   }
-  const from = generalizePlaceLabel(d.from, show);
-  const to = generalizePlaceLabel(d.to, show);
-  if(from) d.from = from;
-  if(to) d.to = to;
+  const fromName = keepRealPlaceName(d.from, d.fromName, rawFrom);
+  const toName = keepRealPlaceName(d.to, d.toName, rawTo);
+  if(fromName) d.fromName = fromName;
+  if(toName) d.toName = toName;
   d.journey = driverJourneyLabel(d);
   return d;
+}
+function groundTransferTitle(d){
+  return 'Drive';
+}
+function groundRouteRealName(compact, realName, show){
+  const c = String(compact || '').trim();
+  const n = String(realName || '').trim();
+  if(n && n.toLowerCase() !== c.toLowerCase()) return displayPlaceLabel(n);
+  const kind = canonicalPlaceKind(c) || generalizePlaceLabel(c, show);
+  if(kind === 'Hotel'){
+    const hotel = String((show && show.hotel && show.hotel.name) || '').trim();
+    return hotel && hotel.toLowerCase() !== 'hotel' ? hotel : '';
+  }
+  if(kind === 'Venue'){
+    const venue = String((show && (show.venue || show.eventName)) || '').trim();
+    return venue && venue.toLowerCase() !== 'venue' ? venue : '';
+  }
+  return '';
 }
 /* A show can have several driver contacts (one per journey). Returns the
    drivers array, lazily migrating a legacy single `e.driver` into the list. */
@@ -222,6 +251,8 @@ window.driverJourneyLabel = driverJourneyLabel;
 window.ensureDriverLocations = ensureDriverLocations;
 window.generalizePlaceLabel = generalizePlaceLabel;
 window.applyGeneralDriverPlaces = applyGeneralDriverPlaces;
+window.groundTransferTitle = groundTransferTitle;
+window.groundRouteRealName = groundRouteRealName;
 window.DRIVER_PLACE_KINDS = DRIVER_PLACE_KINDS;
 
 /* ---------- Persistence layer (swap-able) ---------- */
@@ -376,20 +407,64 @@ function flightParseDep(dep, fallbackDate){
   }
   return { date: fallbackDate || '', time: '' };
 }
-/* Earliest-first for flight cards. Flights with no date/time sink to the end. */
-function flightDepMs(f, fallbackDate){
-  const p = flightParseDep(f && f.dep, fallbackDate || '');
-  if(!p.date && !p.time) return Number.POSITIVE_INFINITY;
-  const d = parseDT(p.date || fallbackDate, p.time || '00:00');
+function journeyTimeText(item){
+  if(!item) return '';
+  const dep = flightParseDep(item.dep, '');
+  if(dep.time) return dep.time;
+  const raw = item.start || item.time || item.setTime || '';
+  return raw ? String(raw).slice(0, 5) : '';
+}
+function journeyDateText(item, fallbackDate){
+  if(!item) return fallbackDate || '';
+  const dep = flightParseDep(item.dep, fallbackDate || '');
+  if(dep.date) return dep.date;
+  if(item.trueDate) return item.trueDate;
+  if(item.date) return item.date;
+  return fallbackDate || '';
+}
+/* Earliest-first timestamp for any journey-like row. Missing date+time sinks to the end.
+   A clock time before 05:00 on the show date is treated as the morning after, unless
+   the row already has an explicit calendar datetime (typical flight departure). */
+function journeyWhenMs(item, fallbackDate){
+  if(!item) return Number.POSITIVE_INFINITY;
+  const dep = flightParseDep(item.dep, '');
+  const time = journeyTimeText(item);
+  const ownDate = dep.date || item.trueDate || item.date || '';
+  if(!time && !ownDate) return Number.POSITIVE_INFINITY;
+  if(!time){
+    const d = parseDT(ownDate, '00:00');
+    return d ? d.getTime() : Number.POSITIVE_INFINITY;
+  }
+  const date = ownDate || fallbackDate || '';
+  if(!date) return Number.POSITIVE_INFINITY;
+  const showDate = fallbackDate || date;
+  let trueDate = date;
+  if(dep.date){
+    trueDate = dep.date;
+  } else if(typeof showItemTrueDate === 'function' && showDate){
+    const explicit = ownDate && ownDate !== showDate ? ownDate : '';
+    trueDate = showItemTrueDate({ date: showDate }, time, explicit);
+    const mins = typeof clockMinutes === 'function' ? clockMinutes(time) : null;
+    if(trueDate === showDate && mins != null && mins < 5 * 60){
+      trueDate = typeof addDaysYmd === 'function' ? addDaysYmd(showDate, 1) : trueDate;
+    }
+  }
+  const d = parseDT(trueDate || date, time);
   return d ? d.getTime() : Number.POSITIVE_INFINITY;
 }
-function sortFlightsChrono(flights, fallbackDate){
-  return (flights || []).slice().sort((a, b) => {
-    const ka = flightDepMs(a, fallbackDate);
-    const kb = flightDepMs(b, fallbackDate);
+function sortJourneysChrono(items, fallbackDate){
+  return (items || []).slice().map((item, idx) => ({ item, idx })).sort((a, b) => {
+    const ka = journeyWhenMs(a.item, fallbackDate);
+    const kb = journeyWhenMs(b.item, fallbackDate);
     if(ka !== kb) return ka - kb;
-    return String((a && a.code) || '').localeCompare(String((b && b.code) || ''));
-  });
+    return a.idx - b.idx;
+  }).map(x => x.item);
+}
+function flightDepMs(f, fallbackDate){
+  return journeyWhenMs(f, fallbackDate);
+}
+function sortFlightsChrono(flights, fallbackDate){
+  return sortJourneysChrono(flights, fallbackDate);
 }
 function flightDepDateLabel(f, fallbackDate){
   const p = flightParseDep(f && f.dep, fallbackDate || '');
@@ -2184,6 +2259,8 @@ function migrate(){
   w.ACCOUNT_TYPES = ACCOUNT_TYPES;
   w.showTitle = showTitle;
   w.showListTitleHtml = showListTitleHtml;
+  w.journeyWhenMs = journeyWhenMs;
+  w.sortJourneysChrono = sortJourneysChrono;
   w.sortFlightsChrono = sortFlightsChrono;
   w.flightDepDateLabel = flightDepDateLabel;
 })();

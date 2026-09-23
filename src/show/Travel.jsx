@@ -1,4 +1,4 @@
-import { call, flightHasDetails, fmtDate, legSort } from '../api/operate.js';
+import { call, flightHasDetails, fmtDate, sortJourneysChrono } from '../api/operate.js';
 import { Subsection, CompactAddRow, LegacyHtml, Icon } from './ui.jsx';
 import { NoteItemsRead } from './NoteItems.jsx';
 
@@ -7,7 +7,7 @@ const TRAVEL_MODES = [
   { key: 'train', icon: 'train', title: 'Train', sub: 'Stations, times and service number' },
   { key: 'coach', icon: 'bus', title: 'Coach', sub: 'Service and times' },
   { key: 'ferry', icon: 'ferry', title: 'Ferry', sub: 'Ports and times' },
-  { key: 'ground', icon: 'car', title: 'Ground', sub: 'Pre-arranged or arrange at time' },
+  { key: 'ground', icon: 'car', title: 'Drive', sub: 'Pre-arranged or arrange at time' },
   { key: 'walk', icon: 'walk', title: 'Walk', sub: 'On foot between places' },
   { key: 'cycle', icon: 'cycle', title: 'Cycle', sub: 'Bike between places' }
 ];
@@ -16,39 +16,44 @@ function legsOf(showId){
   return call('showLegs', showId) || [];
 }
 
-function byLegSort(a, b){
-  const sort = legSort;
-  return typeof sort === 'function' ? sort(a, b) : 0;
+function chrono(list, fallbackDate){
+  const sorted = sortJourneysChrono(list, fallbackDate);
+  return Array.isArray(sorted) ? sorted : (list || []).slice();
 }
 
 function flightLegs(show){
-  return legsOf(show.id)
-    .filter(x => x.kind === 'travel' && (x.icon || 'plane') === 'plane')
-    .sort(byLegSort);
+  return chrono(
+    legsOf(show.id).filter(x => x.kind === 'travel' && (x.icon || 'plane') === 'plane'),
+    show.date
+  );
 }
 
 function stayLegs(show){
-  return legsOf(show.id)
-    .filter(x => x.kind === 'stay')
-    .sort(byLegSort);
+  return chrono(
+    legsOf(show.id).filter(x => x.kind === 'stay'),
+    show.date
+  );
 }
 
 function driverLegs(show){
-  return legsOf(show.id)
-    .filter(x => x.kind === 'travel' && call('isDriverItem', x))
-    .sort(byLegSort);
+  return chrono(
+    legsOf(show.id).filter(x => x.kind === 'travel' && call('isDriverItem', x)),
+    show.date
+  );
 }
 
 function transferLegs(show){
-  return legsOf(show.id)
-    .filter(x => x.kind === 'travel' && call('travelTypeKey', x))
-    .sort(byLegSort);
+  return chrono(
+    legsOf(show.id).filter(x => x.kind === 'travel' && call('travelTypeKey', x)),
+    show.date
+  );
 }
 
 function legsOfType(show, key){
-  return legsOf(show.id)
-    .filter(x => x.kind === 'travel' && call('travelTypeKey', x) === key)
-    .sort(byLegSort);
+  return chrono(
+    legsOf(show.id).filter(x => x.kind === 'travel' && call('travelTypeKey', x) === key),
+    show.date
+  );
 }
 
 function manualFlights(show){
@@ -56,8 +61,7 @@ function manualFlights(show){
     const fn = flightHasDetails;
     return typeof fn !== 'function' || fn(f);
   });
-  const sorted = call('sortFlightsChrono', list, show.date);
-  return Array.isArray(sorted) ? sorted : list;
+  return chrono(list, show.date);
 }
 
 function hasAnyTravel(show){
@@ -116,8 +120,11 @@ export function AddTravelPicker({ show, inSheet }){
 function Flights({ show }){
   const legs = flightLegs(show);
   const manual = manualFlights(show);
-  const has = !!(legs.length || manual.length);
-  if(!has) return null;
+  const cards = chrono([
+    ...legs.map(l => ({ id: 'leg-' + l.id, _kind: 'leg', date: l.date, start: l.start, time: l.time, dep: l.dep, trueDate: l.trueDate, data: l })),
+    ...manual.map(f => ({ id: 'flt-' + f.id, _kind: 'flight', date: show.date, dep: f.dep, data: f }))
+  ], show.date);
+  if(!cards.length) return null;
   return (
     <Subsection
       id={`ss-${show.id}-flights`}
@@ -126,16 +133,11 @@ function Flights({ show }){
       onAdd={() => call('sheetFlight', show.id, '__new__')}
       defaultOpen
     >
-      <JourneyCards legs={legs} />
-      {manual.length ? (
-        <>
-          {manual.map(f => (
-            <div className="card flush flight-card-wrap" key={f.id}>
-              <LegacyHtml html={call('flightLine', show.id, f)} />
-            </div>
-          ))}
-        </>
-      ) : null}
+      {cards.map(card => (
+        <div className="card flush flight-card-wrap" key={card.id}>
+          <LegacyHtml html={card._kind === 'leg' ? call('travelLegCard', card.data) : call('flightLine', show.id, card.data)} />
+        </div>
+      ))}
     </Subsection>
   );
 }
@@ -222,9 +224,12 @@ function Accommodation({ show }){
 function Transport({ show }){
   const legs = driverLegs(show);
   const drivers = call('showDrivers', show) || [];
-  const has = !!(legs.length || drivers.length);
   const ordered = call('orderedDrivers', show) || drivers.map((d, idx) => ({ d, idx }));
-  if(!has) return null;
+  const cards = chrono([
+    ...legs.map(l => ({ id: 'leg-' + l.id, _kind: 'leg', date: l.date, start: l.start, time: l.time, dep: l.dep, trueDate: l.trueDate, data: l })),
+    ...ordered.map(o => ({ id: 'drv-' + (o.d.id || o.idx), _kind: 'driver', date: o.d.date, time: o.d.time, start: o.d.start, dep: o.d.dep, data: o }))
+  ], show.date);
+  if(!cards.length) return null;
 
   return (
     <Subsection
@@ -234,14 +239,15 @@ function Transport({ show }){
       onAdd={() => call('sheetDriver', show.id)}
       defaultOpen
     >
-      <JourneyCards legs={legs} />
-      {drivers.length ? (
-        ordered.map(o => (
-          <div className="card flush flight-card-wrap" key={o.d.id || o.idx}>
-            <LegacyHtml html={call('driverCard', show.id, o.d, o.idx)} />
-          </div>
-        ))
-      ) : null}
+      {cards.map(card => (
+        <div className="card flush flight-card-wrap" key={card.id}>
+          <LegacyHtml html={
+            card._kind === 'leg'
+              ? call('travelLegCard', card.data)
+              : call('driverCard', show.id, card.data.d, card.data.idx)
+          } />
+        </div>
+      ))}
     </Subsection>
   );
 }

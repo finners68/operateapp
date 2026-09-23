@@ -100,6 +100,8 @@ export function countdown(...a){ const fn = w('countdown'); return typeof fn ===
 export function showPassed(...a){ const fn = w('showPassed'); return typeof fn === 'function' ? fn(...a) : false; }
 export function itemSort(...a){ const fn = w('itemSort'); return typeof fn === 'function' ? fn(...a) : 0; }
 export function legSort(...a){ const fn = w('legSort'); return typeof fn === 'function' ? fn(...a) : 0; }
+export function sortJourneysChrono(...a){ const fn = w('sortJourneysChrono'); return typeof fn === 'function' ? fn(...a) : (Array.isArray(a[0]) ? a[0].slice() : []); }
+export function journeyWhenMs(...a){ const fn = w('journeyWhenMs'); return typeof fn === 'function' ? fn(...a) : Number.POSITIVE_INFINITY; }
 export function isOpen(...a){ const fn = w('isOpen'); return typeof fn === 'function' ? fn(...a) : !!a[1]; }
 export function flightHasDetails(...a){ const fn = w('flightHasDetails'); return typeof fn === 'function' ? fn(...a) : false; }
 export function activeNavTab(){ const fn = w('activeNavTab'); return typeof fn === 'function' ? fn() : (getStore()?.tab || 'home'); }

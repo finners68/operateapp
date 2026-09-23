@@ -187,7 +187,16 @@ function itemSort(a,b){
   if(am!==bm) return am-bm;              // all-day markers first
   return itemTimeKey(a)-itemTimeKey(b);  // then chronological (late-night last)
 }
-function legSort(a,b){ if((a.date||'')!==(b.date||'')) return (a.date||'').localeCompare(b.date||''); return itemTimeKey({start:a.start||a.info})-itemTimeKey({start:b.start||b.info}); }
+function legSort(a,b){
+  if(typeof journeyWhenMs === 'function'){
+    const ka = journeyWhenMs(a);
+    const kb = journeyWhenMs(b);
+    if(ka !== kb) return ka - kb;
+    return String((a && a.id) || '').localeCompare(String((b && b.id) || ''));
+  }
+  if((a.date||'')!==(b.date||'')) return (a.date||'').localeCompare(b.date||'');
+  return itemTimeKey({start:a.start||a.time||a.info})-itemTimeKey({start:b.start||b.time||b.info});
+}
 function showLegs(eid){ return store.events.filter(x=>x.showId===eid && (x.kind==='travel'||x.kind==='stay')); }
 function agendaItem(e){
   if(e.kind==='travel') return travBlock(e);

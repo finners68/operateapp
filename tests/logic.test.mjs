@@ -20,7 +20,7 @@ function loadState() {
   sandbox.self = sandbox.window;
   vm.createContext(sandbox);
   const src = readFileSync(join(root, 'js', 'state.js'), 'utf8')
-    + '\n;this.__x = { jsAttr, esc, setStartMs, parseDT, countdown, logisticTypeLabel, placeRouteEndParts };';
+    + '\n;this.__x = { jsAttr, esc, setStartMs, parseDT, countdown, logisticTypeLabel, placeRouteEndParts, applyGeneralDriverPlaces, groundTransferTitle, groundRouteRealName, sortJourneysChrono, journeyWhenMs, sortFlightsChrono };';
   vm.runInContext(src, sandbox, { filename: 'state.js' });
   return sandbox.__x;
 }
@@ -360,6 +360,57 @@ test('ground route ends show a compact label over the real place name', () => {
   const nameOnly = S.placeRouteEndParts('', 'Heaton Park');
   assert.equal(nameOnly.primary, 'Heaton Park');
   assert.equal(nameOnly.secondary, '');
+});
+
+test('journeys in a section sort earliest-first by date and time', () => {
+  const showDate = '2026-09-12';
+  const ordered = S.sortJourneysChrono([
+    { id: 'late', time: '18:00', date: showDate },
+    { id: 'early', time: '09:30', date: showDate },
+    { id: 'mid', start: '14:00', date: showDate },
+    { id: 'flight', dep: '2026-09-12 11:10' }
+  ], showDate);
+  assert.deepEqual(ordered.map(x => x.id), ['early', 'flight', 'mid', 'late']);
+});
+
+test('journeys with no time sink to the end of their section', () => {
+  const ordered = S.sortJourneysChrono([
+    { id: 'blank' },
+    { id: 'morning', time: '08:00', date: '2026-09-12' },
+    { id: 'also-blank', date: '' }
+  ], '2026-09-12');
+  assert.equal(ordered[0].id, 'morning');
+  assert.equal(ordered[1].id, 'blank');
+  assert.equal(ordered[2].id, 'also-blank');
+});
+
+test('a later-added earlier journey still sorts before a later one', () => {
+  const flights = S.sortFlightsChrono([
+    { id: 'added-first', code: 'BA2', dep: '2026-09-13 18:40' },
+    { id: 'added-second', code: 'BA1', dep: '2026-09-12 07:15' }
+  ], '2026-09-12');
+  assert.deepEqual(flights.map(x => x.id), ['added-second', 'added-first']);
+});
+
+test('same-day post-midnight journeys sort after the evening ones', () => {
+  const ordered = S.sortJourneysChrono([
+    { id: 'return', time: '01:15', date: '2026-09-12' },
+    { id: 'to-venue', time: '22:30', date: '2026-09-12' }
+  ], '2026-09-12');
+  assert.deepEqual(ordered.map(x => x.id), ['to-venue', 'return']);
+});
+
+test('ground cards keep Hotel to Venue as the title and the real place name underneath', () => {
+  const show = { hotel: { name: 'The Wilde Grassmarket' }, venue: 'SWG3 Studio Warehouse', eventName: 'FLY Festival' };
+  const d = S.applyGeneralDriverPlaces({ from: 'The Wilde Grassmarket', to: 'SWG3 Studio Warehouse' }, show);
+  assert.equal(d.from, 'Hotel');
+  assert.equal(d.to, 'Venue');
+  assert.equal(d.fromName, 'The Wilde Grassmarket');
+  assert.equal(d.toName, 'SWG3 Studio Warehouse');
+  assert.equal(S.groundTransferTitle(d), 'Drive');
+  assert.equal(S.groundRouteRealName('Hotel', '', show), 'The Wilde Grassmarket');
+  assert.equal(S.groundRouteRealName('Venue', '', show), 'SWG3 Studio Warehouse');
+  assert.equal(S.groundRouteRealName('Hotel', 'Gerodan House', show), 'Gerodan House');
 });
 
 

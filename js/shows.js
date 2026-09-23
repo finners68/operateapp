@@ -482,17 +482,16 @@ function dealGroupSummary(e){
   return fmtMoney(c.gross,c.cur)+(c.paid?' · paid':' · unpaid');
 }
 function flightsSubsection(e){
-  const legs = showLegs(e.id).filter(x=>x.kind==='travel' && (x.icon||'plane')==='plane').sort(legSort);
-  const manual = sortFlightsChrono(
-    (e.flights||[]).filter(f => typeof flightHasDetails!=='function' || flightHasDetails(f)),
-    e.date
-  );
-  if(!legs.length && !manual.length) return '';
-  let body = '';
-  if(legs.length) body += legs.map(l=>`<div class="card flush flight-card-wrap">${travelLegCard(l)}</div>`).join('');
-  if(manual.length){
-    body += manual.map(f=>`<div class="card flush flight-card-wrap">${flightLine(e.id,f)}</div>`).join('');
-  }
+  const legs = showLegs(e.id).filter(x=>x.kind==='travel' && (x.icon||'plane')==='plane');
+  const manual = (e.flights||[]).filter(f => typeof flightHasDetails!=='function' || flightHasDetails(f));
+  const cards = (typeof sortJourneysChrono === 'function' ? sortJourneysChrono : (list)=>list.slice())([
+    ...legs.map(l => ({ id:'leg-'+l.id, _kind:'leg', date:l.date, start:l.start, time:l.time, dep:l.dep, trueDate:l.trueDate, data:l })),
+    ...manual.map(f => ({ id:'flt-'+f.id, _kind:'flight', date:e.date, dep:f.dep, data:f }))
+  ], e.date);
+  if(!cards.length) return '';
+  const body = cards.map(card => `<div class="card flush flight-card-wrap">${
+    card._kind==='leg' ? travelLegCard(card.data) : flightLine(e.id, card.data)
+  }</div>`).join('');
   return showSubsection('ss-'+e.id+'-flights', 'Flights', `<button type="button" class="add" onclick="sheetFlight('${e.id}','__new__')">Add</button>`, body, true);
 }
 /* A UK show — UK postcodes are granular (a postcode ≈ a building) so they land
@@ -571,7 +570,7 @@ function hotelSubsection(e){
   return showSubsection('ss-'+e.id+'-hotel', 'Accommodation', `<button type="button" class="add" onclick="sheetHotel('${e.id}')">${e.hotel?'Edit':'Add'}</button>`, body, !has);
 }
 /* Chronological rank for a driver by its journey: arrival → set → departure.
-   Blank / custom journeys sort after the known ones, keeping their add order. */
+   Only used when no date/time is available. */
 function driverJourneyRank(j){
   if(!j) return 99;
   const i = DRIVER_JOURNEYS.findIndex(x=>x.toLowerCase()===String(j).toLowerCase().trim());
@@ -579,9 +578,18 @@ function driverJourneyRank(j){
 }
 function orderedDrivers(e){
   return showDrivers(e).map((d,idx)=>({d,idx}))
-    .sort((a,b)=> driverJourneyRank(driverJourneyLabel(a.d))-driverJourneyRank(driverJourneyLabel(b.d))
-      || String(a.d.time||'').localeCompare(String(b.d.time||''))
-      || a.idx-b.idx);
+    .sort((a,b)=>{
+      const ka = typeof journeyWhenMs === 'function' ? journeyWhenMs(a.d, e && e.date) : Number.POSITIVE_INFINITY;
+      const kb = typeof journeyWhenMs === 'function' ? journeyWhenMs(b.d, e && e.date) : Number.POSITIVE_INFINITY;
+      if(ka !== kb) return ka - kb;
+      const bothUntimed = !Number.isFinite(ka) && !Number.isFinite(kb);
+      if(bothUntimed){
+        const ra = driverJourneyRank(driverJourneyLabel(a.d));
+        const rb = driverJourneyRank(driverJourneyLabel(b.d));
+        if(ra !== rb) return ra - rb;
+      }
+      return a.idx - b.idx;
+    });
 }
 function groundPreferredKey(d){
   const stored = String((d&&d.preferredMethod)||(d&&d.preferred_method)||'').toLowerCase();
@@ -701,9 +709,14 @@ function groundFactHtml(label, value, extras){
   </div>`;
 }
 function driverCard(eid, d, idx){
-  ensureDriverLocations(d);
+  const show = (typeof sel !== 'undefined' && sel.event) ? sel.event(eid) : null;
+  if(typeof applyGeneralDriverPlaces === 'function') applyGeneralDriverPlaces(d, show);
+  else ensureDriverLocations(d);
   const dateLabel = (d.date && typeof fmtDate==='function') ? fmtDate(d.date) : '';
-  const routeHtml = travelRouteFromPlaces(d.from, d.to, 'car', d.fromName, d.toName);
+  const title = (typeof groundTransferTitle === 'function' ? groundTransferTitle(d) : '') || 'Drive';
+  const fromName = (typeof groundRouteRealName === 'function' ? groundRouteRealName(d.from, d.fromName, show) : d.fromName) || '';
+  const toName = (typeof groundRouteRealName === 'function' ? groundRouteRealName(d.to, d.toName, show) : d.toName) || '';
+  const routeHtml = travelRouteFromPlaces(d.from, d.to, 'car', fromName, toName);
   const kvRow = (k, v) => v
     ? `<div class="flight-side-kv"><div class="flight-side-k">${esc(k)}</div><div class="flight-side-v">${esc(v)}</div></div>`
     : '';
@@ -781,7 +794,7 @@ function driverCard(eid, d, idx){
         <div class="flight-card-title">
           <span class="flight-journey-ic">${ICON.car(17)}</span>
           <div class="flight-journey-heading">
-            <b class="flight-journey-code">Ground</b>
+            <b class="flight-journey-code">${esc(title)}</b>
             ${dateLabel?`<span class="flight-journey-date">${esc(dateLabel)}</span>`:''}
           </div>
         </div>
@@ -794,16 +807,17 @@ function driverCard(eid, d, idx){
   </div>`;
 }
 function driverSubsection(e){
-  const legs = showLegs(e.id).filter(x=>x.kind==='travel' && isDriverItem(x)).sort(legSort);
-  const drivers = showDrivers(e);
-  let body = '';
-  if(legs.length) body += legs.map(l=>`<div class="card flush flight-card-wrap">${travelLegCard(l)}</div>`).join('');
-  if(drivers.length){
-    body += orderedDrivers(e).map(o=>`<div class="card flush flight-card-wrap">${driverCard(e.id,o.d,o.idx)}</div>`).join('');
-  }
-  if(!body) return '';
-  const has = !!(legs.length || drivers.length);
-  return showSubsection('ss-'+e.id+'-driver', 'Ground transport', `<button type="button" class="add" onclick="sheetDriver('${e.id}')">Add</button>`, body, has);
+  const legs = showLegs(e.id).filter(x=>x.kind==='travel' && isDriverItem(x));
+  const ordered = orderedDrivers(e);
+  const cards = (typeof sortJourneysChrono === 'function' ? sortJourneysChrono : (list)=>list.slice())([
+    ...legs.map(l => ({ id:'leg-'+l.id, _kind:'leg', date:l.date, start:l.start, time:l.time, dep:l.dep, trueDate:l.trueDate, data:l })),
+    ...ordered.map(o => ({ id:'drv-'+(o.d.id||o.idx), _kind:'driver', date:o.d.date, time:o.d.time, start:o.d.start, dep:o.d.dep, data:o }))
+  ], e.date);
+  if(!cards.length) return '';
+  const body = cards.map(card => `<div class="card flush flight-card-wrap">${
+    card._kind==='leg' ? travelLegCard(card.data) : driverCard(e.id, card.data.d, card.data.idx)
+  }</div>`).join('');
+  return showSubsection('ss-'+e.id+'-driver', 'Ground transport', `<button type="button" class="add" onclick="sheetDriver('${e.id}')">Add</button>`, body, true);
 }
 const TRAVEL_TYPE_SECTIONS = [
   { key:'train', icon:'train', title:'Trains', mode:'train' },
@@ -828,18 +842,28 @@ function travelTypeKey(l){
   return 'coach';
 }
 function travelLegsOfType(e, key){
-  return showLegs(e.id).filter(x=>travelTypeKey(x)===key).sort(legSort);
+  const list = showLegs(e.id).filter(x=>travelTypeKey(x)===key);
+  return typeof sortJourneysChrono === 'function' ? sortJourneysChrono(list, e.date) : list.sort(legSort);
 }
 function travelLegCard(l){
   const icon = l.icon || 'train';
   const type = (typeof logisticTypeLabel==='function' ? logisticTypeLabel(l) : '') || 'Travel';
   const hop = Number(l.routeTotal)>1 ? ((Number(l.routeIndex)||0)+1)+' of '+l.routeTotal : '';
   const code = l.trainNo || l.ferryNo || l.coachNo || l.flightNo || '';
-  const heading = code || type;
+  const show = (typeof sel !== 'undefined' && sel.event) ? sel.event(l.showId) : null;
+  const heading = (icon === 'car' && !code)
+    ? ((typeof groundTransferTitle === 'function' ? groundTransferTitle(l) : '') || 'Drive')
+    : (code || type);
   const dateLabel = (l.date && typeof fmtDate==='function') ? fmtDate(l.date) : (l.date || '');
   const dateLine = [dateLabel, hop].filter(Boolean).join(' · ');
   const ic = (ICON[icon] && typeof ICON[icon]==='function') ? ICON[icon] : ICON.train;
-  const routeHtml = travelRouteFromPlaces(l.from, l.to, icon, l.fromName, l.toName);
+  const fromName = icon === 'car' && typeof groundRouteRealName === 'function'
+    ? groundRouteRealName(l.from, l.fromName, show)
+    : (l.fromName || '');
+  const toName = icon === 'car' && typeof groundRouteRealName === 'function'
+    ? groundRouteRealName(l.to, l.toName, show)
+    : (l.toName || '');
+  const routeHtml = travelRouteFromPlaces(l.from, l.to, icon, fromName, toName);
   const kvRow = (k, v) => v
     ? `<div class="flight-side-kv"><div class="flight-side-k">${esc(k)}</div><div class="flight-side-v">${esc(v)}</div></div>`
     : '';
@@ -902,7 +926,7 @@ function addTravelPickerHtml(eid){
     ['train','train','Train','Stations, times and service number'],
     ['coach','bus','Coach','Service and times'],
     ['ferry','ferry','Ferry','Ports and times'],
-    ['ground','car','Ground','Pre-arranged or arrange at time'],
+    ['ground','car','Drive','Pre-arranged or arrange at time'],
     ['walk','walk','Walk','On foot between places'],
     ['cycle','cycle','Cycle','Bike between places']
   ];

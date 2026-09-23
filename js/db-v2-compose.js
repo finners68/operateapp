@@ -173,6 +173,17 @@ async function composeViewFromV2(v2, opts){
     });
   });
 
+  function v2JourneyDepMs(j){
+    if(!j || !j.departure_at) return Number.POSITIVE_INFINITY;
+    const ms = Date.parse(j.departure_at);
+    return Number.isFinite(ms) ? ms : Number.POSITIVE_INFINITY;
+  }
+  function v2ByDeparture(a, b){
+    const ka = v2JourneyDepMs(a), kb = v2JourneyDepMs(b);
+    if(ka !== kb) return ka - kb;
+    return (a.sort_order || 0) - (b.sort_order || 0);
+  }
+
   const flightJourneysByShow = {};
   const travelJourneys = [];
   const driverJourneysByShow = {};
@@ -417,7 +428,7 @@ async function composeViewFromV2(v2, opts){
     const base = showDisplay(s, v, ar);
 
     const fl = [];
-    for(const j of fj.flights.sort((a,b) => (a.sort_order||0) - (b.sort_order||0))){
+    for(const j of fj.flights.sort(v2ByDeparture)){
       const passengers = await passengersFromJourney(j);
       const notes = (typeof noteItemsFromDb === 'function') ? noteItemsFromDb(j.note_items) : '';
       const row = {
@@ -490,7 +501,7 @@ async function composeViewFromV2(v2, opts){
       noAccommodation: !!(s.no_accommodation) && !showHotel
     });
     const drivers = (driverJourneysByShow[s.id] || [])
-      .sort((a,b) => (a.sort_order||0) - (b.sort_order||0))
+      .sort(v2ByDeparture)
       .map(j => {
         const jcs = journeyContactByJourney[j.id] || [];
         const driverLink = jcs.find(x => x && x.contact_role === 'driver') || jcs[0];
