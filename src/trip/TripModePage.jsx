@@ -113,14 +113,6 @@ export function TripDashboard({ run, compactHeader = false }){
         </div>
       </div>
 
-      {!active && run.shows[0] ? (
-        <div className="section" style={{ marginTop: 14 }}>
-          <button type="button" className="btn" onClick={() => call('startTripFromShow', run.shows[0].id)}>
-            <Icon name="play" size={18} /> Start Trip Mode
-          </button>
-        </div>
-      ) : null}
-
       <div className="section" style={{ marginTop: 14 }}>
         <div className="section-head"><div className="section-title">Up next</div></div>
         {nextStep ? (

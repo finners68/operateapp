@@ -511,8 +511,6 @@ function tripBody(r){
       <div class="sub">${ICON.calendar(14)} ${fmtDateLong(r.start)}${r.end!==r.start?' – '+fmtDate(r.end):''}</div>
     </div>
 
-    ${active?'':`<div class="section" style="margin-top:14px"><button class="btn" onclick="startTripFromShow('${r.shows[0].id}')">${ICON.play(18)} Start Trip Mode</button></div>`}
-
     <!-- 1) UP NEXT — the next thing to do; adaptive widgets; small tick advances -->
     <div class="section" style="margin-top:14px">
       <div class="section-head"><div class="section-title">Up next</div></div>
