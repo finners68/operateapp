@@ -2963,3 +2963,23 @@ html.is-refreshing .pull-refresh-icon svg{
   .hero-venue,.show-hero-title{font-size:24px;}
   .lg-title{font-size:30px;}
 }
+
+/* Existing-show itinerary picker — same rows as the show list, not a system menu. */
+.itn-show-pick{max-height:min(48vh,380px);overflow:auto;-webkit-overflow-scrolling:touch;}
+button.row.itn-show-row{
+  width:100%;
+  margin:0;
+  background:transparent;
+  border:0;
+  border-bottom:1px solid var(--stroke);
+  border-radius:0;
+  box-shadow:none;
+  color:inherit;
+  font:inherit;
+  text-align:left;
+  cursor:pointer;
+  appearance:none;
+}
+button.row.itn-show-row:last-child{border-bottom:none;}
+button.row.itn-show-row.is-on{background:color-mix(in srgb, var(--accent-2) 16%, transparent);}
+button.row.itn-show-row.is-on .trail{color:var(--accent-2);}

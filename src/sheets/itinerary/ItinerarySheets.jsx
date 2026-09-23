@@ -1,5 +1,7 @@
+import { useState } from 'react';
 import { Icon } from '../../show/ui.jsx';
-import { call, fmtDate, getCats, getStore, showTitle } from '../../api/operate.js';
+import { ShowListTitle } from '../../show/ShowListTitle.jsx';
+import { call, fmtDate, getCats, getMon, getStore, parseDT, showTitle } from '../../api/operate.js';
 
 const Field=({label,id,value='',placeholder,type='text',children,...rest})=><div className="field"><label>{label}</label>{children||<input id={id} type={type} className="input" defaultValue={value||''} placeholder={placeholder} {...rest}/>}</div>;
 const Spacer=()=> <div className="spacer"/>;
@@ -16,10 +18,50 @@ export function ItineraryStartSheet(){
 export function ItineraryNewShowSheet(){
   return <><p className="sheet-lede">Upload the itinerary. We’ll read the details, then you check the show basics.</p><label className="btn" style={{marginTop:8}}><Icon name="plus" size={18}/> Upload itinerary<input type="file" accept="image/*,application/pdf" multiple hidden onChange={e=>call('submitItinerary',e.currentTarget,'new')}/></label><Spacer/></>;
 }
+function ShowPickRow({ show, selected, onPick }){
+  const cats = getCats() || {};
+  const col = cats[show.color] || cats.purple || '#6d5efc';
+  const months = getMon() || [];
+  const d = parseDT(show.date);
+  const place = [show.city, show.country].filter(Boolean).join(', ');
+  const detail = [place, fmtDate(show.date)].filter(Boolean).join(' · ');
+  const statusTag = show.status && show.status !== 'confirmed'
+    ? <span className={`tag ${show.status}`} style={{ marginLeft: 6, verticalAlign: 'middle', fontSize: 10, padding: '2px 7px' }}>{show.status}</span>
+    : null;
+  return (
+    <button type="button" className={`row itn-show-row${selected ? ' is-on' : ''}`} onClick={() => onPick(show.id)}>
+      {d ? (
+        <div className="ic show-date-ic" style={{ background: `${col}22`, color: col }}>
+          <span className="show-date-day">{d.getDate()}</span>
+          <span className="show-date-mon">{months[d.getMonth()] || ''}</span>
+        </div>
+      ) : (
+        <div className="ic show-date-ic" style={{ background: `${col}22`, color: col }}>—</div>
+      )}
+      <div className="body">
+        <b><ShowListTitle show={show} statusTag={statusTag} /></b>
+        <span>{detail || 'No date'}</span>
+      </div>
+      <div className="trail">{selected ? <Icon name="check" size={16} /> : null}</div>
+    </button>
+  );
+}
 export function ItineraryExistingShowSheet({items}){
   const list=items||shows();
+  const [picked, setPicked] = useState(list[0]?.id || '');
   if(!list.length) return <><div className="empty" style={{padding:'18px 8px'}}><div className="ic"><Icon name="music" size={26}/></div><b>No shows yet</b><span>Create a show first, or choose New show instead.</span></div><button className="btn secondary" onClick={()=>call('beginItineraryNewShow')}><Icon name="plus" size={16}/> New show from itinerary</button><Spacer/></>;
-  return <><p className="sheet-lede">Pick the show, then upload the itinerary. We’ll send the file and fill that show.</p><Field label="Show"><select id="itn-pick-show" className="input">{list.map(s=><option key={s.id} value={s.id}>{showTitle(s)} · {fmtDate(s.date)}</option>)}</select></Field><label className="btn" style={{marginTop:8}}><Icon name="plus" size={18}/> Upload itinerary<input type="file" accept="image/*,application/pdf" multiple hidden onChange={e=>call('submitItinerary',e.currentTarget,'existing')}/></label><Spacer/></>;
+  return <>
+    <p className="sheet-lede">Pick the show, then upload the itinerary. We’ll send the file and fill that show.</p>
+    <div className="field">
+      <label>Show</label>
+      <input id="itn-pick-show" type="hidden" value={picked} readOnly />
+      <div className="card flush itn-show-pick">
+        {list.map(s => <ShowPickRow key={s.id} show={s} selected={s.id === picked} onPick={setPicked} />)}
+      </div>
+    </div>
+    <label className="btn" style={{marginTop:8}}><Icon name="plus" size={18}/> Upload itinerary<input type="file" accept="image/*,application/pdf" multiple hidden onChange={e=>call('submitItinerary',e.currentTarget,'existing')}/></label>
+    <Spacer/>
+  </>;
 }
 export function ItinerarySendingSheet(){
   return <><div className="empty" style={{padding:'28px 10px'}}><div className="ic"><Icon name="file" size={28}/></div><b>Sending your file…</b><span>Reading the itinerary. Waiting for show basics.</span></div><Spacer/></>;
