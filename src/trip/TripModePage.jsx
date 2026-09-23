@@ -98,7 +98,7 @@ export function TripDashboard({ run, compactHeader = false }){
 
   return (
     <>
-      <div className="dhero" style={{ background: `linear-gradient(155deg,${c}33,var(--card) 65%)` }}>
+      <div className="dhero">
         <div className="cat-bar" style={{ background: c }} />
         {active ? (
           <div style={{ marginBottom: 8 }}>

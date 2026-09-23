@@ -213,7 +213,7 @@ body{touch-action:manipulation;}
 .header-btn:active{transform:scale(0.9);background:var(--card-press);}
 
 /* ---------- Cards ---------- */
-.card{background:var(--card);border:1px solid var(--stroke);border-radius:var(--radius);padding:18px;box-shadow:none;transition:transform .18s var(--ease), background .18s;}
+.card{background:#000;border:1px solid var(--stroke);border-radius:16px;padding:18px;box-shadow:none;transition:transform .18s var(--ease), background .18s;}
 .card.tap:active{transform:scale(0.978);background:var(--card-press);}
 .card.flush{padding:0;overflow:hidden;}
 .section{margin-top:var(--s-5);}
@@ -227,8 +227,8 @@ body{touch-action:manipulation;}
   background:linear-gradient(155deg, #2a2350 0%, #1a1730 40%, #17131f 100%);}
 .hero::after{content:'';position:absolute;inset:0;background:radial-gradient(600px 200px at 90% -20%,rgba(139,125,255,0.35),transparent 60%);pointer-events:none;}
 /* Next-show hero — cohesive semi-transparent orange, all one tone */
-.hero.nextshow{background:linear-gradient(155deg,rgba(255,159,10,0.20),rgba(255,159,10,0.07) 62%,rgba(255,159,10,0.04));border-color:rgba(255,159,10,0.30);}
-.hero.nextshow::after{background:radial-gradient(600px 200px at 90% -20%,rgba(255,159,10,0.22),transparent 60%);}
+.hero.nextshow{background:#000;border:1px solid var(--stroke);border-radius:16px;box-shadow:none;}
+.hero.nextshow::after{content:none;}
 .hero.nextshow .hero-label{color:var(--orange);}
 .hero.nextshow .count{background:rgba(255,159,10,0.10);border-color:rgba(255,159,10,0.18);}
 .hero.nextshow .hero-links .hero-link{background:rgba(255,159,10,0.08);border-color:rgba(255,159,10,0.16);color:var(--text);}
@@ -237,7 +237,7 @@ body{touch-action:manipulation;}
 .hero-city{font-size:15px;color:var(--text-2);font-weight:550;margin-top:3px;display:flex;align-items:center;gap:6px;}
 .hero-date{font-size:14px;color:var(--text-2);font-weight:600;margin-top:2px;}
 /* "Then" sits in its own box under Up next, with a gap so it does not cover the card above. */
-.then-next{display:flex;align-items:center;gap:11px;margin:10px 0 0;padding:11px 14px;background:var(--card);border:1px solid var(--stroke);border-radius:var(--radius);position:relative;}
+.then-next{display:flex;align-items:center;gap:11px;margin:10px 0 0;padding:11px 14px;background:#000;border:1px solid var(--stroke);border-radius:16px;box-shadow:none;position:relative;}
 .then-next .then-lab{font-size:10.5px;font-weight:800;letter-spacing:0.09em;text-transform:uppercase;color:var(--text-3);flex:0 0 auto;}
 .then-next .then-ic{width:30px;height:30px;border-radius:9px;background:rgba(255,255,255,0.05);display:flex;align-items:center;justify-content:center;color:var(--text-2);flex:0 0 auto;}
 .then-next .then-body{min-width:0;overflow:hidden;}
@@ -559,7 +559,7 @@ select.input{appearance:none;-webkit-appearance:none;background-image:url("data:
 .tl-node:active{transform:scale(.85);}
 .tl-item.done .tl-node{background:var(--green);border-color:var(--green);border-width:2px;}
 .tl-item.now .tl-node{border-color:var(--accent);background:var(--accent);box-shadow:0 0 0 4px var(--accent-soft);}
-.tl-card{flex:1;padding:11px 13px;margin:5px 0;background:var(--card);border:1px solid var(--stroke);border-radius:15px;transition:transform .15s, opacity .2s;display:flex;align-items:center;gap:8px;min-width:0;}
+.tl-card{flex:1;padding:11px 13px;margin:5px 0;background:#000;border:1px solid var(--stroke);border-radius:16px;box-shadow:none;transition:transform .15s, opacity .2s;display:flex;align-items:center;gap:8px;min-width:0;}
 .tl-card.is-set{background:linear-gradient(150deg,var(--accent-soft),var(--card));border-color:rgba(109,94,252,0.22);}
 .tl-card:active{transform:scale(0.99);}
 .tl-item.done .tl-card{opacity:.5;}
@@ -618,7 +618,7 @@ select.input{appearance:none;-webkit-appearance:none;background-image:url("data:
 .sync-remember{display:flex;align-items:center;gap:10px;padding:4px 2px 14px;font-size:14.5px;font-weight:550;color:var(--text-2);}
 .sync-remember input{width:20px;height:20px;accent-color:var(--accent);}
 /* Flight status widget */
-.fi{margin-top:9px;background:linear-gradient(160deg,rgba(10,132,255,0.10),var(--card-2) 70%);border:1px solid rgba(10,132,255,0.22);border-radius:14px;padding:11px 13px;}
+.fi{margin-top:9px;background:#000;border:1px solid var(--stroke);border-radius:16px;box-shadow:none;padding:11px 13px;}
 .fi-head{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:9px;}
 .fi-live{display:inline-flex;align-items:center;gap:7px;font-size:12.5px;font-weight:750;color:var(--blue);letter-spacing:.01em;}
 .fi-live i{width:7px;height:7px;border-radius:50%;background:var(--blue);box-shadow:0 0 0 0 rgba(10,132,255,.5);animation:fiPulse 1.8s infinite;}
@@ -752,7 +752,7 @@ select.input{appearance:none;-webkit-appearance:none;background-image:url("data:
 }
 
 /* Detail hero banner */
-.dhero{border-radius:var(--radius-lg);padding:20px;position:relative;overflow:hidden;border:1px solid var(--stroke-strong);margin-bottom:6px;}
+.dhero{border-radius:16px;padding:20px;position:relative;overflow:hidden;border:1px solid var(--stroke);background:#000;box-shadow:none;margin-bottom:6px;}
 .dhero .cat-bar{position:absolute;left:0;top:0;bottom:0;width:5px;}
 .dhero h1{font-size:26px;font-weight:800;letter-spacing:-0.02em;line-height:1.1;color:var(--text-title);text-shadow:var(--text-shadow-title);}
 .dhero .sub{font-size:15px;color:var(--text-2);font-weight:550;margin-top:5px;display:flex;align-items:center;gap:6px;flex-wrap:wrap;}
@@ -1213,7 +1213,7 @@ select.input{appearance:none;-webkit-appearance:none;background-image:url("data:
 .show-group{
   background:#000;
   border:1px solid var(--stroke);
-  border-radius:22px;
+  border-radius:16px;
   overflow:hidden;
   box-shadow:none;
 }
@@ -2321,7 +2321,7 @@ html.is-refreshing .pull-refresh-icon svg{
 .divi{height:1px;background:var(--stroke);margin:16px 0;}
 
 /* ---------- Collapsible / folding sections ---------- */
-.fold{background:var(--card);border:1px solid var(--stroke);border-radius:var(--radius);overflow:hidden;}
+.fold{background:#000;border:1px solid var(--stroke);border-radius:16px;box-shadow:none;overflow:hidden;}
 .fold-head{display:flex;align-items:center;gap:11px;padding:15px 16px;transition:background .15s;}
 .fold-head:active{background:var(--card-press);}
 .fold-head .ic{width:34px;height:34px;border-radius:10px;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
@@ -2345,7 +2345,7 @@ html.is-refreshing .pull-refresh-icon svg{
 .subtabs button.on{background:var(--accent);color:#fff;box-shadow:0 4px 14px rgba(109,94,252,.35);}
 
 /* ---------- Settings rows / toggles ---------- */
-.set-group{background:var(--card);border:1px solid var(--stroke);border-radius:var(--radius);overflow:hidden;margin-bottom:16px;}
+.set-group{background:#000;border:1px solid var(--stroke);border-radius:16px;box-shadow:none;overflow:hidden;margin-bottom:16px;}
 .set-row{display:flex;align-items:center;gap:13px;padding:14px 16px;border-bottom:1px solid var(--stroke);transition:background .15s;}
 .set-row:last-child{border-bottom:none;}
 .set-row.tap:active{background:var(--card-press);}

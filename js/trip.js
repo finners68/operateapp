@@ -20,7 +20,7 @@ function viewTripMode(run){
     <div class="tripmode-banner"><span class="pulse"></span> LIVE · ${fmtDate(run.start)}${run.end!==run.start?' – '+fmtDate(run.end):''}</div>
 
     ${nextStep?`
-    <div class="hero" style="background:linear-gradient(155deg,#1e3a2a,#15251d 60%,#141418)">
+    <div class="hero nextshow">
       <div class="hero-label" style="color:var(--green)">${ICON.clock(14)} Up next${nextStep.time?' · '+esc(nextStep.time):''} · ${esc(relDay(nextStep.date))}</div>
       <div class="hero-venue">${esc(nextStep.title)}</div>
       ${nextStep.sub?`<div class="hero-city">${esc(nextStep.sub)}</div>`:''}
@@ -31,7 +31,7 @@ function viewTripMode(run){
       <div class="then-ic">${(ICON[thenStep.icon]||ICON.clock)(15)}</div>
       <div class="then-body"><b>${esc(thenStep.title)}</b><span>${thenStep.time?esc(thenStep.time)+' · ':''}${esc(relDay(thenStep.date))}${thenStep.sub?' · '+esc(thenStep.sub):''}</span></div>
     </div>`:''}`:`
-    <div class="hero" style="background:linear-gradient(155deg,#1e3a2a,#15251d 60%,#141418)">
+    <div class="hero nextshow">
       <div class="hero-label" style="color:var(--green)">${ICON.check(14)} All steps complete</div>
       <div class="hero-venue">You're on top of it 🎧</div>
     </div>`}
@@ -504,7 +504,7 @@ function tripBody(r){
   const thenStep = nextIdx>=0 ? tl[nextIdx+1] : null;
   const legShow = nextStep ? (stepShow(nextStep) || r.shows.find(s=>!s.setDone)) : null;
   return `
-    <div class="dhero" style="background:linear-gradient(155deg,${c}33,var(--card) 65%)">
+    <div class="dhero">
       <div class="cat-bar" style="background:${c}"></div>
       ${active?`<div style="margin-bottom:8px"><span class="tag confirmed"><span class="pulse" style="display:inline-block;margin-right:5px"></span>Live</span></div>`:''}
       <h1>${esc(r.title)}</h1>
