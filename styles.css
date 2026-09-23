@@ -4,10 +4,10 @@
    ============================================================ */
 :root{
   --bg:#0a0a0c;
-  --bg-elev:#141418;
-  --card:#1a1a20;
-  --card-2:#212129;
-  --card-press:#26262f;
+  --bg-elev:#000000;
+  --card:#000000;
+  --card-2:#000000;
+  --card-press:#16161a;
   --stroke:rgba(255,255,255,0.08);
   --stroke-strong:rgba(255,255,255,0.14);
   --text:#f5f5f7;
@@ -155,7 +155,7 @@ body{touch-action:manipulation;}
 .home-sc-grid .home-sc{width:100%;justify-content:flex-start;box-sizing:border-box;}
 .sheet-lede{font-size:14px;line-height:1.45;color:var(--text-2);margin:0 0 16px;}
 .edit-section-grid{display:grid;grid-template-columns:1fr;gap:8px;}
-.edit-section-btn{display:flex;align-items:center;gap:12px;width:100%;padding:12px 14px;text-align:left;background:var(--bg);border:1px solid var(--stroke);border-radius:14px;color:var(--text);cursor:pointer;font:inherit;}
+.edit-section-btn{display:flex;align-items:center;gap:12px;width:100%;padding:12px 14px;text-align:left;background:var(--card);border:1px solid var(--stroke);border-radius:14px;color:var(--text);cursor:pointer;font:inherit;}
 .edit-section-btn:active{background:var(--card-press);}
 .edit-section-btn svg{flex-shrink:0;color:var(--accent-2);}
 .edit-section-btn b{display:block;font-size:15px;font-weight:750;}
@@ -213,7 +213,7 @@ body{touch-action:manipulation;}
 .header-btn:active{transform:scale(0.9);background:var(--card-press);}
 
 /* ---------- Cards ---------- */
-.card{background:var(--card);border:1px solid var(--stroke);border-radius:var(--radius);padding:18px;box-shadow:var(--shadow-1), var(--hairline);transition:transform .18s var(--ease), background .18s;}
+.card{background:var(--card);border:1px solid var(--stroke);border-radius:var(--radius);padding:18px;box-shadow:none;transition:transform .18s var(--ease), background .18s;}
 .card.tap:active{transform:scale(0.978);background:var(--card-press);}
 .card.flush{padding:0;overflow:hidden;}
 .section{margin-top:var(--s-5);}
@@ -1211,11 +1211,11 @@ select.input{appearance:none;-webkit-appearance:none;background-image:url("data:
 /* Show detail — macro groups and subsections (sleek nested panels) */
 .show-detail .show-groups{display:flex;flex-direction:column;gap:10px;margin-top:12px;}
 .show-group{
-  background:rgba(255,255,255,0.025);
+  background:#000;
   border:1px solid var(--stroke);
   border-radius:22px;
   overflow:hidden;
-  box-shadow:var(--hairline);
+  box-shadow:none;
 }
 .show-group-head{
   display:flex;align-items:center;gap:12px;
@@ -1239,7 +1239,7 @@ select.input{appearance:none;-webkit-appearance:none;background-image:url("data:
 .show-group-chev{flex-shrink:0;color:var(--text-3);opacity:.75;}
 .show-group-body{padding:8px 12px 10px;display:flex;flex-direction:column;gap:6px;}
 .show-group.is-mid{
-  background:rgba(255,255,255,0.018);
+  background:#000;
   box-shadow:none;
 }
 .show-group.is-quiet{
