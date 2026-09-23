@@ -236,8 +236,8 @@ body{touch-action:manipulation;}
 .hero-venue{font-size:27px;font-weight:800;letter-spacing:-0.02em;margin-top:9px;line-height:1.1;color:var(--text-title);text-shadow:var(--text-shadow-title);}
 .hero-city{font-size:15px;color:var(--text-2);font-weight:550;margin-top:3px;display:flex;align-items:center;gap:6px;}
 .hero-date{font-size:14px;color:var(--text-2);font-weight:600;margin-top:2px;}
-/* "Then next" tease — thin strip attached under the up-next hero */
-.then-next{display:flex;align-items:center;gap:11px;margin:-6px 8px 0;padding:11px 14px;background:var(--card-2,rgba(255,255,255,0.03));border:1px solid var(--stroke);border-top:none;border-radius:0 0 var(--radius) var(--radius);position:relative;}
+/* "Then" sits in its own box under Up next, with a gap so it does not cover the card above. */
+.then-next{display:flex;align-items:center;gap:11px;margin:10px 0 0;padding:11px 14px;background:var(--card);border:1px solid var(--stroke);border-radius:var(--radius);position:relative;}
 .then-next .then-lab{font-size:10.5px;font-weight:800;letter-spacing:0.09em;text-transform:uppercase;color:var(--text-3);flex:0 0 auto;}
 .then-next .then-ic{width:30px;height:30px;border-radius:9px;background:rgba(255,255,255,0.05);display:flex;align-items:center;justify-content:center;color:var(--text-2);flex:0 0 auto;}
 .then-next .then-body{min-width:0;overflow:hidden;}
