@@ -141,7 +141,7 @@ export function EventMenuSheet({ eid }){
       </div>
       <Spacer />
       <button type="button" className="btn secondary" onClick={() => { call('closeSheet', true, { noReturn: true }); if(typeof window !== 'undefined') window.sheetReturnStack = []; call('startTripFromShow', eid); }}>
-        <Icon name="play" size={16} /> Start Tour Mode
+        <Icon name="play" size={16} /> Start Trip Mode
       </button>
       <Spacer />
       <button type="button" className="btn danger" onClick={() => { call('closeSheet', true, { noReturn: true }); if(typeof window !== 'undefined') window.sheetReturnStack = []; call('confirmDeleteEvent', eid); }}>
