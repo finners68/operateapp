@@ -560,14 +560,11 @@ function hotelSubsection(e){
     </div>`;
   }
   if(!body){
-    if(e.noAccommodation){
-      body = `<div class="card" style="text-align:center;color:var(--text-3);padding:20px">${ICON.bed(22)}<div style="margin-top:6px;font-weight:600">No accommodation for this show</div><div style="margin-top:4px;font-size:12px;font-weight:500">You can add a stay later if that changes</div><button type="button" class="quiet-add" onclick="sheetHotel('${e.id}')">Add accommodation</button></div>`;
-    } else {
-      body = `<div class="card tap" onclick="sheetHotel('${e.id}')" style="text-align:center;color:var(--text-3);padding:20px">${ICON.bed(22)}<div style="margin-top:6px;font-weight:600">Add accommodation</div><div style="margin-top:4px;font-size:12px;font-weight:500">Name, dates, confirmation and maps</div></div><button type="button" class="btn secondary" style="margin-top:10px" onclick="markNoAccommodation('${e.id}')">No accommodation for this show</button>`;
-    }
+    body = `<div class="show-compact-row" onclick="sheetHotel('${e.id}')"><span>There is currently no accommodation</span><button type="button" class="add" onclick="event.stopPropagation();sheetHotel('${e.id}')">Add</button></div>`;
   }
   const has = !!(legs.length || e.hotel);
-  return showSubsection('ss-'+e.id+'-hotel', 'Accommodation', `<button type="button" class="add" onclick="sheetHotel('${e.id}')">${e.hotel?'Edit':'Add'}</button>`, body, !has);
+  const headAct = has ? `<button type="button" class="add" onclick="sheetHotel('${e.id}')">${e.hotel?'Edit':'Add'}</button>` : '';
+  return showSubsection('ss-'+e.id+'-hotel', 'Accommodation', headAct, body, !has);
 }
 /* Chronological rank for a driver by its journey: arrival → set → departure.
    Only used when no date/time is available. */

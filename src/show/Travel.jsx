@@ -145,7 +145,6 @@ function Flights({ show }){
 function Accommodation({ show }){
   const legs = stayLegs(show);
   const h = show.hotel;
-  const none = !!show.noAccommodation && !h && !legs.length;
   const has = !!(legs.length || h);
   const addr = h
     ? (call('formatHotelAddress', h)
@@ -158,8 +157,8 @@ function Accommodation({ show }){
     <Subsection
       id={`ss-${show.id}-hotel`}
       title="Accommodation"
-      addLabel={has ? 'Edit' : 'Add'}
-      onAdd={() => call('sheetHotel', show.id)}
+      addLabel={has ? 'Edit' : undefined}
+      onAdd={has ? () => call('sheetHotel', show.id) : undefined}
       defaultOpen
     >
       {has ? (
@@ -200,22 +199,11 @@ function Accommodation({ show }){
             </div>
           ) : null}
         </>
-      ) : none ? (
-        <CompactAddRow label="No accommodation" onAdd={() => call('sheetHotel', show.id)} />
       ) : (
-        <>
-          <CompactAddRow
-            label="Add accommodation"
-            onAdd={() => call('sheetHotel', show.id)}
-          />
-          <button
-            type="button"
-            className="quiet-add"
-            onClick={() => call('markNoAccommodation', show.id)}
-          >
-            No accommodation for this show
-          </button>
-        </>
+        <CompactAddRow
+          label="There is currently no accommodation"
+          onAdd={() => call('sheetHotel', show.id)}
+        />
       )}
     </Subsection>
   );
