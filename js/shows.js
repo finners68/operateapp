@@ -1322,8 +1322,8 @@ function viewEvent(id){
       const active = store.activeShowId && runOf(store.activeShowId) && runOf(store.activeShowId).key===(run&&run.key);
       return `<div class="section" style="margin-top:20px">
         ${active
-          ? `<button class="btn" onclick="go('home')">${ICON.play(18)} Trip Mode is live — open it</button>`
-          : `<button class="btn" onclick="startTripFromShow('${e.id}')">${ICON.play(18)} Start Trip Mode${otherShows>0?` (this run · ${run.shows.length} shows)`:''}</button>`}
+          ? `<button class="btn" onclick="go('home')">${ICON.play(18)} Tour Mode is live — open it</button>`
+          : `<button class="btn" onclick="startTripFromShow('${e.id}')">${ICON.play(18)} Start Tour Mode${otherShows>0?` (this run · ${run.shows.length} shows)`:''}</button>`}
         ${otherShows>0?`<div class="hint" style="text-align:left;padding:8px 2px 0">Auto-grouped with ${otherShows} nearby show${otherShows>1?'s':''} into one tour — no naming needed.</div>`:''}
       </div>`; })()}
     <div class="section"><button class="btn danger" onclick="confirmDeleteEvent('${e.id}')">${ICON.trash(17)} Delete show</button></div>

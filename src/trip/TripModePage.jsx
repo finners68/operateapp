@@ -1,5 +1,5 @@
 import { useSyncExternalStore, useEffect } from 'react';
-import { call, fmtDate, fmtDateLong, getCats, getStore, pad, parseDT, relDay, showTitle, subscribeStore, tickCountdowns } from '../api/operate.js';
+import { call, fmtDate, getCats, getMon, getStore, parseDT, showTitle, subscribeStore, tickCountdowns } from '../api/operate.js';
 import { Icon, LegacyHtml, isOpen, setFold } from '../show/ui.jsx';
 
 function useStoreTick(){
@@ -10,6 +10,18 @@ function useStoreTick(){
   );
 }
 
+function compactDate(dstr){
+  const d = parseDT ? parseDT(dstr) : null;
+  if(!d) return dstr || '';
+  const mon = getMon() || [];
+  return `${d.getDate()} ${mon[d.getMonth()] || ''}`.trim();
+}
+
+function stepLines(step){
+  const parts = String(step?.sub || '').split(' · ').map(s => s.trim()).filter(Boolean);
+  return { lead: parts[0] || '', extra: parts.slice(1) };
+}
+
 function PackingFold({ foldId }){
   const store = getStore();
   const pk = store?.packing || [];
@@ -17,13 +29,31 @@ function PackingFold({ foldId }){
   const done = pk.filter(i => i.done).length;
   const pct = pk.length ? Math.round(done / pk.length * 100) : 0;
 
+  if(!pk.length){
+    return (
+      <div className="tm-pack-empty" onClick={() => call('addPackPrompt')}>
+        <div className="tm-pack-empty-copy">
+          <b>Packing & checklist</b>
+          <span>No items</span>
+        </div>
+        <button
+          type="button"
+          className="add"
+          onClick={e => { e.stopPropagation(); call('addPackPrompt'); }}
+        >
+          Add
+        </button>
+      </div>
+    );
+  }
+
   return (
-    <div className={`fold ${open ? 'open' : ''}`} id={`fold-${foldId}`}>
+    <div className={`fold tm-pack-fold ${open ? 'open' : ''}`} id={`fold-${foldId}`}>
       <div className="fold-head" onClick={() => setFold(foldId, !open)}>
         <div className="ic" style={{ background: 'var(--card-2)' }}><Icon name="checkList" size={17} /></div>
         <div className="ft">
           <b>Packing & checklist</b>
-          <span>{done}/{pk.length} packed</span>
+          <span>{done} / {pk.length} packed</span>
         </div>
         <span className="fold-chev"><Icon name="chevDown" size={20} /></span>
       </div>
@@ -33,13 +63,13 @@ function PackingFold({ foldId }){
             <div className="progress" style={{ margin: '12px 0 4px' }}><i style={{ width: `${pct}%` }} /></div>
           </div>
           <div className="fold-scroll">
-            {pk.length ? pk.map(i => (
+            {pk.map(i => (
               <div key={i.id} className={`check ${i.done ? 'done' : ''}`} data-id={i.id}>
                 <div className="box" onClick={() => call('togglePack', i.id)}><Icon name="check" size={15} /></div>
                 <div className="lbl">{i.label}</div>
                 <button type="button" className="del" onClick={() => call('delPack', i.id)}><Icon name="x" size={16} /></button>
               </div>
-            )) : <div className="hint">No items</div>}
+            ))}
           </div>
           <div className="fold-pad">
             <button type="button" className="btn secondary" style={{ padding: 11 }} onClick={() => call('addPackPrompt')}>
@@ -54,25 +84,37 @@ function PackingFold({ foldId }){
 
 function TripLegRow({ show, index, nextShow }){
   const isNext = nextShow && show.id === nextShow.id;
-  const bg = isNext ? { background: 'rgba(255,159,10,0.13)' } : undefined;
-  const icBg = show.setDone ? 'rgba(50,215,75,0.18)' : isNext ? 'rgba(255,159,10,0.22)' : 'rgba(255,255,255,0.05)';
-  const icCol = show.setDone ? 'var(--green)' : isNext ? 'var(--orange)' : 'var(--text-3)';
   return (
-    <div className="row" style={bg} onClick={() => call('openView', 'event', show.id)}>
-      <div className="ic" style={{ background: icBg, color: icCol, fontWeight: 800, fontSize: 13 }}>
-        {show.setDone ? <Icon name="check" size={16} /> : index + 1}
-      </div>
-      <div className="body">
-        <b>
-          {showTitle(show)}{' '}
-          {isNext ? <span className="tag hold" style={{ marginLeft: 4 }}>Next</span> : null}
-        </b>
+    <div className="tm-show-row" onClick={() => call('openView', 'event', show.id)}>
+      <div className="tm-show-num">{show.setDone ? <Icon name="check" size={14} /> : index + 1}</div>
+      <div className="tm-show-body">
+        <div className="tm-show-title">
+          <b>{showTitle(show)}</b>
+          {isNext ? <span className="tm-next-chip">Next</span> : null}
+        </div>
         <span>
-          {show.city}{show.country ? `, ${show.country}` : ''} · {fmtDate ? fmtDate(show.date) : show.date}
-          {show.setTime ? ` · ${show.setTime}` : ''}
+          {[show.venue, fmtDate ? fmtDate(show.date) : show.date, show.setTime].filter(Boolean).join(' · ')}
         </span>
       </div>
       <Icon name="chevR" size={15} />
+    </div>
+  );
+}
+
+function ThenPreview({ step }){
+  const lines = stepLines(step);
+  return (
+    <div className="tm-then">
+      <div className="tm-then-lab">Then</div>
+      <div className="tm-then-row">
+        <div className="tm-then-time">{step.time || '—'}</div>
+        <div className="tm-then-ic"><Icon name={step.icon || 'clock'} size={15} /></div>
+        <div className="tm-then-body">
+          <b>{step.title}</b>
+          {lines.lead ? <span>{lines.lead}</span> : null}
+          {lines.extra.map((x, i) => <em key={i}>{x}</em>)}
+        </div>
+      </div>
     </div>
   );
 }
@@ -83,6 +125,7 @@ export function TripDashboard({ run, compactHeader = false }){
   const c = CATS[run.color] || CATS.green || '#32d74b';
   const active = call('activeRun')?.key === run.key;
   const tl = call('runTimeline', run) || [];
+  const progress = call('runProgress', run) || { done: 0, total: tl.length, pct: 0 };
   const nextIdx = tl.findIndex(s => !s.done);
   const nextStep = nextIdx >= 0 ? tl[nextIdx] : null;
   const thenStep = nextIdx >= 0 ? tl[nextIdx + 1] : null;
@@ -95,116 +138,106 @@ export function TripDashboard({ run, compactHeader = false }){
   const flightWidget = nextStep?.ref && nextStep.kind === 'travel' && (nextStep.ref.icon || 'plane') === 'plane'
     ? call('flightInfoWidget', nextStep.ref)
     : '';
+  const nextLines = nextStep ? stepLines(nextStep) : { lead: '', extra: [] };
+  const showCount = run.shows.length;
+  const itemCount = tl.length;
 
   return (
-    <>
-      <div className="dhero" style={{ background: `linear-gradient(155deg,${c}33,var(--card) 65%)` }}>
+    <div className="tm-dash">
+      <div className="tm-hero" style={{ background: `linear-gradient(155deg,${c}28,var(--card) 70%)` }}>
         <div className="cat-bar" style={{ background: c }} />
         {active ? (
-          <div style={{ marginBottom: 8 }}>
+          <div className="tm-hero-live">
             <span className="tag confirmed"><span className="pulse" style={{ display: 'inline-block', marginRight: 5 }} />Live</span>
           </div>
         ) : null}
         <h1>{run.title}</h1>
-        <div className="sub">
-          <Icon name="calendar" size={14} />{' '}
-          {fmtDateLong ? fmtDateLong(run.start) : (fmtDate ? fmtDate(run.start) : run.start)}
-          {run.end !== run.start ? ` – ${fmtDate ? fmtDate(run.end) : run.end}` : ''}
+        <div className="tm-hero-dates">
+          {compactDate(run.start)}
+          {run.end !== run.start ? ` – ${compactDate(run.end)}` : ''}
         </div>
+        <div className="tm-hero-meta">
+          {showCount} show{showCount !== 1 ? 's' : ''}
+          {itemCount ? ` · ${itemCount} itinerary item${itemCount !== 1 ? 's' : ''}` : ''}
+        </div>
+        {progress.total ? (
+          <div className="tm-hero-progress">
+            <span>{progress.done} / {progress.total} complete</span>
+            <div className="progress"><i style={{ width: `${progress.pct || 0}%` }} /></div>
+          </div>
+        ) : null}
       </div>
 
       {!active && run.shows[0] ? (
-        <div className="section" style={{ marginTop: 14 }}>
-          <button type="button" className="btn" onClick={() => call('startTripFromShow', run.shows[0].id)}>
-            <Icon name="play" size={18} /> Start Trip Mode
-          </button>
-        </div>
+        <button type="button" className="btn tm-start-btn" onClick={() => call('startTripFromShow', run.shows[0].id)}>
+          <Icon name="play" size={18} /> Start Tour Mode
+        </button>
       ) : null}
 
-      <div className="section" style={{ marginTop: 14 }}>
-        <div className="section-head"><div className="section-title">Up next</div></div>
+      <section className="tm-upnext-block">
+        <div className="tm-kicker">Up next</div>
         {nextStep ? (
           <>
-            <div className="hero nextshow">
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 10 }}>
-                <div className="hero-label">
-                  <Icon name={nextStep.icon || 'clock'} size={14} />{' '}
-                  {relDay ? relDay(nextStep.date) : nextStep.date}
-                  {nextStep.time ? ` · ${nextStep.time}` : ''}
-                </div>
-                <button type="button" className="mini-tick" title="Done — next" onClick={() => call('completeRunStep', run.key, nextStep.id)}>
+            <div className="hero nextshow tm-upnext">
+              <div className="tm-upnext-top">
+                <div className="tm-upnext-time">{nextStep.time || (nextStep.date ? compactDate(nextStep.date) : '—')}</div>
+                <button type="button" className="mini-tick" title="Done — next" aria-label="Mark done" onClick={() => call('completeRunStep', run.key, nextStep.id)}>
                   <Icon name="check" size={15} />
                 </button>
               </div>
-              <div className="hero-venue" style={{ fontSize: 22, marginTop: 6 }}>{nextStep.title}</div>
-              {nextStep.sub ? <div className="hero-city">{nextStep.sub}</div> : null}
-              {pillsHtml ? <div className="hero-info" style={{ marginTop: 15, flexWrap: 'wrap' }} dangerouslySetInnerHTML={{ __html: pillsHtml }} /> : null}
+              <div className="tm-upnext-title">{nextStep.title}</div>
+              {nextLines.lead ? <div className="tm-upnext-sub">{nextLines.lead}</div> : null}
+              {nextLines.extra.map((x, i) => <div className="tm-upnext-extra" key={i}>{x}</div>)}
+              {pillsHtml ? <div className="hero-info tm-upnext-actions" dangerouslySetInnerHTML={{ __html: pillsHtml }} /> : null}
               {flightWidget ? <LegacyHtml html={flightWidget} /> : null}
             </div>
-            {thenStep ? (
-              <div className="then-next">
-                <div className="then-lab">Then</div>
-                <div className="then-ic"><Icon name={thenStep.icon || 'clock'} size={15} /></div>
-                <div className="then-body">
-                  <b>{thenStep.title}</b>
-                  <span>
-                    {thenStep.time ? `${thenStep.time} · ` : ''}
-                    {relDay ? relDay(thenStep.date) : thenStep.date}
-                    {thenStep.sub ? ` · ${thenStep.sub}` : ''}
-                  </span>
-                </div>
-              </div>
-            ) : null}
+            {thenStep ? <ThenPreview step={thenStep} /> : null}
           </>
         ) : (
-          <div className="card" style={{ textAlign: 'center', color: 'var(--text-2)', padding: 22 }}>
-            <Icon name="check" size={24} />
-            <div style={{ marginTop: 6, fontWeight: 650 }}>Tour complete</div>
+          <div className="tm-complete">
+            <Icon name="check" size={22} />
+            <div>Tour complete</div>
           </div>
         )}
-      </div>
+      </section>
 
       {contacts.length ? (
-        <div className="section">
-          <button type="button" className="btn secondary" onClick={() => call('openTourContacts', run.key)}>
-            <Icon name="users" size={17} /> Key contacts · {contacts.length}
-          </button>
-        </div>
+        <button type="button" className="tm-contacts" onClick={() => call('openTourContacts', run.key)}>
+          <span><Icon name="users" size={16} /> Key contacts · {contacts.length}</span>
+          <Icon name="chevR" size={14} />
+        </button>
       ) : null}
 
-      <div className="section">
+      <section className="tm-section">
         <div className="section-head">
           <div className="section-title">Day timeline</div>
-          <div className="section-link">{run.shows.length} day{run.shows.length !== 1 ? 's' : ''}</div>
+          <div className="section-link">{showCount} day{showCount !== 1 ? 's' : ''}</div>
         </div>
         <LegacyHtml html={dayHtml} />
-      </div>
+      </section>
 
-      <div className="section">
+      <section className="tm-section tm-shows">
         <div className="section-head">
           <div className="section-title">Shows on this tour</div>
-          <div className="section-link">{run.shows.length}</div>
+          <div className="section-link">{showCount}</div>
         </div>
-        <div className="card flush">
+        <div className="tm-show-list">
           {run.shows.map((e, i) => (
             <TripLegRow key={e.id} show={e} index={i} nextShow={legShow} />
           ))}
         </div>
-      </div>
+      </section>
 
-      <div className="section">
+      <section className="tm-section">
         <PackingFold foldId={compactHeader ? 'tm-pack' : 'trip-pack'} />
-      </div>
+      </section>
 
       {active ? (
-        <div className="section" style={{ marginTop: 20 }}>
-          <button type="button" className="btn secondary" onClick={() => call('endTripMode')}>
-            <Icon name="flag" size={17} /> End Trip Mode
-          </button>
-        </div>
+        <button type="button" className="tm-end" onClick={() => call('endTripMode')}>
+          End Tour Mode
+        </button>
       ) : null}
-      <div className="spacer" /><div className="spacer" />
-    </>
+    </div>
   );
 }
 
@@ -230,7 +263,7 @@ export default function TripModePage(){
   const all = call('runs') || [];
   if(!all.length){
     return (
-      <div className="tab-page">
+      <div className="tab-page tm-page">
         <div className="tab-page-sticky">
           <div className="lg-header">
             <div>
@@ -262,7 +295,7 @@ export default function TripModePage(){
   });
 
   return (
-    <div className="tab-page">
+    <div className="tab-page tm-page">
       <div className="tab-page-sticky">
         <div className="lg-header">
           <div>
@@ -272,7 +305,7 @@ export default function TripModePage(){
               {upcoming.length > 1 ? ` · ${upcoming.length} upcoming` : ''}
             </div>
           </div>
-          <button type="button" className="header-btn" title="All tours" onClick={() => call('goToursList')}>
+          <button type="button" className="header-btn" title="Tours" aria-label="Tours" onClick={() => call('goToursList')}>
             <Icon name="trips" size={20} />
           </button>
         </div>

@@ -51,11 +51,11 @@ export default function TripDetailPage({ tripId }){
           <button type="button" className="back-btn" onClick={() => call('back')}>
             <Icon name="chevL" size={20} /> Tours
           </button>
-          <div style={{ fontSize: 15, fontWeight: 700 }}>{active ? 'Trip Mode' : 'Tour'}</div>
+          <div style={{ fontSize: 15, fontWeight: 700 }}>{active ? 'Tour Mode' : 'Tour'}</div>
           <div style={{ width: 36 }} />
         </div>
       </div>
-      <div className="screen-pad">
+      <div className="screen-pad tm-page">
         <TripDashboard run={run} />
       </div>
     </>

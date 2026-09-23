@@ -13,7 +13,7 @@ function viewTripMode(run){
 
   return `
   <div class="lg-header">
-    <div><div class="lg-title" style="font-size:28px">${esc(run.title)}</div><div class="lg-sub">Trip Mode · ${run.shows.length} show${run.shows.length>1?'s':''} · ${p.done}/${p.total} done</div></div>
+    <div><div class="lg-title" style="font-size:28px">${esc(run.title)}</div><div class="lg-sub">Tour Mode · ${run.shows.length} show${run.shows.length>1?'s':''} · ${p.done}/${p.total} done</div></div>
     <button class="header-btn" onclick="openView('trip','${run.key}')">${ICON.chevR(20)}</button>
   </div>
   <div class="screen-pad stagger">
@@ -56,14 +56,14 @@ function viewTripMode(run){
     </div>
 
     <div class="section">
-      ${foldSection('tm-pack', ICON.checkList(17), 'Packing & checklist', pk.filter(i=>i.done).length+'/'+pk.length+' packed',
+      ${foldSection('tm-pack', ICON.checkList(17), 'Packing & checklist', pk.length?(pk.filter(i=>i.done).length+' / '+pk.length+' packed'):'No items',
         `<div style="padding:0 16px 4px"><div class="progress" style="margin:12px 0 4px"><i style="width:${pk.length?Math.round(pk.filter(i=>i.done).length/pk.length*100):0}%"></i></div></div>
          <div class="fold-scroll">${pk.map(i=>`<div class="check ${i.done?'done':''}" data-id="${esc(i.id)}"><div class="box" onclick="togglePack('${i.id}')">${ICON.check(15)}</div><div class="lbl">${esc(i.label)}</div><button class="del" onclick="delPack('${i.id}')">${ICON.x(16)}</button></div>`).join('')||'<div class="hint">No items</div>'}</div>
          <div class="fold-pad"><button class="btn secondary" style="padding:11px" onclick="addPackPrompt()">${ICON.plus(15)} Add item</button></div>`, false)}
     </div>
 
     <div class="section">
-      <button class="btn secondary" onclick="endTripMode()">${ICON.flag(18)} End Trip Mode</button>
+      <button class="btn secondary" onclick="endTripMode()">${ICON.flag(18)} End Tour Mode</button>
     </div>
     <div class="spacer"></div>
   </div>`;
@@ -370,27 +370,31 @@ function dayTimeline(runKey, run){
   const next=runTimeline(run).find(s=>!s.done);
   const openKey=next?(next.showId||next.showDate||next.date):(groups[0]&&((groups[0].show&&groups[0].show.id)||groups[0].date));
   const todayStr=(()=>{const n=new Date();return `${n.getFullYear()}-${pad(n.getMonth()+1)}-${pad(n.getDate())}`;})();
-  return groups.map(g=>{
+  const daysHtml=groups.map(g=>{
     const d=parseDT(g.date); const done=g.rows.filter(r=>r.done).length;
     const allDone=g.rows.length>0 && done===g.rows.length;
     const setRow=g.rows.find(r=>r.kind==='set');
     const label=d?(DOW[d.getDay()]+' '+d.getDate()+' '+MON[d.getMonth()]+(g.date===todayStr?' · Today':'')):(g.date||'Show');
     const sub=(setRow?setRow.title+' · ':'')+done+'/'+g.rows.length+' done';
     const groupKey=g.show?g.show.id:g.date;
-    return foldSection('tld'+runKey+groupKey, allDone?ICON.check(16):ICON.calendar(16), label, sub, g.rows.map(s=>tlRow(runKey,s)).join(''), allDone?false:(groupKey===openKey), allDone?'fold-done':'');
-  }).join('<div style="height:10px"></div>');
+    return foldSection('tld'+runKey+groupKey, allDone?ICON.check(16):ICON.calendar(16), label, sub, g.rows.map(s=>tlRow(runKey,s)).join(''), allDone?false:(groupKey===openKey), 'tm-day-fold'+(allDone?' fold-done':''));
+  }).join('');
+  return `<div class="tm-days">${daysHtml}</div>`;
 }
 function tlRow(runKey, s){
   const isSet=s.kind==='set';
   const col=isSet?'var(--accent-2)':logColor({kind:s.kind,icon:s.icon});
   const btns=stepButtons(s);
+  const parts=String(s.sub||'').split(' · ').map(x=>x.trim()).filter(Boolean);
+  const lead=parts[0]||'';
+  const extra=parts.slice(1);
   /* Checkbox is on the right and only toggles when that box is tapped.
      Tapping the rest of the row opens edit options (does not mark done). */
   return `<div class="tlr ${s.done?'done':''}">
     <button type="button" class="tlr-main" onclick="timelineStepOptions('${runKey}','${jsAttr(s.id)}')">
       <div class="tlr-time">${esc(s.time||'')}</div>
       <div class="tlr-ic" style="color:${col}">${(ICON[s.icon]||ICON.clock)(19)}</div>
-      <div class="tlr-body"><b>${esc(s.title)}</b>${s.sub?`<span>${esc(s.sub)}</span>`:''}</div>
+      <div class="tlr-body"><b>${esc(s.title)}</b>${lead?`<span class="tlr-sub">${esc(lead)}</span>`:''}${extra.map(x=>`<span class="tlr-meta">${esc(x)}</span>`).join('')}</div>
     </button>
     <button type="button" class="tlr-tick ${s.done?'on':''}" aria-label="${s.done?'Mark not done':'Mark done'}" onclick="event.stopPropagation();completeRunStep('${runKey}','${jsAttr(s.id)}')">${s.done?ICON.check(15):''}</button>
     ${btns?`<div class="tlr-actions">${btns}</div>`:''}
@@ -511,7 +515,7 @@ function tripBody(r){
       <div class="sub">${ICON.calendar(14)} ${fmtDateLong(r.start)}${r.end!==r.start?' – '+fmtDate(r.end):''}</div>
     </div>
 
-    ${active?'':`<div class="section" style="margin-top:14px"><button class="btn" onclick="startTripFromShow('${r.shows[0].id}')">${ICON.play(18)} Start Trip Mode</button></div>`}
+    ${active?'':`<div class="section" style="margin-top:14px"><button class="btn" onclick="startTripFromShow('${r.shows[0].id}')">${ICON.play(18)} Start Tour Mode</button></div>`}
 
     <!-- 1) UP NEXT — the next thing to do; adaptive widgets; small tick advances -->
     <div class="section" style="margin-top:14px">
@@ -550,13 +554,13 @@ function tripBody(r){
 
     <!-- Packing -->
     <div class="section">
-      ${foldSection('trip-pack', ICON.checkList(17), 'Packing & checklist', pk.filter(i=>i.done).length+'/'+pk.length+' packed',
+      ${foldSection('trip-pack', ICON.checkList(17), 'Packing & checklist', pk.length?(pk.filter(i=>i.done).length+' / '+pk.length+' packed'):'No items',
         `<div style="padding:0 16px 4px"><div class="progress" style="margin:12px 0 4px"><i style="width:${pk.length?Math.round(pk.filter(i=>i.done).length/pk.length*100):0}%"></i></div></div>
          <div class="fold-scroll">${pk.map(i=>`<div class="check ${i.done?'done':''}" data-id="${esc(i.id)}"><div class="box" onclick="togglePack('${i.id}')">${ICON.check(15)}</div><div class="lbl">${esc(i.label)}</div><button class="del" onclick="delPack('${i.id}')">${ICON.x(16)}</button></div>`).join('')||'<div class="hint">No items</div>'}</div>
          <div class="fold-pad"><button class="btn secondary" style="padding:11px" onclick="addPackPrompt()">${ICON.plus(15)} Add item</button></div>`, false)}
     </div>
 
-    ${active?`<div class="section" style="margin-top:20px"><button class="btn secondary" onclick="endTripMode()">${ICON.flag(17)} End Trip Mode</button></div>`:''}
+    ${active?`<div class="section" style="margin-top:20px"><button class="btn secondary" onclick="endTripMode()">${ICON.flag(17)} End Tour Mode</button></div>`:''}
     <div class="spacer"></div><div class="spacer"></div>
   `;
 }
@@ -567,7 +571,7 @@ function viewTrip(id){
   return `
   <div class="detail-top"><div class="detail-bar">
     <button class="back-btn" onclick="back()">${ICON.chevL(20)} Tours</button>
-    <div style="font-size:15px;font-weight:700">${active?'Trip Mode':'Tour'}</div>
+    <div style="font-size:15px;font-weight:700">${active?'Tour Mode':'Tour'}</div>
     <div style="width:36px"></div>
   </div></div>
   <div class="screen-pad stagger">${tripBody(r)}</div>`;
@@ -649,8 +653,8 @@ function saveTrip(tid){
 /* ============================================================
    Trip Mode  (runs — no named trips)
    ============================================================ */
-function startTripFromShow(showId){ store.activeShowId=showId; persist('user_preferences'); overlay=null; navStack=[]; store.tab='trips'; if(typeof saveNavState==='function') saveNavState(); render({ resetScroll: true }); toast('Trip Mode on','play'); }
-function endTripMode(){ confirmSheet('End Trip Mode?','This turns off the live tour view. Nothing is deleted.','End Trip Mode',()=>{ store.activeShowId=null; persist('user_preferences'); overlay=null; store.tab='trips'; if(typeof saveNavState==='function') saveNavState(); render({ resetScroll: true }); toast('Trip Mode off','flag'); }); }
+function startTripFromShow(showId){ store.activeShowId=showId; persist('user_preferences'); overlay=null; navStack=[]; store.tab='trips'; if(typeof saveNavState==='function') saveNavState(); render({ resetScroll: true }); toast('Tour Mode on','play'); }
+function endTripMode(){ confirmSheet('End Tour Mode?','This turns off the live tour view. Nothing is deleted.','End Tour Mode',()=>{ store.activeShowId=null; persist('user_preferences'); overlay=null; store.tab='trips'; if(typeof saveNavState==='function') saveNavState(); render({ resetScroll: true }); toast('Tour Mode off','flag'); }); }
 /* Every callable contact saved across a tour's shows — Artist Liaison,
    drivers (even route-TBD ones) and key contacts — each with its title so
    it's obvious who you're phoning. */
@@ -698,7 +702,7 @@ function togglePack(id){
   if(!patchCheckRowsById(id, p.done)) softRender();
   else {
     const pk = store.packing || [];
-    const label = pk.filter(i=>i.done).length+'/'+pk.length+' packed';
+    const label = pk.length ? (pk.filter(i=>i.done).length+' / '+pk.length+' packed') : 'No items';
     ['tm-pack','trip-pack'].forEach(fid=>{
       const span = document.querySelector('#fold-'+fid+' .ft span');
       if(span) span.textContent = label;

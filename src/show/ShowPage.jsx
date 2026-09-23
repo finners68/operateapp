@@ -48,11 +48,11 @@ function Foot({ show }){
         <div className={`show-trip-cta${past && active ? ' is-quiet' : ''}`}>
           {active ? (
             <button type="button" className="btn" onClick={() => call('go', 'home')}>
-              <Icon name="play" size={18} /> Trip Mode is live — open it
+              <Icon name="play" size={18} /> Tour Mode is live — open it
             </button>
           ) : (
             <button type="button" className="btn" onClick={() => call('startTripFromShow', show.id)}>
-              <Icon name="play" size={18} /> Start Trip Mode{otherShows > 0 ? ` (this run · ${run.shows.length} shows)` : ''}
+              <Icon name="play" size={18} /> Start Tour Mode{otherShows > 0 ? ` (this run · ${run.shows.length} shows)` : ''}
             </button>
           )}
           {otherShows > 0 && !past ? (
