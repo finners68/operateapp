@@ -1298,6 +1298,7 @@ function readFiles(input, cb){
 let itineraryUploadMode = null; // 'new' | 'existing'
 const MAKE_ITINERARY_WEBHOOK_URL = 'https://hook.eu2.make.com/xgg1tbfi9leurmlcsgndqc5ssaxhjjxu';
 const MAKE_ITINERARY_FULL_WEBHOOK_URL = 'https://hook.eu2.make.com/p2f3yp4wj7795gifd38v5rpepf3syxjt';
+const MAKE_ITINERARY_EXISTING_WEBHOOK_URL = 'https://hook.eu2.make.com/asupx71hz62r2y7r1w0xjmr3mprncqa3';
 const MAKE_ITINERARY_DECISION_WEBHOOK_URL = 'https://hook.eu2.make.com/s9nhy6yvevqj0h8wg51wv57m1acwd3fg';
 const MAKE_CALENDAR_WEBHOOK_URL = 'https://hook.eu2.make.com/llxseuaiwkm7q6ug0hjpg7e8iqws3eh7';
 const ITINERARY_UPLOAD_STATE_KEY = 'operate.itineraryFullUpload';
@@ -1543,8 +1544,8 @@ function submitItinerary(input, mode){
       await sendItineraryToMake(entry.id);
     } else {
       closeSheet();
-    sheetItinerary(entry.id);
-      toast('File saved on existing show','check');
+      if(typeof openView === 'function') openView('event', showId);
+      await startItineraryFullUpload(entry.id, showId, 'existing');
     }
   });
 }
@@ -1673,8 +1674,10 @@ async function postItineraryFileToMake(it, opts={}){
   const blob=dataUrlToBlob(file.data);
   if(!blob) return { error:'bad_file' };
   const orgId = resolveOperateOrgId();
-  const stage = opts.stage || (it.showId ? 'full' : 'basics');
-  const webhookUrl = stage === 'full' ? MAKE_ITINERARY_FULL_WEBHOOK_URL : MAKE_ITINERARY_WEBHOOK_URL;
+  const stage = opts.stage || (it.mode === 'existing' ? 'existing' : (it.showId ? 'full' : 'basics'));
+  const webhookUrl = stage === 'existing'
+    ? MAKE_ITINERARY_EXISTING_WEBHOOK_URL
+    : (stage === 'full' ? MAKE_ITINERARY_FULL_WEBHOOK_URL : MAKE_ITINERARY_WEBHOOK_URL);
   const form=new FormData();
   const name=file.name || (file.kind==='image' ? 'itinerary.jpg' : 'itinerary.pdf');
   form.append('file', blob, name);
@@ -1685,7 +1688,7 @@ async function postItineraryFileToMake(it, opts={}){
   form.append('organisation_id', orgId);
   if(it.showId) form.append('show_id', it.showId);
   const controller=new AbortController();
-  const timer=setTimeout(()=>controller.abort(), stage === 'full' ? 120000 : 90000);
+  const timer=setTimeout(()=>controller.abort(), (stage === 'full' || stage === 'existing') ? 120000 : 90000);
   try{
     const res=await fetch(webhookUrl, {
       method:'POST',
@@ -2170,10 +2173,11 @@ function onPendingShowImportRealtime(row){
     toast('Itinerary upload failed', 'x');
   }
 }
-async function startItineraryFullUpload(itineraryId, showId){
+async function startItineraryFullUpload(itineraryId, showId, stage){
   const it=(store.itineraries||[]).find(x=>x.id===itineraryId);
   if(!it || !showId) return;
   it.showId = showId;
+  const sendStage = stage || (it.mode === 'existing' ? 'existing' : 'full');
   const baselineScore = await queryShowEnrichmentScore(showId);
   setItineraryUploadState(showId, {
     status:'uploading',
@@ -2185,7 +2189,7 @@ async function startItineraryFullUpload(itineraryId, showId){
   });
   watchItineraryUploadComplete(showId, itineraryId);
   try{
-    const result = await postItineraryFileToMake(it, { stage:'full' });
+    const result = await postItineraryFileToMake(it, { stage: sendStage });
     if(result.error){
       stopItineraryUploadWatch(showId);
       setItineraryUploadState(showId, {

@@ -10,7 +10,7 @@ const shows=()=> (store().events||[]).filter(e=>(e.kind||'show')==='show');
 export function ItineraryStartSheet(){
   return <><p className="sheet-lede">First choose what this upload is for — then pick the file.</p><div className="edit-section-grid">
     <button className="edit-section-btn" onClick={()=>call('beginItineraryNewShow')}><Icon name="plus" size={16}/><span><b>New show</b><small>Upload → review basics</small></span></button>
-    <button className="edit-section-btn" onClick={()=>call('beginItineraryExistingShow')}><Icon name="music" size={16}/><span><b>Existing show</b><small>Attach a file to a show you already have</small></span></button>
+    <button className="edit-section-btn" onClick={()=>call('beginItineraryExistingShow')}><Icon name="music" size={16}/><span><b>Existing show</b><small>Add an itinerary to a show you already have</small></span></button>
   </div><Spacer/></>;
 }
 export function ItineraryNewShowSheet(){
@@ -19,7 +19,7 @@ export function ItineraryNewShowSheet(){
 export function ItineraryExistingShowSheet({items}){
   const list=items||shows();
   if(!list.length) return <><div className="empty" style={{padding:'18px 8px'}}><div className="ic"><Icon name="music" size={26}/></div><b>No shows yet</b><span>Create a show first, or choose New show instead.</span></div><button className="btn secondary" onClick={()=>call('beginItineraryNewShow')}><Icon name="plus" size={16}/> New show from itinerary</button><Spacer/></>;
-  return <><p className="sheet-lede">Pick the show, then upload the file. This path only saves the attachment for now.</p><Field label="Show"><select id="itn-pick-show" className="input">{list.map(s=><option key={s.id} value={s.id}>{showTitle(s)} · {fmtDate(s.date)}</option>)}</select></Field><label className="btn" style={{marginTop:8}}><Icon name="plus" size={18}/> Upload itinerary<input type="file" accept="image/*,application/pdf" multiple hidden onChange={e=>call('submitItinerary',e.currentTarget,'existing')}/></label><Spacer/></>;
+  return <><p className="sheet-lede">Pick the show, then upload the itinerary. We’ll send the file and fill that show.</p><Field label="Show"><select id="itn-pick-show" className="input">{list.map(s=><option key={s.id} value={s.id}>{showTitle(s)} · {fmtDate(s.date)}</option>)}</select></Field><label className="btn" style={{marginTop:8}}><Icon name="plus" size={18}/> Upload itinerary<input type="file" accept="image/*,application/pdf" multiple hidden onChange={e=>call('submitItinerary',e.currentTarget,'existing')}/></label><Spacer/></>;
 }
 export function ItinerarySendingSheet(){
   return <><div className="empty" style={{padding:'28px 10px'}}><div className="ic"><Icon name="file" size={28}/></div><b>Sending your file…</b><span>Reading the itinerary. Waiting for show basics.</span></div><Spacer/></>;
