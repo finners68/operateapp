@@ -408,6 +408,7 @@ function activeNavTab(){
     if(overlay.type==='idea') return 'ideas';
     if(overlay.type==='note') return 'ideas';
     if(overlay.type==='noteFolder') return 'ideas';
+    if(overlay.type==='settings') return 'settings';
   }
   return store.tab;
 }
@@ -436,7 +437,10 @@ function renderNav(){
   ` + TABS.map(t=>`
     <button class="nav-item ${active===t.id?'active':''}" onclick="go('${t.id}')" title="${esc(t.hint)}">
       <span class="ic">${ICON[t.icon](25)}</span><span>${t.label}</span>
-    </button>`).join('');
+    </button>`).join('') + `
+    <button class="nav-item nav-item-desktop ${active==='settings'?'active':''}" onclick="openView('settings')" title="Settings">
+      <span class="ic">${ICON.settings(25)}</span><span>Settings</span>
+    </button>`;
 }
 
 /* ---------- Master render ---------- */

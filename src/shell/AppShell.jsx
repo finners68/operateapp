@@ -29,6 +29,7 @@ export function NavBar(){
   useStoreTick();
   const tabs = getTabs() || [];
   const active = activeTab();
+  const onSettings = getOverlay()?.type === 'settings';
 
   return (
     <>
@@ -54,6 +55,15 @@ export function NavBar(){
           <span>{t.label}</span>
         </button>
       ))}
+      <button
+        type="button"
+        className={`nav-item nav-item-desktop${onSettings ? ' active' : ''}`}
+        title="Settings"
+        onClick={() => call('openView', 'settings')}
+      >
+        <span className="ic"><Icon name="settings" size={25} /></span>
+        <span>Settings</span>
+      </button>
     </>
   );
 }
