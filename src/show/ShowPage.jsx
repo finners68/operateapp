@@ -90,7 +90,7 @@ export default function ShowPage({ showId }){
   const dealSummary = call('dealGroupSummary', show) || '';
   const prepSummary = call('prepGroupSummary', show) || '';
   return (
-    <div className="show-page">
+    <>
       <div className="detail-top">
         <div className="detail-bar">
           <button type="button" className="back-btn" onClick={() => call('back')}>
@@ -167,6 +167,6 @@ export default function ShowPage({ showId }){
           <Foot show={show} />
         </div>
       </div>
-    </div>
+    </>
   );
 }
