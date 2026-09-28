@@ -155,6 +155,7 @@ body{touch-action:manipulation;}
 .home-hero-text{position:relative;z-index:2;padding:16px 20px 18px;}
 .home-hero-text .hero-hello{font-size:14px;font-weight:600;color:rgba(255,255,255,0.9);text-shadow:0 1px 6px rgba(0,0,0,0.5);}
 .home-hero-text .hero-home{font-size:28px;font-weight:850;letter-spacing:-0.03em;color:var(--text-title);line-height:1.05;margin-top:2px;text-shadow:var(--text-shadow-title), 0 2px 10px rgba(0,0,0,0.45);}
+.home-hero-text .hero-date{color:rgba(255,255,255,0.82);font-size:13px;margin-top:4px;text-shadow:0 1px 6px rgba(0,0,0,0.45);}
 
 /* ---------- Home dashboard ---------- */
 .home-screen{padding-top:2px;}
@@ -162,6 +163,17 @@ body{touch-action:manipulation;}
 .home-screen .home-focus .hero{margin-top:0;}
 .home-screen .home-focus .empty{margin-top:0;}
 .home-layout{display:flex;flex-direction:column;gap:14px;margin-top:18px;}
+.home-priority{display:flex;flex-direction:column;gap:14px;}
+.home-priority .tourmode-wrap{margin-top:0;}
+.home-next-compact.hero{padding:16px;}
+.home-next-compact .hero-venue{font-size:20px;}
+.tourmode-card.is-secondary{padding:14px 16px;}
+.tourmode-card.is-secondary .tourmode-title{font-size:18px;margin-top:8px;}
+.home-attn-count{padding:0 16px 4px;font-size:28px;font-weight:800;letter-spacing:-0.03em;color:var(--text-title);}
+.home-line{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 16px;border-top:1px solid var(--stroke);font-size:14.5px;cursor:pointer;}
+.home-line b{font-weight:650;}
+.home-line span{color:var(--text-2);font-weight:600;text-align:right;}
+.home-quiet{padding:2px 16px 14px;color:var(--text-3);font-size:13px;font-weight:600;}
 .home-feed{display:grid;grid-template-columns:1fr;gap:14px;}
 .home-sc-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;}
 .home-sc-grid .home-sc{width:100%;justify-content:flex-start;box-sizing:border-box;}

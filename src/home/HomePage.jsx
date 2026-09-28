@@ -1,5 +1,5 @@
 import { useSyncExternalStore, useEffect } from 'react';
-import { call, countdown, flightHasDetails, fmtDate, getCats, getIdeaTypes, getSel, getStore, pad, parseDT, relDay, subscribeStore, tickCountdowns, timeAgo } from '../api/operate.js';
+import { call, countdown, flightHasDetails, fmtBase, fmtDate, getCats, getIdeaTypes, getMoney, getSel, getStore, pad, parseDT, relDay, showTitle, subscribeStore, tickCountdowns, timeAgo } from '../api/operate.js';
 import { Icon } from '../show/ui.jsx';
 
 function useStoreTick(){
@@ -36,7 +36,7 @@ function HomePanel({ title, link, children }){
   );
 }
 
-function NextShowHero({ show }){
+function NextShowHero({ show, compact = false }){
   const flight = (show.flights || []).find(f => {
     const fn = flightHasDetails;
     return typeof fn !== 'function' || fn(f);
@@ -63,7 +63,7 @@ function NextShowHero({ show }){
   const venueQ = call('venueMapQuery', show);
 
   return (
-    <div className="hero tap nextshow" onClick={() => call('openView', 'event', show.id)}>
+    <div className={`hero tap nextshow${compact ? ' home-next-compact' : ''}`} onClick={() => call('openView', 'event', show.id)}>
       <div className="hero-label"><Icon name="music" size={14} /> Next show · {relDay ? relDay(show.date) : show.date}</div>
       <div className="hero-venue">{show.eventName || show.venue}</div>
       {show.eventName && show.venue ? <div className="hero-venue-sub"><Icon name="pin" size={13} /> {show.venue}</div> : null}
@@ -134,10 +134,10 @@ function NextShowHero({ show }){
   );
 }
 
-function TourBanner({ run }){
+function TourBanner({ run, secondary = false }){
   const p = call('runProgress', run) || { done: 0, total: 0, pct: 0 };
   return (
-    <div className="tourmode-card tap" onClick={() => call('go', 'trips')}>
+    <div className={`tourmode-card tap${secondary ? ' is-secondary' : ''}`} onClick={() => call('go', 'trips')}>
       <div className="tourmode-top">
         <span className="tourmode-badge"><Icon name="planeTop" size={15} /> Tour Mode</span>
         <span className="tourmode-live"><span className="pulse" /> LIVE</span>
@@ -150,6 +150,163 @@ function TourBanner({ run }){
   );
 }
 
+function isoToday(){
+  const fromApp = call('todayISO');
+  if(fromApp) return fromApp;
+  const t = new Date();
+  return `${t.getFullYear()}-${pad(t.getMonth() + 1)}-${pad(t.getDate())}`;
+}
+
+function addDays(iso, days){
+  const d = parseDT ? parseDT(iso) : null;
+  if(!d) return '';
+  d.setDate(d.getDate() + days);
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
+
+function showLabel(show){
+  return showTitle(show) || show?.venue || 'Show';
+}
+
+function invoiceDue(inv){
+  if(inv?.dueDate) return String(inv.dueDate).slice(0, 10);
+  if(!inv?.date || inv.terms == null || inv.terms === '') return '';
+  return addDays(inv.date, Number(inv.terms) || 0);
+}
+
+function UpNextCard({ step, title, large }){
+  if(!step) return null;
+  const pills = call('stepPills', step) || '';
+  const showId = step.showId || step.ref?.showId;
+  return (
+    <div className={`hero nextshow tap${large ? '' : ' home-next-compact'}`} onClick={() => showId && call('openView', 'event', showId)}>
+      <div className="hero-label">
+        <Icon name={step.icon || 'clock'} size={14} /> {title}{step.time ? ` · ${step.time}` : ''}
+      </div>
+      <div className="hero-venue">{step.title}</div>
+      {step.sub ? <div className="hero-city">{step.sub}</div> : null}
+      {pills ? <div className="hero-links" onClick={e => e.stopPropagation()} dangerouslySetInnerHTML={{ __html: pills }} /> : null}
+    </div>
+  );
+}
+
+function ShowRows({ shows }){
+  if(!shows.length) return null;
+  return (
+    <div className="card flush home-inset">
+      {shows.map(e => (
+        <div key={e.id} className="row" onClick={() => call('openView', 'event', e.id)}>
+          <div className="ic" style={{ background: 'var(--accent-soft)', color: 'var(--accent-2)' }}><Icon name="music" size={16} /></div>
+          <div className="body">
+            <b>
+              {showLabel(e)}
+              {e.status === 'hold' ? <span className="tag hold" style={{ marginLeft: 6 }}>Hold</span> : null}
+            </b>
+            <span>
+              {fmtDate ? fmtDate(e.date) : e.date}
+              {e.city ? ` · ${e.city}` : ''}
+              {e.setTime ? ` · ${e.setTime}${e.endTime ? `–${e.endTime}` : ''}` : ''}
+            </span>
+          </div>
+          <Icon name="chevR" size={15} />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function ChecklistBlock({ title, rows, link }){
+  if(!rows.length) return null;
+  return (
+    <HomePanel title={title} link={link}>
+      <div className="card flush home-inset">
+        {rows.map(row => (
+          <div key={row.key} className={`check ${row.done ? 'done' : ''}`} onClick={() => call('toggleEventCheck', row.showId, row.id)}>
+            <div className="box"><Icon name="check" size={15} /></div>
+            <div className="lbl">{row.label}{row.showName ? <span style={{ display: 'block', color: 'var(--text-3)', fontWeight: 600, marginTop: 2 }}>{row.showName}</span> : null}</div>
+          </div>
+        ))}
+      </div>
+    </HomePanel>
+  );
+}
+
+const HOME_ORDER = {
+  dj: ['next', 'tour', 'travel', 'tasks', 'contacts', 'upcoming', 'fee'],
+  manager: ['attention', 'tour', 'upcoming', 'finance', 'tasks', 'travel'],
+  tm: ['tour', 'upnext', 'today', 'travel', 'contacts', 'upcoming'],
+  agent: ['holds', 'tour', 'upcoming', 'conflicts', 'finance', 'contacts'],
+};
+
+const SHORTCUTS = {
+  dj: [
+    ['Tour', [
+      ['go', 'shows', 'music', 'var(--accent-2)', 'Shows'],
+      ['go', 'trips', 'trips', 'var(--pink)', 'Tours'],
+      ['openView', 'itinerary', 'file', 'var(--blue)', 'Itinerary'],
+      ['sheetCalendarUpload', null, 'calendar', 'var(--green)', 'Upload calendar'],
+    ]],
+    ['Desk', [
+      ['openView', 'contacts', 'users', 'var(--accent-2)', 'Contacts'],
+      ['sheetIdea', null, 'idea', 'var(--orange)', 'New idea'],
+      ['sheetNote', null, 'note', 'var(--blue)', 'New note'],
+      ['openView', 'finance', 'coins', 'var(--green)', 'Finance'],
+      ['openView', 'invoices', 'receipt', 'var(--blue)', 'Invoice'],
+    ]],
+  ],
+  manager: [
+    ['Overview', [
+      ['go', 'shows', 'music', 'var(--accent-2)', 'Shows'],
+      ['openView', 'finance', 'coins', 'var(--green)', 'Finance'],
+      ['openView', 'invoices', 'receipt', 'var(--blue)', 'Invoice'],
+      ['openView', 'contacts', 'users', 'var(--accent-2)', 'Contacts'],
+    ]],
+    ['Also', [
+      ['go', 'trips', 'trips', 'var(--pink)', 'Tours'],
+      ['openView', 'itinerary', 'file', 'var(--blue)', 'Itinerary'],
+      ['sheetCalendarUpload', null, 'calendar', 'var(--green)', 'Upload calendar'],
+      ['sheetIdea', null, 'idea', 'var(--orange)', 'New idea'],
+      ['sheetNote', null, 'note', 'var(--blue)', 'New note'],
+    ]],
+  ],
+  tm: [
+    ['On the road', [
+      ['go', 'trips', 'trips', 'var(--pink)', 'Tours'],
+      ['go', 'shows', 'music', 'var(--accent-2)', 'Shows'],
+      ['openView', 'itinerary', 'file', 'var(--blue)', 'Itinerary'],
+      ['openView', 'contacts', 'users', 'var(--accent-2)', 'Contacts'],
+    ]],
+    ['Also', [
+      ['sheetCalendarUpload', null, 'calendar', 'var(--green)', 'Upload calendar'],
+      ['sheetNote', null, 'note', 'var(--blue)', 'New note'],
+      ['openView', 'finance', 'coins', 'var(--green)', 'Finance'],
+      ['openView', 'invoices', 'receipt', 'var(--blue)', 'Invoice'],
+      ['sheetIdea', null, 'idea', 'var(--orange)', 'New idea'],
+    ]],
+  ],
+  agent: [
+    ['Bookings', [
+      ['go', 'shows', 'music', 'var(--accent-2)', 'Shows'],
+      ['openView', 'finance', 'coins', 'var(--green)', 'Finance'],
+      ['openView', 'invoices', 'receipt', 'var(--blue)', 'Invoice'],
+      ['openView', 'contacts', 'users', 'var(--accent-2)', 'Contacts'],
+    ]],
+    ['Also', [
+      ['sheetCalendarUpload', null, 'calendar', 'var(--green)', 'Upload calendar'],
+      ['go', 'trips', 'trips', 'var(--pink)', 'Tours'],
+      ['openView', 'itinerary', 'file', 'var(--blue)', 'Itinerary'],
+      ['sheetNote', null, 'note', 'var(--blue)', 'New note'],
+      ['sheetIdea', null, 'idea', 'var(--orange)', 'New idea'],
+    ]],
+  ],
+};
+
+function runShortcut(kind, arg){
+  if(kind === 'go') call('go', arg);
+  else if(arg) call(kind, arg);
+  else call(kind);
+}
+
 export default function HomePage(){
   const tick = useStoreTick();
   useEffect(() => {
@@ -159,23 +316,204 @@ export default function HomePage(){
 
   const store = getStore();
   const sel = getSel();
-  const run = call('activeRun');
-  const show = sel?.nextEvent ? sel.nextEvent() : null;
+  const persona = call('homePersona') || 'dj';
+  const blurb = call('homePersonaBlurb') || 'Your next show and travel at a glance';
+  const liveRun = call('activeRun');
+  const upcoming = sel?.upcoming ? sel.upcoming() : [];
+  const show = upcoming[0] || null;
+  const focusRun = liveRun || (show ? call('runOf', show.id) : null);
+  const timeline = focusRun ? (call('runTimeline', focusRun) || []) : [];
+  const nextStep = timeline.find(s => !s.done) || null;
+  const nextTravel = timeline.find(s => !s.done && (s.kind === 'travel' || s.kind === 'stay')) || null;
+  const today = isoToday();
+  const soon = addDays(today, 14);
+  const todaySteps = timeline.filter(s => !s.done && (s.trueDate || s.date) === today && s.id !== nextStep?.id).slice(0, 6);
   const greet = greeting();
   const nameBit = store?.settings?.artistName && store.settings.artistName !== 'You'
     ? `, ${store.settings.artistName}`
     : '';
   const photo = store?.settings?._homeHeaderUrl || store?.settings?.homeHeader;
   const st = call('computeStats') || {};
-  const todayChecklist = show?.checklist?.length ? show.checklist : [];
   const ideasWaiting = sel?.ideas ? sel.ideas().filter(i => !i.done).slice(0, 2) : [];
   const recentNotes = sel?.notes ? sel.notes().slice(0, 2) : [];
   const today0 = new Date(); today0.setHours(0, 0, 0, 0);
   const trips = (call('runs') || []).filter(r => {
     const end = parseDT ? parseDT(r.end) : null;
-    return end && end >= today0;
+    if(!end || end < today0) return false;
+    if(liveRun && r.key === liveRun.key) return false;
+    return true;
   }).slice(0, 2);
   const types = getIdeaTypes() || {};
+  const holds = upcoming.filter(e => e.status === 'hold');
+  const confirmed = upcoming.filter(e => e.status !== 'hold');
+  const listShows = (persona === 'agent' ? confirmed : upcoming).filter(e => persona === 'dj' ? e.id !== show?.id : true).slice(0, 5);
+  const openChecks = [];
+  upcoming.slice(0, 6).forEach(e => {
+    (e.checklist || []).forEach(item => {
+      if(!item.done) openChecks.push({ key: e.id + '-' + item.id, id: item.id, showId: e.id, label: item.label, showName: persona === 'dj' ? '' : showLabel(e), done: false });
+    });
+  });
+  const artistChecks = (show?.checklist || []).filter(i => !i.done).slice(0, 4).map(i => ({
+    key: i.id, id: i.id, showId: show.id, label: i.label, showName: '', done: !!i.done
+  }));
+  const taskRows = (persona === 'dj' ? artistChecks : openChecks.slice(0, 5));
+  const contacts = focusRun ? (call('tourContacts', focusRun) || []).slice(0, 4) : [];
+  const journeysLeft = timeline.filter(s => s.kind === 'travel' && !s.done).length;
+  const hotelsLeft = timeline.filter(s => s.kind === 'stay' && !s.done).length;
+  let driversLeft = 0;
+  (focusRun?.shows || []).forEach(s => {
+    const ds = call('showDrivers', s) || [];
+    driversLeft += ds.filter(d => !d.noGround && (d.name || d.phone || d.whatsapp)).length;
+  });
+  const moneyApi = getMoney();
+  const feeShows = confirmed.filter(e => e.finance && Number(e.finance.fee) > 0);
+  const missingFee = confirmed.filter(e => !e.finance || !Number(e.finance.fee)).length;
+  const feeSummary = moneyApi && feeShows.length ? moneyApi.summary(feeShows) : null;
+  const invoices = store?.invoices || [];
+  const sentInvoices = invoices.filter(inv => inv.status === 'sent');
+  const overdueInvoices = sentInvoices.filter(inv => {
+    const due = invoiceDue(inv);
+    return due && due < today;
+  });
+  const attention = [];
+  overdueInvoices.forEach(inv => {
+    const ev = inv.eventId && sel?.event ? sel.event(inv.eventId) : null;
+    attention.push({ id: 'inv-' + inv.id, title: 'Invoice overdue', sub: ev ? showLabel(ev) : (inv.client || inv.number || 'Invoice'), go: () => call('openView', 'invoice', inv.id) });
+  });
+  upcoming.slice(0, 8).forEach(e => {
+    const hasHotel = !!(e.hotel && (e.hotel.name || e.hotel.address || e.hotel.city));
+    const hasFlight = (e.flights || []).some(f => !flightHasDetails || flightHasDetails(f));
+    const drivers = call('showDrivers', e) || [];
+    const hasGround = drivers.some(d => d.time || d.name || d.phone);
+    const hasTravelLeg = (store?.events || []).some(x => x.showId === e.id && x.kind === 'travel');
+    if(!hasHotel && (hasFlight || hasGround || hasTravelLeg) && e.date && e.date <= soon){
+      attention.push({ id: 'hotel-' + e.id, title: 'No hotel yet', sub: showLabel(e), go: () => call('openView', 'event', e.id) });
+    }
+  });
+  holds.slice(0, 2).forEach(e => {
+    attention.push({ id: 'hold-' + e.id, title: 'Hold', sub: showLabel(e), go: () => call('openView', 'event', e.id) });
+  });
+  const byDate = {};
+  upcoming.forEach(e => {
+    if(!e.date) return;
+    (byDate[e.date] = byDate[e.date] || []).push(e);
+  });
+  const conflicts = Object.values(byDate).filter(list => list.length > 1);
+  const nextFee = show && moneyApi ? moneyApi.eventCalc(show) : null;
+  const showNextFee = !!(nextFee && nextFee.gross > 0);
+  const tourSecondary = persona === 'manager' || persona === 'agent';
+  const upcomingTitle = persona === 'agent' ? 'Confirmed shows' : persona === 'tm' ? 'Show schedule' : 'Upcoming shows';
+  const blocks = {
+    next: persona === 'dj' ? (
+      show ? <NextShowHero show={show} /> : (
+        <div className="empty">
+          <div className="ic"><Icon name="calendar" size={28} /></div>
+          <b>No upcoming shows</b>
+          <span>Your next show appears here with countdowns and travel info.</span>
+          <button type="button" className="btn" style={{ marginTop: 16, maxWidth: 260 }} onClick={() => call('sheetEvent')}>
+            <Icon name="plus" size={18} /> Add your first show
+          </button>
+        </div>
+      )
+    ) : null,
+    attention: attention.length ? (
+      <div className="home-panel">
+        <div className="home-panel-head">Needs attention</div>
+        <div className="home-attn-count">{attention.length} item{attention.length === 1 ? '' : 's'}</div>
+        <div className="card flush home-inset">
+          {attention.slice(0, 6).map(item => (
+            <div key={item.id} className="home-mini-row" onClick={item.go}>
+              <span className="home-mini-dot" style={{ background: 'var(--orange)' }} />
+              <span className="home-mini-t">{item.title}</span>
+              <span className="home-mini-meta">{item.sub}</span>
+              <Icon name="chevR" size={14} />
+            </div>
+          ))}
+        </div>
+      </div>
+    ) : null,
+    holds: holds.length ? (
+      <HomePanel title="Holds" link={<button type="button" className="home-panel-link" onClick={() => call('go', 'shows')}>Shows</button>}>
+        <ShowRows shows={holds.slice(0, 4)} />
+      </HomePanel>
+    ) : null,
+    tour: liveRun ? <div className="tourmode-wrap"><TourBanner run={liveRun} secondary={tourSecondary} /></div> : null,
+    upnext: nextStep ? <UpNextCard step={nextStep} title="Up next" large /> : (show ? <NextShowHero show={show} /> : null),
+    travel: persona === 'dj'
+      ? (nextTravel ? <UpNextCard step={nextTravel} title="Up next travel" large={false} /> : null)
+      : ((journeysLeft || hotelsLeft || driversLeft) ? (
+        <HomePanel title={persona === 'tm' ? 'Travel and stay' : 'Travel overview'} link={focusRun ? <button type="button" className="home-panel-link" onClick={() => call('go', 'trips')}>Tour</button> : null}>
+          <div className="home-stat-grid">
+            {journeysLeft ? <div className="home-stat"><div className="home-stat-k" style={{ color: 'var(--blue)' }}><Icon name="plane" size={14} /> Journeys</div><div className="home-stat-v">{journeysLeft}</div></div> : null}
+            {hotelsLeft ? <div className="home-stat"><div className="home-stat-k" style={{ color: 'var(--accent-2)' }}><Icon name="bed" size={14} /> Hotels</div><div className="home-stat-v">{hotelsLeft}</div></div> : null}
+            {driversLeft ? <div className="home-stat"><div className="home-stat-k" style={{ color: 'var(--green)' }}><Icon name="car" size={14} /> Drivers</div><div className="home-stat-v">{driversLeft}</div></div> : null}
+          </div>
+        </HomePanel>
+      ) : null),
+    today: todaySteps.length ? (
+      <HomePanel title="Today">
+        <div className="card flush home-inset">
+          {todaySteps.map(s => (
+            <div key={s.id} className="home-mini-row" onClick={() => s.showId && call('openView', 'event', s.showId)}>
+              <span className="home-mini-meta">{s.time || '—'}</span>
+              <span className="home-mini-t">{s.title}</span>
+            </div>
+          ))}
+        </div>
+      </HomePanel>
+    ) : null,
+    contacts: contacts.length ? (
+      <HomePanel title={persona === 'agent' ? 'Booking contacts' : persona === 'tm' ? 'Key contacts' : 'Quick contacts'} link={focusRun ? <button type="button" className="home-panel-link" onClick={() => call('openTourContacts', focusRun.key)}>All</button> : null}>
+        <div className="card flush home-inset">
+          {contacts.map((c, i) => (
+            <div key={i} className="home-mini-row" onClick={() => call('openTourContacts', focusRun.key)}>
+              <span className="home-mini-dot" style={{ background: 'var(--accent-2)' }} />
+              <span className="home-mini-t">{c.name || c.label}</span>
+              <span className="home-mini-meta">{c.label}</span>
+            </div>
+          ))}
+        </div>
+      </HomePanel>
+    ) : null,
+    upcoming: listShows.length ? (
+      <HomePanel title={upcomingTitle} link={<button type="button" className="home-panel-link" onClick={() => call('go', 'shows')}>All</button>}>
+        <ShowRows shows={listShows} />
+      </HomePanel>
+    ) : (!show && persona !== 'dj' ? <div className="home-panel"><div className="home-panel-head">Upcoming shows</div><div className="home-quiet">Nothing coming up.</div></div> : null),
+    conflicts: conflicts.length ? (
+      <HomePanel title="Same-day shows" link={<button type="button" className="home-panel-link" onClick={() => call('go', 'calendar')}>Calendar</button>}>
+        <div className="card flush home-inset">
+          {conflicts.slice(0, 3).map(list => (
+            <div key={list[0].date} className="home-mini-row" onClick={() => call('go', 'calendar')}>
+              <span className="home-mini-dot" style={{ background: 'var(--orange)' }} />
+              <span className="home-mini-t">{fmtDate ? fmtDate(list[0].date) : list[0].date}</span>
+              <span className="home-mini-meta">{list.length} shows</span>
+            </div>
+          ))}
+        </div>
+      </HomePanel>
+    ) : null,
+    finance: (feeSummary || missingFee || sentInvoices.length) ? (
+      <div className="home-panel">
+        <div className="home-panel-head">{persona === 'agent' ? 'Deals' : 'Deals and finance'}</div>
+        {feeSummary ? <div className="home-line" onClick={() => call('openView', 'finance')}><b>Confirmed fees</b><span>{fmtBase(feeSummary.grossBase)}</span></div> : null}
+        {sentInvoices.length ? <div className="home-line" onClick={() => call('openView', 'invoices')}><b>Invoices sent</b><span>{sentInvoices.length}{overdueInvoices.length ? ` · ${overdueInvoices.length} overdue` : ''}</span></div> : null}
+        {missingFee ? <div className="home-line" onClick={() => call('go', 'shows')}><b>No fee yet</b><span>{missingFee}</span></div> : null}
+      </div>
+    ) : null,
+    fee: showNextFee ? (
+      <div className="home-panel">
+        <div className="home-line" onClick={() => call('openView', 'event', show.id)}><b>Next show fee</b><span>{fmtBase(nextFee.grossBase)}{nextFee.paid ? ' · paid' : ''}</span></div>
+      </div>
+    ) : null,
+    tasks: taskRows.length ? (
+      <ChecklistBlock
+        title={persona === 'dj' ? 'Today' : `Tasks · ${openChecks.length} open`}
+        rows={taskRows}
+        link={show ? <button type="button" className="home-panel-link" onClick={() => call('openView', 'event', show.id)}>Open show</button> : null}
+      />
+    ) : null,
+  };
   const header = photo ? (
     <div className="home-hero" style={{ backgroundImage: `url('${photo}')` }}>
       <div className="home-hero-actions">
@@ -185,6 +523,7 @@ export default function HomePage(){
       <div className="home-hero-text">
         <div className="hero-hello">{greet}{nameBit}</div>
         <div className="hero-home">Home</div>
+        <div className="hero-date">{blurb}</div>
       </div>
     </div>
   ) : (
@@ -192,7 +531,7 @@ export default function HomePage(){
       <div className="lg-header">
         <div>
           <div className="lg-title">Home</div>
-          <div className="lg-sub">{greet}{nameBit} · your tour dashboard</div>
+          <div className="lg-sub">{greet}{nameBit} · {blurb}</div>
         </div>
         <div style={{ display: 'flex', gap: 9 }}>
           <button type="button" className="header-btn" onClick={() => call('openSearch')}><Icon name="search" size={20} /></button>
@@ -206,46 +545,24 @@ export default function HomePage(){
     <div className="tab-page">
       {header}
       <div className="screen-pad home-screen tab-page-body" style={photo ? { marginTop: 12 } : undefined}>
-        <section className="home-focus">
-          {show ? (
-            <NextShowHero show={show} />
-          ) : (
-            <div className="empty">
-              <div className="ic"><Icon name="calendar" size={28} /></div>
-              <b>No upcoming shows</b>
-              <span>Your next show appears here with countdowns and travel info.</span>
-              <button type="button" className="btn" style={{ marginTop: 16, maxWidth: 260 }} onClick={() => call('sheetEvent')}>
-                <Icon name="plus" size={18} /> Add your first show
-              </button>
-            </div>
-          )}
-        </section>
-
-        {run ? <div className="tourmode-wrap"><TourBanner run={run} /></div> : null}
+        <div className="home-priority">
+          {(HOME_ORDER[persona] || HOME_ORDER.dj).map(key => blocks[key] ? <div key={key}>{blocks[key]}</div> : null)}
+        </div>
 
         <div className="home-layout">
           <div className="home-panel">
             <div className="home-panel-head">Shortcuts</div>
             <div className="home-panel-body">
-              <div className="home-sc-group">
-                <div className="home-sc-label">Tour</div>
-                <div className="home-sc-row home-sc-grid">
-                  <HomeShortcut onClick={() => call('go', 'shows')} icon="music" color="var(--accent-2)" label="Shows" />
-                  <HomeShortcut onClick={() => call('go', 'trips')} icon="trips" color="var(--pink)" label="Tours" />
-                  <HomeShortcut onClick={() => call('openView', 'itinerary')} icon="file" color="var(--blue)" label="Itinerary" />
-                  <HomeShortcut onClick={() => call('sheetCalendarUpload')} icon="calendar" color="var(--green)" label="Upload calendar" />
+              {(SHORTCUTS[persona] || SHORTCUTS.dj).map(([label, items]) => (
+                <div key={label} className="home-sc-group">
+                  <div className="home-sc-label">{label}</div>
+                  <div className="home-sc-row home-sc-grid">
+                    {items.map(([kind, arg, icon, color, text]) => (
+                      <HomeShortcut key={text} onClick={() => runShortcut(kind, arg)} icon={icon} color={color} label={text} />
+                    ))}
+                  </div>
                 </div>
-              </div>
-              <div className="home-sc-group">
-                <div className="home-sc-label">Desk</div>
-                <div className="home-sc-row home-sc-grid">
-                  <HomeShortcut onClick={() => call('sheetIdea')} icon="idea" color="var(--orange)" label="New idea" />
-                  <HomeShortcut onClick={() => call('sheetNote')} icon="note" color="var(--blue)" label="New note" />
-                  <HomeShortcut onClick={() => call('openView', 'finance')} icon="coins" color="var(--green)" label="Finance" />
-                  <HomeShortcut onClick={() => call('openView', 'invoices')} icon="receipt" color="var(--blue)" label="Invoice" />
-                  <HomeShortcut onClick={() => call('openView', 'contacts')} icon="users" color="var(--accent-2)" label="Contacts" />
-                </div>
-              </div>
+              ))}
             </div>
           </div>
 
@@ -270,19 +587,6 @@ export default function HomePage(){
                   ))}
                 </div>
               </div>
-            ) : null}
-
-            {todayChecklist.length && show ? (
-              <HomePanel title="Today's checklist" link={<button type="button" className="home-panel-link" onClick={() => call('openView', 'event', show.id)}>Open show</button>}>
-                <div className="card flush home-inset">
-                  {todayChecklist.slice(0, 4).map(i => (
-                    <div key={i.id} className={`check ${i.done ? 'done' : ''}`} data-id={i.id} onClick={() => call('toggleEventCheck', show.id, i.id)}>
-                      <div className="box"><Icon name="check" size={15} /></div>
-                      <div className="lbl">{i.label}</div>
-                    </div>
-                  ))}
-                </div>
-              </HomePanel>
             ) : null}
 
             {ideasWaiting.length ? (

@@ -263,7 +263,7 @@ function viewHome(){
   </div>` : `
   <div class="tab-page-sticky">
     <div class="lg-header">
-      <div><div class="lg-title">Home</div><div class="lg-sub">${greeting}${nameBit} · your tour dashboard</div></div>
+      <div><div class="lg-title">Home</div><div class="lg-sub">${greeting}${nameBit} · ${esc(typeof homePersonaBlurb==='function'?homePersonaBlurb():'your tour dashboard')}</div></div>
       <div style="display:flex;gap:9px">
         <button class="header-btn" onclick="openSearch()">${ICON.search(20)}</button>
         <button class="header-btn" onclick="openView('settings')">${ICON.settings(20)}</button>

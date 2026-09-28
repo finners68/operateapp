@@ -413,4 +413,36 @@ test('ground cards keep Hotel to Venue as the title and the real place name unde
   assert.equal(S.groundRouteRealName('Hotel', 'Gerodan House', show), 'Gerodan House');
 });
 
+test('home persona follows the saved account type and falls back to DJ', () => {
+  const sandbox = {
+    window: { addEventListener() {} },
+    document: { addEventListener() {}, getElementById() { return null; }, createElement() { return { getContext() { return {}; } }; } },
+    localStorage: { getItem() { return null; }, setItem() {} },
+    navigator: {}, crypto: { randomUUID: () => 'a'.repeat(32) },
+    console, setTimeout, clearTimeout,
+  };
+  sandbox.self = sandbox.window;
+  vm.createContext(sandbox);
+  vm.runInContext(readFileSync(join(root, 'js', 'state.js'), 'utf8'), sandbox, { filename: 'state.js' });
+  const out = vm.runInContext(`
+    store = { settings: {} };
+    const missing = homePersona();
+    const missingBlurb = homePersonaBlurb();
+    store.settings.accountType = 'tm';
+    const tm = homePersona();
+    const tmBlurb = homePersonaBlurb();
+    store.settings.accountType = 'agent';
+    const agent = homePersona();
+    store.settings.accountType = 'not-a-role';
+    const unknown = homePersona();
+    ({ missing, missingBlurb, tm, tmBlurb, agent, unknown });
+  `, sandbox);
+  assert.equal(out.missing, 'dj');
+  assert.equal(out.missingBlurb, 'Your next show and travel at a glance');
+  assert.equal(out.tm, 'tm');
+  assert.equal(out.tmBlurb, "Today's tour operations");
+  assert.equal(out.agent, 'agent');
+  assert.equal(out.unknown, 'dj');
+});
+
 

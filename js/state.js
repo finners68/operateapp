@@ -1756,6 +1756,20 @@ const ACCOUNT_TYPES = {
   agent:   {label:'Agent',        icon:'trend',  desc:'You book shows & handle deals.'},
 };
 function acct(){ return ACCOUNT_TYPES[store.settings.accountType]||ACCOUNT_TYPES.dj; }
+/* Home uses the saved account type for order and wording only — not for access. */
+function homePersona(){
+  const k = store && store.settings && store.settings.accountType;
+  return (k && ACCOUNT_TYPES[k]) ? k : 'dj';
+}
+function homePersonaBlurb(){
+  const blurbs = {
+    dj: 'Your next show and travel at a glance',
+    manager: 'Shows, tasks and business requiring attention',
+    tm: "Today's tour operations",
+    agent: 'Bookings, availability and upcoming shows'
+  };
+  return blurbs[homePersona()] || blurbs.dj;
+}
 
 /* ---------- Collapsible state ---------- */
 let folds = {}; // id -> open(bool)
@@ -2257,6 +2271,8 @@ function migrate(){
   w.money = money;
   w.sel = sel;
   w.ACCOUNT_TYPES = ACCOUNT_TYPES;
+  w.homePersona = homePersona;
+  w.homePersonaBlurb = homePersonaBlurb;
   w.showTitle = showTitle;
   w.showListTitleHtml = showListTitleHtml;
   w.journeyWhenMs = journeyWhenMs;
