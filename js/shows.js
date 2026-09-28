@@ -253,22 +253,13 @@ function viewHome(){
 
   const nameBit = store.settings.artistName&&store.settings.artistName!=='You'?', '+esc(store.settings.artistName):'';
   const photo = store.settings._homeHeaderUrl || store.settings.homeHeader;
-  const header = photo ? `
-  <div class="home-hero" style="background-image:url('${photo}')">
+  const header = `
+  <div class="home-hero${photo?'':' is-default'}"${photo?` style="background-image:url('${photo}')"`:''}>
     <div class="home-hero-actions">
       <button class="header-btn glass" onclick="openSearch()">${ICON.search(20)}</button>
       <button class="header-btn glass" onclick="openView('settings')">${ICON.settings(20)}</button>
     </div>
-    <div class="home-hero-text"><div class="hero-hello">${greeting}${nameBit}</div><div class="hero-home">Home</div></div>
-  </div>` : `
-  <div class="tab-page-sticky">
-    <div class="lg-header">
-      <div><div class="lg-title">Home</div><div class="lg-sub">${greeting}${nameBit} · ${esc(typeof homePersonaBlurb==='function'?homePersonaBlurb():'your tour dashboard')}</div></div>
-      <div style="display:flex;gap:9px">
-        <button class="header-btn" onclick="openSearch()">${ICON.search(20)}</button>
-        <button class="header-btn" onclick="openView('settings')">${ICON.settings(20)}</button>
-      </div>
-    </div>
+    <div class="home-hero-text"><div class="hero-hello">${greeting}${nameBit}</div><div class="hero-home">Home</div><div class="hero-date">${esc(typeof homePersonaBlurb==='function'?homePersonaBlurb():'your tour dashboard')}</div></div>
   </div>`;
   const st = computeStats();
   const statsBlock = st.shows ? `

@@ -476,8 +476,8 @@ export default function HomePage(){
       />
     ) : null,
   };
-  const header = photo ? (
-    <div className="home-hero" style={{ backgroundImage: `url('${photo}')` }}>
+  const header = (
+    <div className={`home-hero${photo ? '' : ' is-default'}`} style={photo ? { backgroundImage: `url('${photo}')` } : undefined}>
       <div className="home-hero-actions">
         <button type="button" className="header-btn glass" onClick={() => call('openSearch')}><Icon name="search" size={20} /></button>
         <button type="button" className="header-btn glass" onClick={() => call('openView', 'settings')}><Icon name="settings" size={20} /></button>
@@ -488,25 +488,12 @@ export default function HomePage(){
         <div className="hero-date">{blurb}</div>
       </div>
     </div>
-  ) : (
-    <div className="tab-page-sticky">
-      <div className="lg-header">
-        <div>
-          <div className="lg-title">Home</div>
-          <div className="lg-sub">{greet}{nameBit} · {blurb}</div>
-        </div>
-        <div style={{ display: 'flex', gap: 9 }}>
-          <button type="button" className="header-btn" onClick={() => call('openSearch')}><Icon name="search" size={20} /></button>
-          <button type="button" className="header-btn" onClick={() => call('openView', 'settings')}><Icon name="settings" size={20} /></button>
-        </div>
-      </div>
-    </div>
   );
 
   return (
     <div className="tab-page">
       {header}
-      <div className="screen-pad home-screen tab-page-body" style={photo ? { marginTop: 12 } : undefined}>
+      <div className="screen-pad home-screen tab-page-body" style={{ marginTop: 12 }}>
         <HomeActions />
         <div className="home-board">
           <div className="home-slot home-slot-primary">
