@@ -2474,9 +2474,9 @@ function viewSettings(){
 
     <div class="set-title">Notifications</div>
     <div class="set-group">
-      <div class="set-row"><div class="ic" style="background:${s.usbReminder!==false?'var(--accent-soft)':'var(--card-2)'};color:${s.usbReminder!==false?'var(--accent-2)':'var(--text-2)'}">${ICON.bell(17)}</div>
+      <div class="set-row tap" onclick="toggleUsbReminder()"><div class="ic" style="background:${s.usbReminder!==false?'var(--accent-soft)':'var(--card-2)'};color:${s.usbReminder!==false?'var(--accent-2)':'var(--text-2)'}">${ICON.bell(17)}</div>
         <div class="body"><b>Show-end reminder</b><span>Nudge to grab your USB when the set ends</span></div>
-        <button class="toggle ${s.usbReminder!==false?'on':''}" onclick="toggleUsbReminder()"><i></i></button>
+        <button class="toggle ${s.usbReminder!==false?'on':''}" onclick="event.stopPropagation();toggleUsbReminder()"><i></i></button>
       </div>
     </div>
 
@@ -2490,9 +2490,9 @@ function viewSettings(){
 
     <div class="set-title">Security</div>
     <div class="set-group">
-      <div class="set-row"><div class="ic" style="background:${secOn()?'var(--green-soft)':'var(--card-2)'};color:${secOn()?'var(--green)':'var(--text-2)'}">${ICON.lock(17)}</div>
+      <div class="set-row tap" onclick="toggleSecurity()"><div class="ic" style="background:${secOn()?'var(--green-soft)':'var(--card-2)'};color:${secOn()?'var(--green)':'var(--text-2)'}">${ICON.lock(17)}</div>
         <div class="body"><b>Passcode lock</b><span>${secOn()?'On · '+scopeLabel:'Protect the app with a passcode'}</span></div>
-        <button class="toggle ${secOn()?'on':''}" onclick="toggleSecurity()"><i></i></button>
+        <button class="toggle ${secOn()?'on':''}" onclick="event.stopPropagation();toggleSecurity()"><i></i></button>
       </div>
       ${secOn()?`
       <div class="set-row"><div class="ic" style="background:var(--card-2);color:var(--text-2)">${ICON.shield(17)}</div>
@@ -2505,9 +2505,9 @@ function viewSettings(){
           <button class="${sec.scope==='app'?'on':''}" onclick="setLockScope('app')">Whole app</button>
         </div>
       </div>
-      <div class="set-row"><div class="ic" style="background:var(--card-2);color:var(--text-2)">${ICON.face(17)}</div>
+      <div class="set-row tap" onclick="toggleBiometric()"><div class="ic" style="background:var(--card-2);color:var(--text-2)">${ICON.face(17)}</div>
         <div class="body"><b>Face ID / biometrics</b><span>Use device unlock, fall back to passcode</span></div>
-        <button class="toggle ${sec.biometric?'on':''}" onclick="toggleBiometric()"><i></i></button>
+        <button class="toggle ${sec.biometric?'on':''}" onclick="event.stopPropagation();toggleBiometric()"><i></i></button>
       </div>
       <div class="set-row tap" onclick="changePasscode()"><div class="ic" style="background:var(--card-2);color:var(--text-2)">${ICON.unlock(17)}</div><div class="body"><b>Change passcode</b></div><div class="trail">${ICON.chevR(15)}</div></div>
       `:''}

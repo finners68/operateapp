@@ -18,8 +18,10 @@ function PageIntro({ id, title, body }){
 
 function SetRow({ icon, iconBg, iconColor, title, sub, trail, onClick, toggle, danger, asLabel, children }){
   const Comp = asLabel ? 'label' : 'div';
+  const clickable = !!(onClick || asLabel || toggle);
+  const rowClick = onClick || (toggle ? () => toggle.onChange() : undefined);
   return (
-    <Comp className={`set-row${onClick || asLabel ? ' tap' : ''}`} onClick={onClick}>
+    <Comp className={`set-row${clickable ? ' tap' : ''}`} onClick={rowClick}>
       <div className="ic" style={{ background: iconBg, color: iconColor }}><Icon name={icon} size={17} /></div>
       <div className="body">
         <b style={danger ? { color: 'var(--red)' } : undefined}>{title}</b>

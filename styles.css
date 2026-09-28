@@ -77,8 +77,20 @@ input,textarea{-webkit-user-select:text;user-select:text;}
 ::-webkit-scrollbar{display:none;}
 .no-select{-webkit-user-select:none;user-select:none;}
 /* iOS Safari fires tap/click on styled DIVs only when they read as clickable.
-   Every tappable element in this app uses an onclick attribute, so mark them all. */
-[onclick]{cursor:pointer;touch-action:manipulation;}
+   Older screens use an onclick attribute. Newer screens use the tap class
+   (or a list row) with a React click handler, which does not set that attribute. */
+[onclick],
+.tap,
+.row,
+.note-row,
+.ag-show,
+.ag-mark,
+.ag-log,
+.agenda-ev,
+.past-link,
+.section-link,
+.idea,
+.contact-show-link{cursor:pointer;touch-action:manipulation;}
 body{touch-action:manipulation;}
 
 /* ---------- App frame ---------- */
