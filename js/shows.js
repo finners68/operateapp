@@ -279,7 +279,7 @@ function viewHome(){
       </div>
       <div class="home-stat-grid">
         ${homeStat(ICON.music(14),'var(--accent-2)', st.upcoming, 'Shows')}
-        ${homeStat(ICON.plane(14),'var(--blue)', st.flightHrs+'h', 'In the air')}
+        ${homeStat(ICON.plane(14),'var(--blue)', st.flightHrs+'h', 'Flight time')}
         ${homeStat(ICON.trips(14),'var(--green)', st.daysAway, 'Days away')}
         ${homeStat(ICON.globe(14),'var(--pink)', st.cities, 'Cities')}
       </div>
@@ -304,31 +304,21 @@ function viewHome(){
     <section class="home-focus">${hero}</section>
     ${run?`<div class="tourmode-wrap">${activeTripBanner(run)}</div>`:''}
 
-    <div class="home-layout">
-      <div class="home-panel">
-        <div class="home-panel-head">Shortcuts</div>
-        <div class="home-panel-body">
-          <div class="home-sc-group">
-            <div class="home-sc-label">Tour</div>
-            <div class="home-sc-row home-sc-grid">
-              ${homeShortcut(`go('shows')`, ICON.music(18), 'var(--accent-2)', 'Shows')}
-              ${homeShortcut(`go('trips')`, ICON.trips(18), 'var(--pink)', 'Tours')}
-              ${homeShortcut(`openView('itinerary')`, ICON.file(18), 'var(--blue)', 'Itinerary')}
-              ${homeShortcut(`sheetCalendarUpload()`, ICON.calendar(18), 'var(--green)', 'Upload calendar')}
-            </div>
-          </div>
-          <div class="home-sc-group">
-            <div class="home-sc-label">Desk</div>
-            <div class="home-sc-row home-sc-grid">
-              ${homeShortcut(`sheetIdea()`, ICON.idea(18), 'var(--orange)', 'New idea')}
-              ${homeShortcut(`sheetNote()`, ICON.note(18), 'var(--blue)', 'New note')}
-              ${homeShortcut(`openView('finance')`, ICON.coins(18), 'var(--green)', 'Finance')}
-              ${homeShortcut(`openView('invoices')`, ICON.receipt(18), 'var(--blue)', 'Invoice')}
-              ${homeShortcut(`openView('contacts')`, ICON.users(18), 'var(--accent-2)', 'Contacts')}
-            </div>
-          </div>
+    <div class="home-actions">
+      <button type="button" class="home-action" onclick="sheetEvent()">${ICON.plus(15)} Add show</button>
+      <button type="button" class="home-action is-strong" onclick="sheetItineraryStart()">${ICON.file(15)} Upload itinerary</button>
+      <button type="button" class="home-action is-strong" onclick="sheetCalendarUpload()">${ICON.calendar(15)} Upload calendar</button>
+      <div class="home-create">
+        <button type="button" class="home-action" onclick="event.stopPropagation();this.nextElementSibling.hidden=!this.nextElementSibling.hidden">${ICON.plus(15)} Create</button>
+        <div class="home-create-menu" hidden>
+          <button type="button" onclick="sheetIdea()">New idea</button>
+          <button type="button" onclick="sheetNote()">New note</button>
+          <button type="button" onclick="pickEventForInvoice()">Create invoice</button>
+          <button type="button" onclick="sheetContact()">New contact</button>
         </div>
       </div>
+    </div>
+    <div class="home-layout">
       ${feedPanels ? `<div class="home-feed">${feedPanels}</div>` : ''}
     </div>
 

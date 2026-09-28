@@ -1,4 +1,4 @@
-import { useSyncExternalStore, useEffect } from 'react';
+import { useSyncExternalStore, useEffect, useState } from 'react';
 import { call, countdown, flightHasDetails, fmtBase, fmtDate, getCats, getIdeaTypes, getMoney, getSel, getStore, pad, parseDT, relDay, showTitle, subscribeStore, tickCountdowns, timeAgo } from '../api/operate.js';
 import { Icon } from '../show/ui.jsx';
 
@@ -15,12 +15,43 @@ function greeting(){
   return h < 12 ? 'Good morning' : h < 18 ? 'Good afternoon' : 'Good evening';
 }
 
-function HomeShortcut({ onClick, icon, color, label }){
+function HomeActions(){
+  const [open, setOpen] = useState(false);
+  useEffect(() => {
+    if(!open) return undefined;
+    const close = () => setOpen(false);
+    document.addEventListener('click', close);
+    return () => document.removeEventListener('click', close);
+  }, [open]);
+  const choose = (fn) => {
+    setOpen(false);
+    fn();
+  };
   return (
-    <button type="button" className="home-sc" onClick={onClick}>
-      <span className="ic" style={{ background: `${color}22`, color }}><Icon name={icon} size={18} /></span>
-      <span>{label}</span>
-    </button>
+    <div className="home-actions">
+      <button type="button" className="home-action" onClick={() => call('sheetEvent')}>
+        <Icon name="plus" size={15} /> Add show
+      </button>
+      <button type="button" className="home-action is-strong" onClick={() => call('sheetItineraryStart')}>
+        <Icon name="file" size={15} /> Upload itinerary
+      </button>
+      <button type="button" className="home-action is-strong" onClick={() => call('sheetCalendarUpload')}>
+        <Icon name="calendar" size={15} /> Upload calendar
+      </button>
+      <div className="home-create">
+        <button type="button" className="home-action" aria-expanded={open} onClick={e => { e.stopPropagation(); setOpen(v => !v); }}>
+          <Icon name="plus" size={15} /> Create
+        </button>
+        {open ? (
+          <div className="home-create-menu" onClick={e => e.stopPropagation()}>
+            <button type="button" onClick={() => choose(() => call('sheetIdea'))}>New idea</button>
+            <button type="button" onClick={() => choose(() => call('sheetNote'))}>New note</button>
+            <button type="button" onClick={() => choose(() => call('pickEventForInvoice'))}>Create invoice</button>
+            <button type="button" onClick={() => choose(() => call('sheetContact'))}>New contact</button>
+          </div>
+        ) : null}
+      </div>
+    </div>
   );
 }
 
@@ -32,6 +63,18 @@ function HomePanel({ title, link, children }){
         {link || null}
       </div>
       {children}
+    </div>
+  );
+}
+
+function NoShowsCard(){
+  return (
+    <div className="home-empty-card">
+      <b>No upcoming shows</b>
+      <span>Add a show to start planning travel and show day.</span>
+      <button type="button" className="home-action" onClick={() => call('sheetEvent')}>
+        <Icon name="plus" size={15} /> Add show
+      </button>
     </div>
   );
 }
@@ -134,7 +177,7 @@ function NextShowHero({ show, compact = false }){
   );
 }
 
-function TourBanner({ run, secondary = false }){
+function TourBanner({ run, secondary = false, nextStep = null }){
   const p = call('runProgress', run) || { done: 0, total: 0, pct: 0 };
   return (
     <div className={`tourmode-card tap${secondary ? ' is-secondary' : ''}`} onClick={() => call('go', 'trips')}>
@@ -143,8 +186,14 @@ function TourBanner({ run, secondary = false }){
         <span className="tourmode-live"><span className="pulse" /> LIVE</span>
       </div>
       <div className="tourmode-title">{run.title}</div>
-      <div className="tourmode-meta">{run.shows.length} show{run.shows.length > 1 ? 's' : ''} · {p.done}/{p.total} done</div>
+      <div className="tourmode-meta">{run.shows.length} show{run.shows.length > 1 ? 's' : ''} · {p.done}/{p.total} steps</div>
       <div className="tourmode-bar"><i style={{ width: `${p.pct}%` }} /></div>
+      {nextStep ? (
+        <div className="tourmode-next">
+          <span>Up next{nextStep.time ? ` · ${nextStep.time}` : ''}</span>
+          <b>{nextStep.title}</b>
+        </div>
+      ) : null}
       <div className="tourmode-cta">Open Tour Mode <Icon name="chevR" size={15} /></div>
     </div>
   );
@@ -231,82 +280,6 @@ function ChecklistBlock({ title, rows, link }){
   );
 }
 
-const HOME_ORDER = {
-  dj: ['next', 'tour', 'travel', 'tasks', 'contacts', 'upcoming', 'fee'],
-  manager: ['attention', 'tour', 'upcoming', 'finance', 'tasks', 'travel'],
-  tm: ['tour', 'upnext', 'today', 'travel', 'contacts', 'upcoming'],
-  agent: ['holds', 'tour', 'upcoming', 'conflicts', 'finance', 'contacts'],
-};
-
-const SHORTCUTS = {
-  dj: [
-    ['Tour', [
-      ['go', 'shows', 'music', 'var(--accent-2)', 'Shows'],
-      ['go', 'trips', 'trips', 'var(--pink)', 'Tours'],
-      ['openView', 'itinerary', 'file', 'var(--blue)', 'Itinerary'],
-      ['sheetCalendarUpload', null, 'calendar', 'var(--green)', 'Upload calendar'],
-    ]],
-    ['Desk', [
-      ['openView', 'contacts', 'users', 'var(--accent-2)', 'Contacts'],
-      ['sheetIdea', null, 'idea', 'var(--orange)', 'New idea'],
-      ['sheetNote', null, 'note', 'var(--blue)', 'New note'],
-      ['openView', 'finance', 'coins', 'var(--green)', 'Finance'],
-      ['openView', 'invoices', 'receipt', 'var(--blue)', 'Invoice'],
-    ]],
-  ],
-  manager: [
-    ['Overview', [
-      ['go', 'shows', 'music', 'var(--accent-2)', 'Shows'],
-      ['openView', 'finance', 'coins', 'var(--green)', 'Finance'],
-      ['openView', 'invoices', 'receipt', 'var(--blue)', 'Invoice'],
-      ['openView', 'contacts', 'users', 'var(--accent-2)', 'Contacts'],
-    ]],
-    ['Also', [
-      ['go', 'trips', 'trips', 'var(--pink)', 'Tours'],
-      ['openView', 'itinerary', 'file', 'var(--blue)', 'Itinerary'],
-      ['sheetCalendarUpload', null, 'calendar', 'var(--green)', 'Upload calendar'],
-      ['sheetIdea', null, 'idea', 'var(--orange)', 'New idea'],
-      ['sheetNote', null, 'note', 'var(--blue)', 'New note'],
-    ]],
-  ],
-  tm: [
-    ['On the road', [
-      ['go', 'trips', 'trips', 'var(--pink)', 'Tours'],
-      ['go', 'shows', 'music', 'var(--accent-2)', 'Shows'],
-      ['openView', 'itinerary', 'file', 'var(--blue)', 'Itinerary'],
-      ['openView', 'contacts', 'users', 'var(--accent-2)', 'Contacts'],
-    ]],
-    ['Also', [
-      ['sheetCalendarUpload', null, 'calendar', 'var(--green)', 'Upload calendar'],
-      ['sheetNote', null, 'note', 'var(--blue)', 'New note'],
-      ['openView', 'finance', 'coins', 'var(--green)', 'Finance'],
-      ['openView', 'invoices', 'receipt', 'var(--blue)', 'Invoice'],
-      ['sheetIdea', null, 'idea', 'var(--orange)', 'New idea'],
-    ]],
-  ],
-  agent: [
-    ['Bookings', [
-      ['go', 'shows', 'music', 'var(--accent-2)', 'Shows'],
-      ['openView', 'finance', 'coins', 'var(--green)', 'Finance'],
-      ['openView', 'invoices', 'receipt', 'var(--blue)', 'Invoice'],
-      ['openView', 'contacts', 'users', 'var(--accent-2)', 'Contacts'],
-    ]],
-    ['Also', [
-      ['sheetCalendarUpload', null, 'calendar', 'var(--green)', 'Upload calendar'],
-      ['go', 'trips', 'trips', 'var(--pink)', 'Tours'],
-      ['openView', 'itinerary', 'file', 'var(--blue)', 'Itinerary'],
-      ['sheetNote', null, 'note', 'var(--blue)', 'New note'],
-      ['sheetIdea', null, 'idea', 'var(--orange)', 'New idea'],
-    ]],
-  ],
-};
-
-function runShortcut(kind, arg){
-  if(kind === 'go') call('go', arg);
-  else if(arg) call(kind, arg);
-  else call(kind);
-}
-
 export default function HomePage(){
   const tick = useStoreTick();
   useEffect(() => {
@@ -346,7 +319,7 @@ export default function HomePage(){
   const types = getIdeaTypes() || {};
   const holds = upcoming.filter(e => e.status === 'hold');
   const confirmed = upcoming.filter(e => e.status !== 'hold');
-  const listShows = (persona === 'agent' ? confirmed : upcoming).filter(e => persona === 'dj' ? e.id !== show?.id : true).slice(0, 5);
+  const listShows = (persona === 'agent' ? confirmed : upcoming).filter(e => liveRun || e.id !== show?.id).slice(0, 6);
   const openChecks = [];
   upcoming.slice(0, 6).forEach(e => {
     (e.checklist || []).forEach(item => {
@@ -401,21 +374,10 @@ export default function HomePage(){
   const conflicts = Object.values(byDate).filter(list => list.length > 1);
   const nextFee = show && moneyApi ? moneyApi.eventCalc(show) : null;
   const showNextFee = !!(nextFee && nextFee.gross > 0);
-  const tourSecondary = persona === 'manager' || persona === 'agent';
+  const tourSecondary = false;
   const upcomingTitle = persona === 'agent' ? 'Confirmed shows' : persona === 'tm' ? 'Show schedule' : 'Upcoming shows';
   const blocks = {
-    next: persona === 'dj' ? (
-      show ? <NextShowHero show={show} /> : (
-        <div className="empty">
-          <div className="ic"><Icon name="calendar" size={28} /></div>
-          <b>No upcoming shows</b>
-          <span>Your next show appears here with countdowns and travel info.</span>
-          <button type="button" className="btn" style={{ marginTop: 16, maxWidth: 260 }} onClick={() => call('sheetEvent')}>
-            <Icon name="plus" size={18} /> Add your first show
-          </button>
-        </div>
-      )
-    ) : null,
+    next: show ? <NextShowHero show={show} /> : <NoShowsCard />,
     attention: attention.length ? (
       <div className="home-panel">
         <div className="home-panel-head">Needs attention</div>
@@ -437,8 +399,8 @@ export default function HomePage(){
         <ShowRows shows={holds.slice(0, 4)} />
       </HomePanel>
     ) : null,
-    tour: liveRun ? <div className="tourmode-wrap"><TourBanner run={liveRun} secondary={tourSecondary} /></div> : null,
-    upnext: nextStep ? <UpNextCard step={nextStep} title="Up next" large /> : (show ? <NextShowHero show={show} /> : null),
+    tour: liveRun ? <div className="tourmode-wrap"><TourBanner run={liveRun} secondary={tourSecondary} nextStep={nextStep} /></div> : null,
+    upnext: nextStep ? <UpNextCard step={nextStep} title="Up next" large={false} /> : null,
     travel: persona === 'dj'
       ? (nextTravel ? <UpNextCard step={nextTravel} title="Up next travel" large={false} /> : null)
       : ((journeysLeft || hotelsLeft || driversLeft) ? (
@@ -479,7 +441,7 @@ export default function HomePage(){
       <HomePanel title={upcomingTitle} link={<button type="button" className="home-panel-link" onClick={() => call('go', 'shows')}>All</button>}>
         <ShowRows shows={listShows} />
       </HomePanel>
-    ) : (!show && persona !== 'dj' ? <div className="home-panel"><div className="home-panel-head">Upcoming shows</div><div className="home-quiet">Nothing coming up.</div></div> : null),
+    ) : null,
     conflicts: conflicts.length ? (
       <HomePanel title="Same-day shows" link={<button type="button" className="home-panel-link" onClick={() => call('go', 'calendar')}>Calendar</button>}>
         <div className="card flush home-inset">
@@ -545,50 +507,53 @@ export default function HomePage(){
     <div className="tab-page">
       {header}
       <div className="screen-pad home-screen tab-page-body" style={photo ? { marginTop: 12 } : undefined}>
-        <div className="home-priority">
-          {(HOME_ORDER[persona] || HOME_ORDER.dj).map(key => blocks[key] ? <div key={key}>{blocks[key]}</div> : null)}
+        <HomeActions />
+        <div className="home-board">
+          <div className="home-slot home-slot-primary">
+            {liveRun ? blocks.tour : blocks.next}
+          </div>
+          <div className="home-slot home-slot-secondary">
+            {persona === 'manager' ? blocks.attention : null}
+            {persona === 'agent' ? blocks.holds : null}
+            {persona === 'tm' && !liveRun ? blocks.upnext : null}
+            {(persona !== 'dj' || !(liveRun && nextTravel && nextStep && nextTravel.id === nextStep.id)) ? blocks.travel : null}
+            {persona === 'agent' ? blocks.conflicts : null}
+            {persona === 'manager' || persona === 'agent' ? blocks.finance : null}
+            {blocks.contacts}
+            {persona === 'dj' ? blocks.fee : null}
+          </div>
+          <div className="home-slot home-slot-tasks">
+            {persona === 'tm' ? blocks.today : null}
+            {blocks.tasks}
+          </div>
+          <div className="home-slot home-slot-upcoming">
+            {blocks.upcoming}
+          </div>
+          <div className="home-slot home-slot-snapshot">
+            <div className="home-panel tap" onClick={() => call('openView', 'stats')}>
+              <div className="home-panel-head home-panel-head-flex">
+                <span>Schedule snapshot</span>
+                <span className="home-panel-link">All stats</span>
+              </div>
+              <div className="home-stat-grid">
+                {[
+                  ['music', 'var(--accent-2)', st.upcoming ?? 0, 'Shows'],
+                  ['plane', 'var(--blue)', `${st.flightHrs || 0}h`, 'Flight time'],
+                  ['trips', 'var(--green)', st.daysAway ?? 0, 'Days away'],
+                  ['globe', 'var(--pink)', st.cities ?? 0, 'Cities'],
+                ].map(([icon, color, value, label]) => (
+                  <div key={label} className="home-stat">
+                    <div className="home-stat-k" style={{ color }}><Icon name={icon} size={14} /> {label}</div>
+                    <div className="home-stat-v">{value}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
         </div>
 
         <div className="home-layout">
-          <div className="home-panel">
-            <div className="home-panel-head">Shortcuts</div>
-            <div className="home-panel-body">
-              {(SHORTCUTS[persona] || SHORTCUTS.dj).map(([label, items]) => (
-                <div key={label} className="home-sc-group">
-                  <div className="home-sc-label">{label}</div>
-                  <div className="home-sc-row home-sc-grid">
-                    {items.map(([kind, arg, icon, color, text]) => (
-                      <HomeShortcut key={text} onClick={() => runShortcut(kind, arg)} icon={icon} color={color} label={text} />
-                    ))}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-
           <div className="home-feed">
-            {st.shows ? (
-              <div className="home-panel tap" onClick={() => call('openView', 'stats')}>
-                <div className="home-panel-head home-panel-head-flex">
-                  <span>Schedule snapshot</span>
-                  <span className="home-panel-link">All stats</span>
-                </div>
-                <div className="home-stat-grid">
-                  {[
-                    ['music', 'var(--accent-2)', st.upcoming, 'Shows'],
-                    ['plane', 'var(--blue)', `${st.flightHrs}h`, 'In the air'],
-                    ['trips', 'var(--green)', st.daysAway, 'Days away'],
-                    ['globe', 'var(--pink)', st.cities, 'Cities'],
-                  ].map(([icon, color, value, label]) => (
-                    <div key={label} className="home-stat">
-                      <div className="home-stat-k" style={{ color }}><Icon name={icon} size={14} /> {label}</div>
-                      <div className="home-stat-v">{value}</div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            ) : null}
-
             {ideasWaiting.length ? (
               <HomePanel title="Ideas" link={<button type="button" className="home-panel-link" onClick={() => call('go', 'ideas')}>All</button>}>
                 <div className="card flush home-inset">
