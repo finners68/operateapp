@@ -1,5 +1,5 @@
-import { useSyncExternalStore } from 'react';
-import { call, getAccountTypes, getAuthUser, getStore, pad, subscribeStore } from '../api/operate.js';
+import { useState, useSyncExternalStore } from 'react';
+import { call, getAccountTypes, getAuthUser, getStore, subscribeStore } from '../api/operate.js';
 import { Icon } from '../show/ui.jsx';
 
 function useStoreTick(){
@@ -37,23 +37,43 @@ function SetRow({ icon, iconBg, iconColor, title, sub, trail, onClick, toggle, d
   );
 }
 
+function Section({ title, danger, children }){
+  return (
+    <>
+      <div className={`set-title${danger ? ' is-danger' : ''}`}>{title}</div>
+      <div className="set-group">{children}</div>
+    </>
+  );
+}
+
 export default function SettingsPage(){
   useStoreTick();
+  const [pickingType, setPickingType] = useState(false);
   const store = getStore();
   const s = store?.settings || {};
   const sec = s.security || {};
   const secOn = !!call('secOn');
   const scopeLabel = !secOn ? 'Off' : sec.scope === 'app' ? 'Whole app' : 'Finance only';
   const types = getAccountTypes() || {};
-  const acct = call('acct') || { label: '' };
+  const acct = call('acct') || { label: '', desc: '', icon: 'user' };
   const backLabel = call('overlayBackLabel') || 'Back';
-  const sidebarHidden = !!call('isSidebarHidden');
-  const syncOn = !!call('syncActive');
+  const devMode = !!call('isDevHardwireMode');
   const authUser = getAuthUser();
-  const accountTitle = call('isDevHardwireMode')
-    ? 'Dev mode'
-    : (authUser?.email
-      || (call('isSyncEnabled') ? 'Sign in to sync' : (call('isAuthRequired') ? 'Sign in & sync' : 'Local only')));
+  const signedIn = !!authUser;
+  const orgName = store?.organisationName
+    || (devMode ? (call('getHardcodedOrgName', store?.organisationId) || '') : '')
+    || '';
+  const showOrg = devMode || (signedIn && !!(orgName || store?.organisationId));
+  const showSignOut = signedIn;
+  const syncLabel = call('syncStatusLabel') || '';
+  const accountSub = signedIn
+    ? (authUser.email || 'Signed in')
+    : (call('isSyncEnabled') ? 'Sign in to sync' : (call('isAuthRequired') ? 'Sign in & sync' : 'Local only'));
+
+  const chooseType = (key) => {
+    setPickingType(false);
+    call('setAccountType', key);
+  };
 
   return (
     <>
@@ -73,19 +93,29 @@ export default function SettingsPage(){
           body="Add your name, home airport (ends a tour when you fly back), and optional cloud sync under Account. These settings shape how Home and Tours work."
         />
 
-        <div className="set-title">Account type</div>
-        <div className="acct-grid">
-          {Object.entries(types).map(([k, v]) => (
-            <button key={k} type="button" className={`acct ${s.accountType === k ? 'on' : ''}`} onClick={() => call('setAccountType', k)}>
-              <div className="ic"><Icon name={v.icon} size={20} /></div>
-              <b>{v.label}</b>
-              <span>{v.desc}</span>
-            </button>
-          ))}
-        </div>
-
-        <div className="set-title">Profile</div>
-        <div className="set-group">
+        <Section title="Account">
+          <SetRow
+            icon={acct.icon || 'user'}
+            iconBg="var(--accent-soft)"
+            iconColor="var(--accent-2)"
+            title="Account type"
+            sub={`${acct.label || 'Choose a type'}${acct.desc ? ` · ${acct.desc}` : ''}`}
+            trail={pickingType ? 'Close' : 'Change'}
+            onClick={() => setPickingType(open => !open)}
+          />
+          {pickingType ? (
+            <div className="acct-pick">
+              <div className="acct-grid">
+                {Object.entries(types).map(([k, v]) => (
+                  <button key={k} type="button" className={`acct ${s.accountType === k ? 'on' : ''}`} onClick={() => chooseType(k)}>
+                    <div className="ic"><Icon name={v.icon} size={20} /></div>
+                    <b>{v.label}</b>
+                    <span>{v.desc}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          ) : null}
           <SetRow
             icon="user" iconBg="var(--accent-soft)" iconColor="var(--accent-2)"
             title={s.artistName === 'You' ? 'Your name' : s.artistName}
@@ -109,10 +139,42 @@ export default function SettingsPage(){
               trail="" onClick={() => call('removeHomeHeader')}
             />
           ) : null}
-        </div>
+          {devMode ? null : (
+            <SetRow
+              icon="user"
+              iconBg="var(--card-2)"
+              iconColor="var(--text-2)"
+              title="Account details"
+              sub={showOrg ? accountSub : <span id="sync-row-sub">{accountSub}</span>}
+              trail=""
+              onClick={() => call('sheetAccount')}
+            />
+          )}
+          {showOrg ? (
+            <SetRow
+              icon="globe"
+              iconBg="var(--card-2)"
+              iconColor="var(--text-2)"
+              title="Organisation"
+              sub={devMode
+                ? (orgName || 'Current organisation')
+                : <span>{orgName || 'Current organisation'} · <span id="sync-row-sub">{syncLabel}</span></span>}
+              trail=""
+              onClick={() => call('sheetAccount')}
+            />
+          ) : null}
+          {showSignOut ? (
+            <SetRow
+              icon="x" iconBg="var(--card-2)" iconColor="var(--text-2)"
+              title="Sign out"
+              sub={authUser?.email || 'End this sign-in on this device'}
+              trail=""
+              onClick={() => call('signOut')}
+            />
+          ) : null}
+        </Section>
 
-        <div className="set-title">Security</div>
-        <div className="set-group">
+        <Section title="Security">
           <SetRow
             icon="lock"
             iconBg={secOn ? 'var(--green-soft)' : 'var(--card-2)'}
@@ -139,25 +201,9 @@ export default function SettingsPage(){
               <SetRow icon="unlock" iconBg="var(--card-2)" iconColor="var(--text-2)" title="Change passcode" trail="" onClick={() => call('changePasscode')} />
             </>
           ) : null}
-        </div>
+        </Section>
 
-        <div className="set-title">Display</div>
-        <div className="set-group">
-          <SetRow
-            icon="chevL" iconBg="var(--card-2)" iconColor="var(--text-2)"
-            title="Hide sidebar" sub="Switch to bottom tabs on desktop"
-            toggle={{ on: sidebarHidden, onChange: () => call('toggleSidebar') }}
-          />
-        </div>
-
-        <div className="set-title">Money</div>
-        <div className="set-group">
-          <SetRow
-            icon="coins" iconBg="var(--green-soft)" iconColor="var(--green)"
-            title="Finance dashboard"
-            sub={secOn && sec.scope !== 'off' ? 'Protected' : 'Open'}
-            trail="" onClick={() => call('openView', 'finance')}
-          />
+        <Section title="Money">
           <SetRow
             icon="globe" iconBg="var(--card-2)" iconColor="var(--text-2)"
             title="Base currency & rates"
@@ -170,10 +216,9 @@ export default function SettingsPage(){
             sub={s.billing?.name || 'Set up for invoices'}
             trail="" onClick={() => call('openBilling')}
           />
-        </div>
+        </Section>
 
-        <div className="set-title">Touring</div>
-        <div className="set-group">
+        <Section title="Touring">
           <SetRow
             icon="planeUp" iconBg="var(--accent-soft)" iconColor="var(--accent-2)"
             title="Home airport"
@@ -182,40 +227,51 @@ export default function SettingsPage(){
             onClick={() => call('editHomeAirport')}
           />
           <SetRow
-            icon="trend" iconBg="var(--blue-soft)" iconColor="var(--blue)"
-            title="Tour stats" sub="Flight time, days away & more"
-            trail="" onClick={() => call('openView', 'stats')}
-          />
-          <SetRow
             icon="bag" iconBg="var(--card-2)" iconColor="var(--text-2)"
             title="Default packing list"
             sub={`${(s.packingTemplate || []).length} items`}
             trail="" onClick={() => call('sheetPacking')}
           />
-        </div>
+        </Section>
 
-        <div className="set-title">Account</div>
-        <div className="set-group">
-          <SetRow
-            icon="globe"
-            iconBg={syncOn ? 'var(--green-soft)' : 'var(--card-2)'}
-            iconColor={syncOn ? 'var(--green)' : 'var(--text-2)'}
-            title={accountTitle}
-            sub={<span id="sync-row-sub">{call('syncStatusLabel') || ''}</span>}
-            trail="Manage"
-            onClick={() => call('sheetAccount')}
-          />
-        </div>
-
-        <div className="set-title">Data</div>
-        <div className="set-group">
+        <Section title="Data & privacy">
           <SetRow icon="file" iconBg="var(--card-2)" iconColor="var(--text-2)" title="Export my data" sub="Download a backup of everything you've entered" trail="" onClick={() => call('exportData')} />
-          <SetRow icon="archive" iconBg="var(--card-2)" iconColor="var(--text-2)" title="Restore from backup" sub="Import a backup file to bring your data here" trail="" asLabel>
+          <SetRow icon="archive" iconBg="var(--card-2)" iconColor="var(--text-2)" title="Restore from backup" sub="Import a backup file to restore your data" trail="" asLabel>
             <input type="file" accept="application/json,.json" style={{ display: 'none' }} onChange={e => call('importData', e.target)} />
           </SetRow>
-          <SetRow icon="map" iconBg="var(--blue-soft)" iconColor="var(--blue)" title="Restore journey details" sub="Re-fill routes, hotels & flight labels from backup or tour catalog" trail="" onClick={() => call('restoreMissingLogistics')} />
-          <SetRow icon="trash" iconBg="var(--red-soft)" iconColor="var(--red)" title="Reset all data" sub="Reload the imported schedule" danger trail="" onClick={() => call('confirmReset')} />
-        </div>
+        </Section>
+
+        <Section title="Advanced">
+          {devMode ? (
+            <SetRow
+              icon="globe"
+              iconBg={call('syncActive') ? 'var(--green-soft)' : 'var(--card-2)'}
+              iconColor={call('syncActive') ? 'var(--green)' : 'var(--text-2)'}
+              title="Dev mode"
+              sub={<span id="sync-row-sub">{syncLabel}</span>}
+              trail="Manage"
+              onClick={() => call('sheetAccount')}
+            />
+          ) : null}
+          <SetRow
+            icon="map" iconBg="var(--blue-soft)" iconColor="var(--blue)"
+            title="Restore journey details"
+            sub="Re-fill routes, hotels & flight labels from backup or tour catalog"
+            trail=""
+            onClick={() => call('restoreMissingLogistics')}
+          />
+        </Section>
+
+        <Section title="Danger zone" danger>
+          <SetRow
+            icon="trash" iconBg="var(--red-soft)" iconColor="var(--red)"
+            title="Reset all app data"
+            sub="Permanently remove locally stored app data"
+            danger
+            trail=""
+            onClick={() => call('confirmReset')}
+          />
+        </Section>
 
         <div className="hint">Operate · local-first with optional cloud sync via Supabase.</div>
         <div className="spacer" />

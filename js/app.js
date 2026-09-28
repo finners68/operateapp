@@ -2432,10 +2432,29 @@ function confirmDeleteIdea(iid){ confirmSheet('Delete idea?','This can\'t be und
    Settings
    ============================================================ */
 function openSettings(){ openView('settings'); }
+let settingsTypeOpen = false;
+function toggleSettingsTypePick(){
+  settingsTypeOpen = !settingsTypeOpen;
+  renderView();
+}
+function pickAccountType(k){
+  settingsTypeOpen = false;
+  setAccountType(k);
+}
 /* ---------- SETTINGS (full section) ---------- */
 function viewSettings(){
   const s=store.settings; const sec=s.security;
   const scopeLabel = !secOn()?'Off' : sec.scope==='app'?'Whole app':'Finance only';
+  const role = acct();
+  const devMode = isDevHardwireMode();
+  const orgName = (store && store.organisationName)
+    || (devMode && typeof getHardcodedOrgName === 'function' && currentOrgId ? getHardcodedOrgName(currentOrgId) : '')
+    || '';
+  const signedIn = !!authUser;
+  const showOrg = devMode || (signedIn && !!(orgName || (store && store.organisationId)));
+  const accountSub = signedIn
+    ? esc(authUser.email || 'Signed in')
+    : (isSyncEnabled() ? 'Sign in to sync' : (isAuthRequired() ? 'Sign in & sync' : 'Local only'));
   return `
   <div class="detail-top"><div class="detail-bar">
     <button class="back-btn" onclick="back()">${ICON.chevL(20)} ${overlayBackLabel()}</button>
@@ -2444,19 +2463,19 @@ function viewSettings(){
   </div></div>
   <div class="screen-pad stagger">
     ${pageIntro('settings', 'Set up Operate', 'Add your name, home airport (ends a tour when you fly back), and optional cloud sync under Account. These settings shape how Home and Tours work.')}
-    <div class="set-title">Account type</div>
-    <div class="acct-grid">
-      ${Object.entries(ACCOUNT_TYPES).map(([k,v])=>`
-        <button class="acct ${s.accountType===k?'on':''}" onclick="setAccountType('${k}')">
-          <div class="ic">${ICON[v.icon](20)}</div><b>${v.label}</b><span>${v.desc}</span>
-        </button>`).join('')}
-    </div>
-
-    <div class="set-title">Profile</div>
+    <div class="set-title">Account</div>
     <div class="set-group">
-      <div class="set-row tap" onclick="editProfileName()"><div class="ic" style="background:var(--accent-soft);color:var(--accent-2)">${ICON.user(17)}</div><div class="body"><b>${esc(s.artistName==='You'?'Your name':s.artistName)}</b><span>${acct().label}</span></div><div class="trail">Edit ${ICON.chevR(15)}</div></div>
+      <div class="set-row tap" onclick="toggleSettingsTypePick()"><div class="ic" style="background:var(--accent-soft);color:var(--accent-2)">${ICON[role.icon||'user'](17)}</div><div class="body"><b>Account type</b><span>${esc(role.label)}${role.desc?' · '+esc(role.desc):''}</span></div><div class="trail">${settingsTypeOpen?'Close':'Change'} ${ICON.chevR(15)}</div></div>
+      ${settingsTypeOpen?`<div class="acct-pick"><div class="acct-grid">${Object.entries(ACCOUNT_TYPES).map(([k,v])=>`
+        <button class="acct ${s.accountType===k?'on':''}" onclick="pickAccountType('${k}')">
+          <div class="ic">${ICON[v.icon](20)}</div><b>${v.label}</b><span>${v.desc}</span>
+        </button>`).join('')}</div></div>`:''}
+      <div class="set-row tap" onclick="editProfileName()"><div class="ic" style="background:var(--accent-soft);color:var(--accent-2)">${ICON.user(17)}</div><div class="body"><b>${esc(s.artistName==='You'?'Your name':s.artistName)}</b><span>${esc(role.label)}</span></div><div class="trail">Edit ${ICON.chevR(15)}</div></div>
       <label class="set-row tap"><div class="ic" style="background:var(--pink);color:#fff">${ICON.camera(17)}</div><div class="body"><b>Home header photo</b><span>${s.homeHeader?'Custom photo set':'Add a background image (approx. 1600×900)'}</span></div><div class="trail">${s.homeHeader?'Change':'Add'} ${ICON.chevR(15)}</div><input type="file" accept="image/*" style="display:none" onchange="uploadHomeHeader(this)"></label>
       ${s.homeHeader?`<div class="set-row tap" onclick="removeHomeHeader()"><div class="ic" style="background:var(--red-soft);color:var(--red)">${ICON.trash(17)}</div><div class="body"><b style="color:var(--red)">Remove header photo</b><span>Back to the plain header</span></div><div class="trail">${ICON.chevR(15)}</div></div>`:''}
+      ${devMode?'':`<div class="set-row tap" onclick="sheetAccount()"><div class="ic" style="background:var(--card-2);color:var(--text-2)">${ICON.user(17)}</div><div class="body"><b>Account details</b><span ${showOrg?'':`id="sync-row-sub"`}>${accountSub}</span></div><div class="trail">${ICON.chevR(15)}</div></div>`}
+      ${showOrg?`<div class="set-row tap" onclick="sheetAccount()"><div class="ic" style="background:var(--card-2);color:var(--text-2)">${ICON.globe(17)}</div><div class="body"><b>Organisation</b><span>${esc(orgName||'Current organisation')}${devMode?'':` · <span id="sync-row-sub">${esc(syncStatusLabel())}</span>`}</span></div><div class="trail">${ICON.chevR(15)}</div></div>`:''}
+      ${signedIn?`<div class="set-row tap" onclick="signOut()"><div class="ic" style="background:var(--card-2);color:var(--text-2)">${ICON.x(17)}</div><div class="body"><b>Sign out</b><span>${esc(authUser.email||'End this sign-in on this device')}</span></div><div class="trail">${ICON.chevR(15)}</div></div>`:''}
     </div>
 
     <div class="set-title">Security</div>
@@ -2484,18 +2503,8 @@ function viewSettings(){
       `:''}
     </div>
 
-    <div class="set-title">Display</div>
-    <div class="set-group">
-      <div class="set-row">
-        <div class="ic" style="background:var(--card-2);color:var(--text-2)">${ICON.chevL(17)}</div>
-        <div class="body"><b>Hide sidebar</b><span>Switch to bottom tabs on desktop</span></div>
-        <button class="toggle ${isSidebarHidden()?'on':''}" onclick="toggleSidebar()"><i></i></button>
-      </div>
-    </div>
-
     <div class="set-title">Money</div>
     <div class="set-group">
-      <div class="set-row tap" onclick="openView('finance')"><div class="ic" style="background:var(--green-soft);color:var(--green)">${ICON.coins(17)}</div><div class="body"><b>Finance dashboard</b><span>${secOn()&&sec.scope!=='off'?'Protected':'Open'}</span></div><div class="trail">${ICON.chevR(15)}</div></div>
       <div class="set-row tap" onclick="sheetCurrency()"><div class="ic" style="background:var(--card-2);color:var(--text-2)">${ICON.globe(17)}</div><div class="body"><b>Base currency & rates</b><span>${s.baseCurrency} · ${Object.keys(s.fx).length} currencies</span></div><div class="trail">${ICON.chevR(15)}</div></div>
       <div class="set-row tap" onclick="openBilling()"><div class="ic" style="background:var(--card-2);color:var(--text-2)">${ICON.wallet2(17)}</div><div class="body"><b>Billing & invoicing</b><span>${s.billing.name?esc(s.billing.name):'Set up for invoices'}</span></div><div class="trail">${ICON.chevR(15)}</div></div>
     </div>
@@ -2503,25 +2512,24 @@ function viewSettings(){
     <div class="set-title">Touring</div>
     <div class="set-group">
       <div class="set-row tap" onclick="editHomeAirport()"><div class="ic" style="background:var(--accent-soft);color:var(--accent-2)">${ICON.planeUp(17)}</div><div class="body"><b>Home airport</b><span>Leaving starts a tour · returning ends it</span></div><div class="trail">${esc(s.homeAirport||'AMS')} ${ICON.chevR(15)}</div></div>
-      <div class="set-row tap" onclick="openView('stats')"><div class="ic" style="background:var(--blue-soft);color:var(--blue)">${ICON.trend(17)}</div><div class="body"><b>Tour stats</b><span>Flight time, days away & more</span></div><div class="trail">${ICON.chevR(15)}</div></div>
       <div class="set-row tap" onclick="sheetPacking()"><div class="ic" style="background:var(--card-2);color:var(--text-2)">${ICON.bag(17)}</div><div class="body"><b>Default packing list</b><span>${(s.packingTemplate||[]).length} items</span></div><div class="trail">${ICON.chevR(15)}</div></div>
     </div>
 
-    <div class="set-title">Account</div>
-    <div class="set-group">
-      <div class="set-row tap" onclick="sheetAccount()"><div class="ic" style="background:${syncActive()?'var(--green-soft)':'var(--card-2)'};color:${syncActive()?'var(--green)':'var(--text-2)'}">${ICON.globe(17)}</div>
-        <div class="body"><b>${isDevHardwireMode()
-          ? esc((store && store.organisationName) || (typeof getHardcodedOrgName === 'function' && currentOrgId ? getHardcodedOrgName(currentOrgId) : '') || 'Organisation')
-          : (authUser ? esc(authUser.email) : (isSyncEnabled() ? 'Sign in to sync' : (isAuthRequired() ? 'Sign in & sync' : 'Local only')))}</b><span id="sync-row-sub">${syncStatusLabel()}</span></div>
-        <div class="trail">${isDevHardwireMode() ? 'Switch' : 'Manage'} ${ICON.chevR(15)}</div></div>
-    </div>
-
-    <div class="set-title">Data</div>
+    <div class="set-title">Data & privacy</div>
     <div class="set-group">
       <div class="set-row tap" onclick="exportData()"><div class="ic" style="background:var(--card-2);color:var(--text-2)">${ICON.file(17)}</div><div class="body"><b>Export my data</b><span>Download a backup of everything you've entered</span></div><div class="trail">${ICON.chevR(15)}</div></div>
-      <label class="set-row tap"><div class="ic" style="background:var(--card-2);color:var(--text-2)">${ICON.archive(17)}</div><div class="body"><b>Restore from backup</b><span>Import a backup file to bring your data here</span></div><div class="trail">${ICON.chevR(15)}</div><input type="file" accept="application/json,.json" style="display:none" onchange="importData(this)"></label>
+      <label class="set-row tap"><div class="ic" style="background:var(--card-2);color:var(--text-2)">${ICON.archive(17)}</div><div class="body"><b>Restore from backup</b><span>Import a backup file to restore your data</span></div><div class="trail">${ICON.chevR(15)}</div><input type="file" accept="application/json,.json" style="display:none" onchange="importData(this)"></label>
+    </div>
+
+    <div class="set-title">Advanced</div>
+    <div class="set-group">
+      ${devMode?`<div class="set-row tap" onclick="sheetAccount()"><div class="ic" style="background:${syncActive()?'var(--green-soft)':'var(--card-2)'};color:${syncActive()?'var(--green)':'var(--text-2)'}">${ICON.globe(17)}</div><div class="body"><b>Dev mode</b><span id="sync-row-sub">${esc(syncStatusLabel())}</span></div><div class="trail">Manage ${ICON.chevR(15)}</div></div>`:''}
       <div class="set-row tap" onclick="restoreMissingLogistics()"><div class="ic" style="background:var(--blue-soft);color:var(--blue)">${ICON.map(17)}</div><div class="body"><b>Restore journey details</b><span>Re-fill routes, hotels &amp; flight labels from backup or tour catalog</span></div><div class="trail">${ICON.chevR(15)}</div></div>
-      <div class="set-row tap" onclick="confirmReset()"><div class="ic" style="background:var(--red-soft);color:var(--red)">${ICON.trash(17)}</div><div class="body"><b style="color:var(--red)">Reset all data</b><span>Reload the imported schedule</span></div><div class="trail">${ICON.chevR(15)}</div></div>
+    </div>
+
+    <div class="set-title is-danger">Danger zone</div>
+    <div class="set-group">
+      <div class="set-row tap" onclick="confirmReset()"><div class="ic" style="background:var(--red-soft);color:var(--red)">${ICON.trash(17)}</div><div class="body"><b style="color:var(--red)">Reset all app data</b><span>Permanently remove locally stored app data</span></div><div class="trail">${ICON.chevR(15)}</div></div>
     </div>
     <div class="hint">Operate · local-first with optional cloud sync via Supabase.</div>
     <div class="spacer"></div>
