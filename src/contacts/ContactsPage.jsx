@@ -14,12 +14,20 @@ function ContactRow({ c }){
   const ROLES = getRoles() || {};
   const col = ROLES[c.role] || ROLES.Other || 'var(--accent-2)';
   const initial = ((c.name || '?').trim()[0] || '?').toUpperCase();
+  const shows = call('contactShowLinks', c) || [];
   return (
     <div className="row" onClick={() => call('contactCard', c.id)}>
       <div className="ic" style={{ background: `${col}22`, color: col, fontWeight: 800, fontSize: 15 }}>{initial}</div>
       <div className="body">
         <b>{c.name}</b>
         <span>{c.role}{c.company ? ` · ${c.company}` : ''}</span>
+        {shows.length ? (
+          <span className="contact-shows">
+            {shows.map(s => (
+              <span key={s.id}>{s.title}{s.dateLabel ? ` · ${s.dateLabel}` : ''}</span>
+            ))}
+          </span>
+        ) : null}
       </div>
       <div className="trail">
         {c.phone ? (

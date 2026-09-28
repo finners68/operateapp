@@ -3061,11 +3061,45 @@ function viewContacts(){
     <div class="spacer"></div>
   </div>`;
 }
+function personMatchesContact(person, contact){
+  if(!person || !contact) return false;
+  const cid = contact.id;
+  if(cid && (person.id === cid || person.contactId === cid || person.contact_id === cid)) return true;
+  const digits = s => String(s || '').replace(/\D/g, '');
+  const cPhone = digits(contact.phone || contact.whatsapp);
+  const pPhone = digits(person.phone || person.whatsapp);
+  if(cPhone && pPhone && cPhone === pPhone) return true;
+  const cName = String(contact.name || '').trim().toLowerCase();
+  const pName = String(person.name || '').trim().toLowerCase();
+  if(cName && pName && cName === pName && !cPhone && !pPhone) return true;
+  return false;
+}
+/* Shows this address-book contact appears on (liaison, key contact, or driver). */
+function contactShowLinks(contact){
+  const shows = (typeof sel !== 'undefined' && sel.events) ? sel.events() : [];
+  const out = [];
+  shows.forEach(show => {
+    const people = [];
+    if(show.promoter) people.push(show.promoter);
+    (show.contacts || []).forEach(c => people.push(c));
+    (show.drivers || []).forEach(d => { if(d && !d.noGround) people.push(d); });
+    if(!people.some(p => personMatchesContact(p, contact))) return;
+    const title = show.eventName || show.venue || show.city || 'Untitled show';
+    const dateLabel = show.date && typeof fmtDate === 'function' ? fmtDate(show.date) : '';
+    out.push({ id: show.id, title, dateLabel });
+  });
+  return out;
+}
+function contactShowMarkup(c){
+  const shows = contactShowLinks(c);
+  if(!shows.length) return '';
+  return `<span class="contact-shows">${shows.map(s => `<span>${esc(s.title)}${s.dateLabel ? ' · '+esc(s.dateLabel) : ''}</span>`).join('')}</span>`;
+}
 function contactRow(c){
   const col=ROLES[c.role]||ROLES.Other;
   return `<div class="row" onclick="contactCard('${c.id}')">
     <div class="ic" style="background:${col}22;color:${col};font-weight:800;font-size:15px">${esc((c.name||'?').trim()[0]||'?').toUpperCase()}</div>
-    <div class="body"><b>${esc(c.name)}</b><span>${esc(c.role)}${c.company?' · '+esc(c.company):''}</span></div>
+    <div class="body"><b>${esc(c.name)}</b><span>${esc(c.role)}${c.company?' · '+esc(c.company):''}</span>${contactShowMarkup(c)}</div>
     <div class="trail">
       ${c.phone?`<button class="header-btn" style="width:34px;height:34px" onclick="event.stopPropagation();callNumber('${jsAttr(c.phone)}')">${ICON.phone(15)}</button>`:''}
       ${c.whatsapp||c.phone?`<button class="header-btn" style="width:34px;height:34px" onclick="event.stopPropagation();whatsapp('${jsAttr(c.whatsapp||c.phone)}')">${ICON.chat(15)}</button>`:''}

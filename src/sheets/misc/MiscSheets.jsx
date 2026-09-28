@@ -267,6 +267,7 @@ export function ContactViewSheet({ id, contact }){
   const roles = getRoles() || {};
   const col = roles[c.role] || roles.Other || 'var(--accent)';
   const initial = ((c.name || '?').trim()[0] || '?').toUpperCase();
+  const shows = call('contactShowLinks', c) || [];
   return (
     <>
       <div style={{ display: 'flex', alignItems: 'center', gap: 13, marginBottom: 16 }}>
@@ -279,6 +280,17 @@ export function ContactViewSheet({ id, contact }){
           </div>
         </div>
       </div>
+      {shows.length ? (
+        <div className="contact-show-group">
+          <div className="k">Shows</div>
+          {shows.map(s => (
+            <button key={s.id} type="button" className="contact-show-link" onClick={() => { call('closeSheet'); call('openView', 'event', s.id); }}>
+              <span>{s.title}{s.dateLabel ? ` · ${s.dateLabel}` : ''}</span>
+              <Icon name="chevR" size={14} />
+            </button>
+          ))}
+        </div>
+      ) : null}
       <div className="act-grid" style={{ gridTemplateColumns: 'repeat(4,1fr)', marginBottom: 16 }}>
         <button type="button" className="act" onClick={() => call('callNumber', c.phone || '')}><div className="ic" style={{ background: 'var(--green-soft)', color: 'var(--green)' }}><Icon name="phone" size={19} /></div><span>Call</span></button>
         <button type="button" className="act" onClick={() => call('whatsapp', c.whatsapp || c.phone || '')}><div className="ic" style={{ background: 'var(--green-soft)', color: 'var(--green)' }}><Icon name="chat" size={19} /></div><span>WhatsApp</span></button>
