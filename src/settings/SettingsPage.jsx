@@ -1,5 +1,5 @@
-import { useState, useSyncExternalStore } from 'react';
-import { call, getAccountTypes, getAuthUser, getStore, subscribeStore } from '../api/operate.js';
+import { useSyncExternalStore } from 'react';
+import { call, getAuthUser, getStore, subscribeStore } from '../api/operate.js';
 import { Icon } from '../show/ui.jsx';
 
 function useStoreTick(){
@@ -48,13 +48,11 @@ function Section({ title, danger, children }){
 
 export default function SettingsPage(){
   useStoreTick();
-  const [pickingType, setPickingType] = useState(false);
   const store = getStore();
   const s = store?.settings || {};
   const sec = s.security || {};
   const secOn = !!call('secOn');
   const scopeLabel = !secOn ? 'Off' : sec.scope === 'app' ? 'Whole app' : 'Finance only';
-  const types = getAccountTypes() || {};
   const acct = call('acct') || { label: '', desc: '', icon: 'user' };
   const backLabel = call('overlayBackLabel') || 'Back';
   const devMode = !!call('isDevHardwireMode');
@@ -69,11 +67,6 @@ export default function SettingsPage(){
   const accountSub = signedIn
     ? (authUser.email || 'Signed in')
     : (call('isSyncEnabled') ? 'Sign in to sync' : (call('isAuthRequired') ? 'Sign in & sync' : 'Local only'));
-
-  const chooseType = (key) => {
-    setPickingType(false);
-    call('setAccountType', key);
-  };
 
   return (
     <>
@@ -100,22 +93,9 @@ export default function SettingsPage(){
             iconColor="var(--accent-2)"
             title="Account type"
             sub={`${acct.label || 'Choose a type'}${acct.desc ? ` · ${acct.desc}` : ''}`}
-            trail={pickingType ? 'Close' : 'Change'}
-            onClick={() => setPickingType(open => !open)}
+            trail="Change"
+            onClick={() => call('sheetAccountType')}
           />
-          {pickingType ? (
-            <div className="acct-pick">
-              <div className="acct-grid">
-                {Object.entries(types).map(([k, v]) => (
-                  <button key={k} type="button" className={`acct ${s.accountType === k ? 'on' : ''}`} onClick={() => chooseType(k)}>
-                    <div className="ic"><Icon name={v.icon} size={20} /></div>
-                    <b>{v.label}</b>
-                    <span>{v.desc}</span>
-                  </button>
-                ))}
-              </div>
-            </div>
-          ) : null}
           <SetRow
             icon="user" iconBg="var(--accent-soft)" iconColor="var(--accent-2)"
             title={s.artistName === 'You' ? 'Your name' : s.artistName}

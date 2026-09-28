@@ -16,7 +16,7 @@ import {
   ItineraryDetailsSheet,
 } from './itinerary/ItinerarySheets.jsx';
 import {
-  SettingsHomeAirportSheet, SettingsProfileNameSheet, SettingsCurrencySheet,
+  SettingsAccountTypeSheet, SettingsHomeAirportSheet, SettingsProfileNameSheet, SettingsCurrencySheet,
   SettingsPackingSheet, AuthInviteSheet, AuthAccountSheet,
 } from './settings/SettingsSheets.jsx';
 import {
@@ -68,6 +68,7 @@ export const SHEET_KINDS = Object.freeze({
   'itinerary.discard': ItineraryDiscardSheet,
   'itinerary.details': ItineraryDetailsSheet,
 
+  'settings.accountType': SettingsAccountTypeSheet,
   'settings.homeAirport': SettingsHomeAirportSheet,
   'settings.profileName': SettingsProfileNameSheet,
   'settings.currency': SettingsCurrencySheet,

@@ -1,10 +1,28 @@
 import { useEffect } from 'react';
 import { Icon } from '../../show/ui.jsx';
-import { call, getCursym, getStore } from '../../api/operate.js';
+import { call, getAccountTypes, getCursym, getStore } from '../../api/operate.js';
 
 const Spacer=()=> <div className="spacer"/>;
 const Field=({label,id,value='',placeholder,type='text',children,...rest})=><div className="field"><label>{label}</label>{children||<input id={id} type={type} className="input" defaultValue={value||''} placeholder={placeholder} {...rest}/>}</div>;
 
+export function SettingsAccountTypeSheet(){
+  const current = getStore()?.settings?.accountType;
+  const types = getAccountTypes() || {};
+  return (
+    <>
+      <div className="acct-grid">
+        {Object.entries(types).map(([k, v]) => (
+          <button key={k} type="button" className={`acct ${current === k ? 'on' : ''}`} onClick={() => call('pickAccountType', k)}>
+            <div className="ic"><Icon name={v.icon} size={20} /></div>
+            <b>{v.label}</b>
+            <span>{v.desc}</span>
+          </button>
+        ))}
+      </div>
+      <Spacer />
+    </>
+  );
+}
 export function SettingsHomeAirportSheet({value}){
   const current=value||getStore()?.settings?.homeAirport||'AMS';
   useEffect(()=>{const t=setTimeout(()=>document.getElementById('ha-code')?.focus(),300);return()=>clearTimeout(t)},[]);

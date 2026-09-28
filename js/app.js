@@ -2432,14 +2432,12 @@ function confirmDeleteIdea(iid){ confirmSheet('Delete idea?','This can\'t be und
    Settings
    ============================================================ */
 function openSettings(){ openView('settings'); }
-let settingsTypeOpen = false;
-function toggleSettingsTypePick(){
-  settingsTypeOpen = !settingsTypeOpen;
-  renderView();
+function sheetAccountType(){
+  openSheetReact('Account type', 'settings.accountType', {});
 }
 function pickAccountType(k){
-  settingsTypeOpen = false;
   setAccountType(k);
+  closeSheet();
 }
 /* ---------- SETTINGS (full section) ---------- */
 function viewSettings(){
@@ -2465,11 +2463,7 @@ function viewSettings(){
     ${pageIntro('settings', 'Set up Operate', 'Add your name, home airport (ends a tour when you fly back), and optional cloud sync under Account. These settings shape how Home and Tours work.')}
     <div class="set-title">Account</div>
     <div class="set-group">
-      <div class="set-row tap" onclick="toggleSettingsTypePick()"><div class="ic" style="background:var(--accent-soft);color:var(--accent-2)">${ICON[role.icon||'user'](17)}</div><div class="body"><b>Account type</b><span>${esc(role.label)}${role.desc?' · '+esc(role.desc):''}</span></div><div class="trail">${settingsTypeOpen?'Close':'Change'} ${ICON.chevR(15)}</div></div>
-      ${settingsTypeOpen?`<div class="acct-pick"><div class="acct-grid">${Object.entries(ACCOUNT_TYPES).map(([k,v])=>`
-        <button class="acct ${s.accountType===k?'on':''}" onclick="pickAccountType('${k}')">
-          <div class="ic">${ICON[v.icon](20)}</div><b>${v.label}</b><span>${v.desc}</span>
-        </button>`).join('')}</div></div>`:''}
+      <div class="set-row tap" onclick="sheetAccountType()"><div class="ic" style="background:var(--accent-soft);color:var(--accent-2)">${ICON[role.icon||'user'](17)}</div><div class="body"><b>Account type</b><span>${esc(role.label)}${role.desc?' · '+esc(role.desc):''}</span></div><div class="trail">Change ${ICON.chevR(15)}</div></div>
       <div class="set-row tap" onclick="editProfileName()"><div class="ic" style="background:var(--accent-soft);color:var(--accent-2)">${ICON.user(17)}</div><div class="body"><b>${esc(s.artistName==='You'?'Your name':s.artistName)}</b><span>${esc(role.label)}</span></div><div class="trail">Edit ${ICON.chevR(15)}</div></div>
       <label class="set-row tap"><div class="ic" style="background:var(--pink);color:#fff">${ICON.camera(17)}</div><div class="body"><b>Home header photo</b><span>${s.homeHeader?'Custom photo set':'Add a background image (approx. 1600×900)'}</span></div><div class="trail">${s.homeHeader?'Change':'Add'} ${ICON.chevR(15)}</div><input type="file" accept="image/*" style="display:none" onchange="uploadHomeHeader(this)"></label>
       ${s.homeHeader?`<div class="set-row tap" onclick="removeHomeHeader()"><div class="ic" style="background:var(--red-soft);color:var(--red)">${ICON.trash(17)}</div><div class="body"><b style="color:var(--red)">Remove header photo</b><span>Back to the plain header</span></div><div class="trail">${ICON.chevR(15)}</div></div>`:''}
