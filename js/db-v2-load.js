@@ -57,6 +57,7 @@ async function loadFromSupabaseV2(orgId, sb){
   const prevActiveShow = orgChanged ? null : store?.activeShowId;
   const prevPacking = orgChanged ? [] : (store?.packing || []);
   const prevReminders = orgChanged ? [] : (store?.reminders || []);
+  const prevUsbOff = !orgChanged && store?.settings?.usbReminder === false;
 
   /* Keep dirty local rows across cloud reload so mid-edit work is not wiped
      — but only within the same organisation. */
@@ -108,6 +109,7 @@ async function loadFromSupabaseV2(orgId, sb){
   /* Prefer the tab the user navigated to while this fetch was in flight. */
   if(typeof applySavedNavToStore === 'function') applySavedNavToStore();
   store.settings = view.settings;
+  if(prevUsbOff && store.settings.usbReminder !== false) store.settings.usbReminder = false;
   store.artists = view.artists.length ? view.artists : store.artists;
   store.events = view.events;
   store.trips = view.trips;

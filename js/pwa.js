@@ -55,6 +55,24 @@ async function scheduleReminder(showId, atMs, label, kind){
    show's set END time. Never prompts — it arms an OS notification only if
    notifications are already allowed; otherwise it fires in-app when the app is
    open at set-end (see checkDueReminders). */
+function usbReminderOn(){
+  return !(store && store.settings && store.settings.usbReminder === false);
+}
+function toggleUsbReminder(){
+  if(!store || !store.settings) return;
+  const turningOff = usbReminderOn();
+  store.settings.usbReminder = !turningOff;
+  if(turningOff){
+    const list = reminderList();
+    list.filter(r => (r.kind || '') === 'usb').forEach(r => cancelTrigger(r));
+    store.reminders = list.filter(r => (r.kind || '') !== 'usb');
+  }
+  persist('user_preferences');
+  if(!turningOff){
+    try{ ensureUsbReminders(); }catch(e){}
+  }
+  if(typeof renderView === 'function') renderView();
+}
 function ensureUsbReminders(){
   if(store.settings && store.settings.usbReminder===false) return;
   const list=reminderList(); const now=Date.now(), horizon=now+60*24*3600000; let changed=false;

@@ -599,7 +599,8 @@ async function pushToSupabaseV2(orgId, dirtyIn){
       || (typeof settingsSnap.homeHeader === 'string' && !settingsSnap.homeHeader.startsWith('http') && !settingsSnap.homeHeader.startsWith('data:')
         ? settingsSnap.homeHeader : null),
     artistName: settingsSnap.artistName,
-    itineraries: itinerariesSnap
+    itineraries: itinerariesSnap,
+    usbReminder: settingsSnap.usbReminder !== false
   };
 
   if(needSettings){

@@ -2460,16 +2460,32 @@ function viewSettings(){
     <div style="width:36px"></div>
   </div></div>
   <div class="screen-pad stagger">
-    ${pageIntro('settings', 'Set up Operate', 'Add your name, home airport (ends a tour when you fly back), and optional cloud sync under Account. These settings shape how Home and Tours work.')}
+    ${pageIntro('settings', 'Set up Operate', 'Your name, home airport, the USB reminder, and how an itinerary fills a show. Cloud sync and backups are further down.')}
     <div class="set-title">Account</div>
     <div class="set-group">
       <div class="set-row tap" onclick="sheetAccountType()"><div class="ic" style="background:var(--accent-soft);color:var(--accent-2)">${ICON[role.icon||'user'](17)}</div><div class="body"><b>Account type</b><span>${esc(role.label)}${role.desc?' · '+esc(role.desc):''}</span></div><div class="trail">Change ${ICON.chevR(15)}</div></div>
       <div class="set-row tap" onclick="editProfileName()"><div class="ic" style="background:var(--accent-soft);color:var(--accent-2)">${ICON.user(17)}</div><div class="body"><b>${esc(s.artistName==='You'?'Your name':s.artistName)}</b><span>${esc(role.label)}</span></div><div class="trail">Edit ${ICON.chevR(15)}</div></div>
       <label class="set-row tap"><div class="ic" style="background:var(--pink);color:#fff">${ICON.camera(17)}</div><div class="body"><b>Home header photo</b><span>${s.homeHeader?'Custom photo set':'Add a background image (approx. 1600×900)'}</span></div><div class="trail">${s.homeHeader?'Change':'Add'} ${ICON.chevR(15)}</div><input type="file" accept="image/*" style="display:none" onchange="uploadHomeHeader(this)"></label>
       ${s.homeHeader?`<div class="set-row tap" onclick="removeHomeHeader()"><div class="ic" style="background:var(--red-soft);color:var(--red)">${ICON.trash(17)}</div><div class="body"><b style="color:var(--red)">Remove header photo</b><span>Back to the plain header</span></div><div class="trail">${ICON.chevR(15)}</div></div>`:''}
-      ${devMode?'':`<div class="set-row tap" onclick="sheetAccount()"><div class="ic" style="background:var(--card-2);color:var(--text-2)">${ICON.user(17)}</div><div class="body"><b>Account details</b><span ${showOrg?'':`id="sync-row-sub"`}>${accountSub}</span></div><div class="trail">${ICON.chevR(15)}</div></div>`}
-      ${showOrg?`<div class="set-row tap" onclick="sheetAccount()"><div class="ic" style="background:var(--card-2);color:var(--text-2)">${ICON.globe(17)}</div><div class="body"><b>Organisation</b><span>${esc(orgName||'Current organisation')}${devMode?'':` · <span id="sync-row-sub">${esc(syncStatusLabel())}</span>`}</span></div><div class="trail">${ICON.chevR(15)}</div></div>`:''}
+      ${devMode?'':`<div class="set-row tap" onclick="sheetAccount()"><div class="ic" style="background:var(--card-2);color:var(--text-2)">${ICON.user(17)}</div><div class="body"><b>Account details</b><span>${accountSub}</span></div><div class="trail">${ICON.chevR(15)}</div></div>`}
+      ${showOrg?`<div class="set-row tap" onclick="sheetAccount()"><div class="ic" style="background:var(--card-2);color:var(--text-2)">${ICON.globe(17)}</div><div class="body"><b>Organisation</b><span>${esc(orgName||'Current organisation')}</span></div><div class="trail">${ICON.chevR(15)}</div></div>`:''}
       ${signedIn?`<div class="set-row tap" onclick="signOut()"><div class="ic" style="background:var(--card-2);color:var(--text-2)">${ICON.x(17)}</div><div class="body"><b>Sign out</b><span>${esc(authUser.email||'End this sign-in on this device')}</span></div><div class="trail">${ICON.chevR(15)}</div></div>`:''}
+    </div>
+
+    <div class="set-title">Notifications</div>
+    <div class="set-group">
+      <div class="set-row"><div class="ic" style="background:${s.usbReminder!==false?'var(--accent-soft)':'var(--card-2)'};color:${s.usbReminder!==false?'var(--accent-2)':'var(--text-2)'}">${ICON.bell(17)}</div>
+        <div class="body"><b>Show-end reminder</b><span>Nudge to grab your USB when the set ends</span></div>
+        <button class="toggle ${s.usbReminder!==false?'on':''}" onclick="toggleUsbReminder()"><i></i></button>
+      </div>
+    </div>
+
+    <div class="set-title">Imports</div>
+    <div class="set-group">
+      <div class="set-row"><div class="ic" style="background:var(--card-2);color:var(--text-2)">${ICON.file(17)}</div><div class="body"><b>Scan onto a show</b><span>Fills blank fields only. Details you've already entered stay.</span></div><div class="trail">Kept</div></div>
+      <div class="set-row"><div class="ic" style="background:var(--card-2);color:var(--text-2)">${ICON.bed(17)}</div><div class="body"><b>New hotel or driver</b><span>Added from a scan only when the show doesn't already have one.</span></div><div class="trail">If missing</div></div>
+      <div class="set-row"><div class="ic" style="background:var(--card-2);color:var(--text-2)">${ICON.plus(17)}</div><div class="body"><b>New show</b><span>You review the basics before the show is created.</span></div><div class="trail">Review</div></div>
+      <div class="set-row"><div class="ic" style="background:var(--card-2);color:var(--text-2)">${ICON.archive(17)}</div><div class="body"><b>Full file on an existing show</b><span>Processed in the background. Settings cannot change how those details are applied.</span></div><div class="trail">Automatic</div></div>
     </div>
 
     <div class="set-title">Security</div>
@@ -2509,15 +2525,18 @@ function viewSettings(){
       <div class="set-row tap" onclick="sheetPacking()"><div class="ic" style="background:var(--card-2);color:var(--text-2)">${ICON.bag(17)}</div><div class="body"><b>Default packing list</b><span>${(s.packingTemplate||[]).length} items</span></div><div class="trail">${ICON.chevR(15)}</div></div>
     </div>
 
-    <div class="set-title">Data & privacy</div>
+    <div class="set-title">Sync &amp; data</div>
     <div class="set-group">
+      <div class="set-row"><div class="ic" style="background:${syncActive()?'var(--green-soft)':'var(--card-2)'};color:${syncActive()?'var(--green)':'var(--text-2)'}">${ICON.globe(17)}</div><div class="body"><b>Cloud sync</b><span id="sync-row-sub">${esc(syncStatusLabel())}</span></div></div>
+      <div class="set-row"><div class="ic" style="background:var(--card-2);color:var(--text-2)">${ICON.clock(17)}</div><div class="body"><b>Last synced</b><span id="sync-last-sub">${esc(syncLastLabel())}</span></div></div>
+      ${syncActive()?`<div class="set-row tap" onclick="refreshFromCloud()"><div class="ic" style="background:var(--card-2);color:var(--text-2)">${ICON.refresh(17)}</div><div class="body"><b>${syncNeedsRetry()?'Retry sync':'Refresh from cloud'}</b><span>Save anything waiting, then load the latest</span></div><div class="trail">${ICON.chevR(15)}</div></div>`:''}
       <div class="set-row tap" onclick="exportData()"><div class="ic" style="background:var(--card-2);color:var(--text-2)">${ICON.file(17)}</div><div class="body"><b>Export my data</b><span>Download a backup of everything you've entered</span></div><div class="trail">${ICON.chevR(15)}</div></div>
       <label class="set-row tap"><div class="ic" style="background:var(--card-2);color:var(--text-2)">${ICON.archive(17)}</div><div class="body"><b>Restore from backup</b><span>Import a backup file to restore your data</span></div><div class="trail">${ICON.chevR(15)}</div><input type="file" accept="application/json,.json" style="display:none" onchange="importData(this)"></label>
     </div>
 
     <div class="set-title">Advanced</div>
     <div class="set-group">
-      ${devMode?`<div class="set-row tap" onclick="sheetAccount()"><div class="ic" style="background:${syncActive()?'var(--green-soft)':'var(--card-2)'};color:${syncActive()?'var(--green)':'var(--text-2)'}">${ICON.globe(17)}</div><div class="body"><b>Dev mode</b><span id="sync-row-sub">${esc(syncStatusLabel())}</span></div><div class="trail">Manage ${ICON.chevR(15)}</div></div>`:''}
+      ${devMode?`<div class="set-row tap" onclick="sheetAccount()"><div class="ic" style="background:${syncActive()?'var(--green-soft)':'var(--card-2)'};color:${syncActive()?'var(--green)':'var(--text-2)'}">${ICON.globe(17)}</div><div class="body"><b>Dev mode</b><span>Organisation tools</span></div><div class="trail">Manage ${ICON.chevR(15)}</div></div>`:''}
       <div class="set-row tap" onclick="restoreMissingLogistics()"><div class="ic" style="background:var(--blue-soft);color:var(--blue)">${ICON.map(17)}</div><div class="body"><b>Restore journey details</b><span>Re-fill routes, hotels &amp; flight labels from backup or tour catalog</span></div><div class="trail">${ICON.chevR(15)}</div></div>
     </div>
 

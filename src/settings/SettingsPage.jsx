@@ -83,7 +83,7 @@ export default function SettingsPage(){
         <PageIntro
           id="settings"
           title="Set up Operate"
-          body="Add your name, home airport (ends a tour when you fly back), and optional cloud sync under Account. These settings shape how Home and Tours work."
+          body="Your name, home airport, the USB reminder, and how an itinerary fills a show. Cloud sync and backups are further down."
         />
 
         <Section title="Account">
@@ -125,7 +125,7 @@ export default function SettingsPage(){
               iconBg="var(--card-2)"
               iconColor="var(--text-2)"
               title="Account details"
-              sub={showOrg ? accountSub : <span id="sync-row-sub">{accountSub}</span>}
+              sub={accountSub}
               trail=""
               onClick={() => call('sheetAccount')}
             />
@@ -136,9 +136,7 @@ export default function SettingsPage(){
               iconBg="var(--card-2)"
               iconColor="var(--text-2)"
               title="Organisation"
-              sub={devMode
-                ? (orgName || 'Current organisation')
-                : <span>{orgName || 'Current organisation'} · <span id="sync-row-sub">{syncLabel}</span></span>}
+              sub={orgName || 'Current organisation'}
               trail=""
               onClick={() => call('sheetAccount')}
             />
@@ -152,6 +150,44 @@ export default function SettingsPage(){
               onClick={() => call('signOut')}
             />
           ) : null}
+        </Section>
+
+        <Section title="Notifications">
+          <SetRow
+            icon="bell"
+            iconBg={s.usbReminder !== false ? 'var(--accent-soft)' : 'var(--card-2)'}
+            iconColor={s.usbReminder !== false ? 'var(--accent-2)' : 'var(--text-2)'}
+            title="Show-end reminder"
+            sub="Nudge to grab your USB when the set ends"
+            toggle={{ on: s.usbReminder !== false, onChange: () => call('toggleUsbReminder') }}
+          />
+        </Section>
+
+        <Section title="Imports">
+          <SetRow
+            icon="file" iconBg="var(--card-2)" iconColor="var(--text-2)"
+            title="Scan onto a show"
+            sub="Fills blank fields only. Details you've already entered stay."
+            trail="Kept"
+          />
+          <SetRow
+            icon="bed" iconBg="var(--card-2)" iconColor="var(--text-2)"
+            title="New hotel or driver"
+            sub="Added from a scan only when the show doesn't already have one."
+            trail="If missing"
+          />
+          <SetRow
+            icon="plus" iconBg="var(--card-2)" iconColor="var(--text-2)"
+            title="New show"
+            sub="You review the basics before the show is created."
+            trail="Review"
+          />
+          <SetRow
+            icon="archive" iconBg="var(--card-2)" iconColor="var(--text-2)"
+            title="Full file on an existing show"
+            sub="Processed in the background. Settings cannot change how those details are applied."
+            trail="Automatic"
+          />
         </Section>
 
         <Section title="Security">
@@ -214,7 +250,28 @@ export default function SettingsPage(){
           />
         </Section>
 
-        <Section title="Data & privacy">
+        <Section title="Sync & data">
+          <SetRow
+            icon="globe"
+            iconBg={call('syncActive') ? 'var(--green-soft)' : 'var(--card-2)'}
+            iconColor={call('syncActive') ? 'var(--green)' : 'var(--text-2)'}
+            title="Cloud sync"
+            sub={<span id="sync-row-sub">{syncLabel}</span>}
+          />
+          <SetRow
+            icon="clock" iconBg="var(--card-2)" iconColor="var(--text-2)"
+            title="Last synced"
+            sub={<span id="sync-last-sub">{call('syncLastLabel') || 'Not yet'}</span>}
+          />
+          {call('syncActive') ? (
+            <SetRow
+              icon="refresh" iconBg="var(--card-2)" iconColor="var(--text-2)"
+              title={call('syncNeedsRetry') ? 'Retry sync' : 'Refresh from cloud'}
+              sub="Save anything waiting, then load the latest"
+              trail=""
+              onClick={() => call('refreshFromCloud')}
+            />
+          ) : null}
           <SetRow icon="file" iconBg="var(--card-2)" iconColor="var(--text-2)" title="Export my data" sub="Download a backup of everything you've entered" trail="" onClick={() => call('exportData')} />
           <SetRow icon="archive" iconBg="var(--card-2)" iconColor="var(--text-2)" title="Restore from backup" sub="Import a backup file to restore your data" trail="" asLabel>
             <input type="file" accept="application/json,.json" style={{ display: 'none' }} onChange={e => call('importData', e.target)} />
@@ -228,7 +285,7 @@ export default function SettingsPage(){
               iconBg={call('syncActive') ? 'var(--green-soft)' : 'var(--card-2)'}
               iconColor={call('syncActive') ? 'var(--green)' : 'var(--text-2)'}
               title="Dev mode"
-              sub={<span id="sync-row-sub">{syncLabel}</span>}
+              sub="Organisation tools"
               trail="Manage"
               onClick={() => call('sheetAccount')}
             />

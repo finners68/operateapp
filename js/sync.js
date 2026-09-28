@@ -39,15 +39,28 @@ function syncStatusLabel(){
   return 'Connected';
 }
 
+function paintSyncLabels(){
+  const label = syncStatusLabel();
+  const el = document.getElementById('sync-status');
+  if(el) el.textContent = label;
+  const sub = document.getElementById('sync-row-sub');
+  if(sub) sub.textContent = label;
+  const last = document.getElementById('sync-last-sub');
+  if(last) last.textContent = syncLastLabel();
+}
 function syncSetStatus(s){
   syncStatus = s;
-  const el = document.getElementById('sync-status');
-  if(el) el.textContent = syncStatusLabel();
-  const sub = document.getElementById('sync-row-sub');
-  if(sub) sub.textContent = syncStatusLabel();
+  paintSyncLabels();
 }
 
-function syncMarkLastSync(){ syncLastSync = Date.now(); }
+function syncMarkLastSync(){ syncLastSync = Date.now(); paintSyncLabels(); }
+function syncLastLabel(){
+  if(!syncLastSync) return 'Not yet';
+  return typeof timeAgo === 'function' ? timeAgo(syncLastSync) : 'Recently';
+}
+function syncNeedsRetry(){
+  return syncStatus === 'error' || syncStatus === 'offline' || !!syncDirty;
+}
 
 let syncDirty = false;          // local changes not yet confirmed pushed
 let syncRetryTimer = null;

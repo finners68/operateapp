@@ -703,6 +703,9 @@ async function composeViewFromV2(v2, opts){
     security: uiPrefs.security || { enabled: false, pin: '', scope: 'finance', biometric: false },
     homeHeader: uiPrefs.homeHeaderPath || null
   };
+  if(uiPrefs.usbReminder === false || uiPrefs.usbReminder === true){
+    settings.usbReminder = uiPrefs.usbReminder !== false;
+  }
 
   const defaultPackingList = (v2.packing_lists || [])[0];
   if(defaultPackingList){
