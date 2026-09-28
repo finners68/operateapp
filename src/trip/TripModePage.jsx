@@ -97,7 +97,7 @@ export function TripDashboard({ run, compactHeader = false }){
     : '';
 
   return (
-    <>
+    <div className="tour-mode">
       <div className="dhero">
         <div className="cat-bar" style={{ background: c }} />
         {active ? (
@@ -128,7 +128,7 @@ export function TripDashboard({ run, compactHeader = false }){
                   <Icon name="check" size={15} />
                 </button>
               </div>
-              <div className="hero-venue" style={{ fontSize: 22, marginTop: 6 }}>{nextStep.title}</div>
+              <div className="hero-venue">{nextStep.title}</div>
               {nextStep.sub ? <div className="hero-city">{nextStep.sub}</div> : null}
               {pillsHtml ? <div className="hero-info" style={{ marginTop: 15, flexWrap: 'wrap' }} dangerouslySetInnerHTML={{ __html: pillsHtml }} /> : null}
               {flightWidget ? <LegacyHtml html={flightWidget} /> : null}
@@ -196,7 +196,7 @@ export function TripDashboard({ run, compactHeader = false }){
         </div>
       ) : null}
       <div className="spacer" /><div className="spacer" />
-    </>
+    </div>
   );
 }
 
@@ -222,7 +222,7 @@ export default function TripModePage(){
   const all = call('runs') || [];
   if(!all.length){
     return (
-      <div className="tab-page">
+      <div className="tab-page tour-mode">
         <div className="tab-page-sticky">
           <div className="lg-header">
             <div>
@@ -254,7 +254,7 @@ export default function TripModePage(){
   });
 
   return (
-    <div className="tab-page">
+    <div className="tab-page tour-mode">
       <div className="tab-page-sticky">
         <div className="lg-header">
           <div>

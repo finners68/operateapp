@@ -2983,3 +2983,29 @@ button.row.itn-show-row{
 button.row.itn-show-row:last-child{border-bottom:none;}
 button.row.itn-show-row.is-on{background:color-mix(in srgb, var(--accent-2) 16%, transparent);}
 button.row.itn-show-row.is-on .trail{color:var(--accent-2);}
+
+/* Tour Mode uses the same scale as a show page, not the larger tab headlines. */
+.tour-mode .lg-title{font-size:26px;font-weight:780;letter-spacing:-0.03em;line-height:1.08;}
+.tour-mode .lg-header{padding:8px var(--pad-x) 8px;}
+.tour-mode .lg-sub{font-size:13px;margin-top:4px;}
+.tour-mode .dhero{padding:16px 16px 14px;}
+.tour-mode .dhero h1{font-size:26px;font-weight:780;letter-spacing:-0.03em;}
+.tour-mode .dhero .sub{font-size:14px;margin-top:6px;}
+.tour-mode .section{margin-top:14px;}
+.tour-mode .section-title{font-size:16px;font-weight:750;letter-spacing:-0.015em;}
+.tour-mode .section-head{margin-bottom:8px;}
+.tour-mode .hero{padding:14px;}
+.tour-mode .hero-label{font-size:11px;letter-spacing:.06em;}
+.tour-mode .hero-venue{font-size:16px;font-weight:800;margin-top:6px;letter-spacing:-0.02em;}
+.tour-mode .hero-city{font-size:13px;margin-top:2px;}
+.tour-mode .fold-head{padding:11px 12px;}
+.tour-mode .fold-head .ft b{font-size:14.5px;font-weight:750;}
+.tour-mode .fold-head .ft span{font-size:12px;}
+.tour-mode .tlr{padding:2px 6px;}
+.tour-mode .tlr-main{min-height:36px;padding:4px 2px;gap:8px;}
+.tour-mode .tlr-time{font-size:12px;width:38px;}
+.tour-mode .tlr-body b{font-size:14px;font-weight:650;}
+.tour-mode .tlr-body span{font-size:12px;margin-top:1px;}
+.tour-mode .row{padding:11px 12px;gap:12px;}
+.tour-mode .row .body b{font-size:14.5px;}
+.tour-mode .row .body span{font-size:12px;margin-top:2px;}
