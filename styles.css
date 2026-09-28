@@ -2984,6 +2984,16 @@ button.row.itn-show-row:last-child{border-bottom:none;}
 button.row.itn-show-row.is-on{background:color-mix(in srgb, var(--accent-2) 16%, transparent);}
 button.row.itn-show-row.is-on .trail{color:var(--accent-2);}
 
+/* Show page: cards stay black. The page behind them is a step lighter so the cards read as separate. */
+#screen:has(.show-page){
+  background:#141418;
+}
+#screen:has(.show-page) .detail-top,
+#screen.flush-sticky-header:has(.show-page) .detail-top,
+#screen.flush-sticky-header:has(.show-page) .detail-top::before{
+  background:#141418;
+}
+
 /* Tour Mode uses the same scale as a show page, not the larger tab headlines. */
 .tour-mode .lg-title{font-size:26px;font-weight:780;letter-spacing:-0.03em;line-height:1.08;}
 .tour-mode .lg-header{padding:8px var(--pad-x) 8px;}
