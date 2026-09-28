@@ -51,7 +51,7 @@ export function ItineraryExistingShowSheet({items}){
   const [picked, setPicked] = useState(list[0]?.id || '');
   if(!list.length) return <><div className="empty" style={{padding:'18px 8px'}}><div className="ic"><Icon name="music" size={26}/></div><b>No shows yet</b><span>Create a show first, or choose New show instead.</span></div><button className="btn secondary" onClick={()=>call('beginItineraryNewShow')}><Icon name="plus" size={16}/> New show from itinerary</button><Spacer/></>;
   return <>
-    <p className="sheet-lede">Pick the show, then upload the itinerary. We’ll send the file and fill that show.</p>
+    <p className="sheet-lede">Pick the show, then upload. You’ll see some details first. Confirm to add the full itinerary.</p>
     <div className="field">
       <label>Show</label>
       <input id="itn-pick-show" type="hidden" value={picked} readOnly />
@@ -94,6 +94,54 @@ export function ItineraryReviewSheet({id,fields}){
     <button className="btn" id="itn-rev-save" onClick={()=>call('saveItineraryReview',id)}>Create show</button>
     <button className="btn secondary" style={{marginTop:10}} onClick={()=>call('scanItineraryForReview',id)}><Icon name="checkList" size={15}/> Try again</button>
     <button className="btn danger" style={{marginTop:10}} onClick={()=>call('discardItineraryReview',id)}><Icon name="trash" size={15}/> Discard upload</button><Spacer/>
+  </>;
+}
+function previewValue(label, value){
+  const text = String(value || '').trim();
+  if(!text) return '';
+  if(label === 'Date' && /^\d{4}-\d{2}-\d{2}/.test(text) && fmtDate) return fmtDate(text.slice(0, 10));
+  return text;
+}
+function itineraryPreviewRows(fields){
+  const f = fields || {};
+  const pick = (...keys) => {
+    for(const key of keys){
+      const value = f[key];
+      if(value != null && String(value).trim()) return String(value).trim();
+    }
+    return '';
+  };
+  const rows = [
+    ['Event', pick('eventName', 'event_name', 'EventName', 'event')],
+    ['Venue', pick('venue', 'venueName', 'venue_name')],
+    ['City', pick('city')],
+    ['Country', pick('country')],
+    ['Date', pick('date')],
+    ['Set time', pick('setTime', 'set_time')],
+    ['End time', pick('endTime', 'end_time')],
+    ['Arrival', pick('arrival')],
+    ['Hotel', pick('hotelName', 'hotel_name')],
+    ['Address', pick('hotelAddress', 'venueAddress', 'venueAddr')],
+    ['Driver', pick('driverName', 'driver_name')],
+    ['Soundcheck', pick('soundcheck')],
+  ].map(([label, value]) => ({ label, value: previewValue(label, value) })).filter(row => row.value);
+  return rows;
+}
+export function ItineraryExistingReviewSheet({id, fields, showName}){
+  const it = itinerary(id);
+  const rows = itineraryPreviewRows(fields || it.scanFields || {});
+  const name = showName || 'this show';
+  return <>
+    <p className="sheet-lede">These details were read from the itinerary. Confirm to add the full itinerary to {name}, or don’t add it.</p>
+    <div className="card flush" style={{marginBottom:14}}>
+      {rows.length ? rows.map(row => (
+        <div className="home-line" key={row.label}><b>{row.label}</b><span>{row.value}</span></div>
+      )) : <div className="home-quiet">No preview details came back. You can still add the full itinerary, or cancel.</div>}
+    </div>
+    <button className="btn" id="itn-exist-confirm" onClick={()=>call('confirmExistingItineraryReview', id)}>Add to show</button>
+    <button className="btn secondary" style={{marginTop:10}} onClick={()=>call('sendExistingItineraryPreview', id)}><Icon name="checkList" size={15}/> Try again</button>
+    <button className="btn danger" style={{marginTop:10}} onClick={()=>call('discardItineraryReview', id)}><Icon name="x" size={15}/> Don’t add</button>
+    <Spacer/>
   </>;
 }
 export function ItineraryDiscardSheet({id}){

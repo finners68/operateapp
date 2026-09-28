@@ -1304,6 +1304,7 @@ const MAKE_ITINERARY_WEBHOOK_URL = 'https://hook.eu2.make.com/xgg1tbfi9leurmlcsg
 const MAKE_ITINERARY_FULL_WEBHOOK_URL = 'https://hook.eu2.make.com/p2f3yp4wj7795gifd38v5rpepf3syxjt';
 const MAKE_ITINERARY_EXISTING_WEBHOOK_URL = 'https://hook.eu2.make.com/asupx71hz62r2y7r1w0xjmr3mprncqa3';
 const MAKE_ITINERARY_DECISION_WEBHOOK_URL = 'https://hook.eu2.make.com/s9nhy6yvevqj0h8wg51wv57m1acwd3fg';
+const MAKE_ITINERARY_EXISTING_DECISION_WEBHOOK_URL = 'https://hook.eu2.make.com/9ffw9zc11mf3nvs72mtlggo5s3xyaty6';
 const MAKE_CALENDAR_WEBHOOK_URL = 'https://hook.eu2.make.com/llxseuaiwkm7q6ug0hjpg7e8iqws3eh7';
 const ITINERARY_UPLOAD_STATE_KEY = 'operate.itineraryFullUpload';
 const ITINERARY_UPLOAD_WATCH_MS = 3500;
@@ -1390,14 +1391,14 @@ function viewItinerary(){
   </div></div>
   <div class="screen-pad stagger">
     <button type="button" class="btn" style="margin-top:14px" onclick="sheetItineraryStart()">${ICON.plus(18)} Submit itinerary</button>
-    <div class="hint" style="text-align:left;padding:11px 2px 2px">Choose <b>new show</b> or <b>existing show</b>, then upload. New-show uploads are read automatically, then you check the basics.</div>
+    <div class="hint" style="text-align:left;padding:11px 2px 2px">Choose <b>new show</b> or <b>existing show</b>, then upload. You’ll see some details first. Confirm to add the rest, or cancel.</div>
     ${list.length? list.map(itinCard).join('') : `<div class="empty" style="margin-top:22px"><div class="ic">${ICON.file(26)}</div><b>Nothing submitted yet</b><span>Upload your first itinerary screenshot.</span></div>`}
     <div class="spacer"></div><div class="spacer"></div>
   </div>`;
 }
 function itinCard(it){
   const show = it.showId? sel.event(it.showId):null;
-  const pending = !!(it.scanFields && !it.showId);
+  const pending = !!(it.scanFields && !it.showId) || (it.mode === 'existing' && it.decisionNotified !== 'confirmed' && !it.fullUploadDone);
   const when = (it.date?fmtDate(it.date):'')+(it.time?' · '+it.time:'');
   const thumbs = (it.imgs||[]).map(im=>im.kind==='image'
     ? `<div class="thumb" onclick="event.stopPropagation();openViewer('${im.data}')"><img src="${im.data}"></div>`
@@ -1406,7 +1407,7 @@ function itinCard(it){
     <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px" onclick="openItineraryEntry('${it.id}')">
       <div style="min-width:0"><b style="font-size:15.5px">${esc(itinerarySourceLabel(it.source))}</b>
         <div style="font-size:13px;color:var(--text-2);margin-top:2px">${pending?'Review show basics':(when||'No date set')}${show?' · '+esc(show.venue):''}</div>
-        ${pending?`<div style="font-size:12.5px;color:var(--accent-2);margin-top:4px;font-weight:650">Waiting for you to confirm &amp; create the show</div>`:''}
+        ${pending?`<div style="font-size:12.5px;color:var(--accent-2);margin-top:4px;font-weight:650">${it.mode==='existing'?'Waiting for you to confirm adding this to the show':'Waiting for you to confirm &amp; create the show'}</div>`:''}
         ${it.note?`<div style="font-size:13px;color:var(--text-3);margin-top:5px;white-space:pre-wrap">${esc(it.note)}</div>`:''}</div>
       ${ICON.chevR(15)}
     </div>
@@ -1415,6 +1416,10 @@ function itinCard(it){
 }
 function openItineraryEntry(id){
   const it=(store.itineraries||[]).find(x=>x.id===id); if(!it) return;
+  if(it.mode === 'existing' && it.decisionNotified !== 'confirmed' && !it.fullUploadDone){
+    sheetExistingItineraryReview(id);
+    return;
+  }
   if(it.scanFields && !it.showId){ sheetItineraryReview(id); return; }
   sheetItinerary(id);
 }
@@ -1547,9 +1552,7 @@ function submitItinerary(input, mode){
     if(uploadMode === 'new'){
       await sendItineraryToMake(entry.id);
     } else {
-      closeSheet();
-      if(typeof openView === 'function') openView('event', showId);
-      await startItineraryFullUpload(entry.id, showId, 'existing');
+      await sendExistingItineraryPreview(entry.id);
     }
   });
 }
@@ -1690,6 +1693,7 @@ async function postItineraryFileToMake(it, opts={}){
   form.append('stage', stage);
   form.append('itinerary_id', it.id || '');
   form.append('organisation_id', orgId);
+  if(opts.purpose) form.append('purpose', opts.purpose);
   if(it.showId) form.append('show_id', it.showId);
   const controller=new AbortController();
   const timer=setTimeout(()=>controller.abort(), (stage === 'full' || stage === 'existing') ? 120000 : 90000);
@@ -1749,13 +1753,57 @@ async function sendItineraryToMake(id){
 async function scanItineraryForReview(id){
   await sendItineraryToMake(id);
 }
+async function sendExistingItineraryPreview(id){
+  const it=(store.itineraries||[]).find(x=>x.id===id); if(!it) return;
+  if(!(it.imgs||[]).length){
+    toast('Nothing to send — upload a file first','file');
+    return;
+  }
+  openSheetReact('Sending itinerary', 'itinerary.sending', {});
+  toast('Sending itinerary…','image');
+  try{
+    const result = await postItineraryFileToMake(it, { stage:'basics', purpose:'existing_preview' });
+    if(result.error){
+      toast(itineraryScanErrorToast(result.error),'x');
+      sheetExistingItineraryReview(id);
+      return;
+    }
+    it.scanFields = result.fields || {};
+    const scannedDate = normalizeScanDate(it.scanFields.date);
+    if(scannedDate) it.date = scannedDate;
+    persist('user_preferences');
+    sheetExistingItineraryReview(id);
+    const keys = Object.keys(it.scanFields||{});
+    toast(keys.length ? 'Check these details, then confirm' : 'File sent — confirm to add the full itinerary','check');
+  }catch(err){
+    toast('Couldn’t send the itinerary — try again','x');
+    sheetExistingItineraryReview(id);
+  }
+}
 async function fetchItineraryScanFields(it){
   const result = await postItineraryFileToMake(it);
   if(result.error) return { error: result.error };
   return { fields: result.fields || {} };
 }
+function armItineraryReviewSheet(id){
+  itineraryReviewActiveId = id;
+  itineraryReviewCancelArmed = false;
+  if(itineraryReviewArmTimer){ clearTimeout(itineraryReviewArmTimer); itineraryReviewArmTimer = null; }
+  if(sheetEl){
+    const closeBtn = sheetEl.querySelector('.sheet-head .header-btn');
+    if(closeBtn) closeBtn.setAttribute('onclick', `abandonItineraryReview('${id}')`);
+  }
+  const scrim = $('#scrim');
+  if(scrim) scrim.onclick = null;
+  itineraryReviewArmTimer = setTimeout(()=>{
+    itineraryReviewArmTimer = null;
+    if(itineraryReviewActiveId !== id) return;
+    itineraryReviewCancelArmed = true;
+  }, 1200);
+}
 function sheetItineraryReview(id){
   const it=(store.itineraries||[]).find(x=>x.id===id); if(!it) return;
+  if(it.mode === 'existing'){ sheetExistingItineraryReview(id); return; }
   itineraryReviewActiveId = id;
   itineraryReviewSnapshot = it;
   itineraryReviewCancelArmed = false;
@@ -1794,34 +1842,45 @@ function sheetItineraryReview(id){
   if(sheetEl){
     sheetEl.style.setProperty('--sheet-tone', initC);
     sheetEl.classList.add('sheet-toned');
-    const closeBtn = sheetEl.querySelector('.sheet-head .header-btn');
-    if(closeBtn) closeBtn.setAttribute('onclick', `abandonItineraryReview('${id}')`);
   }
-  /* No tap-outside-to-close — exit must be intentional (Create / Discard / X). */
-  const scrim = $('#scrim');
-  if(scrim) scrim.onclick = null;
-  itineraryReviewArmTimer = setTimeout(()=>{
-    itineraryReviewArmTimer = null;
-    if(itineraryReviewActiveId !== id) return;
-    itineraryReviewCancelArmed = true;
-  }, 1200);
+  armItineraryReviewSheet(id);
+}
+function sheetExistingItineraryReview(id){
+  const it=itineraryForReview(id) || (store.itineraries||[]).find(x=>x.id===id);
+  if(!it) return;
+  itineraryReviewSnapshot = it;
+  const show = it.showId && sel.event ? sel.event(it.showId) : null;
+  const showName = show ? ((typeof showTitle==='function' ? showTitle(show) : '') || show.venue || 'this show') : 'this show';
+  openSheetReact('Check itinerary', 'itinerary.existingReview', {
+    id,
+    fields: it.scanFields || {},
+    showName
+  }, {
+    closeHandler: 'abandonItineraryReview',
+    closeArg: id,
+    scrimClose: false
+  });
+  armItineraryReviewSheet(id);
 }
 function notifyItineraryDecision(it, status, extra={}){
   if(!it || !status) return;
   if(it.decisionNotified === 'confirmed') return;
   if(it.decisionNotified === status) return;
   const orgId = resolveOperateOrgId();
+  const existing = it.mode === 'existing';
   const form = new FormData();
   form.append('status', status);
   form.append('itinerary_id', it.id || '');
   form.append('organisation_id', orgId || '');
+  form.append('purpose', existing ? 'existing' : 'new');
   const showId = extra.show_id || it.showId || '';
   if(showId) form.append('show_id', showId);
   if(extra.reason) form.append('reason', String(extra.reason));
   if(extra.cloud_synced != null) form.append('cloud_synced', extra.cloud_synced ? 'true' : 'false');
   it.decisionNotified = status;
   persist('user_preferences');
-  fetch(MAKE_ITINERARY_DECISION_WEBHOOK_URL, { method:'POST', body:form, keepalive:true })
+  const decisionUrl = existing ? MAKE_ITINERARY_EXISTING_DECISION_WEBHOOK_URL : MAKE_ITINERARY_DECISION_WEBHOOK_URL;
+  fetch(decisionUrl, { method:'POST', body:form, keepalive:true })
     .then(res => {
       if(!res.ok) console.warn('itinerary decision webhook', res.status);
     })
@@ -1847,7 +1906,7 @@ function abandonItineraryReview(id){
   /* Only the X button uses this — and only after the sheet has been open briefly. */
   if(!itineraryReviewCancelArmed || itineraryReviewActiveId !== id) return;
   const it=(store.itineraries||[]).find(x=>x.id===id);
-  if(it && !it.showId) notifyItineraryDecision(it, 'cancelled', { reason:'closed' });
+  if(it && (it.mode === 'existing' || !it.showId)) notifyItineraryDecision(it, 'cancelled', { reason:'closed', show_id: it.showId || '' });
   clearItineraryReviewGuards();
   closeSheet(true, { noReturn:true });
   renderView();
@@ -1862,7 +1921,7 @@ function discardItineraryReview(id){
     const b=document.getElementById('itn-discard-yes');
     if(b) b.onclick=()=>{
       const it=(store.itineraries||[]).find(x=>x.id===id);
-      if(it) notifyItineraryDecision(it, 'cancelled', { reason:'discarded' });
+      if(it) notifyItineraryDecision(it, 'cancelled', { reason:'discarded', show_id: it.showId || '' });
       clearItineraryReviewGuards();
       store.itineraries=(store.itineraries||[]).filter(x=>x.id!==id);
       persist('user_preferences');
@@ -1964,6 +2023,24 @@ async function saveItineraryReview(id){
   }
 
   startItineraryFullUpload(id, finalShowId);
+}
+async function confirmExistingItineraryReview(id){
+  const it=itineraryForReview(id);
+  if(!it){
+    toast('That upload is still open — tap Add to show again','x');
+    return;
+  }
+  const showId = it.showId;
+  if(!showId){ toast('Pick a show first','x'); return; }
+  const btn=document.getElementById('itn-exist-confirm');
+  if(btn) btn.disabled=true;
+  clearItineraryReviewGuards();
+  closeSheet(true, { noReturn:true });
+  renderView();
+  if(typeof openView === 'function') openView('event', showId);
+  notifyItineraryDecision(it, 'confirmed', { show_id: showId });
+  toast('Adding the full itinerary…','check');
+  await startItineraryFullUpload(id, showId, 'existing');
 }
 function itineraryFullUploadBanner(showId){
   const st = itineraryFullUploadByShow[showId];
@@ -2375,7 +2452,7 @@ function delItinShot(id,imid){
 function delItinerary(id){
   confirmSheet('Delete submission?','','Delete',()=>{
     const it=(store.itineraries||[]).find(x=>x.id===id);
-    if(it && !it.showId) notifyItineraryDecision(it, 'cancelled', { reason:'deleted' });
+    if(it && (it.mode === 'existing' || !it.showId)) notifyItineraryDecision(it, 'cancelled', { reason:'deleted', show_id: it.showId || '' });
     if(itineraryReviewActiveId === id) itineraryReviewActiveId = null;
     store.itineraries=(store.itineraries||[]).filter(x=>x.id!==id);
     persist('user_preferences');

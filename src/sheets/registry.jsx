@@ -12,7 +12,7 @@ import {
 } from './show/ShowSheets.jsx';
 import {
   ItineraryStartSheet, ItineraryNewShowSheet, ItineraryExistingShowSheet,
-  ItinerarySendingSheet, ItineraryReviewSheet, ItineraryDiscardSheet,
+  ItinerarySendingSheet, ItineraryReviewSheet, ItineraryExistingReviewSheet, ItineraryDiscardSheet,
   ItineraryDetailsSheet,
 } from './itinerary/ItinerarySheets.jsx';
 import {
@@ -65,6 +65,7 @@ export const SHEET_KINDS = Object.freeze({
   'itinerary.existingShow': ItineraryExistingShowSheet,
   'itinerary.sending': ItinerarySendingSheet,
   'itinerary.review': ItineraryReviewSheet,
+  'itinerary.existingReview': ItineraryExistingReviewSheet,
   'itinerary.discard': ItineraryDiscardSheet,
   'itinerary.details': ItineraryDetailsSheet,
 
