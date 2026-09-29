@@ -1,7 +1,7 @@
 /* ============================================================
    SHOWS — list, add, edit
    ============================================================ */
-let showFilter = 'upcoming';
+let showFilter = 'all';
 let showSearch = '';
 let showsMode = 'shows'; // 'shows' | 'tours' — the two views under the merged Shows / Tours section
 Object.defineProperty(window, 'showsMode', {
@@ -11,6 +11,9 @@ Object.defineProperty(window, 'showsMode', {
 });
 function getShowsListState(){
   return { mode: showsMode, filter: showFilter, search: showSearch };
+}
+function prepareShowsList(){
+  showFilter = 'all';
 }
 function setShowSearchQuiet(v){
   showSearch = String(v == null ? '' : v);
@@ -57,8 +60,8 @@ function showsModeSearchAndChips(){
   const all = sel.events();
   const upcomingN = all.filter(e => !showPassed(e) && e.status !== 'cancelled').length;
   const chips = [
-    {k:'upcoming', l:`Upcoming · ${upcomingN}`},
     {k:'all', l:'All · '+all.length},
+    {k:'upcoming', l:`Upcoming · ${upcomingN}`},
     {k:'past', l:'Past'},
     {k:'confirmed', l:'Confirmed'},
     {k:'hold', l:'Hold'},
@@ -88,7 +91,7 @@ function showsListBody(){
   if(showFilter === 'upcoming') list = all.filter(e => !showPassed(e) && e.status !== 'cancelled');
   else if(showFilter === 'past') list = all.filter(showPassed);
   else if(showFilter === 'confirmed' || showFilter === 'hold' || showFilter === 'cancelled') list = all.filter(e => e.status === showFilter);
-  if(showFilter === 'past') list.sort((a,b) => (b.date||'').localeCompare(a.date||''));
+  list.sort((a,b) => String((b.date||'')+(b.setTime||'')).localeCompare(String((a.date||'')+(a.setTime||''))));
   if(q) list = list.filter(e => `${e.eventName||''} ${e.venue||''} ${e.city||''} ${e.country||''} ${e.date||''}`.toLowerCase().includes(q));
   if(!list.length){
     return `<div class="empty"><div class="ic">${ICON.music(28)}</div><b>${q?'No matches':'No shows here'}</b><span>${q?'Try another search term.':showFilter==='past'?'Past shows appear 24h after they finish.':'Tap + to add a venue, date and set time — then open the show for flights and hotels.'}</span>${q?'':`<button class="btn" style="margin-top:14px;max-width:240px" onclick="sheetEvent()">${ICON.plus(18)} Add show</button>`}</div>`;

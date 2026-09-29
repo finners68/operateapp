@@ -14,7 +14,7 @@ function useStoreTick(){
 function listState(){
   const fn = getShowsListState;
   if(typeof fn === 'function') return fn();
-  return { mode: 'shows', filter: 'upcoming', search: '' };
+  return { mode: 'shows', filter: 'all', search: '' };
 }
 
 function PageIntro({ id, title, body }){
@@ -74,7 +74,7 @@ function filteredShows(filter, search){
   if(filter === 'upcoming') list = all.filter(e => !(showPassed && showPassed(e)) && e.status !== 'cancelled');
   else if(filter === 'past') list = all.filter(e => showPassed && showPassed(e));
   else if(filter === 'confirmed' || filter === 'hold' || filter === 'cancelled') list = all.filter(e => e.status === filter);
-  if(filter === 'past') list.sort((a, b) => String(b.date || '').localeCompare(String(a.date || '')));
+  list.sort((a, b) => String((b.date || '') + (b.setTime || '')).localeCompare(String((a.date || '') + (a.setTime || ''))));
   if(q) list = list.filter(e => `${e.eventName || ''} ${e.venue || ''} ${e.city || ''} ${e.country || ''} ${e.date || ''}`.toLowerCase().includes(q));
   return { all, list };
 }
@@ -222,8 +222,8 @@ function SearchAndChips({ filter, search, onSearch }){
   const all = sel?.events ? sel.events() : [];
   const upcomingN = all.filter(e => !(showPassed && showPassed(e)) && e.status !== 'cancelled').length;
   const chips = [
-    { k: 'upcoming', l: `Upcoming · ${upcomingN}` },
     { k: 'all', l: `All · ${all.length}` },
+    { k: 'upcoming', l: `Upcoming · ${upcomingN}` },
     { k: 'past', l: 'Past' },
     { k: 'confirmed', l: 'Confirmed' },
     { k: 'hold', l: 'Hold' },

@@ -110,6 +110,9 @@ export function goTab(tab, opts = {}){
   if(t === 'ideas' && typeof window !== 'undefined' && typeof window.ideasStale !== 'undefined'){
     window.ideasStale = false;
   }
+  if(t === 'shows' && typeof window !== 'undefined' && typeof window.prepareShowsList === 'function'){
+    window.prepareShowsList();
+  }
   doNavigate(pathForTab(t), opts);
   if(typeof window !== 'undefined'){
     if(typeof window.persist === 'function') window.persist('user_preferences');
