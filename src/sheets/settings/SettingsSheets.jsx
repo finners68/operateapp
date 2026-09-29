@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Icon } from '../../show/ui.jsx';
 import { call, getAccountTypes, getCursym, getStore } from '../../api/operate.js';
 
@@ -36,6 +36,81 @@ export function SettingsProfileNameSheet({value}){
 export function SettingsCurrencySheet({settings}){
   const s=settings||getStore()?.settings||{}, currencies=Object.keys(s.fx||{});
   return <><Field label="Base currency"><select id="set-base" className="input" defaultValue={s.baseCurrency}>{currencies.map(c=><option value={c} key={c}>{c} {(getCursym()||{})[c]?`(${getCursym()[c]})`:''}</option>)}</select><div className="hint" style={{textAlign:'left',padding:'6px 2px'}}>All earnings roll up into this currency.</div></Field><div className="field"><label>Exchange rates (value of 1 unit in {s.baseCurrency})</label><div id="set-rates">{currencies.filter(c=>c!==s.baseCurrency).map(c=><div key={c} style={{display:'flex',alignItems:'center',gap:10,marginBottom:8}}><span style={{width:52,fontWeight:700,color:'var(--text-2)'}}>{c}</span><input className="input" data-cur={c} type="number" step="0.0001" inputMode="decimal" defaultValue={s.fx[c]} style={{flex:1,padding:'9px 12px'}}/></div>)}</div></div><button className="btn" id="set-save" onClick={()=>call('saveCurrency')}>Save rates</button><Spacer/></>;
+}
+function clampHeaderPct(n){
+  const v = Number(n);
+  if(!Number.isFinite(v)) return 50;
+  return Math.max(0, Math.min(100, v));
+}
+export function SettingsHeaderFrameSheet({ src, x = 50, y = 50 }){
+  const frameRef = useRef(null);
+  const dragRef = useRef(null);
+  const [metrics, setMetrics] = useState(null);
+  const [pos, setPos] = useState({ x: clampHeaderPct(x), y: clampHeaderPct(y) });
+
+  useEffect(() => {
+    if(!src) return undefined;
+    const img = new Image();
+    img.onload = () => setMetrics({ w: img.naturalWidth, h: img.naturalHeight });
+    img.src = src;
+    return () => { img.onload = null; };
+  }, [src]);
+
+  const onPointerDown = (e) => {
+    if(e.button != null && e.button !== 0) return;
+    const frame = frameRef.current?.getBoundingClientRect();
+    if(!frame) return;
+    dragRef.current = {
+      px: e.clientX,
+      py: e.clientY,
+      x: pos.x,
+      y: pos.y,
+      frameW: frame.width,
+      frameH: frame.height
+    };
+    e.currentTarget.setPointerCapture?.(e.pointerId);
+  };
+  const onPointerMove = (e) => {
+    const drag = dragRef.current;
+    if(!drag) return;
+    const dx = e.clientX - drag.px;
+    const dy = e.clientY - drag.py;
+    if(metrics && metrics.w && metrics.h){
+      const scale = Math.max(drag.frameW / metrics.w, drag.frameH / metrics.h);
+      const spanX = drag.frameW - metrics.w * scale;
+      const spanY = drag.frameH - metrics.h * scale;
+      const nextX = Math.abs(spanX) < 1 ? drag.x : clampHeaderPct(((spanX * drag.x / 100) + dx) / spanX * 100);
+      const nextY = Math.abs(spanY) < 1 ? drag.y : clampHeaderPct(((spanY * drag.y / 100) + dy) / spanY * 100);
+      setPos({ x: nextX, y: nextY });
+      return;
+    }
+    setPos({
+      x: clampHeaderPct(drag.x - dx / Math.max(1, drag.frameW) * 100),
+      y: clampHeaderPct(drag.y - dy / Math.max(1, drag.frameH) * 100)
+    });
+  };
+  const endDrag = () => { dragRef.current = null; };
+
+  return (
+    <>
+      <p className="sheet-lede">Drag the photo. The frame matches the band on Home, so what you see here is what will show.</p>
+      <div
+        ref={frameRef}
+        className="header-frame"
+        style={src ? {
+          backgroundImage: `url("${String(src).replace(/"/g, '')}")`,
+          backgroundPosition: `${pos.x}% ${pos.y}%`
+        } : undefined}
+        onPointerDown={onPointerDown}
+        onPointerMove={onPointerMove}
+        onPointerUp={endDrag}
+        onPointerCancel={endDrag}
+      />
+      <div className="hint" style={{ textAlign: 'left', padding: '8px 2px 14px' }}>Drag up, down, or sideways until the part you want is in the frame.</div>
+      <button type="button" className="btn" onClick={() => call('saveHomeHeaderFrame', pos.x, pos.y)}>Use this view</button>
+      <Spacer />
+    </>
+  );
 }
 export function SettingsPackingSheet({items}){
   const list=items||getStore()?.settings?.packingTemplate||[];

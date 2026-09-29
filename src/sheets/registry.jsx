@@ -17,7 +17,7 @@ import {
 } from './itinerary/ItinerarySheets.jsx';
 import {
   SettingsAccountTypeSheet, SettingsHomeAirportSheet, SettingsProfileNameSheet, SettingsCurrencySheet,
-  SettingsPackingSheet, AuthInviteSheet, AuthAccountSheet,
+  SettingsHeaderFrameSheet, SettingsPackingSheet, AuthInviteSheet, AuthAccountSheet,
 } from './settings/SettingsSheets.jsx';
 import {
   IdeaShowPickerSheet, IdeaTripPickerSheet, IdeaAttachSheet, IdeaEditSheet,
@@ -72,6 +72,7 @@ export const SHEET_KINDS = Object.freeze({
   'settings.accountType': SettingsAccountTypeSheet,
   'settings.homeAirport': SettingsHomeAirportSheet,
   'settings.profileName': SettingsProfileNameSheet,
+  'settings.headerFrame': SettingsHeaderFrameSheet,
   'settings.currency': SettingsCurrencySheet,
   'settings.packing': SettingsPackingSheet,
   'auth.invite': AuthInviteSheet,

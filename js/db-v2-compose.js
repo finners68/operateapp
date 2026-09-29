@@ -701,7 +701,8 @@ async function composeViewFromV2(v2, opts){
     } : {},
     packingTemplate: [],
     security: uiPrefs.security || { enabled: false, pin: '', scope: 'finance', biometric: false },
-    homeHeader: uiPrefs.homeHeaderPath || null
+    homeHeader: uiPrefs.homeHeaderPath || null,
+    homeHeaderPos: uiPrefs.homeHeaderPos || null
   };
   if(uiPrefs.usbReminder === false || uiPrefs.usbReminder === true){
     settings.usbReminder = uiPrefs.usbReminder !== false;

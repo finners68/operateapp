@@ -257,7 +257,7 @@ function viewHome(){
   const nameBit = store.settings.artistName&&store.settings.artistName!=='You'?', '+esc(store.settings.artistName):'';
   const photo = store.settings._homeHeaderUrl || store.settings.homeHeader;
   const header = `
-  <div class="home-hero${photo?'':' is-default'}"${photo?` style="background-image:url('${photo}')"`:''}>
+  <div class="home-hero${photo?'':' is-default'}"${photo?` style="background-image:url('${photo}');background-position:${typeof homeHeaderPositionCss==='function'?homeHeaderPositionCss():'center'}"`:''}>
     <div class="home-hero-actions">
       <button class="header-btn glass" onclick="openSearch()">${ICON.search(20)}</button>
       <button class="header-btn glass" onclick="openView('settings')">${ICON.settings(20)}</button>

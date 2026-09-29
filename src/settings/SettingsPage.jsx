@@ -108,12 +108,21 @@ export default function SettingsPage(){
           <SetRow
             icon="camera" iconBg="var(--pink)" iconColor="#fff"
             title="Home header photo"
-            sub={s.homeHeader ? 'Custom photo set' : 'Add a background image (approx. 1600×900)'}
+            sub={s.homeHeader ? 'Custom photo set' : 'Add a photo, then choose which part shows'}
             trail={s.homeHeader ? 'Change' : 'Add'}
             asLabel
           >
             <input type="file" accept="image/*" style={{ display: 'none' }} onChange={e => call('uploadHomeHeader', e.target)} />
           </SetRow>
+          {s.homeHeader ? (
+            <SetRow
+              icon="image" iconBg="var(--pink)" iconColor="#fff"
+              title="Choose what shows"
+              sub="Drag the photo so the right part sits in the Home band"
+              trail="Adjust"
+              onClick={() => call('adjustHomeHeader')}
+            />
+          ) : null}
           {s.homeHeader ? (
             <SetRow
               icon="trash" iconBg="var(--red-soft)" iconColor="var(--red)"

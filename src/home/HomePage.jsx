@@ -477,7 +477,7 @@ export default function HomePage(){
     ) : null,
   };
   const header = (
-    <div className={`home-hero${photo ? '' : ' is-default'}`} style={photo ? { backgroundImage: `url('${photo}')` } : undefined}>
+    <div className={`home-hero${photo ? '' : ' is-default'}`} style={photo ? { backgroundImage: `url('${photo}')`, backgroundPosition: call('homeHeaderPositionCss') || 'center' } : undefined}>
       <div className="home-hero-actions">
         <button type="button" className="header-btn glass" onClick={() => call('openSearch')}><Icon name="search" size={20} /></button>
         <button type="button" className="header-btn glass" onClick={() => call('openView', 'settings')}><Icon name="settings" size={20} /></button>

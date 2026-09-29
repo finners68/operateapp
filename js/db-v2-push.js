@@ -598,6 +598,7 @@ async function pushToSupabaseV2(orgId, dirtyIn){
     homeHeaderPath: settingsSnap._homeHeaderPath
       || (typeof settingsSnap.homeHeader === 'string' && !settingsSnap.homeHeader.startsWith('http') && !settingsSnap.homeHeader.startsWith('data:')
         ? settingsSnap.homeHeader : null),
+    homeHeaderPos: settingsSnap.homeHeaderPos || null,
     artistName: settingsSnap.artistName,
     itineraries: itinerariesSnap,
     usbReminder: settingsSnap.usbReminder !== false

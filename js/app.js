@@ -2779,9 +2779,64 @@ function editProfileName(){
   openSheetReact('Your name', 'settings.profileName', { value: store.settings.artistName === 'You' ? '' : store.settings.artistName });
   setTimeout(()=>{const i=document.getElementById('pf-name');if(i)i.focus();},300);
 }
-function uploadHomeHeader(input){ toast('Uploading photo…','image'); readFile(input, att=>{ if(att.kind!=='image'){ toast('Pick an image','x'); return; } store.settings.homeHeader=att.data; persist('settings'); persist('user_preferences'); renderView(); toast('Header photo set','check');
-  if(syncActive() && att.data.startsWith('data:')) uploadFileDataUrl(att.data,'header','header','home_header').then(({path,url})=>{ store.settings._homeHeaderPath=path; store.settings.homeHeader=url; persist('settings'); persist('user_preferences'); renderView(); }).catch(()=>{}); }); }
-function removeHomeHeader(){ confirmSheet('Remove header photo?','','Remove',()=>{ store.settings.homeHeader=null; persist('settings'); persist('user_preferences'); closeSheet(); renderView(); toast('Removed','trash'); }, true); }
+let pendingHomeHeaderData = null;
+function clampHeaderPct(n){
+  const v = Number(n);
+  if(!Number.isFinite(v)) return 50;
+  return Math.max(0, Math.min(100, Math.round(v * 10) / 10));
+}
+function homeHeaderPositionCss(){
+  const p = store && store.settings && store.settings.homeHeaderPos;
+  return clampHeaderPct(p && p.x) + '% ' + clampHeaderPct(p && p.y) + '%';
+}
+function uploadHomeHeader(input){
+  readFile(input, att=>{
+    if(input) input.value = '';
+    if(!att || att.kind!=='image'){ toast('Pick an image','x'); return; }
+    pendingHomeHeaderData = att.data;
+    openSheetReact('Choose what shows', 'settings.headerFrame', { src: att.data, x: 50, y: 50, mode: 'new' });
+  });
+}
+function adjustHomeHeader(){
+  const src = store.settings._homeHeaderUrl || store.settings.homeHeader;
+  if(!src) return;
+  pendingHomeHeaderData = null;
+  const p = store.settings.homeHeaderPos || {};
+  openSheetReact('Choose what shows', 'settings.headerFrame', {
+    src,
+    x: clampHeaderPct(p.x),
+    y: clampHeaderPct(p.y),
+    mode: 'adjust'
+  });
+}
+function saveHomeHeaderFrame(x, y){
+  store.settings.homeHeaderPos = { x: clampHeaderPct(x), y: clampHeaderPct(y) };
+  const fresh = pendingHomeHeaderData;
+  pendingHomeHeaderData = null;
+  const done = (msg) => {
+    persist('settings');
+    persist('user_preferences');
+    closeSheet();
+    renderView();
+    toast(msg, 'check');
+  };
+  if(fresh){
+    store.settings.homeHeader = fresh;
+    done('Header photo set');
+    if(syncActive() && fresh.startsWith('data:')){
+      uploadFileDataUrl(fresh,'header','header','home_header').then(({path,url})=>{
+        store.settings._homeHeaderPath = path;
+        store.settings.homeHeader = url;
+        persist('settings');
+        persist('user_preferences');
+        renderView();
+      }).catch(()=>{});
+    }
+    return;
+  }
+  done('Photo position saved');
+}
+function removeHomeHeader(){ confirmSheet('Remove header photo?','','Remove',()=>{ pendingHomeHeaderData=null; store.settings.homeHeader=null; store.settings.homeHeaderPos=null; persist('settings'); persist('user_preferences'); closeSheet(); renderView(); toast('Removed','trash'); }, true); }
 function toggleSecurity(){
   const sec=store.settings.security;
   if(secOn()){ confirmSheet('Turn off passcode?','The app and finance will be accessible without a passcode.','Turn off',()=>{ sec.enabled=false; sec.pin=''; sec.biometric=false; session.appUnlocked=true; session.financeUnlocked=true; persist('settings'); renderView(); toast('Passcode off','unlock'); }); }
