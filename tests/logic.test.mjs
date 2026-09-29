@@ -45,12 +45,24 @@ test('setStartMs rolls small-hours set times to the next morning', () => {
   assert.equal(S.setStartMs('2026-07-23', ''), null);
 });
 
-test('countdown formats include minutes and never go negative', () => {
-  const future = Date.now() + (26 * 3600 + 5 * 60) * 1000;
-  const c = S.countdown(future);
-  assert.equal(c.done, false);
-  assert.match(c.txt + c.unit, /\d/);
+test('countdown uses months, then weeks, then days and hours', () => {
+  const hour = 3600000;
+  const day = 24 * hour;
+  const at = (days, hours) => Date.now() + days * day + hours * hour;
+  assert.equal(S.countdown(at(0, 5)).txt, '5h');
+  assert.equal(S.countdown(at(3, 4)).txt, '3d 4h');
+  assert.equal(S.countdown(at(10, 2)).txt, '1w 3d');
+  const now = new Date();
+  const monthTarget = new Date(now.getTime());
+  const dom = monthTarget.getDate();
+  monthTarget.setDate(1);
+  monthTarget.setMonth(monthTarget.getMonth() + 2);
+  const last = new Date(monthTarget.getFullYear(), monthTarget.getMonth() + 1, 0).getDate();
+  monthTarget.setDate(Math.min(dom, last));
+  monthTarget.setTime(monthTarget.getTime() + 8 * day);
+  assert.equal(S.countdown(monthTarget.getTime()).txt, '2mo 1w 1d');
   assert.equal(S.countdown(Date.now() - 1000).done, true);
+  assert.equal(S.countdown(Date.now() - 1000).txt, '—');
 });
 
 test('logisticTypeLabel uses travel mode and ground subtype', () => {

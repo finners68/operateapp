@@ -1417,16 +1417,46 @@ function relDay(dstr){
   return fmtDate(dstr);
 }
 function nowMs(){ return Date.now(); }
+/* Same clock time, N calendar months ahead. End-of-month dates clamp
+   (31 Jan + 1 month lands on the last day of February). */
+function addCalendarMonths(date, n){
+  const d = new Date(date.getTime());
+  const day = d.getDate();
+  d.setDate(1);
+  d.setMonth(d.getMonth() + n);
+  const last = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
+  d.setDate(Math.min(day, last));
+  return d;
+}
 function countdown(targetMs){
   const diff = targetMs - nowMs();
-  if(diff <= 0) return {done:true, txt:'—', unit:''};
-  const mins = Math.floor(diff/60000);
-  const days = Math.floor(mins/1440);
-  const hrs = Math.floor((mins%1440)/60);
-  const m = mins%60;
-  if(days>0) return {done:false, txt:days+'d '+hrs+'h '+m+'m', unit:''};
-  if(hrs>0) return {done:false, txt:hrs+'h '+m+'m', unit:''};
-  return {done:false, txt:m+'m', unit:''};
+  if(!(diff > 0)) return {done:true, txt:'—', unit:''};
+  let months = 0;
+  while(addCalendarMonths(new Date(), months + 1).getTime() <= targetMs) months += 1;
+  const rem = months ? (targetMs - addCalendarMonths(new Date(), months).getTime()) : diff;
+  const day = 86400000;
+  const week = 7 * day;
+  const hour = 3600000;
+  const bits = [];
+  const push = (n, label) => { if(n > 0) bits.push(n + label); };
+  /* A month or more: months, then the leftover weeks and days. */
+  if(months > 0){
+    push(months, 'mo');
+    push(Math.floor(rem / week), 'w');
+    push(Math.floor((rem % week) / day), 'd');
+    return {done:false, txt: bits.join(' ') || (months + 'mo'), unit:''};
+  }
+  /* Under a month: weeks and days. */
+  if(rem >= week){
+    push(Math.floor(rem / week), 'w');
+    push(Math.floor((rem % week) / day), 'd');
+    return {done:false, txt: bits.join(' '), unit:''};
+  }
+  /* Under a week: days and hours. Minutes only once both of those are zero. */
+  push(Math.floor(rem / day), 'd');
+  push(Math.floor((rem % day) / hour), 'h');
+  if(bits.length) return {done:false, txt: bits.join(' '), unit:''};
+  return {done:false, txt: Math.max(1, Math.ceil(rem / 60000)) + 'm', unit:''};
 }
 function timeAgo(ms){
   const diff = nowMs()-ms;
