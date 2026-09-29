@@ -825,6 +825,47 @@ async function deleteIdeaNow(id){
   }
   return flushDirtyNow();
 }
+async function deleteShowFlightNow(flightId){
+  if(!flightId || !store) return;
+  const legacy = 'show_flight:' + flightId;
+  const journeys = (store.v2 && store.v2.journeys) || [];
+  const row = journeys.find(j => j && (j.id === flightId || j.legacy_id === legacy));
+  const journeyId = (row && row.id) || null;
+  if(store.v2 && Array.isArray(store.v2.journeys)){
+    store.v2.journeys = store.v2.journeys.filter(j => j && j.id !== flightId && j.legacy_id !== legacy);
+  }
+  if(journeyId && store.v2){
+    ['journey_flight_details','travel_tickets','journey_passengers','journey_contacts'].forEach(table => {
+      if(Array.isArray(store.v2[table])){
+        store.v2[table] = store.v2[table].filter(r => r && r.journey_id !== journeyId);
+      }
+    });
+  }
+  if(typeof syncActive !== 'function' || !syncActive()) return;
+  const sb = typeof getSupabase === 'function' ? getSupabase() : null;
+  const orgId = typeof currentOrgId !== 'undefined' ? currentOrgId : null;
+  if(!sb || !orgId) return;
+  try{
+    let id = journeyId;
+    if(!id && typeof isUuid === 'function' && isUuid(flightId)){
+      const byId = await sb.from('journeys').select('id').eq('organisation_id', orgId).eq('id', flightId).maybeSingle();
+      id = byId.data && byId.data.id;
+    }
+    if(!id){
+      const byLegacy = await sb.from('journeys').select('id').eq('organisation_id', orgId).eq('legacy_id', legacy).maybeSingle();
+      id = byLegacy.data && byLegacy.data.id;
+    }
+    if(!id) return;
+    for(const table of ['travel_tickets','journey_passengers','journey_flight_details','journey_contacts']){
+      const { error } = await sb.from(table).delete().eq('organisation_id', orgId).eq('journey_id', id);
+      if(error) console.warn('delete flight child', table, error);
+    }
+    const { error } = await sb.from('journeys').delete().eq('organisation_id', orgId).eq('id', id);
+    if(error) console.warn('delete flight journey', error);
+  }catch(err){
+    console.warn('delete show flight', err);
+  }
+}
 async function pushShowNow(showId){
   if(!showId) return false;
   if(typeof markDirty === 'function') markDirty('shows', showId);
@@ -874,6 +915,26 @@ async function pushInvoiceNow(invoiceId){
   if(typeof markDirty === 'function') markDirty('invoices', invoiceId);
   db.write(store);
   return flushDirtyNow();
+}
+async function deleteLogisticsNow(kind, id){
+  if(!id || !store) return;
+  const table = kind === 'stay' ? 'hotel_bookings'
+    : kind === 'marker' ? 'schedule_items'
+    : 'journeys';
+  if(store.v2 && Array.isArray(store.v2[table])){
+    store.v2[table] = store.v2[table].filter(r => r && r.id !== id);
+  }
+  if(typeof syncActive !== 'function' || !syncActive()) return;
+  const sb = typeof getSupabase === 'function' ? getSupabase() : null;
+  const orgId = typeof currentOrgId !== 'undefined' ? currentOrgId : null;
+  if(!sb || !orgId) return;
+  if(typeof isUuid === 'function' && !isUuid(id)) return;
+  try{
+    const { error } = await sb.from(table).delete().eq('organisation_id', orgId).eq('id', id);
+    if(error) console.warn('delete logistics', table, error);
+  }catch(err){
+    console.warn('delete logistics', err);
+  }
 }
 async function pushLogisticsNow(kind, id){
   if(!id) return false;

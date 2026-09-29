@@ -1852,13 +1852,28 @@ function saveFlight(eid, fid){
   }, existing ? 'Flight saved' : 'Flight added');
 }
 function delFlight(eid,fid){
-  const e=sel.event(eid); if(!e) return;
+  const e=sel.event(eid); if(!e || !fid) return;
   e.flights=(e.flights||[]).filter(f=>f.id!==fid);
+  if(typeof deleteShowFlightNow==='function') deleteShowFlightNow(fid);
   persist('shows', eid);
   if(typeof pushShowNow==='function') pushShowNow(eid);
   softRender();
   toast('Flight removed','trash');
 }
+function confirmRemoveFlight(eid, fid){
+  const e=sel.event(eid);
+  const f=e && (e.flights||[]).find(x=>x.id===fid);
+  const route=[f && (f.from||f.fromCode), f && (f.to||f.toCode)].filter(Boolean).join(' → ');
+  const label=(f && (f.code || route)) || 'this flight';
+  confirmSheet(
+    'Remove flight?',
+    `Remove ${label} from this show.`,
+    'Remove',
+    ()=>{ delFlight(eid, fid); },
+    true
+  );
+}
+window.confirmRemoveFlight = confirmRemoveFlight;
 function confirmRemoveTravelLeg(id){
   const e=(store.events||[]).find(x=>x.id===id);
   const label=(e && ((typeof logisticTypeLabel==='function' && logisticTypeLabel(e)) || e.title)) || 'this journey';

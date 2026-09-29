@@ -416,6 +416,7 @@ function saveItem(id){
 }
 function delItem(id){ const gone=store.events.find(x=>x.id===id); store.events=store.events.filter(x=>x.id!==id);
   const logScope = gone && gone.kind === 'stay' ? 'hotel_bookings' : (gone && gone.kind === 'marker' ? 'schedule_items' : 'journeys');
+  if(typeof deleteLogisticsNow==='function') deleteLogisticsNow(gone && gone.kind, id);
   persist(logScope, id); closeSheet(); renderView(); toast('Deleted','trash'); }
 let calSel = null;
 function calMove(d){
