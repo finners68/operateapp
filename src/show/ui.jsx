@@ -76,7 +76,7 @@ export function EmptyTap({ icon, title, sub, onClick }){
   return (
     <div
       className="card tap"
-      style={{ textAlign: 'center', color: 'var(--text-3)', padding: 20, fontWeight: 600 }}
+      style={{ textAlign: 'center', color: 'var(--text-3)', padding: 20, fontWeight: 400 }}
       onClick={onClick}
     >
       <Icon name={icon} size={22} />

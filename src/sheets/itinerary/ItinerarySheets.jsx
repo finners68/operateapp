@@ -77,7 +77,7 @@ export function ItineraryReviewSheet({id,fields}){
   const date=normalDate||it.date||today,status=f.status||'confirmed',cat=f.color||'purple';
   const color=(getCats()||{})[cat]||'#7c3aed';
   return <>
-    <div className="dhero sheet-event-preview" id="ev-preview" style={{background:`linear-gradient(155deg,${color}33,var(--card) 65%)`,borderColor:`${color}44`}}><div className="cat-bar" style={{background:color}}/><div className="sheet-event-tone" style={{fontSize:12,fontWeight:700,textTransform:'uppercase',letterSpacing:'.06em',color}}>New show from itinerary</div><div id="ev-preview-venue" style={{fontSize:20,fontWeight:800,marginTop:4}}>{eventName||venue||'Event name'}</div>{eventName&&venue?<div style={{fontSize:13,opacity:.75,marginTop:2}}>{venue}</div>:null}</div>
+    <div className="dhero sheet-event-preview" id="ev-preview" style={{background:`linear-gradient(155deg,${color}33,var(--card) 65%)`,borderColor:`${color}44`}}><div className="cat-bar" style={{background:color}}/><div className="sheet-event-tone" style={{fontSize:12,fontWeight:500,textTransform:'uppercase',letterSpacing:'.06em',color}}>New show from itinerary</div><div id="ev-preview-venue" style={{fontSize:20,fontWeight:600,marginTop:4}}>{eventName||venue||'Event name'}</div>{eventName&&venue?<div style={{fontSize:13,opacity:.75,marginTop:2}}>{venue}</div>:null}</div>
     <Field label="Event name" id="itn-rev-event-name" value={eventName} placeholder="e.g. Parklife, Support slot" onInput={()=>call('updateEventPreviewVenue')}/>
     <Field label="Venue name" id="itn-rev-venue" value={venue} placeholder="e.g. Shelter" onInput={()=>call('updateEventPreviewVenue')}/>
     <Field label="Address" id="itn-rev-addr" value={f.venueAddress||f.venueAddr} placeholder="Street and number"/>

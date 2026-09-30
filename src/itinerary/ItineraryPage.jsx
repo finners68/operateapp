@@ -28,7 +28,7 @@ function ItinCard({ it }){
             {show ? ` · ${esc(showTitle(show))}` : ''}
           </div>
           {pending ? (
-            <div style={{ fontSize: 12.5, color: 'var(--accent-2)', marginTop: 4, fontWeight: 650 }}>
+            <div style={{ fontSize: 12.5, color: 'var(--accent-2)', marginTop: 4, fontWeight: 500 }}>
               Waiting for you to confirm & create the show
             </div>
           ) : null}
@@ -80,7 +80,7 @@ export default function ItineraryPage(){
           <button type="button" className="back-btn" onClick={() => call('back')}>
             <Icon name="chevL" size={20} /> Home
           </button>
-          <div style={{ fontSize: 15, fontWeight: 700 }}>Itinerary inbox</div>
+          <div style={{ fontSize: 15, fontWeight: 650 }}>Itinerary inbox</div>
           <div style={{ width: 36 }} />
         </div>
       </div>

@@ -33,7 +33,7 @@ export default function FinancePage(){
           <button type="button" className="back-btn" onClick={() => call('back')}>
             <Icon name="chevL" size={20} /> {backLabel}
           </button>
-          <div style={{ fontSize: 16, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 6 }}>
+          <div style={{ fontSize: 16, fontWeight: 650, display: 'flex', alignItems: 'center', gap: 6 }}>
             {locked ? <Icon name="lock" size={13} /> : null} Money
           </div>
           <button
@@ -77,7 +77,7 @@ export default function FinancePage(){
           <div className="progress" style={{ marginTop: 14, background: 'rgba(0,0,0,0.3)' }}>
             <i style={{ width: `${paidPct}%`, background: 'var(--green)' }} />
           </div>
-          <div style={{ fontSize: 12, color: 'var(--text-2)', marginTop: 6, fontWeight: 600 }}>{paidPct}% of net collected</div>
+          <div style={{ fontSize: 12, color: 'var(--text-2)', marginTop: 6, fontWeight: 400 }}>{paidPct}% of net collected</div>
         </div>
 
         <div className="section">
@@ -97,7 +97,7 @@ export default function FinancePage(){
             <div className="info-line"><div className="ic" style={{ color: 'var(--text-2)' }}><Icon name="coins" size={17} /></div><div className="tx"><div className="k">Gross fees</div><div className="v">{fmtBase ? fmtBase(s.grossBase) : s.grossBase}</div></div></div>
             <div className="info-line"><div className="ic" style={{ color: 'var(--red)' }}><Icon name="user" size={17} /></div><div className="tx"><div className="k">Agent commission</div><div className="v" style={{ color: 'var(--red)' }}>− {fmtBase ? fmtBase(s.commissionBase) : s.commissionBase}</div></div></div>
             <div className="info-line"><div className="ic" style={{ color: 'var(--red)' }}><Icon name="receipt" size={17} /></div><div className="tx"><div className="k">Expenses</div><div className="v" style={{ color: 'var(--red)' }}>− {fmtBase ? fmtBase(s.expensesBase) : s.expensesBase}</div></div></div>
-            <div className="info-line"><div className="ic" style={{ color: 'var(--green)' }}><Icon name="wallet2" size={17} /></div><div className="tx"><div className="k">Net take-home</div><div className="v" style={{ color: 'var(--green)', fontWeight: 800 }}>{fmtBase ? fmtBase(s.netBase) : s.netBase}</div></div></div>
+            <div className="info-line"><div className="ic" style={{ color: 'var(--green)' }}><Icon name="wallet2" size={17} /></div><div className="tx"><div className="k">Net take-home</div><div className="v" style={{ color: 'var(--green)', fontWeight: 650 }}>{fmtBase ? fmtBase(s.netBase) : s.netBase}</div></div></div>
           </div>
         </div>
 

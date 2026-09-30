@@ -77,7 +77,7 @@ export default function SettingsPage(){
           <button type="button" className="back-btn" onClick={() => call('back')}>
             <Icon name="chevL" size={20} /> {backLabel}
           </button>
-          <div style={{ fontSize: 16, fontWeight: 700 }}>Settings</div>
+          <div style={{ fontSize: 16, fontWeight: 650 }}>Settings</div>
           <div style={{ width: 36 }} />
         </div>
       </div>

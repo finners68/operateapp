@@ -1386,7 +1386,7 @@ function viewItinerary(){
   return `
   <div class="detail-top"><div class="detail-bar">
     <button class="back-btn" onclick="back()">${ICON.chevL(20)} Home</button>
-    <div style="font-size:15px;font-weight:700">Itinerary inbox</div>
+    <div style="font-size:15px;font-weight:650">Itinerary inbox</div>
     <div style="width:36px"></div>
   </div></div>
   <div class="screen-pad stagger">
@@ -1407,7 +1407,7 @@ function itinCard(it){
     <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px" onclick="openItineraryEntry('${it.id}')">
       <div style="min-width:0"><b style="font-size:15.5px">${esc(itinerarySourceLabel(it.source))}</b>
         <div style="font-size:13px;color:var(--text-2);margin-top:2px">${pending?'Review show basics':(when||'No date set')}${show?' · '+esc(show.venue):''}</div>
-        ${pending?`<div style="font-size:12.5px;color:var(--accent-2);margin-top:4px;font-weight:650">${it.mode==='existing'?'Waiting for you to confirm adding this to the show':'Waiting for you to confirm &amp; create the show'}</div>`:''}
+        ${pending?`<div style="font-size:12.5px;color:var(--accent-2);margin-top:4px;font-weight:500">${it.mode==='existing'?'Waiting for you to confirm adding this to the show':'Waiting for you to confirm &amp; create the show'}</div>`:''}
         ${it.note?`<div style="font-size:13px;color:var(--text-3);margin-top:5px;white-space:pre-wrap">${esc(it.note)}</div>`:''}</div>
       ${ICON.chevR(15)}
     </div>
@@ -2533,7 +2533,7 @@ function viewSettings(){
   return `
   <div class="detail-top"><div class="detail-bar">
     <button class="back-btn" onclick="back()">${ICON.chevL(20)} ${overlayBackLabel()}</button>
-    <div style="font-size:16px;font-weight:700">Settings</div>
+    <div style="font-size:16px;font-weight:650">Settings</div>
     <div style="width:36px"></div>
   </div></div>
   <div class="screen-pad stagger">
@@ -2729,7 +2729,7 @@ function computeYearStats(){
   };
 }
 function statTile(label, value, sub, color){
-  return `<div class="card" style="padding:15px 16px"><div style="font-size:12px;color:${color||'var(--text-3)'};font-weight:700;text-transform:uppercase;letter-spacing:.04em">${label}</div><div style="font-size:26px;font-weight:850;letter-spacing:-0.02em;margin-top:4px">${value}</div>${sub?`<div style="font-size:12px;color:var(--text-3);font-weight:600;margin-top:1px">${sub}</div>`:''}</div>`;
+  return `<div class="card" style="padding:15px 16px"><div style="font-size:12px;color:${color||'var(--text-3)'};font-weight:500;text-transform:uppercase;letter-spacing:.04em">${label}</div><div style="font-size:26px;font-weight:650;letter-spacing:-0.02em;margin-top:4px">${value}</div>${sub?`<div style="font-size:12px;color:var(--text-3);font-weight:400;margin-top:1px">${sub}</div>`:''}</div>`;
 }
 function viewStats(){
   const st=computeStats();
@@ -2743,7 +2743,7 @@ function viewStats(){
   return `
   <div class="detail-top"><div class="detail-bar">
     <button class="back-btn" onclick="back()">${ICON.chevL(20)} Settings</button>
-    <div style="font-size:16px;font-weight:700">Tour stats</div>
+    <div style="font-size:16px;font-weight:650">Tour stats</div>
     <div style="width:36px"></div>
   </div></div>
   <div class="screen-pad stagger">
@@ -2896,7 +2896,7 @@ function viewFinance(){
   return `
   <div class="detail-top"><div class="detail-bar">
     <button class="back-btn" onclick="back()">${ICON.chevL(20)} ${overlayBackLabel()}</button>
-    <div style="font-size:16px;font-weight:700;display:flex;align-items:center;gap:6px">${secOn()&&store.settings.security.scope!=='off'?ICON.lock(13):''} Money</div>
+    <div style="font-size:16px;font-weight:650;display:flex;align-items:center;gap:6px">${secOn()&&store.settings.security.scope!=='off'?ICON.lock(13):''} Money</div>
     <button class="header-btn" style="width:36px;height:36px" onclick="${secOn()?`lockFinanceNow()`:`openView('settings')`}">${secOn()?ICON.lock(17):ICON.settings(18)}</button>
   </div></div>
   <div class="screen-pad stagger">
@@ -2914,7 +2914,7 @@ function viewFinance(){
         <div class="count"><div class="count-k">${ICON.trend(12)} Upcoming</div><div class="count-v" style="font-size:18px">${fmtBase(s.upcomingBase)}</div></div>
       </div>
       <div class="progress" style="margin-top:14px;background:rgba(0,0,0,0.3)"><i style="width:${paidPct}%;background:var(--green)"></i></div>
-      <div style="font-size:12px;color:var(--text-2);margin-top:6px;font-weight:600">${paidPct}% of net collected</div>
+      <div style="font-size:12px;color:var(--text-2);margin-top:6px;font-weight:400">${paidPct}% of net collected</div>
     </div>
 
     <div class="section">
@@ -2930,7 +2930,7 @@ function viewFinance(){
         <div class="info-line"><div class="ic" style="color:var(--text-2)">${ICON.coins(17)}</div><div class="tx"><div class="k">Gross fees</div><div class="v">${fmtBase(s.grossBase)}</div></div></div>
         <div class="info-line"><div class="ic" style="color:var(--red)">${ICON.user(17)}</div><div class="tx"><div class="k">Agent commission</div><div class="v" style="color:var(--red)">− ${fmtBase(s.commissionBase)}</div></div></div>
         <div class="info-line"><div class="ic" style="color:var(--red)">${ICON.receipt(17)}</div><div class="tx"><div class="k">Expenses</div><div class="v" style="color:var(--red)">− ${fmtBase(s.expensesBase)}</div></div></div>
-        <div class="info-line"><div class="ic" style="color:var(--green)">${ICON.wallet2(17)}</div><div class="tx"><div class="k">Net take-home</div><div class="v" style="color:var(--green);font-weight:800">${fmtBase(s.netBase)}</div></div></div>
+        <div class="info-line"><div class="ic" style="color:var(--green)">${ICON.wallet2(17)}</div><div class="tx"><div class="k">Net take-home</div><div class="v" style="color:var(--green);font-weight:650">${fmtBase(s.netBase)}</div></div></div>
       </div>
     </div>
 
@@ -3032,7 +3032,7 @@ function viewInvoices(){
   return `
   <div class="detail-top"><div class="detail-bar">
     <button class="back-btn" onclick="openView('finance')">${ICON.chevL(20)} Money</button>
-    <div style="font-size:16px;font-weight:700">Invoices</div>
+    <div style="font-size:16px;font-weight:650">Invoices</div>
     <button class="header-btn" style="width:36px;height:36px" onclick="pickEventForInvoice()">${ICON.plus(20)}</button>
   </div></div>
   <div class="screen-pad stagger">
@@ -3041,9 +3041,9 @@ function viewInvoices(){
       <button class="on">${ICON.receipt(15)} Invoices${list.length?' ('+list.length+')':''}</button>
     </div>
     <div class="card" style="background:linear-gradient(150deg,rgba(10,132,255,0.12),var(--card))">
-      <div style="font-size:12px;color:var(--blue);font-weight:700;text-transform:uppercase;letter-spacing:.05em">${ICON.receipt(13)} Outstanding invoiced</div>
-      <div style="font-size:28px;font-weight:850;margin-top:3px">${fmtBase(outstanding)}</div>
-      <div style="font-size:12.5px;color:var(--text-3);font-weight:600">${list.length} invoice${list.length!==1?'s':''} · next # ${esc(nextInvoiceNumber())}</div>
+      <div style="font-size:12px;color:var(--blue);font-weight:500;text-transform:uppercase;letter-spacing:.05em">${ICON.receipt(13)} Outstanding invoiced</div>
+      <div style="font-size:28px;font-weight:650;margin-top:3px">${fmtBase(outstanding)}</div>
+      <div style="font-size:12.5px;color:var(--text-3);font-weight:400">${list.length} invoice${list.length!==1?'s':''} · next # ${esc(nextInvoiceNumber())}</div>
     </div>
     <div class="section">
       ${list.length?`<div class="card flush">${list.map(invRow).join('')}</div>`
@@ -3096,22 +3096,22 @@ function viewInvoice(id){
   <div class="screen-pad stagger">
     <div class="card" style="padding:22px">
       <div style="display:flex;justify-content:space-between;align-items:flex-start">
-        <div><div style="font-size:22px;font-weight:850;letter-spacing:-0.02em">INVOICE</div><div style="color:var(--text-3);font-weight:700;margin-top:2px">${esc(inv.number)}</div></div>
+        <div><div style="font-size:22px;font-weight:680;letter-spacing:-0.02em">INVOICE</div><div style="color:var(--text-3);font-weight:500;margin-top:2px">${esc(inv.number)}</div></div>
         <span class="tag ${inv.status==='paid'?'confirmed':inv.status==='sent'?'hold':'past'}" style="font-size:12px">${inv.status}</span>
       </div>
       <div class="divi"></div>
       <div style="display:flex;justify-content:space-between;gap:16px;font-size:13px">
-        <div style="flex:1"><div style="color:var(--text-3);font-weight:700;text-transform:uppercase;font-size:11px;letter-spacing:.04em;margin-bottom:4px">From</div>
-          <div style="font-weight:650;white-space:pre-line;line-height:1.5">${esc(b.name||store.settings.artistName||'Your name')}${b.address?'\n'+esc(b.address):''}${b.taxId?'\nVAT/Tax: '+esc(b.taxId):''}</div></div>
-        <div style="flex:1"><div style="color:var(--text-3);font-weight:700;text-transform:uppercase;font-size:11px;letter-spacing:.04em;margin-bottom:4px">Bill to</div>
-          <div style="font-weight:650;white-space:pre-line;line-height:1.5">${esc(inv.client)}${inv.clientAddr?'\n'+esc(inv.clientAddr):''}</div></div>
+        <div style="flex:1"><div style="color:var(--text-3);font-weight:500;text-transform:uppercase;font-size:11px;letter-spacing:.04em;margin-bottom:4px">From</div>
+          <div style="font-weight:500;white-space:pre-line;line-height:1.5">${esc(b.name||store.settings.artistName||'Your name')}${b.address?'\n'+esc(b.address):''}${b.taxId?'\nVAT/Tax: '+esc(b.taxId):''}</div></div>
+        <div style="flex:1"><div style="color:var(--text-3);font-weight:500;text-transform:uppercase;font-size:11px;letter-spacing:.04em;margin-bottom:4px">Bill to</div>
+          <div style="font-weight:500;white-space:pre-line;line-height:1.5">${esc(inv.client)}${inv.clientAddr?'\n'+esc(inv.clientAddr):''}</div></div>
       </div>
       <div style="display:flex;gap:20px;margin-top:14px;font-size:12.5px;color:var(--text-2)"><span>Issued <b style="color:var(--text)">${fmtDate(inv.date)}</b></span><span>Due <b style="color:var(--text)">${fmtDate(due)}</b></span></div>
       <div class="divi"></div>
-      ${(inv.lines||[]).map((l,idx)=>`<div style="display:flex;justify-content:space-between;gap:12px;padding:9px 0;border-bottom:1px solid var(--stroke);font-size:14px"><span style="flex:1;color:var(--text-2)">${esc(l.label)}</span><span style="font-weight:650;white-space:nowrap">${fmtMoney(l.amount,inv.currency)} <button class="del" style="opacity:.5;padding:0 2px" onclick="delInvLine('${inv.id}',${idx})">${ICON.x(12)}</button></span></div>`).join('')}
+      ${(inv.lines||[]).map((l,idx)=>`<div style="display:flex;justify-content:space-between;gap:12px;padding:9px 0;border-bottom:1px solid var(--stroke);font-size:14px"><span style="flex:1;color:var(--text-2)">${esc(l.label)}</span><span style="font-weight:600;white-space:nowrap">${fmtMoney(l.amount,inv.currency)} <button class="del" style="opacity:.5;padding:0 2px" onclick="delInvLine('${inv.id}',${idx})">${ICON.x(12)}</button></span></div>`).join('')}
       <button class="link-btn" style="padding:8px 0" onclick="addInvLine('${inv.id}')">${ICON.plus(13)} Add line</button>
       <div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px;padding-top:12px;border-top:2px solid var(--stroke-strong)">
-        <span style="font-size:16px;font-weight:800">Total due</span><span style="font-size:22px;font-weight:850">${fmtMoney(total,inv.currency)}</span>
+        <span style="font-size:16px;font-weight:600">Total due</span><span style="font-size:22px;font-weight:650">${fmtMoney(total,inv.currency)}</span>
       </div>
       ${inv.currency!==store.settings.baseCurrency?`<div style="text-align:right;font-size:12px;color:var(--text-3);margin-top:2px">≈ ${fmtBase(toBase(total,inv.currency))}</div>`:''}
       ${b.iban?`<div style="margin-top:14px;font-size:12.5px;color:var(--text-2)"><span style="color:var(--text-3)">Payment:</span> ${esc(b.iban)}</div>`:''}
@@ -3190,7 +3190,7 @@ function viewContacts(){
   return `
   <div class="detail-top"><div class="detail-bar">
     <button class="back-btn" onclick="back()">${ICON.chevL(20)} Home</button>
-    <div style="font-size:16px;font-weight:700">Contacts</div>
+    <div style="font-size:16px;font-weight:650">Contacts</div>
     <button class="header-btn" style="width:36px;height:36px" onclick="sheetContact()">${ICON.plus(20)}</button>
   </div></div>
   <div class="screen-pad">
@@ -3243,7 +3243,7 @@ function contactShowMarkup(c){
 function contactRow(c){
   const col=ROLES[c.role]||ROLES.Other;
   return `<div class="row" onclick="contactCard('${c.id}')">
-    <div class="ic" style="background:${col}22;color:${col};font-weight:800;font-size:15px">${esc((c.name||'?').trim()[0]||'?').toUpperCase()}</div>
+    <div class="ic" style="background:${col}22;color:${col};font-weight:600;font-size:15px">${esc((c.name||'?').trim()[0]||'?').toUpperCase()}</div>
     <div class="body"><b>${esc(c.name)}</b><span>${esc(c.role)}${c.company?' · '+esc(c.company):''}</span>${contactShowMarkup(c)}</div>
     <div class="trail">
       ${c.phone?`<button class="header-btn" style="width:34px;height:34px" onclick="event.stopPropagation();callNumber('${jsAttr(c.phone)}')">${ICON.phone(15)}</button>`:''}

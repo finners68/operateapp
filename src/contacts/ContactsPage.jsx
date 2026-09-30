@@ -17,7 +17,7 @@ function ContactRow({ c }){
   const shows = call('contactShowLinks', c) || [];
   return (
     <div className="row" onClick={() => call('contactCard', c.id)}>
-      <div className="ic" style={{ background: `${col}22`, color: col, fontWeight: 800, fontSize: 15 }}>{initial}</div>
+      <div className="ic" style={{ background: `${col}22`, color: col, fontWeight: 600, fontSize: 15 }}>{initial}</div>
       <div className="body">
         <b>{c.name}</b>
         <span>{c.role}{c.company ? ` · ${c.company}` : ''}</span>
@@ -61,7 +61,7 @@ export default function ContactsPage(){
           <button type="button" className="back-btn" onClick={() => call('back')}>
             <Icon name="chevL" size={20} /> {backLabel}
           </button>
-          <div style={{ fontSize: 16, fontWeight: 700 }}>Contacts</div>
+          <div style={{ fontSize: 16, fontWeight: 650 }}>Contacts</div>
           <button type="button" className="header-btn" style={{ width: 36, height: 36 }} onClick={() => call('sheetContact')}>
             <Icon name="plus" size={20} />
           </button>

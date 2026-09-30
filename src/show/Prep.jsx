@@ -278,7 +278,7 @@ export function Timeline({ show }){
                   onClick={() => openTimelineStep(show, s)}
                 >
                   <b>{s.time || '—'}</b> {s.title || 'Step'}
-                  {s.sub ? <span style={{ display: 'block', fontSize: 12, color: 'var(--text-3)', fontWeight: 600, marginTop: 2 }}>{s.sub}</span> : null}
+                  {s.sub ? <span style={{ display: 'block', fontSize: 12, color: 'var(--text-3)', fontWeight: 400, marginTop: 2 }}>{s.sub}</span> : null}
                 </div>
               </div>
             ))}

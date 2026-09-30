@@ -116,7 +116,7 @@ function NextShowHero({ show, compact = false }){
       <div className="count-row">
         <div className="count">
           <div className="count-k"><Icon name="music" size={12} /> Set time</div>
-          <div className="count-v" style={{ fontSize: 19 }}>
+          <div className="count-v" style={{ fontSize: 19, fontWeight: 600 }}>
             {show.setTime || 'TBA'}{show.endTime ? <small> – {show.endTime}</small> : null}
           </div>
         </div>
@@ -272,7 +272,7 @@ function ChecklistBlock({ title, rows, link }){
         {rows.map(row => (
           <div key={row.key} className={`check ${row.done ? 'done' : ''}`} onClick={() => call('toggleEventCheck', row.showId, row.id)}>
             <div className="box"><Icon name="check" size={15} /></div>
-            <div className="lbl">{row.label}{row.showName ? <span style={{ display: 'block', color: 'var(--text-3)', fontWeight: 600, marginTop: 2 }}>{row.showName}</span> : null}</div>
+            <div className="lbl">{row.label}{row.showName ? <span style={{ display: 'block', color: 'var(--text-3)', fontWeight: 400, marginTop: 2 }}>{row.showName}</span> : null}</div>
           </div>
         ))}
       </div>

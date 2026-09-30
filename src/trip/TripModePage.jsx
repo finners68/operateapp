@@ -59,7 +59,7 @@ function TripLegRow({ show, index, nextShow }){
   const icCol = show.setDone ? 'var(--green)' : isNext ? 'var(--orange)' : 'var(--text-3)';
   return (
     <div className="row" style={bg} onClick={() => call('openView', 'event', show.id)}>
-      <div className="ic" style={{ background: icBg, color: icCol, fontWeight: 800, fontSize: 13 }}>
+      <div className="ic" style={{ background: icBg, color: icCol, fontWeight: 600, fontSize: 13 }}>
         {show.setDone ? <Icon name="check" size={16} /> : index + 1}
       </div>
       <div className="body">
@@ -151,7 +151,7 @@ export function TripDashboard({ run, compactHeader = false }){
         ) : (
           <div className="card" style={{ textAlign: 'center', color: 'var(--text-2)', padding: 22 }}>
             <Icon name="check" size={24} />
-            <div style={{ marginTop: 6, fontWeight: 650 }}>Tour complete</div>
+            <div style={{ marginTop: 6, fontWeight: 600 }}>Tour complete</div>
           </div>
         )}
       </div>

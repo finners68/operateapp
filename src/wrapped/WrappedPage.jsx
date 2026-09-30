@@ -33,31 +33,31 @@ const WR_CSS = `
 .wr-slide.on .r:nth-child(4){animation-delay:.30s}
 .wr-slide.on .r:nth-child(5){animation-delay:.40s}
 @keyframes wrIn{to{opacity:1;transform:none;filter:blur(0)}}
-.wr-eyebrow{font-size:13px;font-weight:800;letter-spacing:.18em;text-transform:uppercase;color:#b9b2e0;margin-bottom:12px}
-.wr-year{font-size:clamp(96px,30vw,168px);font-weight:900;letter-spacing:-.05em;line-height:.86;
+.wr-eyebrow{font-size:13px;font-weight:500;letter-spacing:.18em;text-transform:uppercase;color:#b9b2e0;margin-bottom:12px}
+.wr-year{font-size:clamp(96px,30vw,168px);font-weight:700;letter-spacing:-.05em;line-height:.86;
   background:linear-gradient(120deg,#e7e1ff,#8b7dff);-webkit-background-clip:text;background-clip:text;color:transparent}
-.wr-name{margin-top:16px;font-size:24px;font-weight:800;color:#efeaff}
-.wr-lede{margin-top:16px;font-size:17px;font-weight:600;color:#c3bce6;max-width:300px}
+.wr-name{margin-top:16px;font-size:24px;font-weight:650;color:#efeaff}
+.wr-lede{margin-top:16px;font-size:17px;font-weight:400;color:#c3bce6;max-width:300px}
 .wr-lede b{color:#fff}
-.wr-big{font-size:clamp(84px,26vw,148px);font-weight:900;letter-spacing:-.045em;line-height:.9;
+.wr-big{font-size:clamp(84px,26vw,148px);font-weight:700;letter-spacing:-.045em;line-height:.9;
   font-variant-numeric:tabular-nums;text-shadow:0 8px 40px rgba(139,125,255,.35)}
-.wr-word{margin-top:14px;font-size:15px;font-weight:800;letter-spacing:.4em;color:#a99dff;padding-left:.4em}
-.wr-chip{margin-top:18px;font-size:13px;font-weight:700;color:#dcd6f6;background:rgba(255,255,255,.08);
+.wr-word{margin-top:14px;font-size:15px;font-weight:500;letter-spacing:.4em;color:#a99dff;padding-left:.4em}
+.wr-chip{margin-top:18px;font-size:13px;font-weight:500;color:#dcd6f6;background:rgba(255,255,255,.08);
   border:1px solid rgba(255,255,255,.14);border-radius:999px;padding:7px 14px;backdrop-filter:blur(6px)}
 .wr-flags{margin-top:26px;display:flex;flex-wrap:wrap;justify-content:center;gap:10px 12px;max-width:340px;font-size:32px;line-height:1}
 .wr-hms{display:flex;flex-direction:column;gap:22px;margin-top:14px}
 .wr-hms>div{display:flex;flex-direction:column;align-items:center}
-.wr-hms b{font-size:clamp(54px,16vw,88px);font-weight:900;letter-spacing:-.04em;line-height:.9;font-variant-numeric:tabular-nums;text-shadow:0 8px 40px rgba(139,125,255,.35)}
-.wr-hms span{margin-top:3px;font-size:12px;font-weight:800;letter-spacing:.3em;text-transform:uppercase;color:#a99dff}
+.wr-hms b{font-size:clamp(54px,16vw,88px);font-weight:700;letter-spacing:-.04em;line-height:.9;font-variant-numeric:tabular-nums;text-shadow:0 8px 40px rgba(139,125,255,.35)}
+.wr-hms span{margin-top:3px;font-size:12px;font-weight:500;letter-spacing:.3em;text-transform:uppercase;color:#a99dff}
 .wr-hl{display:flex;flex-direction:column;gap:14px;margin-top:22px;width:100%;max-width:360px}
 .wr-hl>div{background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);border-radius:16px;padding:15px 18px;text-align:left;display:flex;flex-direction:column;backdrop-filter:blur(6px)}
-.wr-hl span{font-size:11px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:#a99dff}
-.wr-hl b{font-size:23px;font-weight:850;margin-top:5px}
-.wr-hl i{font-style:normal;font-size:13px;color:#b3aecb;margin-top:3px;font-weight:600}
+.wr-hl span{font-size:11px;font-weight:500;letter-spacing:.1em;text-transform:uppercase;color:#a99dff}
+.wr-hl b{font-size:23px;font-weight:650;margin-top:5px}
+.wr-hl i{font-style:normal;font-size:13px;color:#b3aecb;margin-top:3px;font-weight:400}
 .wr-grid{display:grid;grid-template-columns:1fr 1fr;gap:18px 20px;margin-top:24px;width:100%;max-width:380px}
 .wr-grid>div{display:flex;flex-direction:column;align-items:flex-start;text-align:left}
-.wr-grid b{font-size:32px;font-weight:900;letter-spacing:-.03em;line-height:1;font-variant-numeric:tabular-nums}
-.wr-grid span{margin-top:4px;font-size:11px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:#a99dff}
+.wr-grid b{font-size:32px;font-weight:700;letter-spacing:-.03em;line-height:1;font-variant-numeric:tabular-nums}
+.wr-grid span{margin-top:4px;font-size:11px;font-weight:500;letter-spacing:.07em;text-transform:uppercase;color:#a99dff}
 .wr-flags span{opacity:0;transform:scale(.4);animation:wrPop .5s cubic-bezier(.2,1.5,.4,1) forwards;animation-delay:calc(.5s + var(--d))}
 @keyframes wrPop{to{opacity:1;transform:none}}
 .wr-map{position:absolute;inset:0;width:100%;height:100%}
@@ -66,13 +66,13 @@ const WR_CSS = `
 .wr-map-copy .wr-big{font-size:clamp(64px,20vw,120px)}
 .wr-summary{display:grid;grid-template-columns:1fr 1fr;gap:16px 26px;margin:8px 0 8px}
 .wr-summary div{display:flex;flex-direction:column}
-.wr-summary b{font-size:40px;font-weight:900;letter-spacing:-.03em;line-height:1;font-variant-numeric:tabular-nums}
-.wr-summary span{margin-top:5px;font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#b0a9d6}
-.wr-share{position:relative;z-index:7;pointer-events:auto;margin-top:30px;display:inline-flex;align-items:center;gap:9px;font-size:16px;font-weight:800;
+.wr-summary b{font-size:40px;font-weight:700;letter-spacing:-.03em;line-height:1;font-variant-numeric:tabular-nums}
+.wr-summary span{margin-top:5px;font-size:12px;font-weight:500;letter-spacing:.08em;text-transform:uppercase;color:#b0a9d6}
+.wr-share{position:relative;z-index:7;pointer-events:auto;margin-top:30px;display:inline-flex;align-items:center;gap:9px;font-size:16px;font-weight:500;
   color:#1b1533;background:linear-gradient(120deg,#d7cfff,#a99dff);border:none;border-radius:14px;padding:15px 26px;
   box-shadow:0 12px 34px rgba(139,125,255,.4);cursor:pointer}
 .wr-share:active{transform:scale(.97)}
-.wr-brand{position:absolute;bottom:26px;left:0;right:0;letter-spacing:.34em;text-transform:lowercase;font-weight:800;color:#6b6690;font-size:13px}
+.wr-brand{position:absolute;bottom:26px;left:0;right:0;letter-spacing:.34em;text-transform:lowercase;font-weight:500;color:#6b6690;font-size:13px}
 .wr-progress{position:absolute;top:calc(env(safe-area-inset-top,0px) + 12px);left:14px;right:14px;z-index:6;display:flex;gap:5px}
 .wr-bar{flex:1;height:3px;border-radius:3px;background:rgba(255,255,255,.24);overflow:hidden}
 .wr-bar i{display:block;height:100%;width:0;background:#fff;border-radius:3px}

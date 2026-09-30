@@ -271,10 +271,10 @@ export function ContactViewSheet({ id, contact }){
   return (
     <>
       <div style={{ display: 'flex', alignItems: 'center', gap: 13, marginBottom: 16 }}>
-        <div style={{ width: 54, height: 54, borderRadius: 16, background: `${col}22`, color: col, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: 22 }}>{initial}</div>
+        <div style={{ width: 54, height: 54, borderRadius: 16, background: `${col}22`, color: col, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 600, fontSize: 22 }}>{initial}</div>
         <div>
-          <div style={{ fontSize: 19, fontWeight: 750 }}>{c.name}</div>
-          <div style={{ color: 'var(--text-2)', fontWeight: 600 }}>
+          <div style={{ fontSize: 19, fontWeight: 600 }}>{c.name}</div>
+          <div style={{ color: 'var(--text-2)', fontWeight: 400 }}>
             <span className="tag" style={{ background: `${col}22`, color: col }}>{c.role}</span>
             {c.company ? ` ${c.company}` : ''}
           </div>

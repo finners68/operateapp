@@ -77,7 +77,7 @@ function tripLegRow(e, i, nextEvent){
   const icBg = e.setDone ? 'rgba(50,215,75,0.18)' : isNext ? 'rgba(255,159,10,0.22)' : 'rgba(255,255,255,0.05)';
   const icCol = e.setDone ? 'var(--green)' : isNext ? 'var(--orange)' : 'var(--text-3)';
   return `<div class="row" style="${bg}" onclick="openView('event','${e.id}')">
-    <div class="ic" style="background:${icBg};color:${icCol};font-weight:800;font-size:13px">${e.setDone?ICON.check(16):i+1}</div>
+    <div class="ic" style="background:${icBg};color:${icCol};font-weight:600;font-size:13px">${e.setDone?ICON.check(16):i+1}</div>
     <div class="body"><b>${esc(e.venue)} ${isNext?'<span class="tag hold" style="margin-left:4px">Next</span>':''}</b><span>${esc(e.city)}${e.country?', '+esc(e.country):''} · ${esc(fmtDate(e.date))}${e.setTime?' · '+esc(e.setTime):''}</span></div>
     ${ICON.chevR(15)}
   </div>`;
@@ -473,7 +473,7 @@ function runCard(r){
     <div style="display:flex;align-items:center;gap:12px">
       <div class="ic" style="width:44px;height:44px;border-radius:13px;background:${c}22;color:${c};display:flex;align-items:center;justify-content:center">${ICON.trips(22)}</div>
       <div style="flex:1;min-width:0">
-        <div style="display:flex;align-items:center;gap:8px"><b style="font-size:17px;font-weight:700">${esc(r.title)}</b>${active?'<span class="tag confirmed">Live</span>':''}</div>
+        <div style="display:flex;align-items:center;gap:8px"><b style="font-size:17px;font-weight:600">${esc(r.title)}</b>${active?'<span class="tag confirmed">Live</span>':''}</div>
         <div style="font-size:13px;color:var(--text-2);margin-top:2px">${fmtDate(r.start)}${r.end!==r.start?' – '+fmtDate(r.end):''}</div>
       </div>
       ${ICON.chevR(18)}
@@ -565,7 +565,7 @@ function viewTrip(id){
   return `
   <div class="detail-top"><div class="detail-bar">
     <button class="back-btn" onclick="back()">${ICON.chevL(20)} Tours</button>
-    <div style="font-size:15px;font-weight:700">${active?'Trip Mode':'Tour'}</div>
+    <div style="font-size:15px;font-weight:650">${active?'Trip Mode':'Tour'}</div>
     <div style="width:36px"></div>
   </div></div>
   <div class="screen-pad stagger">${tripBody(r)}</div>`;

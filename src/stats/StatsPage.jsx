@@ -16,12 +16,12 @@ function StatTile({ label, value, sub, color }){
       <div style={{
         fontSize: 12,
         color: color || 'var(--text-3)',
-        fontWeight: 700,
+        fontWeight: 500,
         textTransform: 'uppercase',
         letterSpacing: '.04em',
       }}>{label}</div>
-      <div style={{ fontSize: 26, fontWeight: 850, letterSpacing: '-0.02em', marginTop: 4 }}>{value}</div>
-      {sub ? <div style={{ fontSize: 12, color: 'var(--text-3)', fontWeight: 600, marginTop: 1 }}>{sub}</div> : null}
+      <div style={{ fontSize: 26, fontWeight: 650, letterSpacing: '-0.02em', marginTop: 4 }}>{value}</div>
+      {sub ? <div style={{ fontSize: 12, color: 'var(--text-3)', fontWeight: 400, marginTop: 1 }}>{sub}</div> : null}
     </div>
   );
 }
@@ -46,7 +46,7 @@ export default function StatsPage(){
           <button type="button" className="back-btn" onClick={() => call('back')}>
             <Icon name="chevL" size={20} /> Settings
           </button>
-          <div style={{ fontSize: 16, fontWeight: 700 }}>Tour stats</div>
+          <div style={{ fontSize: 16, fontWeight: 650 }}>Tour stats</div>
           <div style={{ width: 36 }} />
         </div>
       </div>
