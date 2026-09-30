@@ -1,5 +1,5 @@
 /* Operate service worker — app-shell offline cache */
-const VERSION = 'operate-v288';
+const VERSION = 'operate-v289';
 const SHELL = [
   './',
   './index.html',
@@ -29,8 +29,8 @@ const SHELL = [
   './js/wrapped.js',
   './js/react-show.js',
   './js/pwa.js',
-  './fonts/geist-latin.woff2',
-  './fonts/geist-latin-ext.woff2',
+  './fonts/manrope-latin.woff2',
+  './fonts/manrope-latin-ext.woff2',
   './icons/icon-180.png',
   './icons/icon-192.png',
   './icons/icon-512.png'
