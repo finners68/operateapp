@@ -134,36 +134,7 @@ function initGestures(){
       return;
     }
   }, {passive:true});
-  initPhoneFrame();
   initPullToRefresh();
-}
-
-/* Phone screens change height when the browser bar shows or hides.
-   Size the app to the visible screen so the bottom bar sits on the real bottom. */
-function syncPhoneFrame(){
-  const root = document.documentElement;
-  const phone = window.matchMedia('(max-width:899px)').matches;
-  if(!phone){
-    root.style.removeProperty('--app-h');
-    root.style.removeProperty('--app-top');
-    return;
-  }
-  const vv = window.visualViewport;
-  const h = Math.round(vv ? vv.height : window.innerHeight);
-  const top = Math.round(vv ? vv.offsetTop : 0);
-  root.style.setProperty('--app-h', h + 'px');
-  root.style.setProperty('--app-top', top + 'px');
-}
-function initPhoneFrame(){
-  if(document.documentElement.dataset.phoneFrame === '1') return;
-  document.documentElement.dataset.phoneFrame = '1';
-  syncPhoneFrame();
-  window.addEventListener('resize', syncPhoneFrame);
-  window.addEventListener('orientationchange', syncPhoneFrame);
-  if(window.visualViewport){
-    window.visualViewport.addEventListener('resize', syncPhoneFrame);
-    window.visualViewport.addEventListener('scroll', syncPhoneFrame);
-  }
 }
 
 function pullRefreshBusyUi(){
@@ -194,7 +165,6 @@ function initPullToRefresh(){
   if(indicator.parentElement !== app) app.insertBefore(indicator, screen);
 
   const THRESH = 70;
-  const MAX = 132;
   const HOLD = 68;
   let startX = 0;
   let startY = 0;
@@ -208,13 +178,6 @@ function initPullToRefresh(){
   let pendingMode = 'idle';
 
   const isDesktop = () => window.matchMedia('(min-width:900px)').matches;
-
-  /* Follow the finger closely, then slow down so it never slams into a hard stop. */
-  const rubber = (dy) => {
-    if(dy <= 0) return 0;
-    if(dy <= 64) return dy;
-    return Math.min(MAX, 64 + (dy - 64) * 0.38);
-  };
 
   const paint = () => {
     raf = 0;
@@ -302,7 +265,7 @@ function initPullToRefresh(){
       screen.classList.remove('ptr-settling');
     }
     if(e.cancelable) e.preventDefault();
-    const pull = rubber(dy);
+    const pull = Math.max(0, dy);
     const nowArmed = pull >= THRESH;
     if(nowArmed !== armed){
       armed = nowArmed;
