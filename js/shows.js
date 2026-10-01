@@ -196,7 +196,7 @@ function showListRow(e){
     ${dateIc}
     <div class="body"><b>${showListTitleHtml(e, statusTag)}</b><span>${detail}</span></div>
     <button type="button" class="header-btn show-row-edit" onclick="event.stopPropagation();eventMenu('${e.id}')" title="Edit show">${ICON.edit(16)}</button>
-    <div class="trail"><span style="font-size:12px;font-weight:600">${esc(relDay(e.date))}</span>${ICON.chevR(15)}</div>
+    <div class="trail"><span style="font-size:12px;font-weight:500">${esc(relDay(e.date))}</span>${ICON.chevR(15)}</div>
   </div>`;
 }
 
@@ -228,7 +228,7 @@ function viewHome(){
         <div class="hero-venue">${esc(e.venue)}</div>
         <div class="hero-city">${ICON.pin(14)} ${esc(e.city)}${e.country?', '+esc(e.country):''}</div>
         <div class="count-row">
-          <div class="count"><div class="count-k">${ICON.music(12)} Set time</div><div class="count-v" style="font-size:19px;font-weight:600">${e.setTime?esc(e.setTime):'TBA'}${e.endTime?`<small> – ${esc(e.endTime)}</small>`:''}</div></div>
+          <div class="count"><div class="count-k">${ICON.music(12)} Set time</div><div class="count-v" style="font-size:19px">${e.setTime?esc(e.setTime):'TBA'}${e.endTime?`<small> – ${esc(e.endTime)}</small>`:''}</div></div>
           <div class="count"><div class="count-k">${ICON.clock(12)} Starts in</div><div class="count-v"${setMs?` data-countdown-ms="${setMs}"`:''}><span class="cd-txt">${cS&&!cS.done?cS.txt:'—'}</span><small class="cd-unit">${cS&&!cS.done?cS.unit:''}</small></div></div>
           ${flight?`<div class="count"><div class="count-k">${ICON.plane(12)} Flight</div><div class="count-v"${flightMs?` data-countdown-ms="${flightMs}" data-countdown-off="Off"`:''}><span class="cd-txt">${cF.done?'Off':cF.txt}</span><small class="cd-unit">${cF.done?'':cF.unit}</small></div></div>`:''}
         </div>

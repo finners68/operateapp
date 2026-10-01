@@ -26,6 +26,9 @@ function boot(){
   if(store.tab==='notes'){ store.tab='ideas'; if(typeof contentMode!=='undefined') contentMode='notes'; }
   render();
   if(typeof rehydrateBlobs==='function'){ rehydrateBlobs(store).then(()=>renderView()).catch(()=>{}); }
+  if(store && store.settings && typeof applyHomeHeaderDisplay === 'function'){
+    applyHomeHeaderDisplay(store.settings).then(() => { if(typeof renderView === 'function') renderView(); }).catch(()=>{});
+  }
   if(appLockActive()) requireUnlock('app', ()=>render());
   initGestures();
   initKeyboard();
@@ -2598,7 +2601,7 @@ function viewSettings(){
 
     <div class="set-title">Touring</div>
     <div class="set-group">
-      <div class="set-row tap" onclick="editHomeAirport()"><div class="ic" style="background:var(--accent-soft);color:var(--accent-2)">${ICON.planeUp(17)}</div><div class="body"><b>Home airport</b><span>Leaving starts a tour · returning ends it</span></div><div class="trail">${esc(s.homeAirport||'AMS')} ${ICON.chevR(15)}</div></div>
+      <div class="set-row tap" onclick="editHomeAirport()"><div class="ic" style="background:var(--accent-soft);color:var(--accent-2)">${ICON.planeUp(17)}</div><div class="body"><b>Home airport</b><span>Leaving starts a tour · returning ends it</span></div><div class="trail">${esc(s.homeAirport||'AMS')}${typeof airportName==='function'&&airportName(s.homeAirport||'AMS')?' · '+esc(airportName(s.homeAirport||'AMS')):''} ${ICON.chevR(15)}</div></div>
       <div class="set-row tap" onclick="sheetPacking()"><div class="ic" style="background:var(--card-2);color:var(--text-2)">${ICON.bag(17)}</div><div class="body"><b>Default packing list</b><span>${(s.packingTemplate||[]).length} items</span></div><div class="trail">${ICON.chevR(15)}</div></div>
     </div>
 
@@ -2729,7 +2732,7 @@ function computeYearStats(){
   };
 }
 function statTile(label, value, sub, color){
-  return `<div class="card" style="padding:15px 16px"><div style="font-size:12px;color:${color||'var(--text-3)'};font-weight:500;text-transform:uppercase;letter-spacing:.04em">${label}</div><div style="font-size:26px;font-weight:650;letter-spacing:-0.02em;margin-top:4px">${value}</div>${sub?`<div style="font-size:12px;color:var(--text-3);font-weight:400;margin-top:1px">${sub}</div>`:''}</div>`;
+  return `<div class="card" style="padding:15px 16px"><div style="font-size:12px;color:${color||'var(--text-3)'};font-weight:650;text-transform:uppercase;letter-spacing:.04em">${label}</div><div style="font-size:26px;font-weight:500;letter-spacing:-0.02em;margin-top:4px">${value}</div>${sub?`<div style="font-size:12px;color:var(--text-3);font-weight:400;margin-top:1px">${sub}</div>`:''}</div>`;
 }
 function viewStats(){
   const st=computeStats();
@@ -2748,8 +2751,8 @@ function viewStats(){
   </div></div>
   <div class="screen-pad stagger">
     <div class="hero" style="background:linear-gradient(155deg,#241a45,#191531 55%,#141418)">
-      <div class="hero-label" style="color:var(--accent-2)">${ICON.trend(14)} This schedule</div>
-      <div class="hero-venue" style="font-size:34px">${st.shows} shows</div>
+      <div class="hero-label" style="color:var(--accent-2);font-weight:650">${ICON.trend(14)} This schedule</div>
+      <div class="hero-venue" style="font-size:34px;font-weight:500">${st.shows} shows</div>
       <div class="hero-city">${st.upcoming} upcoming · ${st.cities} cities · ${st.tours} tours</div>
     </div>
     <div class="section">
@@ -2789,6 +2792,124 @@ function homeHeaderPositionCss(){
   const p = store && store.settings && store.settings.homeHeaderPos;
   return clampHeaderPct(p && p.x) + '% ' + clampHeaderPct(p && p.y) + '%';
 }
+function homeHeaderIdbKey(){
+  return 'home-header:' + (currentOrgId || 'local');
+}
+function homeHeaderPosPayload(pos){
+  return JSON.stringify({ x: clampHeaderPct(pos && pos.x), y: clampHeaderPct(pos && pos.y) });
+}
+async function applyHomeHeaderDisplay(settings){
+  if(!settings) return;
+  const raw = settings._homeHeaderPath
+    || (typeof settings.homeHeader === 'string'
+      && settings.homeHeader
+      && !settings.homeHeader.startsWith('data:')
+      && !settings.homeHeader.startsWith('http')
+      && !settings.homeHeader.startsWith('blob:')
+      ? settings.homeHeader : null);
+  if(raw){
+    settings._homeHeaderPath = raw;
+    if(typeof signedUrlForPath === 'function'){
+      const url = await signedUrlForPath(raw);
+      if(url && String(url).startsWith('http')) settings.homeHeader = url;
+    }
+    return;
+  }
+  if(typeof settings.homeHeader === 'string' && settings.homeHeader.startsWith('http')) return;
+  if(typeof idbGet === 'function'){
+    const cached = await idbGet(homeHeaderIdbKey());
+    if(cached && String(cached).startsWith('data:')) settings.homeHeader = cached;
+  }
+}
+function rememberHomeHeaderLocally(dataUrl){
+  if(typeof idbSet === 'function' && dataUrl && String(dataUrl).startsWith('data:')){
+    return idbSet(homeHeaderIdbKey(), dataUrl);
+  }
+  return Promise.resolve();
+}
+function patchHomeHeaderV2(fileId, path, mime, desc){
+  if(!store || !store.v2) return;
+  const orgId = currentOrgId;
+  store.v2.organisation_settings = Object.assign({}, store.v2.organisation_settings || {}, {
+    organisation_id: orgId,
+    home_header_file_id: fileId || null
+  });
+  if(!fileId) return;
+  const files = store.v2.files || (store.v2.files = []);
+  const row = {
+    id: fileId,
+    organisation_id: orgId,
+    bucket_name: (typeof STORAGE_BUCKET !== 'undefined' ? STORAGE_BUCKET : 'operate-documents-v2'),
+    storage_path: path,
+    mime_type: mime || null,
+    file_title: 'Home header',
+    file_description: desc,
+    deleted_at: null
+  };
+  const i = files.findIndex(f => f && (f.id === fileId || f.storage_path === path));
+  if(i >= 0) files[i] = Object.assign({}, files[i], row);
+  else files.push(row);
+}
+async function saveHomeHeaderToCloud(dataUrl, pos){
+  const sb = getSupabase();
+  const orgId = currentOrgId;
+  if(!sb || !orgId) throw new Error('not_connected');
+  const uploaded = await uploadFileDataUrl(dataUrl, 'itineraries', 'image', 'home-header');
+  if(!uploaded || !uploaded.path) throw new Error('upload_failed');
+  const desc = homeHeaderPosPayload(pos);
+  const fileId = await v2UpsertFile(sb, orgId, {
+    id: store.settings._homeHeaderFileId || undefined,
+    name: 'Home header',
+    kind: 'image'
+  }, uploaded.path, uploaded.mime);
+  if(!fileId) throw new Error('file_row_failed');
+  const described = await sb.from('files').update({ file_description: desc }).eq('id', fileId).eq('organisation_id', orgId);
+  if(described.error) throw described.error;
+  const linked = await sb.from('organisation_settings')
+    .update({ home_header_file_id: fileId })
+    .eq('organisation_id', orgId)
+    .select('organisation_id')
+    .maybeSingle();
+  if(linked.error) throw linked.error;
+  if(!linked.data) throw new Error('no_settings_row');
+  patchHomeHeaderV2(fileId, uploaded.path, uploaded.mime, desc);
+  store.settings._homeHeaderFileId = fileId;
+  store.settings._homeHeaderPath = uploaded.path;
+  store.settings.homeHeader = uploaded.url || dataUrl;
+  store.settings.homeHeaderPos = { x: clampHeaderPct(pos && pos.x), y: clampHeaderPct(pos && pos.y) };
+}
+async function saveHomeHeaderPositionToCloud(pos){
+  const sb = getSupabase();
+  const orgId = currentOrgId;
+  const fileId = store.settings._homeHeaderFileId || store.v2?.organisation_settings?.home_header_file_id;
+  if(!sb || !orgId || !fileId) return false;
+  const desc = homeHeaderPosPayload(pos);
+  const { error } = await sb.from('files').update({ file_description: desc }).eq('id', fileId).eq('organisation_id', orgId);
+  if(error) throw error;
+  const files = store.v2?.files || [];
+  const row = files.find(f => f && f.id === fileId);
+  if(row) row.file_description = desc;
+  store.settings._homeHeaderFileId = fileId;
+  store.settings.homeHeaderPos = { x: clampHeaderPct(pos && pos.x), y: clampHeaderPct(pos && pos.y) };
+  return true;
+}
+async function clearHomeHeaderCloud(){
+  const sb = typeof getSupabase === 'function' ? getSupabase() : null;
+  const orgId = currentOrgId;
+  if(!sb || !orgId) return;
+  const { error } = await sb.from('organisation_settings').update({ home_header_file_id: null }).eq('organisation_id', orgId);
+  if(error) throw error;
+  if(store?.v2?.organisation_settings) store.v2.organisation_settings.home_header_file_id = null;
+}
+function retryPendingHomeHeader(){
+  if(!store?.settings || !syncActive()) return;
+  if(store.settings._homeHeaderPath || store.settings._homeHeaderFileId) return;
+  const data = store.settings.homeHeader;
+  if(typeof data !== 'string' || !data.startsWith('data:')) return;
+  saveHomeHeaderToCloud(data, store.settings.homeHeaderPos || { x: 50, y: 50 })
+    .then(() => { if(typeof renderView === 'function') renderView(); })
+    .catch(() => {});
+}
 function uploadHomeHeader(input){
   readFile(input, att=>{
     if(input) input.value = '';
@@ -2810,33 +2931,59 @@ function adjustHomeHeader(){
   });
 }
 function saveHomeHeaderFrame(x, y){
-  store.settings.homeHeaderPos = { x: clampHeaderPct(x), y: clampHeaderPct(y) };
+  const pos = { x: clampHeaderPct(x), y: clampHeaderPct(y) };
+  store.settings.homeHeaderPos = pos;
   const fresh = pendingHomeHeaderData;
   pendingHomeHeaderData = null;
-  const done = (msg) => {
-    persist('settings');
-    persist('user_preferences');
-    closeSheet();
-    renderView();
-    toast(msg, 'check');
-  };
   if(fresh){
     store.settings.homeHeader = fresh;
-    done('Header photo set');
-    if(syncActive() && fresh.startsWith('data:')){
-      uploadFileDataUrl(fresh,'header','header','home_header').then(({path,url})=>{
-        store.settings._homeHeaderPath = path;
-        store.settings.homeHeader = url;
-        persist('settings');
-        persist('user_preferences');
-        renderView();
-      }).catch(()=>{});
-    }
-    return;
+    rememberHomeHeaderLocally(fresh);
+    renderView();
   }
-  done('Photo position saved');
+  closeSheet();
+  toast(fresh ? 'Saving photo…' : 'Saving…', 'image');
+  (async () => {
+    if(fresh) await saveHomeHeaderToCloud(fresh, pos);
+    else {
+      const moved = await saveHomeHeaderPositionToCloud(pos);
+      const local = store.settings.homeHeader;
+      if(!moved && typeof local === 'string' && local.startsWith('data:')){
+        await saveHomeHeaderToCloud(local, pos);
+      } else if(!moved && !store.settings._homeHeaderPath){
+        throw new Error('not_connected');
+      }
+    }
+    persist('settings');
+    renderView();
+    toast(fresh ? 'Header photo saved' : 'Photo position saved', 'check');
+  })().catch(() => {
+    persist('settings');
+    renderView();
+    if(!syncActive()){
+      toast(fresh ? 'Photo saved on this device' : 'Photo position saved on this device', 'check');
+      return;
+    }
+    toast('Couldn’t save the photo to the cloud. Check your connection and try again.', 'x');
+  });
 }
-function removeHomeHeader(){ confirmSheet('Remove header photo?','','Remove',()=>{ pendingHomeHeaderData=null; store.settings.homeHeader=null; store.settings.homeHeaderPos=null; persist('settings'); persist('user_preferences'); closeSheet(); renderView(); toast('Removed','trash'); }, true); }
+function removeHomeHeader(){
+  confirmSheet('Remove header photo?','','Remove',()=>{
+    pendingHomeHeaderData = null;
+    store.settings.homeHeader = null;
+    store.settings.homeHeaderPos = null;
+    store.settings._homeHeaderPath = null;
+    store.settings._homeHeaderFileId = null;
+    if(typeof idbSet === 'function') idbSet(homeHeaderIdbKey(), '');
+    renderView();
+    (async () => {
+      await clearHomeHeaderCloud();
+      persist('settings');
+      toast('Removed', 'trash');
+    })().catch(() => {
+      toast('Removed on this device. It could not be cleared in the cloud yet.', 'x');
+    });
+  }, true);
+}
 function toggleSecurity(){
   const sec=store.settings.security;
   if(secOn()){ confirmSheet('Turn off passcode?','The app and finance will be accessible without a passcode.','Turn off',()=>{ sec.enabled=false; sec.pin=''; sec.biometric=false; session.appUnlocked=true; session.financeUnlocked=true; persist('settings'); renderView(); toast('Passcode off','unlock'); }); }
@@ -2905,8 +3052,8 @@ function viewFinance(){
       <button onclick="openView('invoices')">${ICON.receipt(15)} Invoices${store.invoices.length?' ('+store.invoices.length+')':''}</button>
     </div>
     <div class="hero" style="background:linear-gradient(155deg,#0e2f1c,#12241b 55%,#141418)">
-      <div class="hero-label" style="color:var(--green)">${ICON.coins(14)} Net booked · ${base}</div>
-      <div class="hero-venue" style="font-size:38px">${fmtBase(s.netBase)}</div>
+      <div class="hero-label" style="color:var(--green);font-weight:650">${ICON.coins(14)} Net booked · ${base}</div>
+      <div class="hero-venue" style="font-size:38px;font-weight:500">${fmtBase(s.netBase)}</div>
       <div class="hero-city">${fmtBase(s.grossBase)} gross · after commission & costs</div>
       <div class="count-row">
         <div class="count"><div class="count-k">${ICON.check2(12)} Collected</div><div class="count-v" style="font-size:18px">${fmtBase(s.collectedBase)}</div></div>
@@ -2930,7 +3077,7 @@ function viewFinance(){
         <div class="info-line"><div class="ic" style="color:var(--text-2)">${ICON.coins(17)}</div><div class="tx"><div class="k">Gross fees</div><div class="v">${fmtBase(s.grossBase)}</div></div></div>
         <div class="info-line"><div class="ic" style="color:var(--red)">${ICON.user(17)}</div><div class="tx"><div class="k">Agent commission</div><div class="v" style="color:var(--red)">− ${fmtBase(s.commissionBase)}</div></div></div>
         <div class="info-line"><div class="ic" style="color:var(--red)">${ICON.receipt(17)}</div><div class="tx"><div class="k">Expenses</div><div class="v" style="color:var(--red)">− ${fmtBase(s.expensesBase)}</div></div></div>
-        <div class="info-line"><div class="ic" style="color:var(--green)">${ICON.wallet2(17)}</div><div class="tx"><div class="k">Net take-home</div><div class="v" style="color:var(--green);font-weight:650">${fmtBase(s.netBase)}</div></div></div>
+        <div class="info-line"><div class="ic" style="color:var(--green)">${ICON.wallet2(17)}</div><div class="tx"><div class="k">Net take-home</div><div class="v" style="color:var(--green);font-weight:500">${fmtBase(s.netBase)}</div></div></div>
       </div>
     </div>
 
@@ -3041,8 +3188,8 @@ function viewInvoices(){
       <button class="on">${ICON.receipt(15)} Invoices${list.length?' ('+list.length+')':''}</button>
     </div>
     <div class="card" style="background:linear-gradient(150deg,rgba(10,132,255,0.12),var(--card))">
-      <div style="font-size:12px;color:var(--blue);font-weight:500;text-transform:uppercase;letter-spacing:.05em">${ICON.receipt(13)} Outstanding invoiced</div>
-      <div style="font-size:28px;font-weight:650;margin-top:3px">${fmtBase(outstanding)}</div>
+      <div style="font-size:12px;color:var(--blue);font-weight:650;text-transform:uppercase;letter-spacing:.05em">${ICON.receipt(13)} Outstanding invoiced</div>
+      <div style="font-size:28px;font-weight:500;margin-top:3px">${fmtBase(outstanding)}</div>
       <div style="font-size:12.5px;color:var(--text-3);font-weight:400">${list.length} invoice${list.length!==1?'s':''} · next # ${esc(nextInvoiceNumber())}</div>
     </div>
     <div class="section">
@@ -3101,17 +3248,17 @@ function viewInvoice(id){
       </div>
       <div class="divi"></div>
       <div style="display:flex;justify-content:space-between;gap:16px;font-size:13px">
-        <div style="flex:1"><div style="color:var(--text-3);font-weight:500;text-transform:uppercase;font-size:11px;letter-spacing:.04em;margin-bottom:4px">From</div>
+        <div style="flex:1"><div style="color:var(--text-3);font-weight:650;text-transform:uppercase;font-size:11px;letter-spacing:.04em;margin-bottom:4px">From</div>
           <div style="font-weight:500;white-space:pre-line;line-height:1.5">${esc(b.name||store.settings.artistName||'Your name')}${b.address?'\n'+esc(b.address):''}${b.taxId?'\nVAT/Tax: '+esc(b.taxId):''}</div></div>
-        <div style="flex:1"><div style="color:var(--text-3);font-weight:500;text-transform:uppercase;font-size:11px;letter-spacing:.04em;margin-bottom:4px">Bill to</div>
+        <div style="flex:1"><div style="color:var(--text-3);font-weight:650;text-transform:uppercase;font-size:11px;letter-spacing:.04em;margin-bottom:4px">Bill to</div>
           <div style="font-weight:500;white-space:pre-line;line-height:1.5">${esc(inv.client)}${inv.clientAddr?'\n'+esc(inv.clientAddr):''}</div></div>
       </div>
       <div style="display:flex;gap:20px;margin-top:14px;font-size:12.5px;color:var(--text-2)"><span>Issued <b style="color:var(--text)">${fmtDate(inv.date)}</b></span><span>Due <b style="color:var(--text)">${fmtDate(due)}</b></span></div>
       <div class="divi"></div>
-      ${(inv.lines||[]).map((l,idx)=>`<div style="display:flex;justify-content:space-between;gap:12px;padding:9px 0;border-bottom:1px solid var(--stroke);font-size:14px"><span style="flex:1;color:var(--text-2)">${esc(l.label)}</span><span style="font-weight:600;white-space:nowrap">${fmtMoney(l.amount,inv.currency)} <button class="del" style="opacity:.5;padding:0 2px" onclick="delInvLine('${inv.id}',${idx})">${ICON.x(12)}</button></span></div>`).join('')}
+      ${(inv.lines||[]).map((l,idx)=>`<div style="display:flex;justify-content:space-between;gap:12px;padding:9px 0;border-bottom:1px solid var(--stroke);font-size:14px"><span style="flex:1;color:var(--text-2)">${esc(l.label)}</span><span style="font-weight:500;white-space:nowrap">${fmtMoney(l.amount,inv.currency)} <button class="del" style="opacity:.5;padding:0 2px" onclick="delInvLine('${inv.id}',${idx})">${ICON.x(12)}</button></span></div>`).join('')}
       <button class="link-btn" style="padding:8px 0" onclick="addInvLine('${inv.id}')">${ICON.plus(13)} Add line</button>
       <div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px;padding-top:12px;border-top:2px solid var(--stroke-strong)">
-        <span style="font-size:16px;font-weight:600">Total due</span><span style="font-size:22px;font-weight:650">${fmtMoney(total,inv.currency)}</span>
+        <span style="font-size:16px;font-weight:650">Total due</span><span style="font-size:22px;font-weight:500">${fmtMoney(total,inv.currency)}</span>
       </div>
       ${inv.currency!==store.settings.baseCurrency?`<div style="text-align:right;font-size:12px;color:var(--text-3);margin-top:2px">≈ ${fmtBase(toBase(total,inv.currency))}</div>`:''}
       ${b.iban?`<div style="margin-top:14px;font-size:12.5px;color:var(--text-2)"><span style="color:var(--text-3)">Payment:</span> ${esc(b.iban)}</div>`:''}

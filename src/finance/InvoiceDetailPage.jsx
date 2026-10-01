@@ -78,7 +78,7 @@ export default function InvoiceDetailPage({ invoiceId }){
           <div className="divi" />
           <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16, fontSize: 13 }}>
             <div style={{ flex: 1 }}>
-              <div style={{ color: 'var(--text-3)', fontWeight: 500, textTransform: 'uppercase', fontSize: 11, letterSpacing: '.04em', marginBottom: 4 }}>From</div>
+              <div style={{ color: 'var(--text-3)', fontWeight: 650, textTransform: 'uppercase', fontSize: 11, letterSpacing: '.04em', marginBottom: 4 }}>From</div>
               <div style={{ fontWeight: 500, whiteSpace: 'pre-line', lineHeight: 1.5 }}>
                 {b.name || store?.settings?.artistName || 'Your name'}
                 {b.address ? `\n${b.address}` : ''}
@@ -86,7 +86,7 @@ export default function InvoiceDetailPage({ invoiceId }){
               </div>
             </div>
             <div style={{ flex: 1 }}>
-              <div style={{ color: 'var(--text-3)', fontWeight: 500, textTransform: 'uppercase', fontSize: 11, letterSpacing: '.04em', marginBottom: 4 }}>Bill to</div>
+              <div style={{ color: 'var(--text-3)', fontWeight: 650, textTransform: 'uppercase', fontSize: 11, letterSpacing: '.04em', marginBottom: 4 }}>Bill to</div>
               <div style={{ fontWeight: 500, whiteSpace: 'pre-line', lineHeight: 1.5 }}>
                 {inv.client}{inv.clientAddr ? `\n${inv.clientAddr}` : ''}
               </div>
@@ -100,7 +100,7 @@ export default function InvoiceDetailPage({ invoiceId }){
           {(inv.lines || []).map((l, idx) => (
             <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', gap: 12, padding: '9px 0', borderBottom: '1px solid var(--stroke)', fontSize: 14 }}>
               <span style={{ flex: 1, color: 'var(--text-2)' }}>{l.label}</span>
-              <span style={{ fontWeight: 600, whiteSpace: 'nowrap' }}>
+              <span style={{ fontWeight: 500, whiteSpace: 'nowrap' }}>
                 {fmtMoney ? fmtMoney(l.amount, inv.currency) : l.amount}{' '}
                 <button type="button" className="del" style={{ opacity: 0.5, padding: '0 2px' }} onClick={() => call('delInvLine', inv.id, idx)}>
                   <Icon name="x" size={12} />
@@ -112,8 +112,8 @@ export default function InvoiceDetailPage({ invoiceId }){
             <Icon name="plus" size={13} /> Add line
           </button>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 8, paddingTop: 12, borderTop: '2px solid var(--stroke-strong)' }}>
-            <span style={{ fontSize: 16, fontWeight: 600 }}>Total due</span>
-            <span style={{ fontSize: 22, fontWeight: 650 }}>{fmtMoney ? fmtMoney(total, inv.currency) : total}</span>
+            <span style={{ fontSize: 16, fontWeight: 650 }}>Total due</span>
+            <span style={{ fontSize: 22, fontWeight: 500 }}>{fmtMoney ? fmtMoney(total, inv.currency) : total}</span>
           </div>
           {inv.currency !== base && toBase && fmtBase ? (
             <div style={{ textAlign: 'right', fontSize: 12, color: 'var(--text-3)', marginTop: 2 }}>≈ {fmtBase(toBase(total, inv.currency))}</div>

@@ -65,6 +65,19 @@ function v2ContactView(c){
   };
 }
 
+function homeHeaderPosFromFile(file){
+  if(!file || !file.file_description) return null;
+  try{
+    const p = JSON.parse(file.file_description);
+    const x = Number(p && p.x);
+    const y = Number(p && p.y);
+    if(!Number.isFinite(x) || !Number.isFinite(y)) return null;
+    return { x, y };
+  }catch(e){
+    return null;
+  }
+}
+
 async function composeViewFromV2(v2, opts){
   opts = opts || {};
   const prevEvents = opts.prevEvents || [];
@@ -671,6 +684,10 @@ async function composeViewFromV2(v2, opts){
   const fx = {};
   (v2.organisation_exchange_rates || []).forEach(r => { fx[r.currency_code] = Number(r.rate_to_base); });
   const uiPrefs = v2.user_preferences?.ui_preferences || {};
+  const headerFile = orgSettings?.home_header_file_id
+    ? (v2.files || []).find(f => f && f.id === orgSettings.home_header_file_id && !f.deleted_at)
+    : null;
+  const headerPos = homeHeaderPosFromFile(headerFile) || uiPrefs.homeHeaderPos || null;
   const billing = v2.organisation_billing_profiles;
   const settings = {
     artistName: (v2.artists || []).find(a => a.is_default)?.display_name || uiPrefs.artistName || 'You',
@@ -701,8 +718,10 @@ async function composeViewFromV2(v2, opts){
     } : {},
     packingTemplate: [],
     security: uiPrefs.security || { enabled: false, pin: '', scope: 'finance', biometric: false },
-    homeHeader: uiPrefs.homeHeaderPath || null,
-    homeHeaderPos: uiPrefs.homeHeaderPos || null
+    homeHeader: headerFile?.storage_path || uiPrefs.homeHeaderPath || null,
+    _homeHeaderPath: headerFile?.storage_path || uiPrefs.homeHeaderPath || null,
+    _homeHeaderFileId: headerFile?.id || null,
+    homeHeaderPos: headerPos
   };
   if(uiPrefs.usbReminder === false || uiPrefs.usbReminder === true){
     settings.usbReminder = uiPrefs.usbReminder !== false;

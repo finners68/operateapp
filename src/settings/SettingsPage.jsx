@@ -250,7 +250,7 @@ export default function SettingsPage(){
             icon="planeUp" iconBg="var(--accent-soft)" iconColor="var(--accent-2)"
             title="Home airport"
             sub="Leaving starts a tour · returning ends it"
-            trail={s.homeAirport || 'AMS'}
+            trail={(() => { const code = s.homeAirport || 'AMS'; const name = call('airportName', code); return name ? `${code} · ${name}` : code; })()}
             onClick={() => call('editHomeAirport')}
           />
           <SetRow

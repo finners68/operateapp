@@ -128,7 +128,7 @@ function NextShowHero({ show, compact = false }){
       <div className="count-row">
         <div className="count">
           <div className="count-k"><Icon name="music" size={12} /> Set time</div>
-          <div className="count-v" style={{ fontSize: 19, fontWeight: 600 }}>
+          <div className="count-v" style={{ fontSize: 19 }}>
             {show.setTime || 'TBA'}{show.endTime ? <small> – {show.endTime}</small> : null}
           </div>
         </div>

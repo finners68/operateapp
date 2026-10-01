@@ -283,6 +283,7 @@ const db = {
     const replacer = function(k,v){
       if(k === '_forceFullSync') return undefined;
       if(k === '_dirty') return (typeof serializeDirty === 'function') ? serializeDirty(v) : v;
+      if(k==='homeHeader' && typeof v==='string' && v.startsWith('data:')) return undefined;
       return (k==='data' && this && this._idb && typeof v==='string' && v.startsWith('data:')) ? undefined : v;
     };
     try{ localStorage.setItem(DB_KEY, JSON.stringify(state, replacer)); }

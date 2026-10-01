@@ -55,10 +55,10 @@ export default function FinancePage(){
         </div>
 
         <div className="hero" style={{ background: 'linear-gradient(155deg,#0e2f1c,#12241b 55%,#141418)' }}>
-          <div className="hero-label" style={{ color: 'var(--green)' }}>
+          <div className="hero-label" style={{ color: 'var(--green)', fontWeight: 650 }}>
             <Icon name="coins" size={14} /> Net booked · {base}
           </div>
-          <div className="hero-venue" style={{ fontSize: 38 }}>{fmtBase ? fmtBase(s.netBase) : s.netBase}</div>
+          <div className="hero-venue" style={{ fontSize: 38, fontWeight: 500 }}>{fmtBase ? fmtBase(s.netBase) : s.netBase}</div>
           <div className="hero-city">{fmtBase ? fmtBase(s.grossBase) : s.grossBase} gross · after commission & costs</div>
           <div className="count-row">
             <div className="count">
@@ -97,7 +97,7 @@ export default function FinancePage(){
             <div className="info-line"><div className="ic" style={{ color: 'var(--text-2)' }}><Icon name="coins" size={17} /></div><div className="tx"><div className="k">Gross fees</div><div className="v">{fmtBase ? fmtBase(s.grossBase) : s.grossBase}</div></div></div>
             <div className="info-line"><div className="ic" style={{ color: 'var(--red)' }}><Icon name="user" size={17} /></div><div className="tx"><div className="k">Agent commission</div><div className="v" style={{ color: 'var(--red)' }}>− {fmtBase ? fmtBase(s.commissionBase) : s.commissionBase}</div></div></div>
             <div className="info-line"><div className="ic" style={{ color: 'var(--red)' }}><Icon name="receipt" size={17} /></div><div className="tx"><div className="k">Expenses</div><div className="v" style={{ color: 'var(--red)' }}>− {fmtBase ? fmtBase(s.expensesBase) : s.expensesBase}</div></div></div>
-            <div className="info-line"><div className="ic" style={{ color: 'var(--green)' }}><Icon name="wallet2" size={17} /></div><div className="tx"><div className="k">Net take-home</div><div className="v" style={{ color: 'var(--green)', fontWeight: 650 }}>{fmtBase ? fmtBase(s.netBase) : s.netBase}</div></div></div>
+            <div className="info-line"><div className="ic" style={{ color: 'var(--green)' }}><Icon name="wallet2" size={17} /></div><div className="tx"><div className="k">Net take-home</div><div className="v" style={{ color: 'var(--green)', fontWeight: 500 }}>{fmtBase ? fmtBase(s.netBase) : s.netBase}</div></div></div>
           </div>
         </div>
 

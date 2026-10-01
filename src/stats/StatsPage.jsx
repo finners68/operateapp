@@ -16,11 +16,11 @@ function StatTile({ label, value, sub, color }){
       <div style={{
         fontSize: 12,
         color: color || 'var(--text-3)',
-        fontWeight: 500,
+        fontWeight: 650,
         textTransform: 'uppercase',
         letterSpacing: '.04em',
       }}>{label}</div>
-      <div style={{ fontSize: 26, fontWeight: 650, letterSpacing: '-0.02em', marginTop: 4 }}>{value}</div>
+      <div style={{ fontSize: 26, fontWeight: 500, letterSpacing: '-0.02em', marginTop: 4 }}>{value}</div>
       {sub ? <div style={{ fontSize: 12, color: 'var(--text-3)', fontWeight: 400, marginTop: 1 }}>{sub}</div> : null}
     </div>
   );
@@ -52,10 +52,10 @@ export default function StatsPage(){
       </div>
       <div className="screen-pad">
         <div className="hero" style={{ background: 'linear-gradient(155deg,#241a45,#191531 55%,#141418)' }}>
-          <div className="hero-label" style={{ color: 'var(--accent-2)' }}>
+          <div className="hero-label" style={{ color: 'var(--accent-2)', fontWeight: 650 }}>
             <Icon name="trend" size={14} /> This schedule
           </div>
-          <div className="hero-venue" style={{ fontSize: 34 }}>{st.shows || 0} shows</div>
+          <div className="hero-venue" style={{ fontSize: 34, fontWeight: 500 }}>{st.shows || 0} shows</div>
           <div className="hero-city">
             {st.upcoming || 0} upcoming · {st.cities || 0} cities · {st.tours || 0} tours
           </div>

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Icon } from '../../show/ui.jsx';
 import { call, getAccountTypes, getCursym, getStore } from '../../api/operate.js';
 
@@ -24,9 +24,58 @@ export function SettingsAccountTypeSheet(){
   );
 }
 export function SettingsHomeAirportSheet({value}){
-  const current=value||getStore()?.settings?.homeAirport||'AMS';
-  useEffect(()=>{const t=setTimeout(()=>document.getElementById('ha-code')?.focus(),300);return()=>clearTimeout(t)},[]);
-  return <><Field label="Airport code (IATA)" id="ha-code" value={current} placeholder="AMS" maxLength={4} style={{textTransform:'uppercase'}}/><div className="hint" style={{textAlign:'left',padding:'2px 2px 12px'}}>A tour ends whenever a flight brings you back here. Change this and tours regroup automatically.</div><button className="btn" onClick={()=>{const s=getStore()?.settings;if(!s)return;const v=document.getElementById('ha-code')?.value.trim()||'AMS';s.homeAirport=v.toUpperCase();if(s.baseCurrencyAuto!==false)s.baseCurrency=call('homeCurrency');call('persist','settings');call('closeSheet');call('renderView');call('toast','Home airport set','check')}}>Save</button><Spacer/></>;
+  const start = String(value || getStore()?.settings?.homeAirport || 'AMS').toUpperCase().replace(/[^A-Z]/g, '').slice(0, 3);
+  const [code, setCode] = useState(start);
+  useEffect(() => {
+    const t = setTimeout(() => document.getElementById('ha-code')?.focus(), 300);
+    return () => clearTimeout(t);
+  }, []);
+  const name = code.length === 3 ? (call('airportName', code) || '') : '';
+  const known = !!name;
+  const save = () => {
+    if(!known) return;
+    const s = getStore()?.settings;
+    if(!s) return;
+    s.homeAirport = code;
+    if(s.baseCurrencyAuto !== false) s.baseCurrency = call('homeCurrency');
+    call('persist', 'settings');
+    call('closeSheet');
+    call('renderView');
+    call('toast', name, 'check');
+  };
+  return (
+    <>
+      <div className="field">
+        <label>Airport code (IATA)</label>
+        <input
+          id="ha-code"
+          className="input"
+          value={code}
+          placeholder="AMS"
+          maxLength={3}
+          autoCapitalize="characters"
+          autoCorrect="off"
+          spellCheck={false}
+          style={{ textTransform: 'uppercase' }}
+          onChange={e => setCode(e.target.value.toUpperCase().replace(/[^A-Z]/g, '').slice(0, 3))}
+        />
+      </div>
+      <div
+        className="hint"
+        style={{
+          textAlign: 'left',
+          padding: '8px 2px 4px',
+          fontWeight: known ? 650 : 500,
+          color: known ? 'var(--text)' : (code.length === 3 ? 'var(--red)' : 'var(--text-3)')
+        }}
+      >
+        {known ? name : (code.length === 3 ? 'That isn’t a known airport code.' : 'Enter the 3-letter code. The airport name shows here so you can check it.')}
+      </div>
+      <div className="hint" style={{ textAlign: 'left', padding: '2px 2px 12px' }}>A tour ends whenever a flight brings you back here. Change this and tours regroup automatically.</div>
+      <button type="button" className="btn" disabled={!known} onClick={save}>Save</button>
+      <Spacer />
+    </>
+  );
 }
 export function SettingsProfileNameSheet({value}){
   const s=getStore()?.settings||{}, current=value??(s.artistName==='You'?'':s.artistName||'');
@@ -42,11 +91,34 @@ function clampHeaderPct(n){
   if(!Number.isFinite(v)) return 50;
   return Math.max(0, Math.min(100, v));
 }
+/* Same box the Home photo is painted in. The crop window must use this shape,
+   because min/max height on .home-hero changes the band away from 2.15:1. */
+function measureHomeHeaderBand(){
+  if(typeof document === 'undefined') return { w: 215, h: 100 };
+  const view = document.getElementById('view');
+  const width = Math.max(1, view ? view.getBoundingClientRect().width : window.innerWidth);
+  const probe = document.createElement('div');
+  probe.className = 'home-hero';
+  probe.style.cssText = 'position:fixed;left:0;top:0;visibility:hidden;pointer-events:none;margin:0;width:' + width + 'px;';
+  document.body.appendChild(probe);
+  const height = probe.getBoundingClientRect().height;
+  probe.remove();
+  const h = height > 1 ? height : Math.max(188, Math.min(240, width / 2.15));
+  return { w: width, h };
+}
 export function SettingsHeaderFrameSheet({ src, x = 50, y = 50 }){
   const frameRef = useRef(null);
   const dragRef = useRef(null);
   const [metrics, setMetrics] = useState(null);
   const [pos, setPos] = useState({ x: clampHeaderPct(x), y: clampHeaderPct(y) });
+  const [band, setBand] = useState(measureHomeHeaderBand);
+
+  useLayoutEffect(() => {
+    const read = () => setBand(measureHomeHeaderBand());
+    read();
+    window.addEventListener('resize', read);
+    return () => window.removeEventListener('resize', read);
+  }, []);
 
   useEffect(() => {
     if(!src) return undefined;
@@ -97,10 +169,13 @@ export function SettingsHeaderFrameSheet({ src, x = 50, y = 50 }){
       <div
         ref={frameRef}
         className="header-frame"
-        style={src ? {
-          backgroundImage: `url("${String(src).replace(/"/g, '')}")`,
-          backgroundPosition: `${pos.x}% ${pos.y}%`
-        } : undefined}
+        style={{
+          aspectRatio: `${band.w} / ${band.h}`,
+          ...(src ? {
+            backgroundImage: `url("${String(src).replace(/"/g, '')}")`,
+            backgroundPosition: `${pos.x}% ${pos.y}%`
+          } : null)
+        }}
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
         onPointerUp={endDrag}
@@ -113,8 +188,61 @@ export function SettingsHeaderFrameSheet({ src, x = 50, y = 50 }){
   );
 }
 export function SettingsPackingSheet({items}){
-  const list=items||getStore()?.settings?.packingTemplate||[];
-  return <><div className="field"><label>One item per line</label><textarea id="set-pack" className="textarea" style={{minHeight:200}} defaultValue={list.join('\n')}/><div className="hint" style={{textAlign:'left',padding:'6px 2px'}}>Added to every new trip.</div></div><button className="btn" onClick={()=>{const s=getStore()?.settings;if(!s)return;s.packingTemplate=(document.getElementById('set-pack')?.value||'').split('\n').map(x=>x.trim()).filter(Boolean);call('persist','settings');call('closeSheet');call('renderView');call('toast','Saved','check')}}>Save list</button><Spacer/></>;
+  const start = (items || getStore()?.settings?.packingTemplate || []).map((label, i) => ({
+    id: 'p' + i,
+    text: String(label || '')
+  }));
+  const [rows, setRows] = useState(start.length ? start : [{ id: 'p0', text: '' }]);
+  const nextId = useRef(start.length);
+  const add = () => {
+    const id = 'p' + (nextId.current++);
+    setRows(list => [...list, { id, text: '' }]);
+    setTimeout(() => document.getElementById('pack-' + id)?.focus(), 40);
+  };
+  const save = () => {
+    const s = getStore()?.settings;
+    if(!s) return;
+    s.packingTemplate = rows.map(r => r.text.trim()).filter(Boolean);
+    call('persist', 'settings');
+    call('closeSheet');
+    call('renderView');
+    call('toast', 'Saved', 'check');
+  };
+  return (
+    <>
+      <div className="hint" style={{ textAlign: 'left', padding: '2px 2px 12px' }}>Added to every new trip.</div>
+      <div className="pack-rows">
+        {rows.map((row, i) => (
+          <div className="pack-row" key={row.id}>
+            <input
+              id={'pack-' + row.id}
+              className="input"
+              value={row.text}
+              placeholder={i === 0 ? 'e.g. Passport' : 'Another item'}
+              onChange={e => setRows(list => list.map(r => r.id === row.id ? { ...r, text: e.target.value } : r))}
+              onKeyDown={e => {
+                if(e.key === 'Enter'){
+                  e.preventDefault();
+                  add();
+                }
+              }}
+            />
+            <button type="button" className="pack-remove" aria-label="Remove item" onClick={() => setRows(list => {
+              const next = list.filter(r => r.id !== row.id);
+              return next.length ? next : [{ id: 'p' + (nextId.current++), text: '' }];
+            })}>
+              <Icon name="x" size={16} />
+            </button>
+          </div>
+        ))}
+      </div>
+      <button type="button" className="link-btn" style={{ padding: '10px 0 16px' }} onClick={add}>
+        <Icon name="plus" size={13} /> Add another item
+      </button>
+      <button type="button" className="btn" onClick={save}>Save list</button>
+      <Spacer />
+    </>
+  );
 }
 
 export function AuthInviteSheet(){

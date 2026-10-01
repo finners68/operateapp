@@ -58,10 +58,10 @@ export default function InvoicesPage(){
           </button>
         </div>
         <div className="card" style={{ background: 'linear-gradient(150deg,rgba(10,132,255,0.12),var(--card))' }}>
-          <div style={{ fontSize: 12, color: 'var(--blue)', fontWeight: 500, textTransform: 'uppercase', letterSpacing: '.05em' }}>
+          <div style={{ fontSize: 12, color: 'var(--blue)', fontWeight: 650, textTransform: 'uppercase', letterSpacing: '.05em' }}>
             <Icon name="receipt" size={13} /> Outstanding invoiced
           </div>
-          <div style={{ fontSize: 28, fontWeight: 650, marginTop: 3 }}>{fmtBase ? fmtBase(outstanding) : outstanding}</div>
+          <div style={{ fontSize: 28, fontWeight: 500, marginTop: 3 }}>{fmtBase ? fmtBase(outstanding) : outstanding}</div>
           <div style={{ fontSize: 12.5, color: 'var(--text-3)', fontWeight: 400 }}>
             {list.length} invoice{list.length !== 1 ? 's' : ''} · next # {nextNum}
           </div>

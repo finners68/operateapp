@@ -58,6 +58,9 @@ async function loadFromSupabaseV2(orgId, sb){
   const prevPacking = orgChanged ? [] : (store?.packing || []);
   const prevReminders = orgChanged ? [] : (store?.reminders || []);
   const prevUsbOff = !orgChanged && store?.settings?.usbReminder === false;
+  const prevHeaderData = (!orgChanged && typeof store?.settings?.homeHeader === 'string' && store.settings.homeHeader.startsWith('data:'))
+    ? store.settings.homeHeader : null;
+  const prevHeaderPos = orgChanged ? null : (store?.settings?.homeHeaderPos || null);
 
   /* Keep dirty local rows across cloud reload so mid-edit work is not wiped
      — but only within the same organisation. */
@@ -92,10 +95,10 @@ async function loadFromSupabaseV2(orgId, sb){
   const midDirtySnap = orgChanged ? null : ((typeof cloneDirty === 'function') ? cloneDirty(store?._dirty) : null);
   const view = await composeViewFromV2(v2, { prevEvents });
 
-  if(view.settings.homeHeader && !view.settings.homeHeader.startsWith('data:') && !view.settings.homeHeader.startsWith('http')){
-    if(typeof signedUrlForPath === 'function'){
-      view.settings.homeHeader = await signedUrlForPath(view.settings.homeHeader);
-    }
+  if(typeof applyHomeHeaderDisplay === 'function') await applyHomeHeaderDisplay(view.settings);
+  if(prevHeaderData && !view.settings._homeHeaderPath){
+    view.settings.homeHeader = prevHeaderData;
+    if(prevHeaderPos) view.settings.homeHeaderPos = prevHeaderPos;
   }
 
   store = emptyOperateState();
@@ -258,6 +261,7 @@ async function loadFromSupabaseV2(orgId, sb){
   if(typeof migrate === 'function') migrate();
   if(typeof normalizeNotesFolderIds === 'function') normalizeNotesFolderIds();
   db.write(store);
+  if(typeof retryPendingHomeHeader === 'function') retryPendingHomeHeader();
 }
 
 /* Keep show flights the user just added if a stale compose missed them. */
@@ -288,10 +292,16 @@ async function rebuildViewFromLocalV2(){
   const prevItineraries = (store.itineraries || []).slice();
   const prevEvents = (store.events || []).slice();
   const view = await composeViewFromV2(store.v2, { prevEvents });
+  const localHeader = store.settings?.homeHeader;
+  const keepLocalPhoto = typeof localHeader === 'string' && localHeader.startsWith('data:');
   store.settings = Object.assign({}, store.settings, view.settings, {
     security: store.settings?.security || view.settings.security,
-    homeHeader: store.settings?.homeHeader || view.settings.homeHeader
+    homeHeader: keepLocalPhoto ? localHeader : (view.settings.homeHeader || localHeader || null),
+    homeHeaderPos: view.settings.homeHeaderPos || store.settings?.homeHeaderPos || null,
+    _homeHeaderPath: keepLocalPhoto ? (store.settings?._homeHeaderPath || null) : (view.settings._homeHeaderPath || store.settings?._homeHeaderPath || null),
+    _homeHeaderFileId: view.settings._homeHeaderFileId || store.settings?._homeHeaderFileId || null
   });
+  if(!keepLocalPhoto && typeof applyHomeHeaderDisplay === 'function') await applyHomeHeaderDisplay(store.settings);
   store.artists = view.artists;
   store.events = view.events;
   v2KeepLocalShowFlights(prevEvents, store.events);
