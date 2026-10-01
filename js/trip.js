@@ -565,7 +565,7 @@ function viewTrip(id){
   return `
   <div class="detail-top"><div class="detail-bar">
     <button class="back-btn" onclick="back()">${ICON.chevL(20)} Tours</button>
-    <div style="font-size:15px;font-weight:650">${active?'Trip Mode':'Tour'}</div>
+    <div style="font-size:15px;font-weight:700">${active?'Trip Mode':'Tour'}</div>
     <div style="width:36px"></div>
   </div></div>
   <div class="screen-pad stagger">${tripBody(r)}</div>`;

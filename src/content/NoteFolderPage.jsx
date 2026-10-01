@@ -71,7 +71,7 @@ export default function NoteFolderPage({ folderId }){
             <Icon name="folder" size={20} />
           </div>
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontSize: 22, fontWeight: 650, lineHeight: 1.2 }}>{folder.name || 'Folder'}</div>
+            <div style={{ fontSize: 22, fontWeight: 700, lineHeight: 1.2 }}>{folder.name || 'Folder'}</div>
             <div style={{ fontSize: 13, color: 'var(--text-3)' }}>{list.length} note{list.length !== 1 ? 's' : ''}</div>
           </div>
         </div>

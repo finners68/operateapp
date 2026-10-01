@@ -61,7 +61,7 @@ export function ShowEventSheet({ eid, event }){
   return <>
     <div className="dhero sheet-event-preview" id="ev-preview" style={{ background:`linear-gradient(155deg,${color}33,var(--card) 65%)`, borderColor:`${color}44` }}>
       <div className="cat-bar" style={{ background:color }} />
-      <div className="sheet-event-tone" style={{ fontSize:12,fontWeight:500,textTransform:'uppercase',letterSpacing:'.06em',color }}>{eid?'Edit show':'New show'}</div>
+      <div className="sheet-event-tone" style={{ fontSize:12,fontWeight:700,textTransform:'uppercase',letterSpacing:'.06em',color }}>{eid?'Edit show':'New show'}</div>
       <div id="ev-preview-venue" style={{fontSize:20,fontWeight:600,marginTop:4, color: titleColor || undefined}}>{e?.eventName || e?.venue || 'Event name'}</div>
       {e?.eventName && e?.venue ? <div style={{fontSize:13,opacity:.75,marginTop:2}}>{e.venue}</div> : null}
     </div>

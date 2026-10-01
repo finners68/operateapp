@@ -61,7 +61,7 @@ export default function ContactsPage(){
           <button type="button" className="back-btn" onClick={() => call('back')}>
             <Icon name="chevL" size={20} /> {backLabel}
           </button>
-          <div style={{ fontSize: 16, fontWeight: 650 }}>Contacts</div>
+          <div style={{ fontSize: 16, fontWeight: 700 }}>Contacts</div>
           <button type="button" className="header-btn" style={{ width: 36, height: 36 }} onClick={() => call('sheetContact')}>
             <Icon name="plus" size={20} />
           </button>

@@ -134,7 +134,36 @@ function initGestures(){
       return;
     }
   }, {passive:true});
+  initPhoneFrame();
   initPullToRefresh();
+}
+
+/* Phone screens change height when the browser bar shows or hides.
+   Size the app to the visible screen so the bottom bar sits on the real bottom. */
+function syncPhoneFrame(){
+  const root = document.documentElement;
+  const phone = window.matchMedia('(max-width:899px)').matches;
+  if(!phone){
+    root.style.removeProperty('--app-h');
+    root.style.removeProperty('--app-top');
+    return;
+  }
+  const vv = window.visualViewport;
+  const h = Math.round(vv ? vv.height : window.innerHeight);
+  const top = Math.round(vv ? vv.offsetTop : 0);
+  root.style.setProperty('--app-h', h + 'px');
+  root.style.setProperty('--app-top', top + 'px');
+}
+function initPhoneFrame(){
+  if(document.documentElement.dataset.phoneFrame === '1') return;
+  document.documentElement.dataset.phoneFrame = '1';
+  syncPhoneFrame();
+  window.addEventListener('resize', syncPhoneFrame);
+  window.addEventListener('orientationchange', syncPhoneFrame);
+  if(window.visualViewport){
+    window.visualViewport.addEventListener('resize', syncPhoneFrame);
+    window.visualViewport.addEventListener('scroll', syncPhoneFrame);
+  }
 }
 
 function pullRefreshBusyUi(){
@@ -164,94 +193,152 @@ function initPullToRefresh(){
   /* Sit behind the moving screen so the real page slides as one piece. */
   if(indicator.parentElement !== app) app.insertBefore(indicator, screen);
 
-  const THRESH = 78;
+  const THRESH = 70;
+  const MAX = 132;
+  const HOLD = 68;
+  let startX = 0;
   let startY = 0;
   let pulling = false;
+  let tracking = false;
   let armed = false;
-  let dy = 0;
+  let currentY = 0;
+  let settleGen = 0;
+  let raf = 0;
+  let pendingY = 0;
+  let pendingMode = 'idle';
 
   const isDesktop = () => window.matchMedia('(min-width:900px)').matches;
 
-  const setContentPull = (px, mode) => {
-    const y = Math.max(0, px || 0);
-    app.classList.toggle('is-ptr', y > 0 || mode === 'drag' || mode === 'hold');
-    screen.classList.toggle('ptr-dragging', mode === 'drag');
+  /* Follow the finger closely, then slow down so it never slams into a hard stop. */
+  const rubber = (dy) => {
+    if(dy <= 0) return 0;
+    if(dy <= 64) return dy;
+    return Math.min(MAX, 64 + (dy - 64) * 0.38);
+  };
+
+  const paint = () => {
+    raf = 0;
+    const y = pendingY;
+    const mode = pendingMode;
+    currentY = y;
+    const dragging = mode === 'drag';
+    app.classList.toggle('is-ptr', y > 0 || mode === 'hold');
+    app.classList.toggle('ptr-drag', dragging);
+    screen.classList.toggle('ptr-dragging', dragging);
     screen.classList.toggle('ptr-settling', mode === 'settle' || mode === 'hold');
     indicator.style.setProperty('--pull', y + 'px');
-    screen.style.setProperty('--ptr-shift', y + 'px');
-    screen.style.transform = y > 0 ? 'translate3d(0,' + y + 'px,0)' : '';
+    indicator.style.setProperty('--pull-p', String(Math.min(1, y / THRESH)));
+    indicator.classList.toggle('visible', y > 10);
+    screen.style.transform = (y > 0 || mode === 'settle') ? 'translate3d(0,' + y + 'px,0)' : '';
+  };
+
+  const setContentPull = (px, mode) => {
+    pendingY = Math.max(0, px || 0);
+    pendingMode = mode || 'drag';
+    if(!raf) raf = requestAnimationFrame(paint);
+  };
+
+  const finishSettle = () => {
+    screen.classList.remove('ptr-settling', 'ptr-dragging');
+    screen.style.transform = '';
+    app.classList.remove('is-ptr', 'ptr-drag');
+    indicator.classList.remove('armed', 'visible', 'loading');
+    indicator.style.setProperty('--pull-p', '0');
+    const label = indicator.querySelector('.pull-refresh-label');
+    if(label) label.textContent = 'Pull to refresh';
+    currentY = 0;
+  };
+
+  const settleTo = (px, mode) => {
+    const gen = ++settleGen;
+    setContentPull(px, mode);
+    if(px > 0) return;
+    const clear = (ev) => {
+      if(gen !== settleGen){
+        screen.removeEventListener('transitionend', clear);
+        return;
+      }
+      if(ev && (ev.target !== screen || ev.propertyName !== 'transform')) return;
+      screen.removeEventListener('transitionend', clear);
+      finishSettle();
+    };
+    screen.addEventListener('transitionend', clear);
+    setTimeout(() => { if(gen === settleGen) finishSettle(); }, 620);
   };
 
   const reset = () => {
     pulling = false;
+    tracking = false;
     armed = false;
-    dy = 0;
-    indicator.classList.remove('armed', 'visible', 'loading');
-    const label = indicator.querySelector('.pull-refresh-label');
-    if(label) label.textContent = 'Pull to refresh';
-    setContentPull(0, 'settle');
-    const clear = () => {
-      screen.classList.remove('ptr-settling', 'ptr-dragging');
-      screen.style.transform = '';
-      screen.style.removeProperty('--ptr-shift');
-      app.classList.remove('is-ptr');
-    };
-    screen.addEventListener('transitionend', clear, { once: true });
-    setTimeout(clear, 320);
+    settleTo(0, 'settle');
   };
 
   screen.addEventListener('touchstart', (e) => {
-    if(isDesktop() || pullRefreshBusyUi()){ pulling = false; return; }
-    if(e.touches.length !== 1){ pulling = false; return; }
-    if(screen.scrollTop > 2){ pulling = false; return; }
+    if(isDesktop() || pullRefreshBusyUi()){ pulling = false; tracking = false; return; }
+    if(e.touches.length !== 1){ pulling = false; tracking = false; return; }
+    if(screen.scrollTop > 2){ pulling = false; tracking = false; return; }
+    startX = e.touches[0].clientX;
     startY = e.touches[0].clientY;
-    pulling = true;
+    settleGen++;
+    tracking = true;
+    pulling = false;
     armed = false;
-    dy = 0;
-    screen.classList.remove('ptr-settling');
-    screen.classList.add('ptr-dragging');
   }, { passive: true });
 
   screen.addEventListener('touchmove', (e) => {
-    if(!pulling || isDesktop() || pullRefreshBusyUi()) return;
+    if(!tracking || isDesktop() || pullRefreshBusyUi()) return;
     if(screen.scrollTop > 2){
-      reset();
+      tracking = false;
+      pulling = false;
+      if(currentY > 0) reset();
       return;
     }
-    dy = e.touches[0].clientY - startY;
-    if(dy < 8) return;
-    /* Keep the page attached to the finger — block native overscroll copies. */
+    const dx = e.touches[0].clientX - startX;
+    const dy = e.touches[0].clientY - startY;
+    if(!pulling){
+      if(dy < 6) return;
+      if(Math.abs(dx) > dy){ tracking = false; return; }
+      pulling = true;
+      screen.classList.remove('ptr-settling');
+    }
     if(e.cancelable) e.preventDefault();
-    const pull = Math.min(dy * 0.55, 120);
-    armed = pull >= THRESH * 0.55;
-    indicator.classList.add('visible');
-    indicator.classList.toggle('armed', armed);
+    const pull = rubber(dy);
+    const nowArmed = pull >= THRESH;
+    if(nowArmed !== armed){
+      armed = nowArmed;
+      indicator.classList.toggle('armed', armed);
+      const label = indicator.querySelector('.pull-refresh-label');
+      if(label) label.textContent = armed ? 'Release to refresh' : 'Pull to refresh';
+    }
     setContentPull(pull, 'drag');
-    const label = indicator.querySelector('.pull-refresh-label');
-    if(label) label.textContent = armed ? 'Release to refresh' : 'Pull to refresh';
   }, { passive: false });
 
   screen.addEventListener('touchend', async () => {
-    if(!pulling) return;
-    const shouldRefresh = armed;
+    if(!tracking && !pulling) return;
+    const shouldRefresh = pulling && armed;
+    tracking = false;
     pulling = false;
     if(!shouldRefresh){
       reset();
       return;
     }
     indicator.classList.add('visible', 'loading', 'armed');
-    setContentPull(56, 'hold');
     const label = indicator.querySelector('.pull-refresh-label');
     if(label) label.textContent = 'Refreshing…';
+    setContentPull(HOLD, 'hold');
+    const started = Date.now();
     try{
       if(typeof refreshFromCloud === 'function') await refreshFromCloud();
       else if(typeof syncPullNow === 'function') await syncPullNow();
     }finally{
-      setTimeout(reset, 280);
+      const wait = Math.max(180, 520 - (Date.now() - started));
+      setTimeout(reset, wait);
     }
   }, { passive: true });
 
-  screen.addEventListener('touchcancel', reset, { passive: true });
+  screen.addEventListener('touchcancel', () => {
+    if(tracking || pulling || currentY > 0) reset();
+  }, { passive: true });
 }
 function calMoveAnimated(dir){
   if(!calCursor){
@@ -1389,7 +1476,7 @@ function viewItinerary(){
   return `
   <div class="detail-top"><div class="detail-bar">
     <button class="back-btn" onclick="back()">${ICON.chevL(20)} Home</button>
-    <div style="font-size:15px;font-weight:650">Itinerary inbox</div>
+    <div style="font-size:15px;font-weight:700">Itinerary inbox</div>
     <div style="width:36px"></div>
   </div></div>
   <div class="screen-pad stagger">
@@ -2536,7 +2623,7 @@ function viewSettings(){
   return `
   <div class="detail-top"><div class="detail-bar">
     <button class="back-btn" onclick="back()">${ICON.chevL(20)} ${overlayBackLabel()}</button>
-    <div style="font-size:16px;font-weight:650">Settings</div>
+    <div style="font-size:16px;font-weight:700">Settings</div>
     <div style="width:36px"></div>
   </div></div>
   <div class="screen-pad stagger">
@@ -2732,7 +2819,7 @@ function computeYearStats(){
   };
 }
 function statTile(label, value, sub, color){
-  return `<div class="card" style="padding:15px 16px"><div style="font-size:12px;color:${color||'var(--text-3)'};font-weight:650;text-transform:uppercase;letter-spacing:.04em">${label}</div><div style="font-size:26px;font-weight:500;letter-spacing:-0.02em;margin-top:4px">${value}</div>${sub?`<div style="font-size:12px;color:var(--text-3);font-weight:400;margin-top:1px">${sub}</div>`:''}</div>`;
+  return `<div class="card" style="padding:15px 16px"><div style="font-size:13px;color:${color||'var(--text)'};font-weight:700;text-transform:uppercase;letter-spacing:.04em">${label}</div><div style="font-size:26px;font-weight:400;letter-spacing:-0.02em;margin-top:4px">${value}</div>${sub?`<div style="font-size:12px;color:var(--text-3);font-weight:400;margin-top:1px">${sub}</div>`:''}</div>`;
 }
 function viewStats(){
   const st=computeStats();
@@ -2746,13 +2833,13 @@ function viewStats(){
   return `
   <div class="detail-top"><div class="detail-bar">
     <button class="back-btn" onclick="back()">${ICON.chevL(20)} Settings</button>
-    <div style="font-size:16px;font-weight:650">Tour stats</div>
+    <div style="font-size:16px;font-weight:700">Tour stats</div>
     <div style="width:36px"></div>
   </div></div>
   <div class="screen-pad stagger">
     <div class="hero" style="background:linear-gradient(155deg,#241a45,#191531 55%,#141418)">
-      <div class="hero-label" style="color:var(--accent-2);font-weight:650">${ICON.trend(14)} This schedule</div>
-      <div class="hero-venue" style="font-size:34px;font-weight:500">${st.shows} shows</div>
+      <div class="hero-label" style="color:var(--accent-2);font-weight:700">${ICON.trend(14)} This schedule</div>
+      <div class="hero-venue" style="font-size:34px;font-weight:400">${st.shows} shows</div>
       <div class="hero-city">${st.upcoming} upcoming · ${st.cities} cities · ${st.tours} tours</div>
     </div>
     <div class="section">
@@ -3043,7 +3130,7 @@ function viewFinance(){
   return `
   <div class="detail-top"><div class="detail-bar">
     <button class="back-btn" onclick="back()">${ICON.chevL(20)} ${overlayBackLabel()}</button>
-    <div style="font-size:16px;font-weight:650;display:flex;align-items:center;gap:6px">${secOn()&&store.settings.security.scope!=='off'?ICON.lock(13):''} Money</div>
+    <div style="font-size:16px;font-weight:700;display:flex;align-items:center;gap:6px">${secOn()&&store.settings.security.scope!=='off'?ICON.lock(13):''} Money</div>
     <button class="header-btn" style="width:36px;height:36px" onclick="${secOn()?`lockFinanceNow()`:`openView('settings')`}">${secOn()?ICON.lock(17):ICON.settings(18)}</button>
   </div></div>
   <div class="screen-pad stagger">
@@ -3052,8 +3139,8 @@ function viewFinance(){
       <button onclick="openView('invoices')">${ICON.receipt(15)} Invoices${store.invoices.length?' ('+store.invoices.length+')':''}</button>
     </div>
     <div class="hero" style="background:linear-gradient(155deg,#0e2f1c,#12241b 55%,#141418)">
-      <div class="hero-label" style="color:var(--green);font-weight:650">${ICON.coins(14)} Net booked · ${base}</div>
-      <div class="hero-venue" style="font-size:38px;font-weight:500">${fmtBase(s.netBase)}</div>
+      <div class="hero-label" style="color:var(--green);font-weight:700">${ICON.coins(14)} Net booked · ${base}</div>
+      <div class="hero-venue" style="font-size:38px;font-weight:400">${fmtBase(s.netBase)}</div>
       <div class="hero-city">${fmtBase(s.grossBase)} gross · after commission & costs</div>
       <div class="count-row">
         <div class="count"><div class="count-k">${ICON.check2(12)} Collected</div><div class="count-v" style="font-size:18px">${fmtBase(s.collectedBase)}</div></div>
@@ -3077,7 +3164,7 @@ function viewFinance(){
         <div class="info-line"><div class="ic" style="color:var(--text-2)">${ICON.coins(17)}</div><div class="tx"><div class="k">Gross fees</div><div class="v">${fmtBase(s.grossBase)}</div></div></div>
         <div class="info-line"><div class="ic" style="color:var(--red)">${ICON.user(17)}</div><div class="tx"><div class="k">Agent commission</div><div class="v" style="color:var(--red)">− ${fmtBase(s.commissionBase)}</div></div></div>
         <div class="info-line"><div class="ic" style="color:var(--red)">${ICON.receipt(17)}</div><div class="tx"><div class="k">Expenses</div><div class="v" style="color:var(--red)">− ${fmtBase(s.expensesBase)}</div></div></div>
-        <div class="info-line"><div class="ic" style="color:var(--green)">${ICON.wallet2(17)}</div><div class="tx"><div class="k">Net take-home</div><div class="v" style="color:var(--green);font-weight:500">${fmtBase(s.netBase)}</div></div></div>
+        <div class="info-line"><div class="ic" style="color:var(--green)">${ICON.wallet2(17)}</div><div class="tx"><div class="k">Net take-home</div><div class="v" style="color:var(--green);font-weight:400">${fmtBase(s.netBase)}</div></div></div>
       </div>
     </div>
 
@@ -3179,7 +3266,7 @@ function viewInvoices(){
   return `
   <div class="detail-top"><div class="detail-bar">
     <button class="back-btn" onclick="openView('finance')">${ICON.chevL(20)} Money</button>
-    <div style="font-size:16px;font-weight:650">Invoices</div>
+    <div style="font-size:16px;font-weight:700">Invoices</div>
     <button class="header-btn" style="width:36px;height:36px" onclick="pickEventForInvoice()">${ICON.plus(20)}</button>
   </div></div>
   <div class="screen-pad stagger">
@@ -3188,8 +3275,8 @@ function viewInvoices(){
       <button class="on">${ICON.receipt(15)} Invoices${list.length?' ('+list.length+')':''}</button>
     </div>
     <div class="card" style="background:linear-gradient(150deg,rgba(10,132,255,0.12),var(--card))">
-      <div style="font-size:12px;color:var(--blue);font-weight:650;text-transform:uppercase;letter-spacing:.05em">${ICON.receipt(13)} Outstanding invoiced</div>
-      <div style="font-size:28px;font-weight:500;margin-top:3px">${fmtBase(outstanding)}</div>
+      <div style="font-size:13px;color:var(--blue);font-weight:700;text-transform:uppercase;letter-spacing:.05em">${ICON.receipt(13)} Outstanding invoiced</div>
+      <div style="font-size:28px;font-weight:400;margin-top:3px">${fmtBase(outstanding)}</div>
       <div style="font-size:12.5px;color:var(--text-3);font-weight:400">${list.length} invoice${list.length!==1?'s':''} · next # ${esc(nextInvoiceNumber())}</div>
     </div>
     <div class="section">
@@ -3243,22 +3330,22 @@ function viewInvoice(id){
   <div class="screen-pad stagger">
     <div class="card" style="padding:22px">
       <div style="display:flex;justify-content:space-between;align-items:flex-start">
-        <div><div style="font-size:22px;font-weight:680;letter-spacing:-0.02em">INVOICE</div><div style="color:var(--text-3);font-weight:500;margin-top:2px">${esc(inv.number)}</div></div>
+        <div><div style="font-size:22px;font-weight:680;letter-spacing:-0.02em">INVOICE</div><div style="color:var(--text-3);font-weight:400;margin-top:2px">${esc(inv.number)}</div></div>
         <span class="tag ${inv.status==='paid'?'confirmed':inv.status==='sent'?'hold':'past'}" style="font-size:12px">${inv.status}</span>
       </div>
       <div class="divi"></div>
       <div style="display:flex;justify-content:space-between;gap:16px;font-size:13px">
-        <div style="flex:1"><div style="color:var(--text-3);font-weight:650;text-transform:uppercase;font-size:11px;letter-spacing:.04em;margin-bottom:4px">From</div>
-          <div style="font-weight:500;white-space:pre-line;line-height:1.5">${esc(b.name||store.settings.artistName||'Your name')}${b.address?'\n'+esc(b.address):''}${b.taxId?'\nVAT/Tax: '+esc(b.taxId):''}</div></div>
-        <div style="flex:1"><div style="color:var(--text-3);font-weight:650;text-transform:uppercase;font-size:11px;letter-spacing:.04em;margin-bottom:4px">Bill to</div>
-          <div style="font-weight:500;white-space:pre-line;line-height:1.5">${esc(inv.client)}${inv.clientAddr?'\n'+esc(inv.clientAddr):''}</div></div>
+        <div style="flex:1"><div style="color:var(--text);font-weight:700;text-transform:uppercase;font-size:12px;letter-spacing:.04em;margin-bottom:4px">From</div>
+          <div style="font-weight:400;white-space:pre-line;line-height:1.5">${esc(b.name||store.settings.artistName||'Your name')}${b.address?'\n'+esc(b.address):''}${b.taxId?'\nVAT/Tax: '+esc(b.taxId):''}</div></div>
+        <div style="flex:1"><div style="color:var(--text);font-weight:700;text-transform:uppercase;font-size:12px;letter-spacing:.04em;margin-bottom:4px">Bill to</div>
+          <div style="font-weight:400;white-space:pre-line;line-height:1.5">${esc(inv.client)}${inv.clientAddr?'\n'+esc(inv.clientAddr):''}</div></div>
       </div>
-      <div style="display:flex;gap:20px;margin-top:14px;font-size:12.5px;color:var(--text-2)"><span>Issued <b style="color:var(--text)">${fmtDate(inv.date)}</b></span><span>Due <b style="color:var(--text)">${fmtDate(due)}</b></span></div>
+      <div style="display:flex;gap:20px;margin-top:14px;font-size:12.5px;color:var(--text-2)"><span style="font-weight:700">Issued <span style="font-weight:400;color:var(--text)">${fmtDate(inv.date)}</span></span><span style="font-weight:700">Due <span style="font-weight:400;color:var(--text)">${fmtDate(due)}</span></span></div>
       <div class="divi"></div>
-      ${(inv.lines||[]).map((l,idx)=>`<div style="display:flex;justify-content:space-between;gap:12px;padding:9px 0;border-bottom:1px solid var(--stroke);font-size:14px"><span style="flex:1;color:var(--text-2)">${esc(l.label)}</span><span style="font-weight:500;white-space:nowrap">${fmtMoney(l.amount,inv.currency)} <button class="del" style="opacity:.5;padding:0 2px" onclick="delInvLine('${inv.id}',${idx})">${ICON.x(12)}</button></span></div>`).join('')}
+      ${(inv.lines||[]).map((l,idx)=>`<div style="display:flex;justify-content:space-between;gap:12px;padding:9px 0;border-bottom:1px solid var(--stroke);font-size:14px"><span style="flex:1;color:var(--text);font-weight:700">${esc(l.label)}</span><span style="font-weight:400;white-space:nowrap">${fmtMoney(l.amount,inv.currency)} <button class="del" style="opacity:.5;padding:0 2px" onclick="delInvLine('${inv.id}',${idx})">${ICON.x(12)}</button></span></div>`).join('')}
       <button class="link-btn" style="padding:8px 0" onclick="addInvLine('${inv.id}')">${ICON.plus(13)} Add line</button>
       <div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px;padding-top:12px;border-top:2px solid var(--stroke-strong)">
-        <span style="font-size:16px;font-weight:650">Total due</span><span style="font-size:22px;font-weight:500">${fmtMoney(total,inv.currency)}</span>
+        <span style="font-size:16px;font-weight:700">Total due</span><span style="font-size:22px;font-weight:400">${fmtMoney(total,inv.currency)}</span>
       </div>
       ${inv.currency!==store.settings.baseCurrency?`<div style="text-align:right;font-size:12px;color:var(--text-3);margin-top:2px">≈ ${fmtBase(toBase(total,inv.currency))}</div>`:''}
       ${b.iban?`<div style="margin-top:14px;font-size:12.5px;color:var(--text-2)"><span style="color:var(--text-3)">Payment:</span> ${esc(b.iban)}</div>`:''}
@@ -3337,7 +3424,7 @@ function viewContacts(){
   return `
   <div class="detail-top"><div class="detail-bar">
     <button class="back-btn" onclick="back()">${ICON.chevL(20)} Home</button>
-    <div style="font-size:16px;font-weight:650">Contacts</div>
+    <div style="font-size:16px;font-weight:700">Contacts</div>
     <button class="header-btn" style="width:36px;height:36px" onclick="sheetContact()">${ICON.plus(20)}</button>
   </div></div>
   <div class="screen-pad">

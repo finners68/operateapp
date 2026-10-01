@@ -59,7 +59,7 @@ export default function NoteDetailPage({ noteId }){
         <input
           id="note-title"
           className="input"
-          style={{ fontSize: 24, fontWeight: 650, border: 'none', background: 'none', padding: '8px 2px' }}
+          style={{ fontSize: 24, fontWeight: 700, border: 'none', background: 'none', padding: '8px 2px' }}
           placeholder="Title"
           defaultValue={note.title || ''}
           key={`title-${note.id}`}

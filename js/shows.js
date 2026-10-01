@@ -196,7 +196,7 @@ function showListRow(e){
     ${dateIc}
     <div class="body"><b>${showListTitleHtml(e, statusTag)}</b><span>${detail}</span></div>
     <button type="button" class="header-btn show-row-edit" onclick="event.stopPropagation();eventMenu('${e.id}')" title="Edit show">${ICON.edit(16)}</button>
-    <div class="trail"><span style="font-size:12px;font-weight:500">${esc(relDay(e.date))}</span>${ICON.chevR(15)}</div>
+    <div class="trail"><span style="font-size:12px;font-weight:400">${esc(relDay(e.date))}</span>${ICON.chevR(15)}</div>
   </div>`;
 }
 
@@ -956,7 +956,7 @@ function advanceSubsection(e){
   const hasAny = countAdvanceFields(a) > 0;
   const editBtn = `<button type="button" class="add" onclick="sheetAdvance('${e.id}')">${hasAny?'Edit':'Add'}</button>`;
   if(!hasAny){
-    return showSubsection('ss-'+e.id+'-advancing', 'Show-day details', editBtn, `<div class="show-venue-empty"><div class="card tap" onclick="sheetAdvance('${e.id}')" style="text-align:center;color:var(--text-3);padding:18px;font-weight:600">${ICON.checkList(20)} Add show-day details<div style="margin-top:4px;font-size:12px;font-weight:500">Access, soundcheck, running order, wifi…</div></div></div>`);
+    return showSubsection('ss-'+e.id+'-advancing', 'Show-day details', editBtn, `<div class="show-venue-empty"><div class="card tap" onclick="sheetAdvance('${e.id}')" style="text-align:center;color:var(--text-3);padding:18px;font-weight:600">${ICON.checkList(20)} Add show-day details<div style="margin-top:4px;font-size:12px;font-weight:400">Access, soundcheck, running order, wifi…</div></div></div>`);
   }
   const scheduleRows = [advRow(ICON.pin(16),'Stage / area',a.stage), schedHTML?`<div class="info-line show-venue-row is-block" style="align-items:flex-start"><div class="ic">${ICON.clock(16)}</div><div class="tx" style="width:100%"><div class="k">Running order</div>${schedHTML}</div></div>`:''].filter(Boolean).join('');
   const accessRows = [advRow(ICON.planeUp(16),'Access / arrival',a.access), advRow(ICON.music(16),'Sound check',a.soundcheck), advRow(ICON.clock(16),'Curfew',a.curfew), advRow(ICON.pin(16),'Navigation address',a.navAddr,navExtra)].filter(Boolean).join('');

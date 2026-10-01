@@ -65,7 +65,7 @@ export function SettingsHomeAirportSheet({value}){
         style={{
           textAlign: 'left',
           padding: '8px 2px 4px',
-          fontWeight: known ? 650 : 500,
+          fontWeight: 400,
           color: known ? 'var(--text)' : (code.length === 3 ? 'var(--red)' : 'var(--text-3)')
         }}
       >
@@ -84,7 +84,7 @@ export function SettingsProfileNameSheet({value}){
 }
 export function SettingsCurrencySheet({settings}){
   const s=settings||getStore()?.settings||{}, currencies=Object.keys(s.fx||{});
-  return <><Field label="Base currency"><select id="set-base" className="input" defaultValue={s.baseCurrency}>{currencies.map(c=><option value={c} key={c}>{c} {(getCursym()||{})[c]?`(${getCursym()[c]})`:''}</option>)}</select><div className="hint" style={{textAlign:'left',padding:'6px 2px'}}>All earnings roll up into this currency.</div></Field><div className="field"><label>Exchange rates (value of 1 unit in {s.baseCurrency})</label><div id="set-rates">{currencies.filter(c=>c!==s.baseCurrency).map(c=><div key={c} style={{display:'flex',alignItems:'center',gap:10,marginBottom:8}}><span style={{width:52,fontWeight:500,color:'var(--text-2)'}}>{c}</span><input className="input" data-cur={c} type="number" step="0.0001" inputMode="decimal" defaultValue={s.fx[c]} style={{flex:1,padding:'9px 12px'}}/></div>)}</div></div><button className="btn" id="set-save" onClick={()=>call('saveCurrency')}>Save rates</button><Spacer/></>;
+  return <><Field label="Base currency"><select id="set-base" className="input" defaultValue={s.baseCurrency}>{currencies.map(c=><option value={c} key={c}>{c} {(getCursym()||{})[c]?`(${getCursym()[c]})`:''}</option>)}</select><div className="hint" style={{textAlign:'left',padding:'6px 2px'}}>All earnings roll up into this currency.</div></Field><div className="field"><label>Exchange rates (value of 1 unit in {s.baseCurrency})</label><div id="set-rates">{currencies.filter(c=>c!==s.baseCurrency).map(c=><div key={c} style={{display:'flex',alignItems:'center',gap:10,marginBottom:8}}><span style={{width:52,fontWeight:700,color:'var(--text)'}}>{c}</span><input className="input" data-cur={c} type="number" step="0.0001" inputMode="decimal" defaultValue={s.fx[c]} style={{flex:1,padding:'9px 12px'}}/></div>)}</div></div><button className="btn" id="set-save" onClick={()=>call('saveCurrency')}>Save rates</button><Spacer/></>;
 }
 function clampHeaderPct(n){
   const v = Number(n);
@@ -254,8 +254,8 @@ export function AuthAccountSheet({mode,email,statusLabel,message,singleAccount=f
   if(mode==='orgSwitch' || mode==='dev'){
     return <>
       <div className="card" style={{padding:15,marginBottom:6,textAlign:'center'}}>
-        <div style={{fontSize:11.5,color:'var(--text-3)',fontWeight:500,textTransform:'uppercase',letterSpacing:'.08em'}}>Organisation</div>
-        <div style={{fontSize:16,fontWeight:600,marginTop:4}}>{orgName || 'Choose workspace'}</div>
+        <div style={{fontSize:12,color:'var(--text)',fontWeight:700,textTransform:'uppercase',letterSpacing:'.08em'}}>Organisation</div>
+        <div style={{fontSize:16,fontWeight:400,marginTop:4}}>{orgName || 'Choose workspace'}</div>
         <div id="sync-status" style={{fontSize:13,color:'var(--text-2)',marginTop:4}}>{statusLabel||call('syncStatusLabel')}</div>
       </div>
       <Field label="Switch organisation">
@@ -281,8 +281,8 @@ export function AuthAccountSheet({mode,email,statusLabel,message,singleAccount=f
   if(mode==='signin') return <><div className="hint" style={{textAlign:'left',padding:'2px 2px 14px',lineHeight:1.5}}>{message||'Sign in to load and save tour data.'}</div><Field label="Email" id="auth-email" type="email" value={allowedEmail} placeholder="you@example.com" autoComplete="email" readOnly={!!allowedEmail}/><p id="auth-msg" className="auth-msg"/><button className="btn" id="auth-send" onClick={()=>call('sendMagicLink')}>Send magic link</button><Spacer/></>;
   return <>
     <div className="card" style={{padding:15,marginBottom:6,textAlign:'center'}}>
-      <div style={{fontSize:11.5,color:'var(--text-3)',fontWeight:500,textTransform:'uppercase',letterSpacing:'.08em'}}>Signed in as</div>
-      <div style={{fontSize:16,fontWeight:600,marginTop:4}}>{email||'Not signed in'}</div>
+      <div style={{fontSize:12,color:'var(--text)',fontWeight:700,textTransform:'uppercase',letterSpacing:'.08em'}}>Signed in as</div>
+      <div style={{fontSize:16,fontWeight:400,marginTop:4}}>{email||'Not signed in'}</div>
       <div id="sync-status" style={{fontSize:13,color:'var(--text-2)',marginTop:4}}>{statusLabel||call('syncStatusLabel')}</div>
     </div>
     {orgOptions.length ? (

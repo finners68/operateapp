@@ -176,7 +176,7 @@ function viewNoteFolder(folderId){
     <div style="display:flex;align-items:center;gap:10px;margin:4px 2px 14px">
       <div class="ic" style="background:var(--card-2);color:var(--text-2);width:40px;height:40px;border-radius:12px;display:flex;align-items:center;justify-content:center">${ICON.folder(20)}</div>
       <div style="flex:1;min-width:0">
-        <div style="font-size:22px;font-weight:650;line-height:1.2">${esc(f.name||'Folder')}</div>
+        <div style="font-size:22px;font-weight:700;line-height:1.2">${esc(f.name||'Folder')}</div>
         <div style="font-size:13px;color:var(--text-3)">${list.length} note${list.length!==1?'s':''}</div>
       </div>
     </div>
@@ -203,7 +203,7 @@ function viewNote(id){
     <button class="header-btn" style="width:36px;height:36px" onclick="confirmDeleteNote('${n.id}')">${ICON.trash(17)}</button>
   </div></div>
   <div class="screen-pad fade-in">
-    <input id="note-title" class="input" style="font-size:24px;font-weight:650;border:none;background:none;padding:8px 2px" placeholder="Title" value="${esc(n.title||'')}" oninput="liveNoteTitle('${n.id}',this.value)">
+    <input id="note-title" class="input" style="font-size:24px;font-weight:700;border:none;background:none;padding:8px 2px" placeholder="Title" value="${esc(n.title||'')}" oninput="liveNoteTitle('${n.id}',this.value)">
     <div style="display:flex;align-items:center;gap:8px;margin:2px 2px 10px">
       <span style="color:var(--text-3)">${ICON.folder(15)}</span>
       <button type="button" class="btn secondary" style="font-size:13px;padding:6px 12px;border-radius:9px;flex:1;justify-content:flex-start;text-align:left" onclick="sheetMoveNoteToFolder('${n.id}')">${esc(folderLabel)}</button>

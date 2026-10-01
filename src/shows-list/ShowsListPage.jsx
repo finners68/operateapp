@@ -59,7 +59,7 @@ function ShowRow({ show }){
         <Icon name="edit" size={16} />
       </button>
       <div className="trail">
-        <span style={{ fontSize: 12, fontWeight: 500 }}>{relDay ? relDay(show.date) : show.date}</span>
+        <span style={{ fontSize: 12, fontWeight: 400 }}>{relDay ? relDay(show.date) : show.date}</span>
         <Icon name="chevR" size={15} />
       </div>
     </div>
@@ -152,7 +152,7 @@ function RunCard({ run }){
         </div>
         <Icon name="chevR" size={18} />
       </div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 12, fontSize: 12.5, color: 'var(--text-3)', fontWeight: 500 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 12, fontSize: 12.5, color: 'var(--text-3)', fontWeight: 400 }}>
         <span>{run.shows.length} show{run.shows.length !== 1 ? 's' : ''}</span>
         <span>{relDay ? relDay(run.start) : run.start}</span>
       </div>

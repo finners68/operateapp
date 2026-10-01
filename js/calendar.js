@@ -134,7 +134,7 @@ function viewPastShows(){
   return `
   <div class="detail-top"><div class="detail-bar">
     <button class="back-btn" onclick="back()">${ICON.chevL(20)} ${overlayBackLabel()}</button>
-    <div style="font-size:15px;font-weight:650">Past shows</div>
+    <div style="font-size:15px;font-weight:700">Past shows</div>
     <div style="width:36px"></div>
   </div></div>
   <div class="screen-pad stagger">

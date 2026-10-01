@@ -81,7 +81,7 @@ export function EmptyTap({ icon, title, sub, onClick }){
     >
       <Icon name={icon} size={22} />
       {title ? <div style={{ marginTop: 6, fontWeight: 600 }}>{title}</div> : null}
-      {sub ? <div style={{ marginTop: 4, fontSize: 12, fontWeight: 500 }}>{sub}</div> : null}
+      {sub ? <div style={{ marginTop: 4, fontSize: 12, fontWeight: 400 }}>{sub}</div> : null}
     </div>
   );
 }

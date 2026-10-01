@@ -19,7 +19,7 @@ function MissingTrip(){
           <button type="button" className="back-btn" onClick={() => call('back')}>
             <Icon name="chevL" size={20} /> Back
           </button>
-          <div style={{ fontSize: 15, fontWeight: 650 }}>Tour</div>
+          <div style={{ fontSize: 15, fontWeight: 700 }}>Tour</div>
           <div style={{ width: 36 }} />
         </div>
       </div>
@@ -51,7 +51,7 @@ export default function TripDetailPage({ tripId }){
           <button type="button" className="back-btn" onClick={() => call('back')}>
             <Icon name="chevL" size={20} /> Tours
           </button>
-          <div style={{ fontSize: 15, fontWeight: 650 }}>{active ? 'Trip Mode' : 'Tour'}</div>
+          <div style={{ fontSize: 15, fontWeight: 700 }}>{active ? 'Trip Mode' : 'Tour'}</div>
           <div style={{ width: 36 }} />
         </div>
       </div>
