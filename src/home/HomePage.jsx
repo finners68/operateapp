@@ -17,6 +17,7 @@ function greeting(){
 
 function HomeActions(){
   const [open, setOpen] = useState(false);
+  const [on, setOn] = useState('');
   useEffect(() => {
     if(!open) return undefined;
     const close = () => setOpen(false);
@@ -43,11 +44,22 @@ function HomeActions(){
           <Icon name="plus" size={15} /> Create
         </button>
         {open ? (
-          <div className="home-create-menu" onClick={e => e.stopPropagation()}>
-            <button type="button" onClick={() => choose(() => call('sheetIdea'))}>New idea</button>
-            <button type="button" onClick={() => choose(() => call('sheetNote'))}>New note</button>
-            <button type="button" onClick={() => choose(() => call('pickEventForInvoice'))}>Create invoice</button>
-            <button type="button" onClick={() => choose(() => call('sheetContact'))}>New contact</button>
+          <div className="home-create-menu" onClick={e => e.stopPropagation()} onPointerLeave={() => setOn('')}>
+            {[
+              ['idea', 'New idea', () => call('sheetIdea')],
+              ['note', 'New note', () => call('sheetNote')],
+              ['invoice', 'Create invoice', () => call('pickEventForInvoice')],
+              ['contact', 'New contact', () => call('sheetContact')],
+            ].map(([id, label, fn]) => (
+              <button
+                key={id}
+                type="button"
+                className={on === id ? 'is-on' : ''}
+                onPointerDown={() => setOn(id)}
+                onPointerEnter={e => { if(e.pointerType === 'mouse' || e.buttons) setOn(id); }}
+                onClick={() => choose(fn)}
+              >{label}</button>
+            ))}
           </div>
         ) : null}
       </div>
