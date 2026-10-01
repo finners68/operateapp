@@ -456,7 +456,7 @@ function viewTrips(){
     <button class="header-btn" onclick="go('calendar')">${ICON.calendar(20)}</button>
   </div>
   <div class="screen-pad">
-    ${pageIntro('tours', 'Tours group themselves', 'When you add shows in Calendar, nearby dates auto-form a tour run — no manual setup. Tap a tour for day-of timeline and packing.')}
+    ${pageIntro('tours', 'Tours group themselves', 'A tour runs from the flight that leaves your home airport to the flight that brings you back. Tap a tour for the day-of timeline and packing.')}
     ${tabBlurb('A tour starts when you leave your home airport and ends when you fly back.')}
     ${upcoming.length?`<div class="stagger">${upcoming.map(runCard).join('')}</div>`
       :`<div class="empty"><div class="ic">${ICON.trips(28)}</div><b>No upcoming tours</b><span>Add shows first — a tour starts when you fly out from your home airport and ends when you land back there.</span><button class="btn secondary" style="margin-top:14px;max-width:240px" onclick="go('calendar')">${ICON.calendar(18)} Go to Calendar</button></div>`}
@@ -579,7 +579,7 @@ function viewToursTab(){
     <div class="tab-page-sticky">
       <div class="lg-header"><div><div class="lg-title">Tour Mode</div><div class="lg-sub">Your live tour dashboard</div></div></div>
     </div>
-    <div class="screen-pad tab-page-body"><div class="empty"><div class="ic">${ICON.trips(28)}</div><b>No tours yet</b><span>Add shows on nearby dates — they group into a tour automatically and appear here as your live dashboard.</span><button class="btn secondary" style="margin-top:14px;max-width:240px" onclick="go('shows')">${ICON.music(18)} Go to Shows</button></div></div>
+    <div class="screen-pad tab-page-body"><div class="empty"><div class="ic">${ICON.trips(28)}</div><b>No tours yet</b><span>A tour is the shows between your flight out from home and your flight back.</span><button class="btn secondary" style="margin-top:14px;max-width:240px" onclick="go('shows')">${ICON.music(18)} Go to Shows</button></div></div>
   </div>`;
   const today = new Date(); today.setHours(0,0,0,0);
   const r = activeRun() || all.find(x=>parseDT(x.end)>=today) || all[all.length-1];

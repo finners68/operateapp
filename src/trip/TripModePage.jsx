@@ -235,7 +235,7 @@ export default function TripModePage(){
           <div className="empty">
             <div className="ic"><Icon name="trips" size={28} /></div>
             <b>No tours yet</b>
-            <span>Add shows on nearby dates — they group into a tour automatically and appear here as your live dashboard.</span>
+            <span>A tour is the shows between your flight out from home and your flight back.</span>
             <button type="button" className="btn secondary" style={{ marginTop: 14, maxWidth: 240 }} onClick={() => call('go', 'shows')}>
               <Icon name="music" size={18} /> Go to Shows
             </button>

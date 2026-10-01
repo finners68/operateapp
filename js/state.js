@@ -1558,10 +1558,10 @@ const money = {
   },
 };
 
-/* ---------- Tours ("runs") — auto-grouped consecutive shows, no naming ----------
-   A tour starts when you fly OUT from the home airport and ends when you fly
-   back IN. Rest days do not split a tour. A standalone show is a run of one.
-   Logistics attach to shows; timeline is derived. */
+/* ---------- Tours ("runs") — bounded by the flight out and the flight home ----------
+   A tour is the shows that fall between a flight leaving the home airport and
+   the next flight landing back there. A leaving flight with no return yet does
+   not pull later shows into one long tour. A show outside that pair stands alone. */
 function dayIdx(ds){ const d=parseDT(ds); return d?Math.floor(d.getTime()/86400000):0; }
 function homeAirport(){ return (store.settings.homeAirport||'AMS').toUpperCase(); }
 /* Strip b2b / bracketed extras from a venue name so the address + map search use the main name only. */
@@ -1606,19 +1606,23 @@ function flightLegWhen(f, fallbackDate, fallbackTime){
   }
   return { date:fallbackDate, start:fallbackTime||'12:00' };
 }
-/* Markers that start/end tours around the home airport. */
+function tourMarkerKey(date, start){ return (date||'')+' '+(start||'12:00'); }
+function isPlaneLeg(e){ return e && e.kind==='travel' && (e.icon||'plane')==='plane'; }
+/* Leaving flights and return flights, in time order. Ground legs are ignored. */
 function homeTourMarkers(){
   const h = homeAirport();
-  const returns = [];   // flying TO home — ends a tour after that show/day
-  const outbounds = []; // flying FROM home — starts a tour on that show/day
+  const markers = [];
+  const push = (type, date, start)=>{
+    if(!date) return;
+    markers.push({ type, date, start:start||'12:00', key:tourMarkerKey(date, start||'12:00') });
+  };
 
   store.events.forEach(e=>{
-    if(e.kind==='travel' && isHomeFlight(e)){
+    if(!isPlaneLeg(e)) return;
+    if(isHomeOutboundTravel(e)) push('out', e.date, e.start||'12:00');
+    else if(isHomeFlight(e)){
       const when=flightLegWhen({arr:e.arr||e.arrival, dep:((e.date||'')+' '+(e.start||'')).trim()}, e.date, e.start||'12:00');
-      returns.push({ date:when.date, start:when.start, afterShowId:e.showId||null });
-    }
-    if(e.kind==='travel' && isHomeOutboundTravel(e)){
-      outbounds.push({ date:e.date, start:e.start||'12:00', showId:e.showId||null });
+      push('in', when.date||e.date, when.start||e.start||'12:00');
     }
   });
 
@@ -1628,45 +1632,46 @@ function homeTourMarkers(){
       if(!f || (typeof flightHasDetails==='function' && !flightHasDetails(f))) return;
       const from=airportCode(f.from), to=airportCode(f.to);
       const when=flightLegWhen(f, s.date);
-      if(to===h && from!==h) returns.push({ date:when.date, start:when.start, afterShowId:s.id });
-      if(from===h && to!==h) outbounds.push({ date:when.date, start:when.start, showId:s.id });
+      if(from===h && to && to!==h) push('out', when.date||s.date, when.start||'12:00');
+      else if(to===h && from!==h) push('in', when.date||s.date, when.start||'12:00');
     });
   });
-  return { returns, outbounds };
+  markers.sort((a,b)=>a.key.localeCompare(b.key));
+  return markers;
 }
-/* Two consecutive shows stay on the same tour unless you left home for the
-   later show, or came home after the earlier one.
-
-   Crucial: a return flight saved ON the last show must keep that show in the
-   tour (end after it). An older bug treated "return on show day" as landing
-   before the show, which peeled the last show into its own broken tour. */
-function sameTour(prev, cur, markers){
-  const returns=markers.returns||[];
-  const outbounds=markers.outbounds||[];
-
-  for(const o of outbounds){
-    if(o.showId && o.showId===cur.id) return false; // this show leaves home → new tour
-    if(!o.showId && o.date && o.date>prev.date && o.date<=cur.date) return false;
-  }
-
-  for(const f of returns){
-    if(f.afterShowId){
-      if(f.afterShowId===prev.id) return false; // came home after prev → cur is a new tour
-      continue;
+/* Each leaving flight pairs with the next landing back home. An unmatched
+   leaving flight does not open a tour. */
+function tourWindows(markers){
+  const windows=[];
+  let open=null;
+  (markers||[]).forEach(m=>{
+    if(m.type==='out'){ if(!open) open=m; }
+    else if(m.type==='in' && open && m.key>open.key){
+      windows.push({ start:open.date, end:m.date });
+      open=null;
     }
-    if(!f.date) continue;
-    if(f.date>prev.date && f.date<cur.date) return false;
-    if(f.date===prev.date && prev.date!==cur.date) return false;
-  }
-  return true;
+  });
+  return windows;
 }
 function runs(){
   const shows = sel.events(); // shows only, sorted by date
-  const markers = homeTourMarkers();
-  const out=[]; let cur=null;
+  const windows = tourWindows(homeTourMarkers());
+  const windowOf = new Map();
   shows.forEach(sh=>{
-    if(cur && sameTour(cur.shows[cur.shows.length-1], sh, markers)){ cur.shows.push(sh); }
-    else { cur={shows:[sh]}; out.push(cur); }
+    let best=-1;
+    windows.forEach((w,i)=>{
+      if(sh.date>=w.start && sh.date<=w.end && (best<0 || w.start>=windows[best].start)) best=i;
+    });
+    if(best>=0) windowOf.set(sh.id, best);
+  });
+  const out=[];
+  const emitted=new Set();
+  shows.forEach(sh=>{
+    const wi=windowOf.has(sh.id) ? windowOf.get(sh.id) : null;
+    if(wi==null){ out.push({shows:[sh]}); return; }
+    if(emitted.has(wi)) return;
+    emitted.add(wi);
+    out.push({ shows: shows.filter(s=>windowOf.get(s.id)===wi) });
   });
   return out.map(r=>{
     r.key = r.shows[0].id;
