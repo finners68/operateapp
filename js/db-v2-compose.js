@@ -476,17 +476,20 @@ async function composeViewFromV2(v2, opts){
     }
 
     const attachments = [];
-    for(const { file: f } of (attachmentsByShow[s.id] || [])){
+    for(const { link, file: f } of (attachmentsByShow[s.id] || [])){
       const att = {
         id: f.id,
         name: f.file_title || f.original_filename || '',
         kind: mimeToKind(f.mime_type),
+        mime: f.mime_type || '',
         _storagePath: f.storage_path,
-        data: f.storage_path
+        data: f.storage_path,
+        fromItinerary: link.file_description === 'original_itinerary'
       };
       if(typeof resolveAttachment === 'function') await resolveAttachment(att);
       attachments.push(att);
     }
+    attachments.sort((a, b) => Number(!!b.fromItinerary) - Number(!!a.fromItinerary) || 0);
 
     const scList = (showContactsByShow[s.id] || [])
       .slice()

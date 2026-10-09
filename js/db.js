@@ -58,7 +58,7 @@ function dedupeEventsById(events){
 
 function mimeToKind(m){
   m = (m || '').toLowerCase();
-  if(m.startsWith('image/')) return 'image';
+  if(m === 'image' || m.startsWith('image/')) return 'image';
   if(m === 'application/vnd.apple.pkpass' || m.includes('pkpass')) return 'pkpass';
   return 'pdf';
 }

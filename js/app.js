@@ -1984,6 +1984,71 @@ function discardItineraryReview(id){
     };
   }, 50);
 }
+/* Keep the uploaded itinerary file on the show so it can be opened later. */
+function attachOriginalItineraryToShow(show, it){
+  if(!show || !it) return 0;
+  const imgs = (it.imgs || []).filter(im => im && (im.data || im._storagePath || im._idb));
+  if(!imgs.length) return 0;
+  if(!Array.isArray(show.attachments)) show.attachments = [];
+  const have = new Set(show.attachments.map(a => a && a.id).filter(Boolean));
+  let added = 0;
+  imgs.forEach(im => {
+    if(have.has(im.id)){
+      const existing = show.attachments.find(a => a && a.id === im.id);
+      if(existing) existing.fromItinerary = true;
+      return;
+    }
+    const att = {
+      id: im.id,
+      kind: im.kind || 'pdf',
+      name: (im.name && String(im.name).trim()) || 'Original itinerary',
+      mime: im.mime || '',
+      data: im.data || '',
+      fromItinerary: true
+    };
+    if(im._storagePath) att._storagePath = im._storagePath;
+    if(im._idb) att._idb = true;
+    show.attachments.push(att);
+    have.add(att.id);
+    added++;
+    if(typeof hostImg === 'function' && att.data && String(att.data).startsWith('data:') && !att._storagePath){
+      hostImg(att, show.id, 'attachment');
+    }
+  });
+  return added;
+}
+async function openShowAttachment(showId, attId){
+  const show = (typeof sel !== 'undefined' && sel.event) ? sel.event(showId) : null;
+  const att = show && (show.attachments || []).find(a => a && String(a.id) === String(attId));
+  if(!att){ toast('That file is not on this show','x'); return; }
+  try{
+    if(typeof resolveAttachment === 'function') await resolveAttachment(att);
+  }catch(_){}
+  if(!att.data){ toast('File is not ready yet','file'); return; }
+  if(att.kind === 'image'){
+    openViewer(att.data);
+    return;
+  }
+  const data = String(att.data);
+  if(/^https?:\/\//i.test(data)){
+    window.open(data, '_blank', 'noopener');
+    return;
+  }
+  const blob = dataUrlToBlob(data);
+  if(!blob){ toast('Could not open that file','x'); return; }
+  const url = URL.createObjectURL(blob);
+  const opened = window.open(url, '_blank', 'noopener');
+  if(!opened){
+    const a = document.createElement('a');
+    a.href = url;
+    a.target = '_blank';
+    a.rel = 'noopener';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+  }
+  setTimeout(() => URL.revokeObjectURL(url), 60000);
+}
 async function saveItineraryReview(id){
   const it=itineraryForReview(id);
   if(!it){
@@ -2019,6 +2084,7 @@ async function saveItineraryReview(id){
 
   /* Frontend mints the only show UUID — Make and Supabase must reuse this. */
   const ev=blankShowFromBasics(basics);
+  attachOriginalItineraryToShow(ev, it);
   store.events.push(ev);
   const filled=applyScanToShow(ev, f);
   const showId=ev.id;
@@ -2087,6 +2153,9 @@ async function confirmExistingItineraryReview(id){
   if(!showId){ toast('Pick a show first','x'); return; }
   const btn=document.getElementById('itn-exist-confirm');
   if(btn) btn.disabled=true;
+  const show = (typeof sel !== 'undefined' && sel.event) ? sel.event(showId) : null;
+  attachOriginalItineraryToShow(show, it);
+  if(show) persist('shows', showId);
   clearItineraryReviewGuards();
   closeSheet(true, { noReturn:true });
   renderView();

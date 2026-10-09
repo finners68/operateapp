@@ -772,6 +772,7 @@ select.input{appearance:none;-webkit-appearance:none;background-image:url("data:
 .thumb .pdf span{font-size:11px;font-weight:600;padding:0 8px;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:90px;}
 .thumb-add{border:1.5px dashed var(--stroke-strong);background:transparent;color:var(--text-3);flex-direction:column;gap:7px;font-size:12px;font-weight:400;}
 .thumb .del-badge{position:absolute;top:5px;right:5px;width:22px;height:22px;border-radius:50%;background:rgba(0,0,0,0.6);display:flex;align-items:center;justify-content:center;color:#fff;}
+.thumb .thumb-tag{position:absolute;left:6px;bottom:6px;max-width:calc(100% - 12px);padding:2px 6px;border-radius:999px;background:rgba(0,0,0,.72);color:#fff;font-size:10px;font-weight:700;letter-spacing:.02em;pointer-events:none;}
 
 /* Fullscreen image viewer */
 #viewer{position:absolute;inset:0;background:rgba(0,0,0,0.94);z-index:200;display:none;align-items:center;justify-content:center;flex-direction:column;}
@@ -1116,6 +1117,7 @@ select.input{appearance:none;-webkit-appearance:none;background-image:url("data:
 }
 .show-compact-row .add:hover,
 .show-compact-row .add:active{color:var(--text-2);}
+button.show-compact-row{width:100%;background:none;border:none;text-align:left;font:inherit;color:var(--text-3);}
 .show-stay-card{padding:0;}
 .show-stay-main{
   display:flex;

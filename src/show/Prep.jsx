@@ -411,6 +411,8 @@ export function ContentBlock({ show }){
 
 export function Attachments({ show }){
   const list = show.attachments || [];
+  const originals = list.filter(a => a && a.fromItinerary);
+  const openFile = a => call('openShowAttachment', show.id, a.id);
   if(!list.length){
     return (
       <label className="show-compact-row">
@@ -427,21 +429,28 @@ export function Attachments({ show }){
   }
   return (
     <Subsection id={`ss-${show.id}-attachments`} title="Attachments" defaultOpen>
+      {originals.map(a => (
+        <button type="button" className="show-compact-row" key={`itin-${a.id}`} onClick={() => openFile(a)}>
+          <span>Original itinerary</span>
+          <span className="add">{a.name || 'View'}</span>
+        </button>
+      ))}
       <div className="thumb-row">
         {list.map(a => (
           <div
             key={a.id}
             className="thumb"
-            onClick={() => (a.kind === 'image' ? call('openViewer', a.data) : call('toast', 'PDF saved', 'file'))}
+            onClick={() => openFile(a)}
           >
             {a.kind === 'image' ? (
-              <img src={a.data} alt="" />
+              <img src={a.data} alt={a.name || 'Attachment'} />
             ) : (
               <div className="pdf">
                 <Icon name="file" size={26} />
-                <span>{a.name || 'File'}</span>
+                <span>{a.fromItinerary ? (a.name || 'Itinerary') : (a.name || 'File')}</span>
               </div>
             )}
+            {a.fromItinerary ? <span className="thumb-tag">Itinerary</span> : null}
             <div
               className="del-badge"
               onClick={e => { e.stopPropagation(); call('delAttachment', show.id, a.id); }}

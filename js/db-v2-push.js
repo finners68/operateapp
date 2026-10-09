@@ -1239,15 +1239,17 @@ async function pushToSupabaseV2(orgId, dirtyIn){
         }catch(e){}
       }
       if(!path) continue;
-      const fileId = await v2UpsertFile(sb, orgId, att, path, att.kind || att.mime);
-      await v2UpsertPk(sb, 'show_files', {
+      const fileId = await v2UpsertFile(sb, orgId, att, path, att.mime || att.kind);
+      const showFile = {
         organisation_id: orgId,
         show_id: sid,
         file_id: fileId,
-        file_type: 'other',
+        file_type: att.fromItinerary ? 'schedule' : 'other',
         file_title: att.name || null,
-        sort_order: 0
-      }, 'show_id,file_id');
+        sort_order: att.fromItinerary ? 0 : 1
+      };
+      if(att.fromItinerary) showFile.file_description = 'original_itinerary';
+      await v2UpsertPk(sb, 'show_files', showFile, 'show_id,file_id');
     }
   }
 
