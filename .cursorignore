@@ -1,0 +1,7 @@
+﻿# Hidden from the editor chat only. These files stay on disk and still ship with the app.
+# The packed screens are rebuilt from src by npm run build:react.
+
+js/react-show.js
+js/react-show.js.map
+package-lock.json
+docs/database/downloads/
