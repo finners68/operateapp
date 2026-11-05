@@ -5,6 +5,6 @@ window.OPERATE_CONFIG = {
   SUPABASE_ANON_KEY: 'YOUR-ANON-KEY',
   REQUIRE_AUTH: false,
   SYNC_ENABLED: true,
-  // With SYNC_ENABLED + REQUIRE_AUTH false, the app uses hardcoded JAKE / FIN
+  // With SYNC_ENABLED + REQUIRE_AUTH false, the app uses hardcoded FIN / JAKE
   // organisations and a Settings → Organisation picker (no sign-in).
 };

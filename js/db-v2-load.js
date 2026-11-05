@@ -26,6 +26,27 @@ function _mergeDirtyById(cloudRows, prevRows, dirtyIds, patchFn){
   return [...byId.values()];
 }
 /* Keep an in-progress itinerary review if a cloud pull arrives before prefs sync. */
+/* Venue address/name on a show comes from the linked venues row after compose.
+   Dirty local shows kept their whole old copy on refresh — hiding Supabase venue edits. */
+const VENUE_VIEW_KEYS = ['venue', 'city', 'country', 'venueAddr', 'venueAddr2', 'venueRegion', 'venuePostcode'];
+
+function v2ApplyCloudVenueFields(local, cloud){
+  if(!local || !cloud) return;
+  if((local.kind || 'show') !== 'show' || (cloud.kind || 'show') !== 'show') return;
+  VENUE_VIEW_KEYS.forEach(k => {
+    if(cloud[k] != null && cloud[k] !== '') local[k] = cloud[k];
+    else if(cloud[k] === '') local[k] = '';
+  });
+}
+
+function v2MergeDirtyShow(local, cloud){
+  if(!local) return cloud;
+  if(!cloud) return local;
+  const merged = { ...local };
+  v2ApplyCloudVenueFields(merged, cloud);
+  return merged;
+}
+
 function mergePendingItineraries(cloud, local){
   const list = (cloud || []).slice();
   const activeId = (typeof itineraryReviewActiveId !== 'undefined') ? itineraryReviewActiveId : null;
@@ -205,11 +226,11 @@ async function loadFromSupabaseV2(orgId, sb){
       const { full, set } = dirtySetFor(local);
       const cloud = byId.get(local.id);
       if(full){
-        if(cloud) byId.set(local.id, local);
+        if(cloud) byId.set(local.id, v2MergeDirtyShow(local, cloud));
         return;
       }
       if(!set.has(local.id)) return;
-      byId.set(local.id, local);
+      byId.set(local.id, v2MergeDirtyShow(local, cloud));
     });
     store.events = [...byId.values()];
   }

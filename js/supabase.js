@@ -62,9 +62,14 @@ function getHardcodedOrgs(){
       .filter(o => o.id && o.name && !o.id.includes('YOUR-ORG'));
   }
   return [
-    { id: '1ba17032-5bb2-4310-afa7-3a6fc5e94df4', name: 'JAKE' },
-    { id: 'e8fc13af-4b2d-4eed-a5ef-92fd703b03e5', name: 'FIN' }
+    { id: 'e8fc13af-4b2d-4eed-a5ef-92fd703b03e5', name: 'FIN' },
+    { id: '1ba17032-5bb2-4310-afa7-3a6fc5e94df4', name: 'JAKE' }
   ];
+}
+
+function getDefaultHardcodedOrg(){
+  const orgs = getHardcodedOrgs();
+  return orgs.find(o => o.name === 'FIN') || orgs[0] || null;
 }
 
 function getHardcodedOrgName(orgId){

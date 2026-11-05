@@ -51,7 +51,7 @@ export function ItineraryExistingShowSheet({items}){
   const [picked, setPicked] = useState(list[0]?.id || '');
   if(!list.length) return <><div className="empty" style={{padding:'18px 8px'}}><div className="ic"><Icon name="music" size={26}/></div><b>No shows yet</b><span>Create a show first, or choose New show instead.</span></div><button className="btn secondary" onClick={()=>call('beginItineraryNewShow')}><Icon name="plus" size={16}/> New show from itinerary</button><Spacer/></>;
   return <>
-    <p className="sheet-lede">Pick the show, then upload. You’ll see some details first. Confirm to add the full itinerary.</p>
+    <p className="sheet-lede">Pick the show, then upload. You’ll review the details before anything is added.</p>
     <div className="field">
       <label>Show</label>
       <input id="itn-pick-show" type="hidden" value={picked} readOnly />
@@ -63,7 +63,35 @@ export function ItineraryExistingShowSheet({items}){
     <Spacer/>
   </>;
 }
-export function ItinerarySendingSheet(){
+export function ItinerarySendingSheet({ variant = 'new', phase = 'loading', message, itineraryId }){
+  if(variant === 'existing' && phase === 'failed'){
+    return <>
+      <div className="empty" style={{ padding:'28px 10px' }}>
+        <div className="ic"><Icon name="x" size={28}/></div>
+        <b>Upload failed</b>
+        <span>{message || 'Itinerary upload failed. Try another file or try again later.'}</span>
+      </div>
+      {itineraryId ? (
+        <button type="button" className="btn" onClick={() => call('sendExistingItineraryUpload', itineraryId)}>
+          <Icon name="checkList" size={15}/> Try again
+        </button>
+      ) : null}
+      <button type="button" className="btn secondary" style={{ marginTop:10 }} onClick={() => call('closeSheet', true, { noReturn:true })}>
+        Close
+      </button>
+      <Spacer/>
+    </>;
+  }
+  if(variant === 'existing'){
+    return <>
+      <div className="empty" style={{ padding:'28px 10px' }}>
+        <div className="ic"><Icon name="file" size={28}/></div>
+        <b>Adding to show…</b>
+        <span>Please wait while your itinerary is uploaded and processed.</span>
+      </div>
+      <Spacer/>
+    </>;
+  }
   return <><div className="empty" style={{padding:'28px 10px'}}><div className="ic"><Icon name="file" size={28}/></div><b>Sending your file…</b><span>Reading the itinerary. Waiting for show basics.</span></div><Spacer/></>;
 }
 
@@ -77,7 +105,7 @@ export function ItineraryReviewSheet({id,fields}){
   const date=normalDate||it.date||today,status=f.status||'confirmed',cat=f.color||'purple';
   const color=(getCats()||{})[cat]||'#7c3aed';
   return <>
-    <div className="dhero sheet-event-preview" id="ev-preview" style={{background:`linear-gradient(155deg,${color}33,var(--card) 65%)`,borderColor:`${color}44`}}><div className="cat-bar" style={{background:color}}/><div className="sheet-event-tone" style={{fontSize:12,fontWeight:700,textTransform:'uppercase',letterSpacing:'.06em',color}}>New show from itinerary</div><div id="ev-preview-venue" style={{fontSize:20,fontWeight:600,marginTop:4}}>{eventName||venue||'Event name'}</div>{eventName&&venue?<div style={{fontSize:13,opacity:.75,marginTop:2}}>{venue}</div>:null}</div>
+    <div className="dhero sheet-event-preview" id="ev-preview" style={{borderColor:'var(--stroke)'}}><div className="cat-bar" style={{background:color}}/><div className="sheet-event-tone" style={{fontSize:12,fontWeight:700,textTransform:'uppercase',letterSpacing:'.06em',color}}>New show from itinerary</div><div id="ev-preview-venue" style={{fontSize:20,fontWeight:600,marginTop:4}}>{eventName||venue||'Event name'}</div>{eventName&&venue?<div style={{fontSize:13,opacity:.75,marginTop:2}}>{venue}</div>:null}</div>
     <Field label="Event name" id="itn-rev-event-name" value={eventName} placeholder="e.g. Parklife, Support slot" onInput={()=>call('updateEventPreviewVenue')}/>
     <Field label="Venue name" id="itn-rev-venue" value={venue} placeholder="e.g. Shelter" onInput={()=>call('updateEventPreviewVenue')}/>
     <Field label="Address" id="itn-rev-addr" value={f.venueAddress||f.venueAddr} placeholder="Street and number"/>
@@ -102,45 +130,63 @@ function previewValue(label, value){
   if(label === 'Date' && /^\d{4}-\d{2}-\d{2}/.test(text) && fmtDate) return fmtDate(text.slice(0, 10));
   return text;
 }
+function fieldPick(f, ...keys){
+  for(const key of keys){
+    const value = f[key];
+    if(value != null && String(value).trim()) return String(value).trim();
+  }
+  return '';
+}
 function itineraryPreviewRows(fields){
   const f = fields || {};
-  const pick = (...keys) => {
-    for(const key of keys){
-      const value = f[key];
-      if(value != null && String(value).trim()) return String(value).trim();
-    }
-    return '';
-  };
   const rows = [
-    ['Event', pick('eventName', 'event_name', 'EventName', 'event')],
-    ['Venue', pick('venue', 'venueName', 'venue_name')],
-    ['City', pick('city')],
-    ['Country', pick('country')],
-    ['Date', pick('date')],
-    ['Set time', pick('setTime', 'set_time')],
-    ['End time', pick('endTime', 'end_time')],
-    ['Arrival', pick('arrival')],
-    ['Hotel', pick('hotelName', 'hotel_name')],
-    ['Address', pick('hotelAddress', 'venueAddress', 'venueAddr')],
-    ['Driver', pick('driverName', 'driver_name')],
-    ['Soundcheck', pick('soundcheck')],
+    ['Event', fieldPick(f, 'eventName', 'event_name', 'EventName', 'event')],
+    ['Venue', fieldPick(f, 'venue', 'venueName', 'venue_name', 'venu')],
+    ['City', fieldPick(f, 'city')],
+    ['Country', fieldPick(f, 'country')],
+    ['Date', fieldPick(f, 'date')],
+    ['Set time', fieldPick(f, 'setTime', 'set_time')],
+    ['End time', fieldPick(f, 'endTime', 'end_time')],
+    ['Arrival', fieldPick(f, 'arrival')],
+    ['Hotel', fieldPick(f, 'hotelName', 'hotel_name')],
+    ['Address', fieldPick(f, 'hotelAddress', 'venueAddress', 'venueAddr', 'address')],
+    ['Driver', fieldPick(f, 'driverName', 'driver_name')],
+    ['Soundcheck', fieldPick(f, 'soundcheck')],
+  ].map(([label, value]) => ({ label, value: previewValue(label, value) })).filter(row => row.value);
+  return rows;
+}
+function itineraryExistingPreviewRows(fields){
+  const f = fields || {};
+  const rows = [
+    ['Event', fieldPick(f, 'eventName', 'event_name', 'EventName')],
+    ['Artist', fieldPick(f, 'artist')],
+    ['Date', fieldPick(f, 'date')],
+    ['Set time', fieldPick(f, 'setTime', 'set_time')],
+    ['End time', fieldPick(f, 'endTime', 'end_time')],
+    ['Venue', fieldPick(f, 'venue', 'venu', 'venueName', 'venue_name')],
+    ['Address', fieldPick(f, 'address', 'venueAddress')],
+    ['Address line 2', fieldPick(f, 'address2', 'venueAddress2')],
+    ['City', fieldPick(f, 'city')],
+    ['Region', fieldPick(f, 'region', 'venueRegion')],
+    ['Postcode', fieldPick(f, 'postcode', 'venuePostcode')],
+    ['Country', fieldPick(f, 'country')],
   ].map(([label, value]) => ({ label, value: previewValue(label, value) })).filter(row => row.value);
   return rows;
 }
 export function ItineraryExistingReviewSheet({id, fields, showName}){
   const it = itinerary(id);
-  const rows = itineraryPreviewRows(fields || it.scanFields || {});
+  const rows = itineraryExistingPreviewRows(fields || it.scanFields || {});
   const name = showName || 'this show';
   return <>
-    <p className="sheet-lede">These details were read from the itinerary. Confirm to add the full itinerary to {name}, or don’t add it.</p>
+    <p className="sheet-lede">Does this look correct for <b>{name}</b>? If yes, we’ll add the itinerary and open the show. If not, nothing is added.</p>
     <div className="card flush" style={{marginBottom:14}}>
       {rows.length ? rows.map(row => (
         <div className="home-line" key={row.label}><b>{row.label}</b><span>{row.value}</span></div>
-      )) : <div className="home-quiet">No preview details came back. You can still add the full itinerary, or cancel.</div>}
+      )) : <div className="home-quiet">No preview details came back from the file. You can still confirm if you trust the upload, or go back and try again.</div>}
     </div>
-    <button className="btn" id="itn-exist-confirm" onClick={()=>call('confirmExistingItineraryReview', id)}>Add to show</button>
-    <button className="btn secondary" style={{marginTop:10}} onClick={()=>call('sendExistingItineraryPreview', id)}><Icon name="checkList" size={15}/> Try again</button>
-    <button className="btn danger" style={{marginTop:10}} onClick={()=>call('discardItineraryReview', id)}><Icon name="x" size={15}/> Don’t add</button>
+    <button className="btn" id="itn-exist-confirm" onClick={()=>call('confirmExistingItineraryReview', id)}>Yes, add to show</button>
+    <button className="btn secondary" style={{marginTop:10}} onClick={()=>call('rejectExistingItineraryReview', id)}>No, don’t add</button>
+    <button className="btn secondary" style={{marginTop:10}} onClick={()=>call('sendExistingItineraryUpload', id)}><Icon name="checkList" size={15}/> Upload again</button>
     <Spacer/>
   </>;
 }

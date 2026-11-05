@@ -486,11 +486,12 @@ async function uploadFileDataUrl(dataUrl, showLegacyId, fileRole, legacyId, pare
 }
 
 async function ensureOrgForUser(){
-  /* No-login mode: pick stored hardcoded org, or default to the first (JAKE). */
+  /* No-login mode: pick stored hardcoded org, or default to FIN. */
   if(isDevHardwireMode()){
     const orgs = getHardcodedOrgs();
     const stored = getStoredOrgId();
-    const match = orgs.find(o => o.id === stored) || orgs[0];
+    const fallback = typeof getDefaultHardcodedOrg === 'function' ? getDefaultHardcodedOrg() : orgs[0];
+    const match = orgs.find(o => o.id === stored) || fallback;
     setStoredOrgId(match.id);
     if(store) store.organisationName = match.name;
     return match.id;

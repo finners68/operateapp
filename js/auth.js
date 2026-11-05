@@ -346,7 +346,8 @@ function sheetAccount(){
   }
   if(isDevHardwireMode()){
     const orgs = typeof getHardcodedOrgs === 'function' ? getHardcodedOrgs() : [];
-    const orgId = currentOrgId || (store && store.organisationId) || (orgs[0] && orgs[0].id) || '';
+    const fallback = typeof getDefaultHardcodedOrg === 'function' ? getDefaultHardcodedOrg() : orgs[0];
+    const orgId = currentOrgId || (store && store.organisationId) || (fallback && fallback.id) || '';
     const orgName = (store && store.organisationName)
       || (typeof getHardcodedOrgName === 'function' ? getHardcodedOrgName(orgId) : '')
       || '';

@@ -164,13 +164,16 @@ function initPullToRefresh(){
   /* Sit behind the moving screen so the real page slides as one piece. */
   if(indicator.parentElement !== app) app.insertBefore(indicator, screen);
 
-  const THRESH = 70;
-  const HOLD = 68;
+  /* A light downward brush is ignored. The page only starts moving after this. */
+  const START = 28;
+  /* How far the page itself must travel before a refresh is allowed. Near the wall. */
+  const ARM = 48;
   let startX = 0;
   let startY = 0;
   let pulling = false;
   let tracking = false;
   let armed = false;
+  let refreshing = false;
   let currentY = 0;
   let settleGen = 0;
   let raf = 0;
@@ -179,20 +182,43 @@ function initPullToRefresh(){
 
   const isDesktop = () => window.matchMedia('(min-width:900px)').matches;
 
-  const paint = () => {
-    raf = 0;
-    const y = pendingY;
-    const mode = pendingMode;
+  /* Finger travel is turned into a much smaller page move.
+     The further you pull, the less the page gives, until it essentially stops.
+     A very hard pull can still creep a few pixels past that stop. */
+  const rubberDistance = (finger) => {
+    if(finger <= 0) return 0;
+    const wall = 64;
+    const main = wall * (1 - Math.exp(-finger / 105));
+    const past = Math.max(0, finger - 130);
+    const creep = 12 * (1 - Math.exp(-past / 280));
+    return main + creep;
+  };
+
+  const visualOffset = () => {
+    const tr = getComputedStyle(screen).transform;
+    if(!tr || tr === 'none') return currentY;
+    const parts = tr.match(/-?[\d.]+/g);
+    if(!parts) return currentY;
+    const ty = tr.startsWith('matrix3d') ? parseFloat(parts[13]) : parseFloat(parts[5]);
+    return Number.isFinite(ty) ? ty : currentY;
+  };
+
+  const applyPull = (y, mode) => {
     currentY = y;
     const dragging = mode === 'drag';
-    app.classList.toggle('is-ptr', y > 0 || mode === 'hold');
+    app.classList.toggle('is-ptr', y > 0 || mode === 'settle');
     app.classList.toggle('ptr-drag', dragging);
     screen.classList.toggle('ptr-dragging', dragging);
-    screen.classList.toggle('ptr-settling', mode === 'settle' || mode === 'hold');
+    screen.classList.toggle('ptr-settling', mode === 'settle');
     indicator.style.setProperty('--pull', y + 'px');
-    indicator.style.setProperty('--pull-p', String(Math.min(1, y / THRESH)));
-    indicator.classList.toggle('visible', y > 10);
+    indicator.style.setProperty('--pull-p', String(Math.min(1, y / ARM)));
+    indicator.classList.toggle('visible', y > 8 || refreshing);
     screen.style.transform = (y > 0 || mode === 'settle') ? 'translate3d(0,' + y + 'px,0)' : '';
+  };
+
+  const paint = () => {
+    raf = 0;
+    applyPull(pendingY, pendingMode);
   };
 
   const setContentPull = (px, mode) => {
@@ -204,18 +230,48 @@ function initPullToRefresh(){
   const finishSettle = () => {
     screen.classList.remove('ptr-settling', 'ptr-dragging');
     screen.style.transform = '';
+    screen.style.touchAction = '';
     app.classList.remove('is-ptr', 'ptr-drag');
+    currentY = 0;
+    pendingY = 0;
+    pendingMode = 'idle';
+    if(refreshing){
+      indicator.classList.add('visible', 'loading');
+      indicator.classList.remove('armed');
+      indicator.style.setProperty('--pull', '0px');
+      indicator.style.setProperty('--pull-p', '1');
+      return;
+    }
     indicator.classList.remove('armed', 'visible', 'loading');
+    indicator.style.setProperty('--pull', '0px');
     indicator.style.setProperty('--pull-p', '0');
     const label = indicator.querySelector('.pull-refresh-label');
     if(label) label.textContent = 'Pull to refresh';
-    currentY = 0;
   };
 
-  const settleTo = (px, mode) => {
+  /* Drop the page straight back to the top of the screen. No leftover gap. */
+  const settleHome = () => {
     const gen = ++settleGen;
-    setContentPull(px, mode);
-    if(px > 0) return;
+    if(raf){ cancelAnimationFrame(raf); raf = 0; }
+    const from = Math.max(currentY, visualOffset());
+    if(from <= 0.5){
+      finishSettle();
+      return;
+    }
+    screen.classList.remove('ptr-dragging');
+    app.classList.remove('ptr-drag');
+    screen.classList.add('ptr-settling');
+    app.classList.add('is-ptr');
+    screen.style.transform = 'translate3d(0,' + from + 'px,0)';
+    indicator.style.setProperty('--pull', from + 'px');
+    void screen.offsetHeight;
+    pendingY = 0;
+    pendingMode = 'settle';
+    currentY = 0;
+    indicator.classList.remove('armed');
+    indicator.style.setProperty('--pull', '0px');
+    indicator.style.setProperty('--pull-p', '0');
+    screen.style.transform = 'translate3d(0,0,0)';
     const clear = (ev) => {
       if(gen !== settleGen){
         screen.removeEventListener('transitionend', clear);
@@ -226,14 +282,15 @@ function initPullToRefresh(){
       finishSettle();
     };
     screen.addEventListener('transitionend', clear);
-    setTimeout(() => { if(gen === settleGen) finishSettle(); }, 620);
+    setTimeout(() => { if(gen === settleGen) finishSettle(); }, 260);
   };
 
   const reset = () => {
     pulling = false;
     tracking = false;
     armed = false;
-    settleTo(0, 'settle');
+    screen.style.touchAction = '';
+    settleHome();
   };
 
   screen.addEventListener('touchstart', (e) => {
@@ -243,6 +300,13 @@ function initPullToRefresh(){
     startX = e.touches[0].clientX;
     startY = e.touches[0].clientY;
     settleGen++;
+    if(screen.classList.contains('ptr-settling')){
+      const y = Math.max(0, visualOffset());
+      screen.classList.remove('ptr-settling');
+      currentY = y;
+      pendingY = y;
+      if(y > 0) screen.style.transform = 'translate3d(0,' + y + 'px,0)';
+    }
     tracking = true;
     pulling = false;
     armed = false;
@@ -253,25 +317,29 @@ function initPullToRefresh(){
     if(screen.scrollTop > 2){
       tracking = false;
       pulling = false;
+      screen.style.touchAction = '';
       if(currentY > 0) reset();
       return;
     }
     const dx = e.touches[0].clientX - startX;
     const dy = e.touches[0].clientY - startY;
     if(!pulling){
-      if(dy < 6) return;
-      if(Math.abs(dx) > dy){ tracking = false; return; }
+      if(dy < START) return;
+      /* A sideways move is a scroll or a swipe, not a refresh. */
+      if(Math.abs(dx) > dy * 0.72){ tracking = false; return; }
       pulling = true;
+      screen.style.touchAction = 'none';
       screen.classList.remove('ptr-settling');
     }
     if(e.cancelable) e.preventDefault();
-    const pull = Math.max(0, dy);
-    const nowArmed = pull >= THRESH;
+    const pull = rubberDistance(dy - START);
+    const nowArmed = pull >= ARM;
     if(nowArmed !== armed){
       armed = nowArmed;
       indicator.classList.toggle('armed', armed);
       const label = indicator.querySelector('.pull-refresh-label');
       if(label) label.textContent = armed ? 'Release to refresh' : 'Pull to refresh';
+      if(armed && typeof haptic === 'function') haptic();
     }
     setContentPull(pull, 'drag');
   }, { passive: false });
@@ -281,21 +349,28 @@ function initPullToRefresh(){
     const shouldRefresh = pulling && armed;
     tracking = false;
     pulling = false;
-    if(!shouldRefresh){
-      reset();
-      return;
+    armed = false;
+    screen.style.touchAction = '';
+    if(shouldRefresh){
+      refreshing = true;
+      indicator.classList.add('visible', 'loading');
+      const label = indicator.querySelector('.pull-refresh-label');
+      if(label) label.textContent = 'Refreshing…';
     }
-    indicator.classList.add('visible', 'loading', 'armed');
-    const label = indicator.querySelector('.pull-refresh-label');
-    if(label) label.textContent = 'Refreshing…';
-    setContentPull(HOLD, 'hold');
-    const started = Date.now();
+    settleHome();
+    if(!shouldRefresh) return;
     try{
       if(typeof refreshFromCloud === 'function') await refreshFromCloud();
       else if(typeof syncPullNow === 'function') await syncPullNow();
     }finally{
-      const wait = Math.max(180, 520 - (Date.now() - started));
-      setTimeout(reset, wait);
+      refreshing = false;
+      if(!pulling){
+        indicator.classList.remove('loading', 'visible', 'armed');
+        indicator.style.setProperty('--pull', '0px');
+        indicator.style.setProperty('--pull-p', '0');
+        const label = indicator.querySelector('.pull-refresh-label');
+        if(label && !pulling) label.textContent = 'Pull to refresh';
+      }
     }
   }, { passive: true });
 
@@ -1444,14 +1519,14 @@ function viewItinerary(){
   </div></div>
   <div class="screen-pad stagger">
     <button type="button" class="btn" style="margin-top:14px" onclick="sheetItineraryStart()">${ICON.plus(18)} Submit itinerary</button>
-    <div class="hint" style="text-align:left;padding:11px 2px 2px">Choose <b>new show</b> or <b>existing show</b>, then upload. You’ll see some details first. Confirm to add the rest, or cancel.</div>
+    <div class="hint" style="text-align:left;padding:11px 2px 2px">Choose <b>new show</b> or <b>existing show</b>, then upload. Existing show uploads run in the background until Make confirms.</div>
     ${list.length? list.map(itinCard).join('') : `<div class="empty" style="margin-top:22px"><div class="ic">${ICON.file(26)}</div><b>Nothing submitted yet</b><span>Upload your first itinerary screenshot.</span></div>`}
     <div class="spacer"></div><div class="spacer"></div>
   </div>`;
 }
 function itinCard(it){
   const show = it.showId? sel.event(it.showId):null;
-  const pending = !!(it.scanFields && !it.showId) || (it.mode === 'existing' && it.decisionNotified !== 'confirmed' && !it.fullUploadDone);
+  const pending = !!(it.scanFields && !it.showId) || (it.mode === 'existing' && !it.fullUploadDone);
   const when = (it.date?fmtDate(it.date):'')+(it.time?' · '+it.time:'');
   const thumbs = (it.imgs||[]).map(im=>im.kind==='image'
     ? `<div class="thumb" onclick="event.stopPropagation();openViewer('${im.data}')"><img src="${im.data}"></div>`
@@ -1460,7 +1535,7 @@ function itinCard(it){
     <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px" onclick="openItineraryEntry('${it.id}')">
       <div style="min-width:0"><b style="font-size:15.5px">${esc(itinerarySourceLabel(it.source))}</b>
         <div style="font-size:13px;color:var(--text-2);margin-top:2px">${pending?'Review show basics':(when||'No date set')}${show?' · '+esc(show.venue):''}</div>
-        ${pending?`<div style="font-size:12.5px;color:var(--accent-2);margin-top:4px;font-weight:500">${it.mode==='existing'?'Waiting for you to confirm adding this to the show':'Waiting for you to confirm &amp; create the show'}</div>`:''}
+        ${pending?`<div style="font-size:12.5px;color:var(--accent-2);margin-top:4px;font-weight:500">${it.mode==='existing'?'Upload didn’t finish — open to try again':'Waiting for you to confirm &amp; create the show'}</div>`:''}
         ${it.note?`<div style="font-size:13px;color:var(--text-3);margin-top:5px;white-space:pre-wrap">${esc(it.note)}</div>`:''}</div>
       ${ICON.chevR(15)}
     </div>
@@ -1469,8 +1544,12 @@ function itinCard(it){
 }
 function openItineraryEntry(id){
   const it=(store.itineraries||[]).find(x=>x.id===id); if(!it) return;
-  if(it.mode === 'existing' && it.decisionNotified !== 'confirmed' && !it.fullUploadDone){
-    sheetExistingItineraryReview(id);
+  if(it.mode === 'existing' && !it.fullUploadDone){
+    if(it.scanFields && Object.keys(it.scanFields).length){
+      sheetExistingItineraryReview(id);
+    } else {
+      sendExistingItineraryUpload(id);
+    }
     return;
   }
   if(it.scanFields && !it.showId){ sheetItineraryReview(id); return; }
@@ -1605,7 +1684,7 @@ function submitItinerary(input, mode){
     if(uploadMode === 'new'){
       await sendItineraryToMake(entry.id);
     } else {
-      await sendExistingItineraryPreview(entry.id);
+      await sendExistingItineraryUpload(entry.id);
     }
   });
 }
@@ -1639,8 +1718,18 @@ function normalizeMakeFields(payload){
   };
   const eventName = pick('eventName', 'event_name', 'EventName', 'event name');
   if(eventName) out.eventName = eventName;
-  const venue = pick('venue', 'venueName', 'venue_name', 'Venue');
+  const venue = pick('venue', 'venueName', 'venue_name', 'Venue', 'venu');
   if(venue) out.venue = venue;
+  const artist = pick('artist', 'Artist');
+  if(artist) out.artist = artist;
+  const region = pick('region', 'venueRegion', 'venue_region');
+  if(region) out.region = region;
+  const address = pick('address', 'venueAddress', 'venue_address');
+  if(address) out.address = address;
+  const address2 = pick('address2', 'venueAddress2', 'venue_address2');
+  if(address2) out.address2 = address2;
+  const postcode = pick('postcode', 'venuePostcode', 'venue_postcode');
+  if(postcode) out.postcode = postcode;
   return out;
 }
 function resolveOperateOrgId(){
@@ -1727,6 +1816,51 @@ async function postCalendarScreenshotsToMake(images){
   }
 }
 
+/* Make sometimes omits commas between JSON keys — repair before parse. */
+function parseMakeWebhookJson(text){
+  const raw = String(text || '').trim().replace(/^\uFEFF/, '');
+  if(!raw) return null;
+  const attempts = [raw];
+  /* e.g. "eventName":"…"\n"region": missing comma after closing quote */
+  attempts.push(raw.replace(/(?<=")\s*\r?\n\s*(?=")/g, ',\n'));
+  /* "Edinburgh""region" on one line */
+  attempts.push(raw.replace(/"\s*(?="[A-Za-z_])/g, '",\n"'));
+  attempts.push(raw.replace(/,\s*,/g, ','));
+  for(const candidate of attempts){
+    try{ return JSON.parse(candidate); }catch(_){ /* try next */ }
+  }
+  return null;
+}
+function unwrapMakeItineraryPayload(parsed){
+  if(parsed == null) return null;
+  if(typeof parsed === 'string'){
+    const inner = parseMakeWebhookJson(parsed);
+    return inner || null;
+  }
+  let p = parsed;
+  if(Array.isArray(p) && p.length) p = p[0];
+  if(!p || typeof p !== 'object') return null;
+  for(let depth = 0; depth < 4; depth++){
+    const nested = p.result ?? p.data ?? p.body ?? p.response ?? p.output;
+    if(nested == null) break;
+    if(typeof nested === 'string'){
+      const inner = parseMakeWebhookJson(nested);
+      if(inner && typeof inner === 'object'){ p = inner; continue; }
+      break;
+    }
+    if(typeof nested === 'object'){ p = nested; continue; }
+    break;
+  }
+  return p;
+}
+function makeItineraryFieldsFromResponse(text){
+  if(!String(text || '').trim()) return { fields:{}, payload:{}, parseError:false };
+  const parsed = parseMakeWebhookJson(text);
+  if(!parsed) return { fields:{}, payload:{}, parseError:true, raw:text };
+  const payload = unwrapMakeItineraryPayload(parsed) || parsed;
+  const fields = normalizeMakeFields(payload);
+  return { fields, payload, parseError:false };
+}
 /* POST the uploaded file straight to Make. Basics + full use different webhooks. */
 async function postItineraryFileToMake(it, opts={}){
   const file=(it.imgs||[]).find(im=>im.kind==='image') || (it.imgs||[])[0];
@@ -1758,17 +1892,34 @@ async function postItineraryFileToMake(it, opts={}){
     });
     const text=await res.text().catch(()=>'');
     if(!res.ok) return { error:'make_failed', status:res.status };
-    let payload={};
-    if(text.trim()){
-      try{ payload=JSON.parse(text); }catch(_){ return { ok:true, fields:{}, payload:{}, raw:text }; }
-    }
-    return { ok:true, fields: normalizeMakeFields(payload), payload };
+    const parsed = makeItineraryFieldsFromResponse(text);
+    if(parsed.parseError) return { ok:true, fields:{}, payload:{}, raw:text, parseError:true };
+    return { ok:true, fields: parsed.fields, payload: parsed.payload };
   }catch(err){
     if(err && err.name==='AbortError') return { error:'make_timeout' };
     return { error:'scan_failed', detail: String(err&&err.message||err||'') };
   }finally{
     clearTimeout(timer);
   }
+}
+function existingItineraryPreviewHasData(fields){
+  if(!fields || typeof fields !== 'object') return false;
+  const keys = ['eventName','artist','date','setTime','endTime','venue','city','country','region','address','address2','postcode'];
+  return keys.some(k => {
+    const v = fields[k];
+    return v != null && String(v).trim() !== '';
+  });
+}
+/* Existing-show scan: Make returns OCR fields only (no success yes/no). */
+function parseExistingItineraryWebhookResult(payload, fieldsHint){
+  if(!payload || typeof payload !== 'object') return { ok:false };
+  const s = String(payload.success ?? '').trim().toLowerCase();
+  if(s === 'no') return { ok:false };
+  const fields = fieldsHint && Object.keys(fieldsHint).length
+    ? fieldsHint
+    : normalizeMakeFields(unwrapMakeItineraryPayload(payload) || payload);
+  if(existingItineraryPreviewHasData(fields)) return { ok:true };
+  return { ok:false };
 }
 function itineraryScanErrorToast(code){
   if(code==='make_timeout') return 'The upload timed out — try again in a moment';
@@ -1806,32 +1957,62 @@ async function sendItineraryToMake(id){
 async function scanItineraryForReview(id){
   await sendItineraryToMake(id);
 }
-async function sendExistingItineraryPreview(id){
-  const it=(store.itineraries||[]).find(x=>x.id===id); if(!it) return;
+async function sendExistingItineraryUpload(id){
+  const it=(store.itineraries||[]).find(x=>x.id===id);
+  if(!it) return;
   if(!(it.imgs||[]).length){
     toast('Nothing to send — upload a file first','file');
     return;
   }
-  openSheetReact('Sending itinerary', 'itinerary.sending', {});
-  toast('Sending itinerary…','image');
+  const showId = it.showId;
+  if(!showId){
+    toast('Pick a show first','x');
+    return;
+  }
+  openSheetReact('Adding to show', 'itinerary.sending', { variant:'existing', phase:'loading' }, { scrimClose:false });
+  toast('Uploading itinerary…','image');
   try{
-    const result = await postItineraryFileToMake(it, { stage:'basics', purpose:'existing_preview' });
+    const result = await postItineraryFileToMake(it, { stage:'existing' });
     if(result.error){
+      openExistingItineraryUploadFailed(id, itineraryScanErrorToast(result.error));
       toast(itineraryScanErrorToast(result.error),'x');
-      sheetExistingItineraryReview(id);
       return;
     }
-    it.scanFields = result.fields || {};
+    if(result.parseError){
+      openExistingItineraryUploadFailed(id, 'Make returned a response we couldn’t read. Check the scenario returns valid JSON.');
+      toast('Couldn’t read Make response','x');
+      return;
+    }
+    const scanFields = result.fields || normalizeMakeFields(result.payload || {});
+    if(!parseExistingItineraryWebhookResult(result.payload, scanFields).ok){
+      openExistingItineraryUploadFailed(id, 'Itinerary upload failed. No show details came back from Make.');
+      toast('Itinerary upload failed','x');
+      return;
+    }
+    it.scanFields = Object.assign({}, scanFields);
     const scannedDate = normalizeScanDate(it.scanFields.date);
     if(scannedDate) it.date = scannedDate;
+    it.fullUploadDone = false;
+    it.decisionNotified = null;
     persist('user_preferences');
     sheetExistingItineraryReview(id);
-    const keys = Object.keys(it.scanFields||{});
-    toast(keys.length ? 'Check these details, then confirm' : 'File sent — confirm to add the full itinerary','check');
+    toast('Check these details look right','check');
   }catch(err){
-    toast('Couldn’t send the itinerary — try again','x');
-    sheetExistingItineraryReview(id);
+    console.error('sendExistingItineraryUpload', err);
+    openExistingItineraryUploadFailed(id, 'Couldn’t send the itinerary — try again');
+    toast('Itinerary upload failed','x');
   }
+}
+function openExistingItineraryUploadFailed(id, message){
+  openSheetReact('Upload failed', 'itinerary.sending', {
+    variant:'existing',
+    phase:'failed',
+    message: message || 'Itinerary upload failed.',
+    itineraryId: id
+  }, { scrimClose:true });
+}
+async function sendExistingItineraryPreview(id){
+  await sendExistingItineraryUpload(id);
 }
 async function fetchItineraryScanFields(it){
   const result = await postItineraryFileToMake(it);
@@ -1904,7 +2085,7 @@ function sheetExistingItineraryReview(id){
   itineraryReviewSnapshot = it;
   const show = it.showId && sel.event ? sel.event(it.showId) : null;
   const showName = show ? ((typeof showTitle==='function' ? showTitle(show) : '') || show.venue || 'this show') : 'this show';
-  openSheetReact('Check itinerary', 'itinerary.existingReview', {
+  openSheetReact('Does this look correct?', 'itinerary.existingReview', {
     id,
     fields: it.scanFields || {},
     showName
@@ -2146,23 +2327,44 @@ async function saveItineraryReview(id){
 async function confirmExistingItineraryReview(id){
   const it=itineraryForReview(id);
   if(!it){
-    toast('That upload is still open — tap Add to show again','x');
+    toast('That upload is still open — tap confirm again','x');
     return;
   }
   const showId = it.showId;
   if(!showId){ toast('Pick a show first','x'); return; }
   const btn=document.getElementById('itn-exist-confirm');
   if(btn) btn.disabled=true;
-  const show = (typeof sel !== 'undefined' && sel.event) ? sel.event(showId) : null;
-  attachOriginalItineraryToShow(show, it);
-  if(show) persist('shows', showId);
+  openSheetReact('Adding to show', 'itinerary.sending', { variant:'existing', phase:'loading' }, { scrimClose:false });
+  try{
+    const show = (typeof sel !== 'undefined' && sel.event) ? sel.event(showId) : null;
+    if(show && it.scanFields) applyScanToShow(show, it.scanFields);
+    attachOriginalItineraryToShow(show, it);
+    if(show) persist('shows', showId);
+    notifyItineraryDecision(it, 'confirmed', { show_id: showId });
+    it.fullUploadDone = true;
+    persist('user_preferences');
+    if(typeof currentOrgId !== 'undefined' && currentOrgId && typeof loadFromSupabase === 'function'){
+      try{ await loadFromSupabase(currentOrgId); }catch(_){}
+    }
+    clearItineraryReviewGuards();
+    closeSheet(true, { noReturn:true });
+    renderView();
+    if(typeof openView === 'function') openView('event', showId);
+    toast('Upload successful','check');
+  }catch(err){
+    console.error('confirmExistingItineraryReview', err);
+    if(btn) btn.disabled=false;
+    sheetExistingItineraryReview(id);
+    toast('Couldn’t finish — try confirming again','x');
+  }
+}
+function rejectExistingItineraryReview(id){
+  const it=(store.itineraries||[]).find(x=>x.id===id);
+  if(it) notifyItineraryDecision(it, 'cancelled', { reason:'declined', show_id: it.showId || '' });
   clearItineraryReviewGuards();
   closeSheet(true, { noReturn:true });
   renderView();
-  if(typeof openView === 'function') openView('event', showId);
-  notifyItineraryDecision(it, 'confirmed', { show_id: showId });
-  toast('Adding the full itinerary…','check');
-  await startItineraryFullUpload(id, showId, 'existing');
+  toast('Itinerary not added','x');
 }
 function itineraryFullUploadBanner(showId){
   const st = itineraryFullUploadByShow[showId];
@@ -2504,7 +2706,7 @@ function applyScanToShow(e, f){
     e.eventName = f.eventName||f.event_name||f.EventName;
     filled.push('event name');
   }
-  if(!e.venue    && (f.venue||f.venueName)) { e.venue=f.venue||f.venueName; filled.push('venue'); }
+  if(!e.venue    && (f.venue||f.venueName||f.venu)) { e.venue=f.venue||f.venueName||f.venu; filled.push('venue'); }
   const scannedDate=normalizeScanDate(f.date);
   if(!e.date     && scannedDate)     { e.date=scannedDate;            filled.push('date'); }
   if(!e.setTime  && f.setTime)       { e.setTime=normalizeScanTime(f.setTime)||f.setTime; filled.push('set time'); }
@@ -2515,7 +2717,10 @@ function applyScanToShow(e, f){
       if(typeof resolveSetEndDate === 'function') e.setEndDate = resolveSetEndDate(e);
     }
   if(!e.arrival  && f.arrival)       { e.arrival=normalizeScanTime(f.arrival)||f.arrival; filled.push('arrival'); }
-  if(!e.venueAddr && f.venueAddress) { e.venueAddr=f.venueAddress;    filled.push('venue address'); }
+  if(!e.venueAddr && (f.venueAddress||f.address)) { e.venueAddr=f.venueAddress||f.address; filled.push('venue address'); }
+  if(!e.venueAddr2 && (f.venueAddr2||f.address2)) { e.venueAddr2=f.venueAddr2||f.address2; filled.push('address line 2'); }
+  if(!e.venueRegion && (f.venueRegion||f.region)) { e.venueRegion=f.venueRegion||f.region; filled.push('region'); }
+  if(!e.venuePostcode && (f.venuePostcode||f.postcode)) { e.venuePostcode=f.venuePostcode||f.postcode; filled.push('postcode'); }
   if(!e.city     && f.city)          { e.city=f.city;                 filled.push('city'); }
   if(!e.country  && f.country)       { e.country=f.country;           filled.push('country'); }
   const a = e.advance || (e.advance = {});
@@ -2869,7 +3074,7 @@ function viewStats(){
     <div style="width:36px"></div>
   </div></div>
   <div class="screen-pad stagger">
-    <div class="hero" style="background:linear-gradient(155deg,#241a45,#191531 55%,#141418)">
+    <div class="hero" style="background:transparent">
       <div class="hero-label" style="color:var(--accent-2);font-weight:700">${ICON.trend(14)} This schedule</div>
       <div class="hero-venue" style="font-size:34px;font-weight:400">${st.shows} shows</div>
       <div class="hero-city">${st.upcoming} upcoming · ${st.cities} cities · ${st.tours} tours</div>
@@ -3170,7 +3375,7 @@ function viewFinance(){
       <button class="on">${ICON.trend(15)} Overview</button>
       <button onclick="openView('invoices')">${ICON.receipt(15)} Invoices${store.invoices.length?' ('+store.invoices.length+')':''}</button>
     </div>
-    <div class="hero" style="background:linear-gradient(155deg,#0e2f1c,#12241b 55%,#141418)">
+    <div class="hero" style="background:transparent">
       <div class="hero-label" style="color:var(--green);font-weight:700">${ICON.coins(14)} Net booked · ${base}</div>
       <div class="hero-venue" style="font-size:38px;font-weight:400">${fmtBase(s.netBase)}</div>
       <div class="hero-city">${fmtBase(s.grossBase)} gross · after commission & costs</div>
