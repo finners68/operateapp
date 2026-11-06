@@ -392,7 +392,7 @@ function migrateShowFlightInfo(e){
 }
 function flightPassengerSummary(f){
   return flightPassengers(f).map(p => {
-    const bits = [p.name, p.seat ? ('Seat ' + p.seat) : '', passengerBookingRef(p)].filter(Boolean);
+    const bits = [p.name, p.seat ? ('Seat ' + p.seat) : ''].filter(Boolean);
     return bits.join(' · ');
   }).filter(Boolean).join(' · ');
 }
@@ -1523,14 +1523,14 @@ const sel = {
 
 /* ---------- Money / finance engine (multi-currency) ---------- */
 const CURSYM = {GBP:'£',EUR:'€',USD:'$',CHF:'CHF ',AUD:'A$',CAD:'C$',AED:'AED ',SGD:'S$',SEK:'kr ',NOK:'kr ',DKK:'kr ',PLN:'zł ',CZK:'Kč ',ZAR:'R '};
-function fxRate(cur){ return (store.settings.fx&&store.settings.fx[cur])||1; }
-function toBase(amount, cur){ const base=store.settings.baseCurrency; return (amount||0) * fxRate(cur) / (fxRate(base)||1); }
+function fxRate(cur){ return (store && store.settings && store.settings.fx && store.settings.fx[cur]) || 1; }
+function toBase(amount, cur){ const base = (store && store.settings && store.settings.baseCurrency) || 'EUR'; return (amount||0) * fxRate(cur) / (fxRate(base)||1); }
 function fmtMoney(amount, cur){
   const sym = CURSYM[cur]||(cur+' ');
   const n = Math.round(amount||0);
   return sym + n.toLocaleString('en-GB');
 }
-function fmtBase(amount){ return fmtMoney(amount, store.settings.baseCurrency); }
+function fmtBase(amount){ return fmtMoney(amount, (store && store.settings && store.settings.baseCurrency) || 'EUR'); }
 const money = {
   eventCalc: e => {
     const f = e.finance||{fee:0,currency:store.settings.baseCurrency,expenses:[],perDiem:0,commission:0};
@@ -1566,7 +1566,7 @@ const money = {
 function dayIdx(ds){ const d=parseDT(ds); return d?Math.floor(d.getTime()/86400000):0; }
 function homeAirport(){ return (store.settings.homeAirport||'AMS').toUpperCase(); }
 /* Strip b2b / bracketed extras from a venue name so the address + map search use the main name only. */
-function cleanVenue(v){ v=(v||'').trim(); const c=v.replace(/\s*[\(\[][^\)\]]*[\)\]]\s*/g,' ').replace(/\s+b2b\b.*$/i,'').replace(/\s{2,}/g,' ').trim(); return c||v; }
+function cleanVenue(v){ v=String(v||'').trim(); const c=v.replace(/\s*[\(\[][^\)\]]*[\)\]]\s*/g,' ').replace(/\s+b2b\b.*$/i,'').replace(/\s{2,}/g,' ').trim(); return c||v; }
 /* The artist's money currency follows their home airport: UK airports -> GBP, everywhere else -> EUR. */
 const UK_AIRPORTS=['LHR','LGW','STN','LTN','LCY','MAN','BHX','EDI','GLA','BRS','NCL','LPL','LBA','BFS','SEN','EMA','ABZ','CWL','SOU','EXT','GLA','INV','DSA'];
 function homeCurrency(){ return UK_AIRPORTS.includes(homeAirport())?'GBP':'EUR'; }

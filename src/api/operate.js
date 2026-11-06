@@ -112,17 +112,55 @@ export function getShowsListState(){ const fn = w('getShowsListState'); return t
 export function tickCountdowns(...a){ const fn = w('tickCountdowns'); return typeof fn === 'function' ? fn(...a) : undefined; }
 export function persist(...a){ const fn = w('persist'); return typeof fn === 'function' ? fn(...a) : undefined; }
 
-/** Snapshots for useSyncExternalStore — avoid re-rendering Shows list on unrelated notifyStore() churn. */
+/* Cached snapshots for useSyncExternalStore.
+   Recompute only when the store version (or the shows filter) changes, and
+   return the previous string when the visible data did not change.
+   Never stringify whole shows — photos and boarding passes can be huge or
+   circular, and that was crashing the screen when you opened one. */
+let showsListSnap = { key: '', value: '' };
+const showDetailSnaps = new Map();
+
+function storeSeq(){
+  const st = getStore();
+  return st && st._seq ? st._seq : 0;
+}
+
+function trimHeavy(key, value){
+  if(key === 'data' && typeof value === 'string' && value.length > 80){
+    return value.slice(0, 24) + ':' + value.length;
+  }
+  return value;
+}
+
+function safeJson(value){
+  const seen = new WeakSet();
+  try{
+    return JSON.stringify(value, (key, v) => {
+      const trimmed = trimHeavy(key, v);
+      if(trimmed && typeof trimmed === 'object'){
+        if(seen.has(trimmed)) return null;
+        seen.add(trimmed);
+      }
+      return trimmed;
+    });
+  }catch(_){
+    return '';
+  }
+}
+
 export function getShowsListRenderSnapshot(){
   if(typeof window === 'undefined') return '';
+  const st = getShowsListState() || {};
+  const key = [storeSeq(), st.mode || 'shows', st.filter || 'upcoming', st.search || ''].join('\0');
+  if(showsListSnap.key === key) return showsListSnap.value;
+  let value = '';
   try{
     const sel = getSel();
     const events = sel && sel.events ? sel.events() : [];
     const sorted = events.slice().sort((a, b) => String(a.id || '').localeCompare(String(b.id || '')));
-    const st = getShowsListState() || {};
     const runsFn = w('runs');
     const runs = typeof runsFn === 'function' ? runsFn() : [];
-    return JSON.stringify({
+    value = safeJson({
       mode: st.mode || 'shows',
       filter: st.filter || 'upcoming',
       search: st.search || '',
@@ -146,23 +184,30 @@ export function getShowsListRenderSnapshot(){
         b: r.end,
         n: (r.shows || []).length,
       })),
-    });
-  }catch(err){
-    return 'err';
+    }) || 'empty';
+  }catch(_){
+    value = 'err';
   }
+  if(value === showsListSnap.value){
+    showsListSnap = { key, value: showsListSnap.value };
+    return showsListSnap.value;
+  }
+  showsListSnap = { key, value };
+  return value;
 }
 
-/** Show detail screen — re-render when this show or trip-mode anchor changes, not on every global tick. */
 export function getShowDetailSnapshot(showId){
+  /* Do not walk or copy the show here. Photos, passes and odd field types
+     were blowing up the page the moment a show opened from Home. */
   if(typeof window === 'undefined') return '';
   const id = String(showId || '');
-  const e = getEvent(id);
-  const st = getStore();
-  const active = st && st.activeShowId;
-  if(!e){
-    return JSON.stringify({ id, missing: true, active: active || null });
-  }
-  return JSON.stringify({ id, active: active || null, e });
+  const seq = storeSeq();
+  const active = (getStore() && getStore().activeShowId) || '';
+  const hit = showDetailSnaps.get(id);
+  if(hit && hit.seq === seq && hit.active === active) return hit.value;
+  const value = id + '\0' + seq + '\0' + active;
+  showDetailSnaps.set(id, { seq, active, value });
+  return value;
 }
 
 export const nav = {

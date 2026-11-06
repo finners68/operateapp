@@ -174,7 +174,7 @@ function venueMapQuery(sh){
   const parts = [sh.venueAddr, sh.venueAddr2, sh.city, sh.venueRegion, sh.venuePostcode, sh.country];
   const seen = new Set();
   return parts
-    .map(x=>(x||'').trim())
+    .map(x=>String(x||'').trim())
     .filter(x=>{ if(!x) return false; const k=x.toLowerCase(); if(seen.has(k)) return false; seen.add(k); return true; })
     .join(', ');
 }
@@ -649,15 +649,14 @@ function saveTrip(tid){
    ============================================================ */
 function startTripFromShow(showId){ store.activeShowId=showId; persist('user_preferences'); overlay=null; navStack=[]; store.tab='trips'; if(typeof saveNavState==='function') saveNavState(); render({ resetScroll: true }); toast('Trip Mode on','play'); }
 function endTripMode(){ confirmSheet('End Trip Mode?','This turns off the live tour view. Nothing is deleted.','End Trip Mode',()=>{ store.activeShowId=null; persist('user_preferences'); overlay=null; store.tab='trips'; if(typeof saveNavState==='function') saveNavState(); render({ resetScroll: true }); toast('Trip Mode off','flag'); }); }
-/* Every callable contact saved across a tour's shows — Artist Liaison,
-   drivers (even route-TBD ones) and key contacts — each with its title so
-   it's obvious who you're phoning. */
+/* Callable people saved on each show. The show contact list is the master
+   copy — the same person can also sit on a journey, and listing those
+   journeys would repeat them once per trip. */
 function tourContacts(run){
   const out=[];
-  run.shows.forEach(s=>{
+  (run && run.shows || []).forEach(s=>{
     const show = cleanVenue(s.venue)||s.city||'Show';
     if(s.promoter && (s.promoter.phone||s.promoter.whatsapp)) out.push({show, label:'Artist Liaison', name:s.promoter.name||'', phone:s.promoter.phone||'', whatsapp:s.promoter.whatsapp||''});
-    showDrivers(s).forEach(d=>{ if(d.noGround) return; if(d.phone||d.whatsapp) out.push({show, label:(d.journey||'Driver')+(d.time?' · '+d.time:''), name:d.name||'', phone:d.phone||'', whatsapp:d.whatsapp||''}); });
     (s.contacts||[]).forEach(c=>{ if(c.phone||c.whatsapp) out.push({show, label:showContactRoleLabel(c.role)||'Contact', name:c.name||'', phone:c.phone||'', whatsapp:c.whatsapp||''}); });
   });
   return out;

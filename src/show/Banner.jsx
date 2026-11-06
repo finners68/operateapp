@@ -64,8 +64,12 @@ export function QuickLinks({ show }){
   const hotelItem = items.find(x => x.kind === 'stay');
   const drivers = items.filter(x => x.kind === 'travel' && call('isDriverItem', x));
 
-  const venueQ = call('venueMapQuery', show)
-    || call('formatVenueAddress', show)
+  const safe = (name, ...args) => {
+    try { return call(name, ...args); }
+    catch(err){ console.error(name, err); return ''; }
+  };
+  const venueQ = safe('venueMapQuery', show)
+    || safe('formatVenueAddress', show)
     || [show.city, show.country].filter(Boolean).join(', ');
 
   const tiles = [];
@@ -88,8 +92,8 @@ export function QuickLinks({ show }){
 
   if(hotelItem || show.hotel){
     const q = show.hotel
-      ? call('hotelMapQuery', show)
-      : `${(hotelItem.place || hotelItem.title || '').replace(/^hotel\s*[-–:]?\s*/i, '').trim()} ${show.city || ''}`.trim();
+      ? safe('hotelMapQuery', show)
+      : `${String(hotelItem.place || hotelItem.title || '').replace(/^hotel\s*[-–:]?\s*/i, '').trim()} ${show.city || ''}`.trim();
     tiles.push(
       <ActTile key="hotel" icon="bed" color="var(--orange)" label="Hotel" onClick={() => call('openMaps', q)} />
     );

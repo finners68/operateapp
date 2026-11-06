@@ -1,5 +1,5 @@
-import { useMemo, useSyncExternalStore } from 'react';
-import { call, fmtDate, getCats, getSel, getShowDetailSnapshot, iconHtml, subscribeStore } from '../api/operate.js';
+import { Component, useMemo, useSyncExternalStore } from 'react';
+import { call, fmtDate, getCats, getEvent, getSel, getShowDetailSnapshot, getStore, iconHtml, subscribeStore } from '../api/operate.js';
 import { Group, Icon } from './ui.jsx';
 import { UploadBanner, QuickLinks } from './Banner.jsx';
 import TravelGroup from './Travel.jsx';
@@ -8,19 +8,14 @@ import DealGroup from './Deal.jsx';
 import { DayOverview, Checklist, Notes, ContentBlock, Attachments } from './Prep.jsx';
 
 function useShow(showId){
+  /* Snapshot is only a change-detector. The page always reads the live show
+     so photos and files stay on the real record and we don't copy it. */
   const snap = useSyncExternalStore(
     subscribeStore,
     () => getShowDetailSnapshot(showId),
     () => ''
   );
-  return useMemo(() => {
-    try{
-      const o = snap ? JSON.parse(snap) : null;
-      return o && o.e ? o.e : null;
-    }catch(_){
-      return null;
-    }
-  }, [snap]);
+  return useMemo(() => getEvent(showId), [snap, showId]);
 }
 
 function todayISO(){
@@ -71,7 +66,32 @@ function Foot({ show }){
   );
 }
 
-export default function ShowPage({ showId }){
+class ShowPageBoundary extends Component {
+  constructor(props){
+    super(props);
+    this.state = { error: null };
+  }
+  static getDerivedStateFromError(error){
+    return { error };
+  }
+  componentDidCatch(error){
+    console.error('Show page failed', error);
+  }
+  render(){
+    if(this.state.error){
+      return (
+        <div className="empty" style={{ marginTop: 28 }}>
+          <b>Couldn’t open this show</b>
+          <span>Something in the show details stopped the screen. You can go back. The rest of the app is still there.</span>
+          <button type="button" className="btn" style={{ marginTop: 14, maxWidth: 220 }} onClick={() => call('back')}>Back</button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
+function ShowPage({ showId }){
   const show = useShow(showId);
   if(!show){
     return <div className="empty"><b>Gone</b></div>;
@@ -84,10 +104,14 @@ export default function ShowPage({ showId }){
   const trip = show.tripId && getSel()?.trip ? getSel().trip(show.tripId) : null;
   const backLabel = trip ? trip.name : (call('overlayBackLabel') || 'Back');
 
-  const travelSummary = call('travelGroupSummary', show) || '';
-  const venueSummary = call('venueGroupSummary', show) || '';
-  const dealSummary = call('dealGroupSummary', show) || '';
-  const prepSummary = call('prepGroupSummary', show) || '';
+  const safeSummary = (name) => {
+    try { return call(name, show) || ''; }
+    catch(err){ console.error(name, err); return ''; }
+  };
+  const travelSummary = safeSummary('travelGroupSummary');
+  const venueSummary = safeSummary('venueGroupSummary');
+  const dealSummary = safeSummary('dealGroupSummary');
+  const prepSummary = safeSummary('prepGroupSummary');
   return (
     <>
       <div className="detail-top">
@@ -167,5 +191,13 @@ export default function ShowPage({ showId }){
         </div>
       </div>
     </>
+  );
+}
+
+export default function ShowPageGuarded(props){
+  return (
+    <ShowPageBoundary>
+      <ShowPage {...props} />
+    </ShowPageBoundary>
   );
 }

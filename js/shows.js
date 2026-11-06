@@ -509,9 +509,9 @@ function flightsSubsection(e){
    most prominent business there, not the hotel. Detected by country, or by a
    UK-style postcode (letters first, e.g. "M1 1AE"). */
 function isUKShow(e){
-  const c = (e && (e.hotel && e.hotel.country || e.country) || '').trim().toLowerCase();
+  const c = String(e && (e.hotel && e.hotel.country || e.country) || '').trim().toLowerCase();
   if(/\b(uk|gb|england|scotland|wales|northern ireland|great britain|united kingdom|britain)\b/.test(c)) return true;
-  const p = (e && e.hotel && e.hotel.postcode || '').trim();
+  const p = String(e && e.hotel && e.hotel.postcode || '').trim();
   return /^[A-Za-z]{1,2}\d/.test(p);
 }
 /* The hotel name as entered on the show — from the Hotel section, or (if that
@@ -519,11 +519,11 @@ function isUKShow(e){
    for hotel Maps searches. */
 function hotelBestName(e){
   const h = e && e.hotel;
-  const name = (h && h.name || '').trim();
+  const name = String(h && h.name || '').trim();
   if(name) return name;
   if(e && typeof showLegs === 'function'){
-    const stay = showLegs(e.id).find(x => x.kind==='stay' && (x.place||'').trim());
-    if(stay) return (stay.place||'').trim();
+    const stay = showLegs(e.id).find(x => x.kind==='stay' && String(x.place||'').trim());
+    if(stay) return String(stay.place||'').trim();
   }
   return '';
 }
@@ -536,7 +536,7 @@ function hotelMapQuery(e){
   const h = e && e.hotel;
   const name = hotelBestName(e);
   if(!h && !name) return '';
-  const post = (h && h.postcode || '').trim();
+  const post = String(h && h.postcode || '').trim();
   if(post && isUKShow(e)) return post;
   const addr = typeof formatHotelAddress === 'function' ? formatHotelAddress(h) : '';
   const parts = name
@@ -546,7 +546,7 @@ function hotelMapQuery(e){
       : [(h && h.city) || (e && e.city), (h && h.country) || (e && e.country)]);
   const seen = new Set();
   return parts
-    .map(x=>(x||'').trim())
+    .map(x=>String(x||'').trim())
     .filter(x=>{ if(!x) return false; const k=x.toLowerCase(); if(seen.has(k)) return false; seen.add(k); return true; })
     .join(', ');
 }
