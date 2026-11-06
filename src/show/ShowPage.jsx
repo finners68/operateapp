@@ -1,5 +1,5 @@
-import { useSyncExternalStore } from 'react';
-import { call, fmtDate, getCats, getEvent, getSel, getStore, iconHtml, subscribeStore } from '../api/operate.js';
+import { useMemo, useSyncExternalStore } from 'react';
+import { call, fmtDate, getCats, getSel, getShowDetailSnapshot, iconHtml, subscribeStore } from '../api/operate.js';
 import { Group, Icon } from './ui.jsx';
 import { UploadBanner, QuickLinks } from './Banner.jsx';
 import TravelGroup from './Travel.jsx';
@@ -8,19 +8,19 @@ import DealGroup from './Deal.jsx';
 import { DayOverview, Checklist, Notes, ContentBlock, Attachments } from './Prep.jsx';
 
 function useShow(showId){
-  return useSyncExternalStore(
+  const snap = useSyncExternalStore(
     subscribeStore,
-    () => getEvent(showId),
-    () => null
+    () => getShowDetailSnapshot(showId),
+    () => ''
   );
-}
-
-function useStoreTick(){
-  return useSyncExternalStore(
-    subscribeStore,
-    () => getStore()?._seq || 0,
-    () => 0
-  );
+  return useMemo(() => {
+    try{
+      const o = snap ? JSON.parse(snap) : null;
+      return o && o.e ? o.e : null;
+    }catch(_){
+      return null;
+    }
+  }, [snap]);
 }
 
 function todayISO(){
@@ -72,7 +72,6 @@ function Foot({ show }){
 }
 
 export default function ShowPage({ showId }){
-  useStoreTick();
   const show = useShow(showId);
   if(!show){
     return <div className="empty"><b>Gone</b></div>;

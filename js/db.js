@@ -1,5 +1,35 @@
 /* Operate — Supabase sync (V2-native entity state + composed view projections) */
 const ORG_KEY = 'operate_org_id';
+const LAST_ORG_PREFIX = 'operate_last_org:';
+function getLastOrgKeyForUser(userId){
+  const id = String(userId || '').trim();
+  if(!id) return null;
+  return LAST_ORG_PREFIX + id;
+}
+function getLastOrgIdForUser(userId){
+  const key = getLastOrgKeyForUser(userId);
+  if(!key) return null;
+  try{ return localStorage.getItem(key); }catch(e){ return null; }
+}
+function setLastOrgIdForUser(userId, orgId){
+  const key = getLastOrgKeyForUser(userId);
+  const oid = String(orgId || '').trim();
+  if(!key || !oid) return;
+  try{ localStorage.setItem(key, oid); }catch(e){}
+}
+/* Remember org per signed-in user, or per browser in no-login dev mode. */
+function noteOrgChoicePersisted(orgId){
+  const oid = String(orgId || '').trim();
+  if(!oid) return;
+  if(typeof isDevHardwireMode === 'function' && isDevHardwireMode()
+      && !(typeof authUser !== 'undefined' && authUser && authUser.id)){
+    setLastOrgIdForUser('__dev_hardwire__', oid);
+    return;
+  }
+  if(typeof authUser !== 'undefined' && authUser && authUser.id){
+    setLastOrgIdForUser(authUser.id, oid);
+  }
+}
 const MIGRATION_PREFIX = 'operate_supabase_migrated:';
 const BUCKET = STORAGE_BUCKET;
 /* Boarding pass uploads: photos, PDFs, and real Apple Wallet .pkpass files. */
@@ -490,9 +520,13 @@ async function ensureOrgForUser(){
   if(isDevHardwireMode()){
     const orgs = getHardcodedOrgs();
     const stored = getStoredOrgId();
+    const lastDev = getLastOrgIdForUser('__dev_hardwire__');
     const fallback = typeof getDefaultHardcodedOrg === 'function' ? getDefaultHardcodedOrg() : orgs[0];
-    const match = orgs.find(o => o.id === stored) || fallback;
+    const match = orgs.find(o => o.id === stored)
+      || orgs.find(o => o.id === lastDev)
+      || fallback;
     setStoredOrgId(match.id);
+    noteOrgChoicePersisted(match.id);
     if(store) store.organisationName = match.name;
     return match.id;
   }
@@ -502,19 +536,36 @@ async function ensureOrgForUser(){
   if(!sb || !user) throw new Error('no_auth');
   if(!isAllowedUser(user)) throw new Error('wrong_user');
 
-  /* Membership decides the org when signed in. */
+  /* Membership decides the org when signed in — prefer this device’s last choice. */
   const stored = getStoredOrgId();
   if(stored){
     const { data: ok } = await sb.from(V2_TABLES.members).select('organisation_id')
       .eq('organisation_id', stored).eq('user_id', user.id).maybeSingle();
-    if(ok){ currentOrgId = stored; return stored; }
+    if(ok){
+      currentOrgId = stored;
+      noteOrgChoicePersisted(stored);
+      return stored;
+    }
+  }
+
+  const lastOrg = getLastOrgIdForUser(user.id);
+  if(lastOrg){
+    const { data: okLast } = await sb.from(V2_TABLES.members).select('organisation_id')
+      .eq('organisation_id', lastOrg).eq('user_id', user.id).maybeSingle();
+    if(okLast){
+      setStoredOrgId(lastOrg);
+      noteOrgChoicePersisted(lastOrg);
+      return lastOrg;
+    }
   }
 
   const { data: memberships } = await sb.from(V2_TABLES.members)
     .select('organisation_id').eq('user_id', user.id).order('created_at', { ascending: true }).limit(1);
   if(memberships && memberships.length){
-    setStoredOrgId(memberships[0].organisation_id);
-    return memberships[0].organisation_id;
+    const mid = memberships[0].organisation_id;
+    setStoredOrgId(mid);
+    noteOrgChoicePersisted(mid);
+    return mid;
   }
 
   if(getAllowedUserId() || getFixedOrgId()) throw new Error('not_linked_to_dev_org');
@@ -536,6 +587,7 @@ async function ensureOrgForUser(){
   }
 
   setStoredOrgId(newOrgId);
+  noteOrgChoicePersisted(newOrgId);
   return newOrgId;
 }
 

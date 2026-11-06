@@ -428,7 +428,7 @@ Storage path pattern: `{org_id}/{show_id_or_folder}/{legacy_id}.{ext}` in bucket
 | Invite | `org_invites` | email, role, token, accepted_at | `auth.js` |
 | Usage | `usage_events` | kind, user_id | Edge function rate limits |
 
-Local: `operate_org_id` in localStorage; nav state in `operate_nav` (not synced).
+Local: `operate_org_id` in localStorage; per-user last org `operate_last_org:<user_id>` (signed-in) or `operate_last_org:__dev_hardwire__` (no-login dev mode); nav state in `operate_nav` (not synced).
 
 ---
 

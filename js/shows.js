@@ -1,7 +1,7 @@
 /* ============================================================
    SHOWS — list, add, edit
    ============================================================ */
-let showFilter = 'all';
+let showFilter = 'upcoming';
 let showSearch = '';
 let showsMode = 'shows'; // 'shows' | 'tours' — the two views under the merged Shows / Tours section
 Object.defineProperty(window, 'showsMode', {
@@ -13,7 +13,7 @@ function getShowsListState(){
   return { mode: showsMode, filter: showFilter, search: showSearch };
 }
 function prepareShowsList(){
-  showFilter = 'all';
+  showFilter = 'upcoming';
 }
 function setShowSearchQuiet(v){
   showSearch = String(v == null ? '' : v);
@@ -60,12 +60,12 @@ function showsModeSearchAndChips(){
   const all = sel.events();
   const upcomingN = all.filter(e => !showPassed(e) && e.status !== 'cancelled').length;
   const chips = [
-    {k:'all', l:'All · '+all.length},
     {k:'upcoming', l:`Upcoming · ${upcomingN}`},
     {k:'past', l:'Past'},
     {k:'confirmed', l:'Confirmed'},
     {k:'hold', l:'Hold'},
     {k:'cancelled', l:'Cancelled'},
+    {k:'all', l:'All · '+all.length},
   ];
   return `
     <div class="searchbar"><span class="ic">${ICON.search(18)}</span><input placeholder="Search venue or city" value="${esc(showSearch)}" oninput="showSearch=this.value;debouncedShowSearch()"></div>
@@ -91,10 +91,36 @@ function showsListBody(){
   if(showFilter === 'upcoming') list = all.filter(e => !showPassed(e) && e.status !== 'cancelled');
   else if(showFilter === 'past') list = all.filter(showPassed);
   else if(showFilter === 'confirmed' || showFilter === 'hold' || showFilter === 'cancelled') list = all.filter(e => e.status === showFilter);
-  list.sort((a,b) => String((b.date||'')+(b.setTime||'')).localeCompare(String((a.date||'')+(a.setTime||''))));
+  /* Upcoming: soonest first. All / past / status: most recent first. */
+  if(showFilter === 'upcoming'){
+    list.sort((a,b) => String((a.date||'')+(a.setTime||'')).localeCompare(String((b.date||'')+(b.setTime||''))));
+  }else{
+    list.sort((a,b) => String((b.date||'')+(b.setTime||'')).localeCompare(String((a.date||'')+(a.setTime||''))));
+  }
   if(q) list = list.filter(e => `${e.eventName||''} ${e.venue||''} ${e.city||''} ${e.country||''} ${e.date||''}`.toLowerCase().includes(q));
   if(!list.length){
-    return `<div class="empty"><div class="ic">${ICON.music(28)}</div><b>${q?'No matches':'No shows here'}</b><span>${q?'Try another search term.':showFilter==='past'?'Past shows appear 24h after they finish.':'Tap + to add a venue, date and set time — then open the show for flights and hotels.'}</span>${q?'':`<button class="btn" style="margin-top:14px;max-width:240px" onclick="sheetEvent()">${ICON.plus(18)} Add show</button>`}</div>`;
+    let title, span, addBtn = '';
+    if(q){
+      title = 'No matches';
+      span = 'Try another search term.';
+    }else if(showFilter === 'past'){
+      title = 'You have no past shows.';
+      span = 'Past shows appear here 24 hours after they finish.';
+    }else if(showFilter === 'confirmed' || showFilter === 'hold' || showFilter === 'cancelled'){
+      const kind = showFilter === 'hold' ? 'hold' : showFilter;
+      title = `You have no ${kind} shows.`;
+      span = 'Change a show\'s status when you edit it.';
+    }else if(showFilter === 'upcoming'){
+      title = 'You have no upcoming shows.';
+      span = 'Tap + to add a venue, date and set time — then open the show for flights and hotels.';
+      addBtn = `<button class="btn" style="margin-top:14px;max-width:240px" onclick="sheetEvent()">${ICON.plus(18)} Add show</button>`;
+    }else{
+      /* all */
+      title = 'You have no shows.';
+      span = 'Tap + to add a venue, date and set time — then open the show for flights and hotels.';
+      addBtn = `<button class="btn" style="margin-top:14px;max-width:240px" onclick="sheetEvent()">${ICON.plus(18)} Add show</button>`;
+    }
+    return `<div class="empty"><div class="ic">${ICON.music(28)}</div><b>${esc(title)}</b><span>${esc(span)}</span>${q?'':addBtn}</div>`;
   }
   const groups = groupShowsByMonth(list);
   return groups.map(g=>`<div class="shows-month">${esc(g.label)} · ${g.items.length}</div><div class="card flush" style="margin-bottom:12px">${g.items.map(showListRow).join('')}</div>`).join('');
@@ -218,7 +244,7 @@ function viewHome(){
       const passes = typeof flightAllPasses==='function' ? flightAllPasses(f) : (f.passes||[]);
       return passes.length ? {f, p:passes[0]} : null;
     }).filter(Boolean)[0];
-    const hasContacts = !!(e.promoter&&(e.promoter.phone||e.promoter.whatsapp)) || showDrivers(e).some(d=>!d.noGround&&(d.phone||d.whatsapp)) || (e.contacts||[]).some(c=>c.phone||c.whatsapp);
+    const hasContacts = !!(e.promoter&&(e.promoter.phone||e.promoter.whatsapp)) || (e.contacts||[]).some(c=>c.phone||c.whatsapp);
     const hasTransport = showDrivers(e).length>0;
     const liaisonReach = e.promoter&&(e.promoter.phone||e.promoter.whatsapp);
     const hasRem = (store.reminders||[]).some(r=>r.showId===e.id && !r.fired && (r.kind||'manual')!=='usb');
@@ -1142,7 +1168,6 @@ function dayOverviewStepRow(e, s){
   const typeIc = hasRoute ? '' : `<div class="tl-type-ic">${icFn(tier==='performance'?16:13)}</div>`;
   return `<div class="tl-item is-${tier} ${s.done?'done':''}" data-id="${esc(s.id)}">
     <div class="tl-time">${esc(time)}</div>
-    <div class="tl-rail"><button type="button" class="tl-node" aria-label="${s.done?'Mark not done':'Mark done'}" onclick="event.stopPropagation();toggleShowTimelineStep('${eid}','${s.id}')"></button></div>
     <div class="tl-content is-${tier}${hasRoute?' has-route':''}" ${labelClick}>
       ${typeIc}
       <div class="tl-body">${titleHtml}${sub}${note}</div>
@@ -1160,9 +1185,9 @@ function dayOverviewBlock(e){
     ? `<div class="timeline show-day-timeline tl-preview">${(grouped.groups||[]).map(g=>{
         const steps=(g.steps||[]).filter(s=>keep.has(s.id));
         if(!steps.length) return '';
-        const head = grouped.multi && g.label ? `<div class="tl-day-row${g.today?' today':''}"><div class="tl-time"></div><div class="tl-rail"></div><div class="tl-day-head">${esc(g.label)}</div></div>` : '';
+        const head = grouped.multi && g.label ? `<div class="tl-day-row${g.today?' today':''}"><div class="tl-time"></div><div class="tl-day-head">${esc(g.label)}</div></div>` : '';
         return head+steps.map(s=>dayOverviewStepRow(e,s)).join('');
-      }).join('')}${compact.hidden?`<div class="tl-more-row"><div class="tl-time"></div><div class="tl-rail"></div><button type="button" class="tl-more" onclick="sheetShowTimeline('${e.id}')">+${compact.hidden} more itinerary item${compact.hidden===1?'':'s'}</button></div>`:''}</div>`
+      }).join('')}${compact.hidden?`<div class="tl-more-row"><div class="tl-time"></div><button type="button" class="tl-more" onclick="sheetShowTimeline('${e.id}')">+${compact.hidden} more itinerary item${compact.hidden===1?'':'s'}</button></div>`:''}</div>`
     : `<div class="card tap" onclick="sheetShowTimeline('${e.id}')" style="text-align:center;color:var(--text-3);padding:18px;font-weight:600">${ICON.clock(20)} Add show details — this overview fills in automatically</div>`;
   return `<section class="show-day-overview">
     <div class="show-day-overview-head">

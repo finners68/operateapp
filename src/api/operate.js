@@ -112,6 +112,59 @@ export function getShowsListState(){ const fn = w('getShowsListState'); return t
 export function tickCountdowns(...a){ const fn = w('tickCountdowns'); return typeof fn === 'function' ? fn(...a) : undefined; }
 export function persist(...a){ const fn = w('persist'); return typeof fn === 'function' ? fn(...a) : undefined; }
 
+/** Snapshots for useSyncExternalStore — avoid re-rendering Shows list on unrelated notifyStore() churn. */
+export function getShowsListRenderSnapshot(){
+  if(typeof window === 'undefined') return '';
+  try{
+    const sel = getSel();
+    const events = sel && sel.events ? sel.events() : [];
+    const sorted = events.slice().sort((a, b) => String(a.id || '').localeCompare(String(b.id || '')));
+    const st = getShowsListState() || {};
+    const runsFn = w('runs');
+    const runs = typeof runsFn === 'function' ? runsFn() : [];
+    return JSON.stringify({
+      mode: st.mode || 'shows',
+      filter: st.filter || 'upcoming',
+      search: st.search || '',
+      rows: sorted.map(e => ({
+        i: e.id,
+        d: e.date,
+        t: e.setTime,
+        e: e.endTime,
+        s: e.status,
+        v: e.venue,
+        n: e.eventName,
+        c: e.city,
+        y: e.country,
+        col: e.color,
+        tr: e.tripId,
+      })),
+      tours: (runs || []).map(r => ({
+        k: r.key,
+        ti: r.title,
+        a: r.start,
+        b: r.end,
+        n: (r.shows || []).length,
+      })),
+    });
+  }catch(err){
+    return 'err';
+  }
+}
+
+/** Show detail screen — re-render when this show or trip-mode anchor changes, not on every global tick. */
+export function getShowDetailSnapshot(showId){
+  if(typeof window === 'undefined') return '';
+  const id = String(showId || '');
+  const e = getEvent(id);
+  const st = getStore();
+  const active = st && st.activeShowId;
+  if(!e){
+    return JSON.stringify({ id, missing: true, active: active || null });
+  }
+  return JSON.stringify({ id, active: active || null, e });
+}
+
 export const nav = {
   navigateTo,
   goTab,

@@ -176,6 +176,7 @@ async function acceptInvite(token){
     return null;
   }
   setStoredOrgId(data);
+  if(typeof noteOrgChoicePersisted === 'function') noteOrgChoicePersisted(data);
   toast('Joined the tour', 'check');
   return data;
 }
@@ -320,6 +321,7 @@ async function switchOrganisation(orgId){
   if(typeof syncDirty !== 'undefined') syncDirty = false;
   if(store) store._forceFullSync = false;
   setStoredOrgId(nextId);
+  if(typeof noteOrgChoicePersisted === 'function') noteOrgChoicePersisted(nextId);
 
   try{
     toast('Switching to ' + match.name + '…');

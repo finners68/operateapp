@@ -1,15 +1,7 @@
 import { useSyncExternalStore, useRef, useEffect, useState } from 'react';
-import { call, fmtDate, getCats, getMon, getMonths, getSel, getShowsListState, getStore, iconHtml, notifyStore, pad, parseDT, relDay, showPassed, subscribeStore } from '../api/operate.js';
+import { call, fmtDate, getCats, getMon, getMonths, getSel, getShowsListRenderSnapshot, getShowsListState, iconHtml, notifyStore, pad, parseDT, relDay, showPassed, subscribeStore } from '../api/operate.js';
 import { Icon } from '../show/ui.jsx';
 import { ShowListTitle } from '../show/ShowListTitle.jsx';
-
-function useStoreTick(){
-  return useSyncExternalStore(
-    subscribeStore,
-    () => getStore()?._seq || 0,
-    () => 0
-  );
-}
 
 function listState(){
   const fn = getShowsListState;
@@ -74,7 +66,11 @@ function filteredShows(filter, search){
   if(filter === 'upcoming') list = all.filter(e => !(showPassed && showPassed(e)) && e.status !== 'cancelled');
   else if(filter === 'past') list = all.filter(e => showPassed && showPassed(e));
   else if(filter === 'confirmed' || filter === 'hold' || filter === 'cancelled') list = all.filter(e => e.status === filter);
-  list.sort((a, b) => String((b.date || '') + (b.setTime || '')).localeCompare(String((a.date || '') + (a.setTime || ''))));
+  if(filter === 'upcoming'){
+    list.sort((a, b) => String((a.date || '') + (a.setTime || '')).localeCompare(String((b.date || '') + (b.setTime || ''))));
+  }else{
+    list.sort((a, b) => String((b.date || '') + (b.setTime || '')).localeCompare(String((a.date || '') + (a.setTime || ''))));
+  }
   if(q) list = list.filter(e => `${e.eventName || ''} ${e.venue || ''} ${e.city || ''} ${e.country || ''} ${e.date || ''}`.toLowerCase().includes(q));
   return { all, list };
 }
@@ -92,22 +88,47 @@ function groupByMonth(list){
   return out;
 }
 
+function showsEmptyCopy(filter, hasQuery){
+  if(hasQuery){
+    return { title: 'No matches', body: 'Try another search term.', showAdd: false };
+  }
+  if(filter === 'past'){
+    return { title: 'You have no past shows.', body: 'Past shows appear here 24 hours after they finish.', showAdd: false };
+  }
+  if(filter === 'confirmed' || filter === 'hold' || filter === 'cancelled'){
+    const kind = filter === 'hold' ? 'hold' : filter;
+    return {
+      title: `You have no ${kind} shows.`,
+      body: "Change a show's status when you edit it.",
+      showAdd: false
+    };
+  }
+  if(filter === 'upcoming'){
+    return {
+      title: 'You have no upcoming shows.',
+      body: 'Tap + to add a venue, date and set time — then open the show for flights and hotels.',
+      showAdd: true
+    };
+  }
+  /* all */
+  return {
+    title: 'You have no shows.',
+    body: 'Tap + to add a venue, date and set time — then open the show for flights and hotels.',
+    showAdd: true
+  };
+}
+
 function ShowsBody({ filter, search }){
   const { list } = filteredShows(filter, search);
   const q = String(search || '').trim();
   if(!list.length){
+    const { title, body, showAdd } = showsEmptyCopy(filter, !!q);
     return (
       <div className="empty">
         <div className="ic"><Icon name="music" size={28} /></div>
-        <b>{q ? 'No matches' : 'No shows here'}</b>
-        <span>
-          {q
-            ? 'Try another search term.'
-            : filter === 'past'
-              ? 'Past shows appear 24h after they finish.'
-              : 'Tap + to add a venue, date and set time — then open the show for flights and hotels.'}
-        </span>
-        {!q ? (
+        <b>{title}</b>
+        <span>{body}</span>
+        {showAdd ? (
           <button type="button" className="btn" style={{ marginTop: 14, maxWidth: 240 }} onClick={() => call('sheetEvent')}>
             <Icon name="plus" size={18} /> Add show
           </button>
@@ -222,12 +243,12 @@ function SearchAndChips({ filter, search, onSearch }){
   const all = sel?.events ? sel.events() : [];
   const upcomingN = all.filter(e => !(showPassed && showPassed(e)) && e.status !== 'cancelled').length;
   const chips = [
-    { k: 'all', l: `All · ${all.length}` },
     { k: 'upcoming', l: `Upcoming · ${upcomingN}` },
     { k: 'past', l: 'Past' },
     { k: 'confirmed', l: 'Confirmed' },
     { k: 'hold', l: 'Hold' },
     { k: 'cancelled', l: 'Cancelled' },
+    { k: 'all', l: `All · ${all.length}` },
   ];
   const [localSearch, setLocalSearch] = useState(search);
   useEffect(() => { setLocalSearch(search); }, [search]);
@@ -263,7 +284,8 @@ function SearchAndChips({ filter, search, onSearch }){
 }
 
 export default function ShowsListPage(){
-  useStoreTick();
+  /* Re-render only when show list data / filters / tours actually change — not on every global store tick. */
+  useSyncExternalStore(subscribeStore, getShowsListRenderSnapshot, () => '');
   const { mode, filter, search } = listState();
   const isTours = mode === 'tours';
   const sel = getSel();
