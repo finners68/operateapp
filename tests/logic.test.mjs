@@ -7,6 +7,7 @@ import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { moveGridWidget, placeGridWidgetAtPointer, pointerToGridCell } from '../src/home/homeWidgetGrid.ts';
+import { browserKeyProblem } from '../scripts/config-key.mjs';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -873,6 +874,19 @@ test('a cloud refresh keeps venue fields from the cloud and an in-progress itine
   const kept = D.mergePendingItineraries([{ id: 'it-2', showId: 's1' }], [pending, { id: 'it-3', showId: 's9' }]);
   assert.equal(kept[0].id, 'it-1');
   assert.equal(kept.some((row) => row.id === 'it-3'), false);
+});
+
+function fakeKey(role) {
+  const body = Buffer.from(JSON.stringify({ role })).toString('base64url');
+  return 'e30.' + body + '.sig';
+}
+
+test('the browser config rejects a secret database key', () => {
+  assert.equal(browserKeyProblem(''), '');
+  assert.equal(browserKeyProblem('YOUR-ANON-KEY'), '');
+  assert.equal(browserKeyProblem(fakeKey('anon')), '');
+  assert.match(browserKeyProblem(fakeKey('service_role')), /anon key/);
+  assert.match(browserKeyProblem('sb_secret_example'), /secret key/);
 });
 
 
