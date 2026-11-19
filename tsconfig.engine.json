@@ -1,0 +1,22 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "module": "none",
+    "rootDir": "src/engine",
+    "outDir": "js",
+    "strict": true,
+    "alwaysStrict": false,
+    "strictNullChecks": false,
+    "useUnknownInCatchVariables": false,
+    "noImplicitAny": false,
+    "noEmitOnError": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "removeComments": false,
+    "sourceMap": false,
+    "useDefineForClassFields": true
+  },
+  "include": ["src/engine/**/*.ts"],
+  "exclude": ["node_modules"]
+}

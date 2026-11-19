@@ -82,16 +82,16 @@ export function ShowEventSheet({ eid, event }: Record<string, any>){
           <div className="field picker-field" onClick={() => picker('ev-end')}><label>End time</label><input id="ev-end" type="time" className="input" defaultValue={e?.endTime || ''} onClick={(x: any)=>{x.stopPropagation();picker('ev-end')}} /></div>
           <Field label="Artist" id="ev-artist" value={e?.artist} placeholder={getStore()?.settings?.artistName || 'Artist'} />
         </div>
-        {e?.endTime && e?.setTime && e.endTime < e.setTime ? <div className="hint" style={{ textAlign:'left', padding:'0 2px 10px' }}>Ends after midnight ÔÇö treated as the next morning, still on this show day.</div> : null}
+        {e?.endTime && e?.setTime && e.endTime < e.setTime ? <div className="hint" style={{ textAlign:'left', padding:'0 2px 10px' }}>Ends after midnight — treated as the next morning, still on this show day.</div> : null}
       </>
     ) : null}
     <Field label="Status"><Seg id="ev-status" values={['confirmed','hold','cancelled']} selected={e?.status || 'confirmed'} /></Field>
-    <Field label="Content to capture" id="ev-content" value={e?.content} placeholder="e.g. 2x reels ┬À crowd clip" />
+    <Field label="Content to capture" id="ev-content" value={e?.content} placeholder="e.g. 2x reels · crowd clip" />
     {eid ? <NoteItemsField label="Internal notes" listId="ev-notes" value={e?.notes} placeholder="Team-only notes" /> : null}
     <Field label="Colour"><Swatches id="ev-cat" selected={cat} /></Field>
     <Field label="Text colour"><Swatches id="ev-text-cat" selected={textCat} allowDefault /></Field>
     <div className="hint" style={{ textAlign:'left', padding:'0 2px 10px' }}>Text colour tints titles on this show page. Default keeps normal app text.</div>
-    {eid ? <button type="button" className="btn secondary" style={{marginBottom:10}} onClick={()=>{call('closeSheet',true,{noReturn:true});call('eventMenu',eid)}}><Icon name="edit" size={16} /> All show sectionsÔÇª</button> : null}
+    {eid ? <button type="button" className="btn secondary" style={{marginBottom:10}} onClick={()=>{call('closeSheet',true,{noReturn:true});call('eventMenu',eid)}}><Icon name="edit" size={16} /> All show sections…</button> : null}
     <button type="button" className="btn" id="ev-save" onClick={()=>call('saveEvent',eid||'')}>{eid?'Save changes':'Add show'}</button><Spacer />
   </>;
 }
@@ -225,7 +225,7 @@ export function ShowTravelLegSheet({ eid, mode }: Record<string, any>){
     ) : null}
     {spec.showOperator ? <Field label="Operator (optional)" id="tl-operator" placeholder="Company or operator" /> : null}
     {spec.showBooking ? <Field label="Booking reference (optional)" id="tl-ref" placeholder="Confirmation number" /> : null}
-    <TextArea label="Notes (optional)" id="tl-notes" placeholder="Anything else for this journeyÔÇª" style={{ minHeight: 64 }} />
+    <TextArea label="Notes (optional)" id="tl-notes" placeholder="Anything else for this journey…" style={{ minHeight: 64 }} />
     <button type="button" className="btn" id="tl-save" onClick={() => call('saveTravelLeg', eid, icon)}>{spec.save}</button>
     <Spacer />
   </>;
@@ -253,7 +253,7 @@ export function ShowFlightsListSheet({ eid, flights }: Record<string, any>){
   const raw=flights || (e && e.flights) || [];
   const sorted=call('sortFlightsChrono', raw, e && e.date);
   const list=Array.isArray(sorted)?sorted:raw;
-  return <><p className="sheet-lede">Flights already on this show ÔÇö tap one to edit route, gate and passengers.</p>
+  return <><p className="sheet-lede">Flights already on this show — tap one to edit route, gate and passengers.</p>
     <div className="card flush">{list.map((f: any)=>{
       const from=(f.from||'?').toString().trim().toUpperCase()||'?';
       const to=(f.to||'?').toString().trim().toUpperCase()||'?';
@@ -270,7 +270,7 @@ export function ShowFlightsListSheet({ eid, flights }: Record<string, any>){
           </span>
           <span className="flight-route-code">{to}</span>
         </span>
-        {(f.gate||f.terminal)?<span style={{display:'block',marginTop:4}}>{[f.gate?`Gate ${f.gate}`:'', f.terminal?`Term ${f.terminal}`:''].filter(Boolean).join(' ┬À ')}</span>:null}
+        {(f.gate||f.terminal)?<span style={{display:'block',marginTop:4}}>{[f.gate?`Gate ${f.gate}`:'', f.terminal?`Term ${f.terminal}`:''].filter(Boolean).join(' · ')}</span>:null}
       </div>
       <Icon name="chevR" size={15}/>
     </div>;
@@ -283,14 +283,14 @@ export function ShowContactsListSheet({ eid, contacts }: Record<string, any>){
   const e=eventOf({eid});
   const list=contacts || call('showKeyContactEntries', e) || [];
   return <>
-    <p className="sheet-lede">Everyone saved on this show ÔÇö tap a person to edit, or remove them from here.</p>
+    <p className="sheet-lede">Everyone saved on this show — tap a person to edit, or remove them from here.</p>
     {list.length ? (
       <div className="card flush">{list.map((c: any)=>(
         <div className="row" key={c.kind+'-'+c.id} onClick={()=>call('openKeyContactFromList',eid,c.kind,c.id)}>
           <div className="ic"><Icon name="user" size={18}/></div>
           <div className="body">
             <b>{c.role||'Contact'}</b>
-            <span>{[c.name, c.phone].filter(Boolean).join(' ┬À ')||'Tap to add details'}</span>
+            <span>{[c.name, c.phone].filter(Boolean).join(' · ')||'Tap to add details'}</span>
           </div>
           <button
             type="button"
@@ -304,7 +304,7 @@ export function ShowContactsListSheet({ eid, contacts }: Record<string, any>){
         </div>
       ))}</div>
     ) : (
-      <div className="hint" style={{padding:'8px 4px 12px'}}>No key contacts yet ÔÇö add a liaison, driver, or anyone else you need on the day.</div>
+      <div className="hint" style={{padding:'8px 4px 12px'}}>No key contacts yet — add a liaison, driver, or anyone else you need on the day.</div>
     )}
     <button className="btn secondary" style={{marginTop:14}} onClick={()=>call('openKeyContactFromList',eid,'new')}><Icon name="plus" size={16}/> Add contact</button>
     <Spacer />
@@ -332,10 +332,10 @@ export function ShowFlightSheet({ eid, fid, flight, passengers }: Record<string,
     <div className="block-title" style={{margin:'6px 2px 8px'}}>Day-of flight info</div>
     <div className="row-2"><Field label="Terminal" id="fl-term" value={f.terminal} placeholder="2"/><Field label="Gate" id="fl-gate" value={f.gate} placeholder="B12"/></div>
     <div className="row-2"><Field label="Status" id="fl-status" value={f.fstatus} placeholder="On time / Boarding"/><Field label="Delay" id="fl-delay" value={f.delay} placeholder="+25 min"/></div>
-    <NoteItemsField label="Journey notes" listId="fl-notes" value={f.notes} placeholder="Connection tips, meeting point, baggageÔÇª" />
+    <NoteItemsField label="Journey notes" listId="fl-notes" value={f.notes} placeholder="Connection tips, meeting point, baggage…" />
     <div className="field"><label>Passengers</label><div id="fl-pax-list">{pax.map((p: any,i: any)=><PaxRow key={p.id||i} pax={p} eid={eid} fid={editing?f.id:''}/>)}</div>
       <button type="button" className="btn secondary" style={{marginTop:8}} onClick={()=>call('addFlightPaxRow',eid,editing?f.id:'')}><Icon name="plus" size={15}/> Add person</button>
-      <div className="hint" style={{padding:'8px 2px 0'}}>Same flight for everyone ÔÇö each person has their own seat and boarding pass.</div>
+      <div className="hint" style={{padding:'8px 2px 0'}}>Same flight for everyone — each person has their own seat and boarding pass.</div>
     </div>
     <button className="btn" id="fl-save" onClick={()=>call('saveFlight',eid,editing?f.id:'')}>{editing?'Save flight':'Add flight'}</button>
     {editing?<button className="btn danger" style={{marginTop:10}} onClick={()=>call('confirmRemoveFlight',eid,f.id)}><Icon name="trash" size={16}/> Remove flight</button>:null}<Spacer />
@@ -348,10 +348,10 @@ export function ShowFlightPassengersSheet({ eid, fid, flight, passengers }: Reco
   const pax=passengers || f.passengers || [{id:call('uid','pax'),name:'',seat:'',booking_reference:'',passes:[]}];
   const code=f.code || 'this flight';
   return <>
-    <p className="sheet-lede">{code} ÔÇö names, seats and boarding passes.</p>
+    <p className="sheet-lede">{code} — names, seats and boarding passes.</p>
     <div id="fl-pax-list">{pax.length ? pax.map((p: any,i: any)=><PaxRow key={p.id||i} pax={p} eid={eid} fid={f.id||''}/>) : <PaxRow pax={{id:call('uid','pax'),name:'',seat:'',booking_reference:'',passes:[]}} eid={eid} fid={f.id||''}/>}</div>
     <button type="button" className="btn secondary" style={{marginTop:8}} onClick={()=>call('addFlightPaxRow',eid,f.id||'')}><Icon name="plus" size={15}/> Add person</button>
-    <div className="hint" style={{padding:'8px 2px 12px'}}>Same flight for everyone ÔÇö each person has their own seat and boarding pass.</div>
+    <div className="hint" style={{padding:'8px 2px 12px'}}>Same flight for everyone — each person has their own seat and boarding pass.</div>
     <button className="btn" id="fl-pax-save" onClick={()=>call('saveFlightPassengers',eid,f.id)}>Save passengers</button>
     <Spacer />
   </>;
@@ -359,7 +359,7 @@ export function ShowFlightPassengersSheet({ eid, fid, flight, passengers }: Reco
 
 export function ShowContactDriverSheet({ eid, driver }: Record<string, any>){
   const d=driver||eventOf({eid}).driver||{}, phone=d.phone||'', wa=d.whatsapp||phone;
-  return <>{d.name?<div className="hint" style={{textAlign:'left',padding:'0 2px 12px'}}>{d.name}{d.pickup?` ┬À ${d.pickup}`:''}</div>:null}
+  return <>{d.name?<div className="hint" style={{textAlign:'left',padding:'0 2px 12px'}}>{d.name}{d.pickup?` · ${d.pickup}`:''}</div>:null}
     {phone?<button className="btn" onClick={()=>call('callNumber',phone)}><Icon name="phone" size={17}/> Call</button>:null}
     {wa?<button className="btn secondary" style={{marginTop:10}} onClick={()=>call('whatsapp',wa)}><Icon name="chat" size={17}/> Message on WhatsApp</button>:null}<Spacer /></>;
 }
@@ -371,8 +371,8 @@ export function ShowTransportListSheet({ eid, drivers }: Record<string, any>){
     return <div className="info-line" key={d.id||i}>
       <div className="ic"><Icon name={d.noGround?'car':'user'} size={17}/></div>
       <div className="tx" style={{flex:1}}>
-        <div className="k">{label}{d.time?` ┬À ${d.time}`:''}</div>
-        <div className="v">{d.noGround?(call('groundArrangeSummary',d)||'Arrange at time'):`${d.name||d.vehicle||'Pre-arranged'}${d.phone?` ┬À ${d.phone}`:''}`}</div>
+        <div className="k">{label}{d.time?` · ${d.time}`:''}</div>
+        <div className="v">{d.noGround?(call('groundArrangeSummary',d)||'Arrange at time'):`${d.name||d.vehicle||'Pre-arranged'}${d.phone?` · ${d.phone}`:''}`}</div>
       </div>
       {d.noGround
         ? <button className="header-btn" onClick={()=>call('openExternal','https://m.uber.com/','uber://')}><Icon name="car" size={16}/></button>
@@ -395,9 +395,9 @@ export function ShowReminderSheet({ eid, existing, options = [], morningAt, warn
   const generated=base==null?[]:[[0,'At set time'],[30,'30 min before set'],[60,'1 hour before set'],[120,'2 hours before set'],[180,'3 hours before set']].map(([mins,label]: any)=>({at:base-mins*60000,label})).filter((o: any)=>o.at>now);
   const morning=morningAt || call('parseDT',e.date,'09:00')?.getTime?.();
   return <>{current?<div className="hint" style={{padding:'0 2px 12px'}}>A reminder is already set for this show. Pick a new time to replace it, or remove it below.</div>:null}
-    <Field label="What to remind you of" id="rem-note" value={current?.label} placeholder="e.g. Bring your USB ┬À check monitors"/>
+    <Field label="What to remind you of" id="rem-note" value={current?.label} placeholder="e.g. Bring your USB · check monitors"/>
     {(options.length?options:generated).map((o: any,i: any)=><button key={i} className="btn secondary" style={{marginBottom:8}} onClick={()=>call('setShowReminder',eid,o.at,o.label)}><Icon name="reminder" size={15}/> {o.label}</button>)}
-    {morning>now?<button className="btn secondary" style={{marginBottom:8}} onClick={()=>call('setShowReminder',eid,morning,'Morning of show')}><Icon name="reminder" size={15}/> On the morning ┬À 9am</button>:null}
+    {morning>now?<button className="btn secondary" style={{marginBottom:8}} onClick={()=>call('setShowReminder',eid,morning,'Morning of show')}><Icon name="reminder" size={15}/> On the morning · 9am</button>:null}
     <Field label="Custom time" id="rem-when" type="datetime-local"/><button className="btn" onClick={()=>call('setShowReminderCustom',eid)}>Set custom reminder</button>
     {current?<button className="btn danger" style={{marginTop:10}} onClick={()=>call('clearShowReminder',eid)}><Icon name="trash" size={16}/> Remove reminder</button>:null}
     {warning?<div className="hint" style={{padding:'12px 2px 0',lineHeight:1.4}}>{warning}</div>:null}<Spacer /></>;
@@ -458,7 +458,7 @@ export function ShowTransportSheet({ eid, idx, driver, journeys }: Record<string
     ['custom','Custom']
   ];
   const groundTypes=[
-    ['','SelectÔÇª'],
+    ['','Select…'],
     ['taxi','Taxi'],
     ['uber','Uber'],
     ['private_car','Private car'],
@@ -496,13 +496,13 @@ export function ShowTransportSheet({ eid, idx, driver, journeys }: Record<string
     <div className="row-2">
       <Field label="From">
         <select id="dr-from" className="input" value={fromKind} onChange={(ev: any)=>setFromKind(ev.target.value)}>
-          <option value="">SelectÔÇª</option>
+          <option value="">Select…</option>
           {kinds.map(([k,l]: any)=><option value={k} key={'from-'+k}>{l}</option>)}
         </select>
       </Field>
       <Field label="To">
         <select id="dr-to" className="input" value={toKind} onChange={(ev: any)=>setToKind(ev.target.value)}>
-          <option value="">SelectÔÇª</option>
+          <option value="">Select…</option>
           {kinds.map(([k,l]: any)=><option value={k} key={'to-'+k}>{l}</option>)}
         </select>
       </Field>
@@ -512,13 +512,13 @@ export function ShowTransportSheet({ eid, idx, driver, journeys }: Record<string
         {customFrom ? (
           <>
             <Field label="From name" id="dr-from-name" value={fromKind==='custom'?(d.fromName || (!['Airport','Hotel','Venue'].includes(d.from)?d.from:'')) : ''} placeholder="Artist Entrance"/>
-            <Field label="From address (optional)" id="dr-from-addr" value={d.fromAddress || ''} placeholder="Street, cityÔÇª"/>
+            <Field label="From address (optional)" id="dr-from-addr" value={d.fromAddress || ''} placeholder="Street, city…"/>
           </>
         ) : null}
         {customTo ? (
           <>
             <Field label="To name" id="dr-to-name" value={toKind==='custom'?(d.toName || (!['Airport','Hotel','Venue'].includes(d.to)?d.to:'')) : ''} placeholder="Backstage gate"/>
-            <Field label="To address (optional)" id="dr-to-addr" value={d.toAddress || ''} placeholder="Street, cityÔÇª"/>
+            <Field label="To address (optional)" id="dr-to-addr" value={d.toAddress || ''} placeholder="Street, city…"/>
           </>
         ) : null}
       </>
@@ -545,7 +545,7 @@ export function ShowTransportSheet({ eid, idx, driver, journeys }: Record<string
         <Field label="Transport company (optional)" id="dr-company" value={d.operator || ''} placeholder="Parklife Ground Transport"/>
         <Field label="Driver name" id="dr-name" value={d.name} placeholder="John Smith"/>
         <Field label="Driver phone" id="dr-phone" type="tel" value={d.phone} placeholder="+31 6 12345678"/>
-        <Field label="Vehicle details (optional)" id="dr-vehicle" value={groundVehiclePrefill(d)} placeholder="Van, black car, minibusÔÇª"/>
+        <Field label="Vehicle details (optional)" id="dr-vehicle" value={groundVehiclePrefill(d)} placeholder="Van, black car, minibus…"/>
         <NoteItemsField label="Notes (optional)" listId="dr-notes" value={d.notes} placeholder="Plate, meeting point, etc." />
       </>
     )}
@@ -560,11 +560,11 @@ export function ShowArtistLiaisonSheet(props: any){const e=eventOf(props),p=prop
 export function ShowDayDetailsSheet(props: any){
   const e=eventOf(props),a=props.advance||e.advance||{},eid=props.eid||props.id,schedule=a.schedule?.length?a.schedule:[{time:'',label:''}];
   return <><Field label="Stage / area" id="ad-stage" value={a.stage} placeholder="Temple stage"/><div className="field"><label>Running order</label><div id="ad-ro">{schedule.map((s: any,i: any)=><div className="row-2 ro-edit" data-id={s.id||''} key={s.id||i}><div className="field" style={{flex:'0 0 34%'}}><input id={`ro-t-${i}`} className="input ro-t" type="time" defaultValue={s.time||''}/></div><div className="field"><input className="input ro-l" defaultValue={s.label||s.title||''} placeholder="Soundcheck / Set / Curfew"/></div></div>)}</div><button className="btn secondary" style={{padding:9,marginTop:6}} onClick={()=>call('addRoRow')}><Icon name="plus" size={14}/> Add time</button></div>
-    <div className="row-2"><Field label="Access / arrival" id="ad-access" value={a.access} placeholder="15:00 via Gate C"/><Field label="Sound check" id="ad-sc" value={a.soundcheck} placeholder="16:30"/></div><div className="row-2"><Field label="Curfew" id="ad-curfew" value={a.curfew} placeholder="23:00"/><Field label="Dressing room" id="ad-dr" value={a.dressingRoom} placeholder="Cabin 4, shared"/></div><Field label="Guest list" id="ad-gl" value={a.guestlist} placeholder="+4, email by Thu"/><Field label="Catering / rider" id="ad-cat" value={a.catering} placeholder="Backstage catering, rider in DR"/><div className="row-2"><Field label="Parking" id="ad-park" value={a.parking} placeholder="Artist lot P2"/><Field label="WiFi" id="ad-wifi" value={a.wifi} placeholder="SSID / pass"/></div><Field label="Navigation address" id="ad-nav" value={a.navAddr} placeholder="Gate for artist entrance (if different)"/><TextArea label="Remarks" id="ad-rem" value={a.remarks} placeholder="Anything else from the advance sheetÔÇª"/><button className="btn" id="ad-save" onClick={()=>call('saveAdvance',eid)}>Save details</button><Spacer /></>;
+    <div className="row-2"><Field label="Access / arrival" id="ad-access" value={a.access} placeholder="15:00 via Gate C"/><Field label="Sound check" id="ad-sc" value={a.soundcheck} placeholder="16:30"/></div><div className="row-2"><Field label="Curfew" id="ad-curfew" value={a.curfew} placeholder="23:00"/><Field label="Dressing room" id="ad-dr" value={a.dressingRoom} placeholder="Cabin 4, shared"/></div><Field label="Guest list" id="ad-gl" value={a.guestlist} placeholder="+4, email by Thu"/><Field label="Catering / rider" id="ad-cat" value={a.catering} placeholder="Backstage catering, rider in DR"/><div className="row-2"><Field label="Parking" id="ad-park" value={a.parking} placeholder="Artist lot P2"/><Field label="WiFi" id="ad-wifi" value={a.wifi} placeholder="SSID / pass"/></div><Field label="Navigation address" id="ad-nav" value={a.navAddr} placeholder="Gate for artist entrance (if different)"/><TextArea label="Remarks" id="ad-rem" value={a.remarks} placeholder="Anything else from the advance sheet…"/><button className="btn" id="ad-save" onClick={()=>call('saveAdvance',eid)}>Save details</button><Spacer /></>;
 }
-const ROLES=[['','Select roleÔÇª'],['artist_liaison','Artist Liaison'],['promoter','Promoter'],['production','Production'],['venue_manager','Venue Manager'],['driver','Driver'],['emergency','Emergency'],['__other__','Other']];
-export function ShowContactSheet({eid,cid,contact}: Record<string, any>){const e=eventOf({eid}),c=contact||(e.contacts||[]).find((x: any)=>x.id===cid)||{};const known=ROLES.some((x: any)=>x[0]===c.role),selected=known?c.role:(c.role?'__other__':'');return <><Field label="Name" id="ct-name" value={c.name} placeholder="Alex"/><Field label="Role"><select id="ct-role" className="input" defaultValue={selected} onChange={()=>call('toggleEventContactRoleOther')}>{ROLES.map(([v,l]: any)=><option value={v} key={v}>{l}</option>)}</select></Field><div className="field" id="ct-role-other-wrap" style={{display:selected==='__other__'?undefined:'none'}}><label>Custom role</label><input id="ct-role-other" className="input" defaultValue={known?'':c.role||''} placeholder="e.g. Stage manager"/></div><Field label="Phone" id="ct-phone" type="tel" value={c.phone} placeholder="+44 7ÔÇª"/><Field label="WhatsApp (if different)" id="ct-wa" type="tel" value={c.whatsapp}/><button className="btn" id="ct-save" onClick={()=>call('saveEventContact',eid,cid||'')}>Save contact</button>{cid?<button className="btn danger" style={{marginTop:10}} onClick={()=>call('delEventContact',eid,cid)}><Icon name="trash" size={16}/> Remove</button>:null}<Spacer /></>;}
-export function ShowChecklistSheet({eid,items}: Record<string, any>){const list=items||eventOf({eid}).checklist||[];return <>{list.length?<div className="card flush">{list.map((i: any)=><div className={`check${i.done?' done':''}`} data-id={i.id} key={i.id}><div className="box" onClick={()=>call('toggleEventCheck',eid,i.id)}><Icon name="check" size={15}/></div><div className="lbl" onClick={()=>call('toggleEventCheck',eid,i.id)}>{i.label}</div><button className="del" onClick={()=>call('delEventCheck',eid,i.id)}><Icon name="x" size={16}/></button></div>)}</div>:<div className="hint" style={{padding:'8px 4px 12px'}}>No items yet ÔÇö add what you need to prep.</div>}<Field label="New item" id="ck-new" placeholder="e.g. Track ID list"/><button className="btn" onClick={()=>call('addEventCheckFromSheet',eid)}><Icon name="plus" size={16}/> Add item</button><Spacer /></>;}
+const ROLES=[['','Select role…'],['artist_liaison','Artist Liaison'],['promoter','Promoter'],['production','Production'],['venue_manager','Venue Manager'],['driver','Driver'],['emergency','Emergency'],['__other__','Other']];
+export function ShowContactSheet({eid,cid,contact}: Record<string, any>){const e=eventOf({eid}),c=contact||(e.contacts||[]).find((x: any)=>x.id===cid)||{};const known=ROLES.some((x: any)=>x[0]===c.role),selected=known?c.role:(c.role?'__other__':'');return <><Field label="Name" id="ct-name" value={c.name} placeholder="Alex"/><Field label="Role"><select id="ct-role" className="input" defaultValue={selected} onChange={()=>call('toggleEventContactRoleOther')}>{ROLES.map(([v,l]: any)=><option value={v} key={v}>{l}</option>)}</select></Field><div className="field" id="ct-role-other-wrap" style={{display:selected==='__other__'?undefined:'none'}}><label>Custom role</label><input id="ct-role-other" className="input" defaultValue={known?'':c.role||''} placeholder="e.g. Stage manager"/></div><Field label="Phone" id="ct-phone" type="tel" value={c.phone} placeholder="+44 7…"/><Field label="WhatsApp (if different)" id="ct-wa" type="tel" value={c.whatsapp}/><button className="btn" id="ct-save" onClick={()=>call('saveEventContact',eid,cid||'')}>Save contact</button>{cid?<button className="btn danger" style={{marginTop:10}} onClick={()=>call('delEventContact',eid,cid)}><Icon name="trash" size={16}/> Remove</button>:null}<Spacer /></>;}
+export function ShowChecklistSheet({eid,items}: Record<string, any>){const list=items||eventOf({eid}).checklist||[];return <>{list.length?<div className="card flush">{list.map((i: any)=><div className={`check${i.done?' done':''}`} data-id={i.id} key={i.id}><div className="box" onClick={()=>call('toggleEventCheck',eid,i.id)}><Icon name="check" size={15}/></div><div className="lbl" onClick={()=>call('toggleEventCheck',eid,i.id)}>{i.label}</div><button className="del" onClick={()=>call('delEventCheck',eid,i.id)}><Icon name="x" size={16}/></button></div>)}</div>:<div className="hint" style={{padding:'8px 4px 12px'}}>No items yet — add what you need to prep.</div>}<Field label="New item" id="ck-new" placeholder="e.g. Track ID list"/><button className="btn" onClick={()=>call('addEventCheckFromSheet',eid)}><Icon name="plus" size={16}/> Add item</button><Spacer /></>;}
 function openShowTimelineRow(eid: any, s: any){
   if(!s.auto) return call('sheetShowTimelineStep', eid, s.id);
   if(s.kind==='flight' && s.refId) return call('sheetFlight', eid, s.refId);
@@ -584,7 +584,7 @@ export function ShowTimelineSheet({eid,steps}: Record<string, any>){
   const renderStep=(s: any)=>(
     <div className={`check is-circle${s.done?' done':''}`} data-id={s.id} key={s.id}>
       <div className="box" onClick={()=>call('toggleShowTimelineStep',eid,s.id)}><Icon name="check" size={15}/></div>
-      <div className="lbl" onClick={()=>openShowTimelineRow(eid,s)}>{s.time?`${s.time} ┬À `:''}{s.title}{s.sub?` ÔÇö ${s.sub}`:''}</div>
+      <div className="lbl" onClick={()=>openShowTimelineRow(eid,s)}>{s.time?`${s.time} · `:''}{s.title}{s.sub?` — ${s.sub}`:''}</div>
       {!s.auto?<button className="del" onClick={()=>call('delShowTimelineStep',eid,s.id)}><Icon name="x" size={16}/></button>:null}
     </div>
   );
@@ -600,9 +600,9 @@ export function ShowTimelineSheet({eid,steps}: Record<string, any>){
     <Spacer />
   </>;
 }
-export function ShowTimelineStepSheet({eid,sid,step}: Record<string, any>){const e=eventOf({eid}),s=step||(e.timeline||[]).find((x: any)=>x.id===sid)||{};return <><div className="row-2"><Field label="Time" id="est-time" type="time" value={s.time}/><Field label="What" id="est-title" value={s.title} placeholder="Soundcheck"/></div><Field label="Detail (optional)" id="est-sub" value={s.sub} placeholder="Venue, noteÔÇª"/><button className="btn" id="est-save" onClick={()=>call('saveShowTimelineStep',eid,sid||'')}>{sid?'Save step':'Add step'}</button>{sid?<button className="btn danger" style={{marginTop:10}} onClick={()=>call('delShowTimelineStep',eid,sid)}><Icon name="trash" size={16}/> Remove</button>:null}<Spacer /></>;}
-export function ShowTimelineAddSheet({tid}: Record<string, any>){return <><div className="row-2"><Field label="Time" id="ts-time" type="time"/><Field label="What" id="ts-title" placeholder="Soundcheck"/></div><Field label="Detail (optional)" id="ts-sub" placeholder="Venue, noteÔÇª"/><button className="btn" id="ts-save" onClick={()=>call('saveTimelineStep',tid)}>Add step</button><Spacer /></>;}
-export function ShowEmergencySheet({tid}: Record<string, any>){return <><Field label="Name" id="em-name" placeholder="Manager ÔÇö Alex"/><Field label="Phone" id="em-phone" type="tel" placeholder="+44 7700 900123"/><button className="btn" id="em-save" onClick={()=>call('saveEmergency',tid)}>Add contact</button><Spacer /></>;}
+export function ShowTimelineStepSheet({eid,sid,step}: Record<string, any>){const e=eventOf({eid}),s=step||(e.timeline||[]).find((x: any)=>x.id===sid)||{};return <><div className="row-2"><Field label="Time" id="est-time" type="time" value={s.time}/><Field label="What" id="est-title" value={s.title} placeholder="Soundcheck"/></div><Field label="Detail (optional)" id="est-sub" value={s.sub} placeholder="Venue, note…"/><button className="btn" id="est-save" onClick={()=>call('saveShowTimelineStep',eid,sid||'')}>{sid?'Save step':'Add step'}</button>{sid?<button className="btn danger" style={{marginTop:10}} onClick={()=>call('delShowTimelineStep',eid,sid)}><Icon name="trash" size={16}/> Remove</button>:null}<Spacer /></>;}
+export function ShowTimelineAddSheet({tid}: Record<string, any>){return <><div className="row-2"><Field label="Time" id="ts-time" type="time"/><Field label="What" id="ts-title" placeholder="Soundcheck"/></div><Field label="Detail (optional)" id="ts-sub" placeholder="Venue, note…"/><button className="btn" id="ts-save" onClick={()=>call('saveTimelineStep',tid)}>Add step</button><Spacer /></>;}
+export function ShowEmergencySheet({tid}: Record<string, any>){return <><Field label="Name" id="em-name" placeholder="Manager — Alex"/><Field label="Phone" id="em-phone" type="tel" placeholder="+44 7700 900123"/><button className="btn" id="em-save" onClick={()=>call('saveEmergency',tid)}>Add contact</button><Spacer /></>;}
 export function ShowDealSheet({eid,finance}: Record<string, any>){const e=eventOf({eid}),f=finance||e.finance||{},s=getStore()?.settings||{},currencies=Object.keys(s.fx||{});return <><div className="row-2"><Field label="Fee" id="fi-fee" type="number" inputMode="decimal" value={f.fee} placeholder="8000"/><Field label="Currency"><select id="fi-cur" className="input" defaultValue={f.currency||s.baseCurrency}>{currencies.map((c: any)=><option key={c}>{c}</option>)}</select></Field></div><Field label="Deal type"><Seg id="fi-deal" values={['Guarantee','Guarantee + Bonus','Door split','Fee + Travel']} selected={f.dealType||'Guarantee'}/></Field><div className="row-2"><Field label="Agent commission %" id="fi-comm" type="number" inputMode="decimal" value={f.commission} placeholder="10"/><Field label="Per diem" id="fi-pd" type="number" inputMode="decimal" value={f.perDiem} placeholder="150"/></div><Field label="Payment status"><Seg id="fi-paid" values={[['0','Unpaid'],['1','Paid']]} selected={f.paid?'1':'0'}/></Field><Field label="Fee visibility"><Seg id="fi-nd" values={[['0','Show fee'],['1','Not disclosed']]} selected={f.notDisclosed?'1':'0'}/></Field><button className="btn" id="fi-save" onClick={()=>call('saveFinance',eid)}>Save deal</button><div className="hint" style={{textAlign:'left',paddingTop:10}}>Foreign fees auto-convert to {s.baseCurrency}.</div><Spacer /></>;}
-export function ShowExpenseSheet({eid}: Record<string, any>){return <><div className="row-2"><Field label="What" id="ex-label" placeholder="Flights, accommodation, gearÔÇª"/><Field label="Amount" id="ex-amt" type="number" inputMode="decimal" placeholder="220"/></div><button className="btn" onClick={()=>call('saveExpense',eid)}>Add expense</button><Spacer /></>;}
+export function ShowExpenseSheet({eid}: Record<string, any>){return <><div className="row-2"><Field label="What" id="ex-label" placeholder="Flights, accommodation, gear…"/><Field label="Amount" id="ex-amt" type="number" inputMode="decimal" placeholder="220"/></div><button className="btn" onClick={()=>call('saveExpense',eid)}>Add expense</button><Spacer /></>;}
 export function ShowDaySheet({eid,text,share=true}: Record<string, any>){const value=text ?? getDaySheetText() ?? '';return <><div className="card" style={{whiteSpace:'pre-wrap',fontSize:13.5,lineHeight:1.55,fontFamily:'ui-monospace,Menlo,monospace',color:'var(--text-2)',maxHeight:'52dvh',overflow:'auto'}}>{value}</div><Spacer/><div style={{display:'flex',gap:9}}><button className="btn" style={{flex:1}} onClick={()=>{call('copyText',value);call('closeSheet')}}><Icon name="copy" size={16}/> Copy</button>{share&&typeof navigator!=='undefined'&&typeof navigator.share==='function'?<button className="btn secondary" style={{flex:1}} onClick={()=>call('daySheetShare')}><Icon name="share" size={16}/> Share</button>:null}</div>{eid?<button className="btn secondary" style={{marginTop:9}} onClick={()=>call('printDaySheet',eid)}><Icon name="file" size={16}/> Print / Save as PDF</button>:null}<Spacer /></>;}

@@ -5,12 +5,13 @@
   "type": "module",
   "scripts": {
     "check": "node scripts/check-syntax.mjs",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsc --noEmit && tsc -p tsconfig.engine.json --noEmit",
     "test": "node --experimental-strip-types --test",
+    "build:engine": "tsc -p tsconfig.engine.json",
     "build:react": "vite build",
     "preview": "npm run build:react && npx --yes serve . -l 3000",
     "preview:4180": "npm run build:react && npx --yes serve . -l 4180",
-    "ci": "npm run check && npm run typecheck && npm test && npm run build:react"
+    "ci": "npm run check && npm run typecheck && npm test && npm run build:engine && npm run build:react"
   },
   "dependencies": {
     "react": "^19.2.8",

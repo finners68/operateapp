@@ -2,141 +2,136 @@
    Full-screen slides with segmented progress, tap-to-advance, count-up numbers,
    and a live flight-map slide that draws the year's actual routes as glowing
    arcs. Share exports a story-format PNG (canvas, no libs, CSP-safe). */
-
-function wrappedName(){
-  const n = store.settings && store.settings.artistName;
-  return (n && n !== 'You') ? n : '';
+function wrappedName() {
+    const n = store.settings && store.settings.artistName;
+    return (n && n !== 'You') ? n : '';
 }
-const WR_REDUCE = () => { try{ return matchMedia('(prefers-reduced-motion: reduce)').matches; }catch(e){ return false; } };
-
+const WR_REDUCE = () => { try {
+    return matchMedia('(prefers-reduced-motion: reduce)').matches;
+}
+catch (e) {
+    return false;
+} };
 /* All flight legs (year-scoped, matching computeYearStats) with resolved
    coordinates — the data the map slide draws. */
-function yearFlightLegs(){
-  const allShows = sel.events();
-  const yr = new Date().getFullYear();
-  const inYr = d => (d||'').slice(0,4) === String(yr);
-  const scoped = allShows.some(s=>inYr(s.date));
-  const keep = d => scoped ? inYr(d) : true;
-  const raw = [];
-  store.events.forEach(e=>{
-    if(e.kind==='travel' && (e.icon||'plane')==='plane' && (e.from||e.to) && keep(e.date)) raw.push([e.from,e.to]);
-    if((e.kind||'show')==='show' && Array.isArray(e.flights) && keep(e.date)) e.flights.forEach(f=>{ if(f.from||f.to) raw.push([f.from,f.to]); });
-  });
-  const legs=[]; const nodes=new Map();
-  raw.forEach(([f,t])=>{
-    const a=airportLL(f), b=airportLL(t);
-    if(a&&b){
-      const km=haversineKm(a,b);
-      legs.push({a,b,from:(f||'').toUpperCase(),to:(t||'').toUpperCase(),km});
-      nodes.set((f||'').toUpperCase(),a); nodes.set((t||'').toUpperCase(),b);
-    }
-  });
-  return { legs, nodes };
+function yearFlightLegs() {
+    const allShows = sel.events();
+    const yr = new Date().getFullYear();
+    const inYr = d => (d || '').slice(0, 4) === String(yr);
+    const scoped = allShows.some(s => inYr(s.date));
+    const keep = d => scoped ? inYr(d) : true;
+    const raw = [];
+    store.events.forEach(e => {
+        if (e.kind === 'travel' && (e.icon || 'plane') === 'plane' && (e.from || e.to) && keep(e.date))
+            raw.push([e.from, e.to]);
+        if ((e.kind || 'show') === 'show' && Array.isArray(e.flights) && keep(e.date))
+            e.flights.forEach(f => { if (f.from || f.to)
+                raw.push([f.from, f.to]); });
+    });
+    const legs = [];
+    const nodes = new Map();
+    raw.forEach(([f, t]) => {
+        const a = airportLL(f), b = airportLL(t);
+        if (a && b) {
+            const km = haversineKm(a, b);
+            legs.push({ a, b, from: (f || '').toUpperCase(), to: (t || '').toUpperCase(), km });
+            nodes.set((f || '').toUpperCase(), a);
+            nodes.set((t || '').toUpperCase(), b);
+        }
+    });
+    return { legs, nodes };
 }
-
-function viewWrapped(){
-  const y = computeYearStats();
-  const name = wrappedName();
-  const EARTH = 40075;
-  const kmScale = y.km>=EARTH ? `${(y.km/EARTH).toFixed(1)}× around the planet`
-    : y.km>0 ? `${Math.max(1,Math.round(y.km/EARTH*100))}% of the way around the planet` : '';
-  const longest = (y.longest && y.longest.km>0) ? `${y.longest.from} → ${y.longest.to} · ${Math.round(y.longest.km).toLocaleString()} km` : '';
-  const flags = y.flags.slice(0,18);
-  const hasData = y.shows>0 || y.km>0 || y.countries>0;
-  const homeA = (store.settings&&store.settings.homeAirport||'').toUpperCase();
-
-  if(!hasData){
-    return `<div id="wrapped-root" class="wr-root">
+function viewWrapped() {
+    const y = computeYearStats();
+    const name = wrappedName();
+    const EARTH = 40075;
+    const kmScale = y.km >= EARTH ? `${(y.km / EARTH).toFixed(1)}× around the planet`
+        : y.km > 0 ? `${Math.max(1, Math.round(y.km / EARTH * 100))}% of the way around the planet` : '';
+    const longest = (y.longest && y.longest.km > 0) ? `${y.longest.from} → ${y.longest.to} · ${Math.round(y.longest.km).toLocaleString()} km` : '';
+    const flags = y.flags.slice(0, 18);
+    const hasData = y.shows > 0 || y.km > 0 || y.countries > 0;
+    const homeA = (store.settings && store.settings.homeAirport || '').toUpperCase();
+    if (!hasData) {
+        return `<div id="wrapped-root" class="wr-root">
       <button class="wr-x" onclick="back()">${ICON.x(20)}</button>
       <section class="wr-slide on" style="--g1:#241a45;--g2:#141127">
         <div class="wr-year">${y.year}</div>
         <div class="wr-lede">Add a few shows and flights — your year in review builds itself.</div>
       </section></div>`;
-  }
-
-  const totMin = y.stageMins||0;
-  const hH = Math.round(totMin/60), hM = totMin, hS = totMin*60;
-  const recap = (l,v)=>`<div><b>${v}</b><span>${l}</span></div>`;
-  const slide = (i, vars, inner, dur) => `<section class="wr-slide" data-i="${i}" data-dur="${dur||5200}" style="--g1:${vars[0]};--g2:${vars[1]}">${inner}</section>`;
-
-  const slideArr = [
-    // 0 — intro
-    slide(0, ['#2c2060','#161230'],
-      `<div class="wr-eyebrow r" style="color:var(--accent-2)">Operate · Year in review</div>
+    }
+    const totMin = y.stageMins || 0;
+    const hH = Math.round(totMin / 60), hM = totMin, hS = totMin * 60;
+    const recap = (l, v) => `<div><b>${v}</b><span>${l}</span></div>`;
+    const slide = (i, vars, inner, dur) => `<section class="wr-slide" data-i="${i}" data-dur="${dur || 5200}" style="--g1:${vars[0]};--g2:${vars[1]}">${inner}</section>`;
+    const slideArr = [
+        // 0 — intro
+        slide(0, ['#2c2060', '#161230'], `<div class="wr-eyebrow r" style="color:var(--accent-2)">Operate · Year in review</div>
        <div class="wr-year r">${y.year}</div>
-       ${name?`<div class="wr-name r">${esc(name)}</div>`:''}
+       ${name ? `<div class="wr-name r">${esc(name)}</div>` : ''}
        <div class="wr-lede r">Let's rewind your year on the road.</div>`),
-    // 1 — shows played
-    slide(1, ['#241a45','#181334'],
-      `<div class="wr-eyebrow r">You played</div>
+        // 1 — shows played
+        slide(1, ['#241a45', '#181334'], `<div class="wr-eyebrow r">You played</div>
        <div class="wr-big r" data-count="${y.shows}">0</div>
        <div class="wr-word r">SHOWS</div>
-       <div class="wr-lede r">across <b>${y.tours}</b> tour${y.tours===1?'':'s'} · <b>${y.daysOnRoad}</b> days on the road</div>`),
-    // 2 — flight map + km
-    slide(2, ['#0f1f3d','#141230'],
-      `<canvas class="wr-map" id="wr-map"></canvas>
+       <div class="wr-lede r">across <b>${y.tours}</b> tour${y.tours === 1 ? '' : 's'} · <b>${y.daysOnRoad}</b> days on the road</div>`),
+        // 2 — flight map + km
+        slide(2, ['#0f1f3d', '#141230'], `<canvas class="wr-map" id="wr-map"></canvas>
        <div class="wr-map-fade"></div>
        <div class="wr-map-copy">
          <div class="wr-eyebrow r">You flew</div>
          <div class="wr-big r" data-count="${y.km}" data-suffix=" km">0</div>
-         ${kmScale?`<div class="wr-lede r">${esc(kmScale)}</div>`:''}
-         <div class="wr-chip r">${y.flights} flights · ${y.airports} airports${longest?` · longest ${esc(y.longest.from)}→${esc(y.longest.to)}`:''}</div>
+         ${kmScale ? `<div class="wr-lede r">${esc(kmScale)}</div>` : ''}
+         <div class="wr-chip r">${y.flights} flights · ${y.airports} airports${longest ? ` · longest ${esc(y.longest.from)}→${esc(y.longest.to)}` : ''}</div>
        </div>`, 7200),
-    // 3 — countries & cities
-    slide(3, ['#3a1638','#1b1230'],
-      `<div class="wr-eyebrow r">You touched down in</div>
+        // 3 — countries & cities
+        slide(3, ['#3a1638', '#1b1230'], `<div class="wr-eyebrow r">You touched down in</div>
        <div class="wr-big r" data-count="${y.countries}">0</div>
        <div class="wr-word r">COUNTRIES</div>
        <div class="wr-lede r"><b>${y.cities}</b> different cities</div>
-       <div class="wr-flags r">${flags.map((f,i)=>`<span style="--d:${i*0.06}s">${f}</span>`).join('')||''}</div>`),
-    // 4 — hours behind the decks: h / m / s
-    slide(4, ['#20184a','#151228'],
-      `<div class="wr-eyebrow r">Behind the decks</div>
+       <div class="wr-flags r">${flags.map((f, i) => `<span style="--d:${i * 0.06}s">${f}</span>`).join('') || ''}</div>`),
+        // 4 — hours behind the decks: h / m / s
+        slide(4, ['#20184a', '#151228'], `<div class="wr-eyebrow r">Behind the decks</div>
        <div class="wr-hms">
          <div class="r"><b data-count="${hH}">0</b><span>hours</span></div>
          <div class="r"><b data-count="${hM}">0</b><span>minutes</span></div>
          <div class="r"><b data-count="${hS}">0</b><span>seconds</span></div>
        </div>`, 6200),
-    // 5 — highlights
-    slide(5, ['#12233f','#141230'],
-      `<div class="wr-eyebrow r">Highlights</div>
+        // 5 — highlights
+        slide(5, ['#12233f', '#141230'], `<div class="wr-eyebrow r">Highlights</div>
        <div class="wr-hl r">
-         ${longest?`<div><span>Longest hop</span><b>${esc(y.longest.from)} → ${esc(y.longest.to)}</b><i>${Math.round(y.longest.km).toLocaleString()} km</i></div>`:''}
-         ${y.topCity?`<div><span>Home from home</span><b>${esc(y.topCity)}</b><i>${y.topCityN} show${y.topCityN===1?'':'s'}</i></div>`:''}
-         ${y.busiestMonth?`<div><span>Busiest month</span><b>${esc(y.busiestMonth)}</b><i>${y.busiestMonthN} show${y.busiestMonthN===1?'':'s'}</i></div>`:''}
+         ${longest ? `<div><span>Longest hop</span><b>${esc(y.longest.from)} → ${esc(y.longest.to)}</b><i>${Math.round(y.longest.km).toLocaleString()} km</i></div>` : ''}
+         ${y.topCity ? `<div><span>Home from home</span><b>${esc(y.topCity)}</b><i>${y.topCityN} show${y.topCityN === 1 ? '' : 's'}</i></div>` : ''}
+         ${y.busiestMonth ? `<div><span>Busiest month</span><b>${esc(y.busiestMonth)}</b><i>${y.busiestMonthN} show${y.busiestMonthN === 1 ? '' : 's'}</i></div>` : ''}
          <div><span>Nights away</span><b>${y.nights}</b><i>hotel stays</i></div>
        </div>`, 7000),
-    // 6 — by the numbers
-    slide(6, ['#241a45','#141127'],
-      `<div class="wr-eyebrow r">${y.year} by the numbers</div>
+        // 6 — by the numbers
+        slide(6, ['#241a45', '#141127'], `<div class="wr-eyebrow r">${y.year} by the numbers</div>
        <div class="wr-grid r">
          ${recap('Shows', y.shows)}
-         ${recap('Km flown', y.km>0?y.km.toLocaleString():'—')}
+         ${recap('Km flown', y.km > 0 ? y.km.toLocaleString() : '—')}
          ${recap('Flights', y.flights)}
          ${recap('Airports', y.airports)}
          ${recap('Countries', y.countries)}
          ${recap('Cities', y.cities)}
-         ${recap('Hours played', y.stageHrs>0?y.stageHrs+'h':'—')}
+         ${recap('Hours played', y.stageHrs > 0 ? y.stageHrs + 'h' : '—')}
          ${recap('Nights away', y.nights)}
          ${recap('Days on road', y.daysOnRoad)}
          ${recap('Tours', y.tours)}
        </div>`, 8000),
-    // 7 — outro
-    slide(7, ['#2c2060','#120f26'],
-      `<div class="wr-eyebrow r" style="color:var(--accent-2)">That's a wrap, ${name?esc(name.split(' ')[0]):'legend'}</div>
+        // 7 — outro
+        slide(7, ['#2c2060', '#120f26'], `<div class="wr-eyebrow r" style="color:var(--accent-2)">That's a wrap, ${name ? esc(name.split(' ')[0]) : 'legend'}</div>
        <div class="wr-summary r">
          <div><b>${y.shows}</b><span>shows</span></div>
-         <div><b>${y.km>0?y.km.toLocaleString():'—'}</b><span>km flown</span></div>
+         <div><b>${y.km > 0 ? y.km.toLocaleString() : '—'}</b><span>km flown</span></div>
          <div><b>${y.countries}</b><span>countries</span></div>
-         <div><b>${y.stageHrs>0?y.stageHrs+'h':'—'}</b><span>played</span></div>
+         <div><b>${y.stageHrs > 0 ? y.stageHrs + 'h' : '—'}</b><span>played</span></div>
        </div>
-       <button class="wr-share r" onclick="event.stopPropagation();shareWrapped()">${ICON.share?ICON.share(17):''} Share your year</button>
+       <button class="wr-share r" onclick="event.stopPropagation();shareWrapped()">${ICON.share ? ICON.share(17) : ''} Share your year</button>
        <div class="wr-brand r">operate</div>`, 30000)
-  ];
-  const slides = slideArr.join('');
-  const bars = slideArr.map(()=>`<div class="wr-bar"><i></i></div>`).join('');
-
-  return `
+    ];
+    const slides = slideArr.join('');
+    const bars = slideArr.map(() => `<div class="wr-bar"><i></i></div>`).join('');
+    return `
   ${wrappedCSS()}
   <div id="wrapped-root" class="wr-root">
     <div class="wr-progress">${bars}</div>
@@ -146,8 +141,8 @@ function viewWrapped(){
     <div class="wr-tap wr-next" onclick="wrappedGo(1)"></div>
   </div>`;
 }
-
-function wrappedCSS(){ return `<style>
+function wrappedCSS() {
+    return `<style>
   .wr-root{position:fixed;inset:0;z-index:2000;background:#0c0a18;overflow:hidden;
     font-family:var(--font,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif);color:#f4f2fb;
     -webkit-tap-highlight-color:transparent;user-select:none}
@@ -226,277 +221,459 @@ function wrappedCSS(){ return `<style>
   .wr-prev{left:0;width:32%}
   .wr-next{left:32%;right:0}
   @media(prefers-reduced-motion:reduce){ .wr-slide .r,.wr-flags span{animation:none!important;opacity:1;transform:none;filter:none} }
-</style>`; }
-
+</style>`;
+}
 /* ---- story controller ---- */
 let wrState = null;
 /* React WrappedPage calls this before wrDrawMapAnimated so map helpers have wrState. */
-function prepareWrappedMap(){
-  const root = document.getElementById('wrapped-root');
-  if(!root) return;
-  const slides = [...root.querySelectorAll('.wr-slide')];
-  wrState = { i: 2, n: slides.length, slides, timer: null, mapDone: false };
+function prepareWrappedMap() {
+    const root = document.getElementById('wrapped-root');
+    if (!root)
+        return;
+    const slides = [...root.querySelectorAll('.wr-slide')];
+    wrState = { i: 2, n: slides.length, slides, timer: null, mapDone: false };
 }
-function initWrapped(){
-  const root = document.getElementById('wrapped-root');
-  if(!root) return;
-  const slides = [...root.querySelectorAll('.wr-slide')];
-  if(!slides.length) return;
-  wrState = { i:-1, n:slides.length, slides, timer:null, mapDone:false };
-  wrappedShow(0);
+function initWrapped() {
+    const root = document.getElementById('wrapped-root');
+    if (!root)
+        return;
+    const slides = [...root.querySelectorAll('.wr-slide')];
+    if (!slides.length)
+        return;
+    wrState = { i: -1, n: slides.length, slides, timer: null, mapDone: false };
+    wrappedShow(0);
 }
-function wrClearTimer(){ if(wrState&&wrState.timer){ clearTimeout(wrState.timer); wrState.timer=null; } }
-function wrappedShow(i){
-  const root = document.getElementById('wrapped-root'); if(!root||!wrState) return;
-  if(i<0) i=0; if(i>=wrState.n) i=wrState.n-1;
-  wrClearTimer();
-  wrState.i = i;
-  const bars = [...root.querySelectorAll('.wr-bar')];
-  wrState.slides.forEach((s,idx)=>{ s.classList.toggle('on', idx===i); });
-  bars.forEach((b,idx)=>{ b.classList.remove('active','done'); const fill=b.querySelector('i'); fill.style.animation='none';
-    if(idx<i) b.classList.add('done'); });
-  const cur = wrState.slides[i];
-  const dur = Math.max(2600, parseInt(cur.getAttribute('data-dur'))||5200);
-  // progress fill for the active bar (skip on last slide)
-  if(bars[i] && i<wrState.n-1 && !WR_REDUCE()){
-    const fill=bars[i].querySelector('i'); bars[i].classList.add('active');
-    fill.style.animation=`wrFill ${dur}ms linear forwards`;
-  } else if(bars[i] && i===wrState.n-1){ bars[i].classList.add('done'); }
-  // per-slide animations
-  wrCountUp(cur);
-  if(cur.querySelector('#wr-map')) wrDrawMapAnimated();
-  // autoplay (not on last slide)
-  if(i < wrState.n-1){
-    wrState.timer = setTimeout(()=>{ if(document.getElementById('wrapped-root')) wrappedGo(1); }, dur);
-  }
+function wrClearTimer() { if (wrState && wrState.timer) {
+    clearTimeout(wrState.timer);
+    wrState.timer = null;
+} }
+function wrappedShow(i) {
+    const root = document.getElementById('wrapped-root');
+    if (!root || !wrState)
+        return;
+    if (i < 0)
+        i = 0;
+    if (i >= wrState.n)
+        i = wrState.n - 1;
+    wrClearTimer();
+    wrState.i = i;
+    const bars = [...root.querySelectorAll('.wr-bar')];
+    wrState.slides.forEach((s, idx) => { s.classList.toggle('on', idx === i); });
+    bars.forEach((b, idx) => {
+        b.classList.remove('active', 'done');
+        const fill = b.querySelector('i');
+        fill.style.animation = 'none';
+        if (idx < i)
+            b.classList.add('done');
+    });
+    const cur = wrState.slides[i];
+    const dur = Math.max(2600, parseInt(cur.getAttribute('data-dur')) || 5200);
+    // progress fill for the active bar (skip on last slide)
+    if (bars[i] && i < wrState.n - 1 && !WR_REDUCE()) {
+        const fill = bars[i].querySelector('i');
+        bars[i].classList.add('active');
+        fill.style.animation = `wrFill ${dur}ms linear forwards`;
+    }
+    else if (bars[i] && i === wrState.n - 1) {
+        bars[i].classList.add('done');
+    }
+    // per-slide animations
+    wrCountUp(cur);
+    if (cur.querySelector('#wr-map'))
+        wrDrawMapAnimated();
+    // autoplay (not on last slide)
+    if (i < wrState.n - 1) {
+        wrState.timer = setTimeout(() => { if (document.getElementById('wrapped-root'))
+            wrappedGo(1); }, dur);
+    }
 }
-function wrappedGo(dir){
-  if(!wrState) return;
-  const next = wrState.i + dir;
-  if(next<0){ wrappedShow(0); return; }
-  if(next>=wrState.n){ return; } // stay on last
-  wrappedShow(next);
+function wrappedGo(dir) {
+    if (!wrState)
+        return;
+    const next = wrState.i + dir;
+    if (next < 0) {
+        wrappedShow(0);
+        return;
+    }
+    if (next >= wrState.n) {
+        return;
+    } // stay on last
+    wrappedShow(next);
 }
-function wrCountUp(slide){
-  slide.querySelectorAll('[data-count]').forEach(el=>{
-    const to = parseInt(el.getAttribute('data-count'))||0;
-    const suf = el.getAttribute('data-suffix')||'';
-    if(WR_REDUCE() || to<=0){ el.textContent = to.toLocaleString()+suf; return; }
-    const dur=1200, t0=performance.now();
-    const step=(t)=>{ const p=Math.min(1,(t-t0)/dur); const e=1-Math.pow(1-p,3);
-      el.textContent = Math.round(to*e).toLocaleString()+suf;
-      if(p<1 && document.body.contains(el)) requestAnimationFrame(step); };
-    requestAnimationFrame(step);
-  });
+function wrCountUp(slide) {
+    slide.querySelectorAll('[data-count]').forEach(el => {
+        const to = parseInt(el.getAttribute('data-count')) || 0;
+        const suf = el.getAttribute('data-suffix') || '';
+        if (WR_REDUCE() || to <= 0) {
+            el.textContent = to.toLocaleString() + suf;
+            return;
+        }
+        const dur = 1200, t0 = performance.now();
+        const step = (t) => {
+            const p = Math.min(1, (t - t0) / dur);
+            const e = 1 - Math.pow(1 - p, 3);
+            el.textContent = Math.round(to * e).toLocaleString() + suf;
+            if (p < 1 && document.body.contains(el))
+                requestAnimationFrame(step);
+        };
+        requestAnimationFrame(step);
+    });
 }
-
 /* ---- flight map ---- */
-function wrProject(legs, nodes, W, H){
-  const pts=[...nodes.values()];
-  let minLat=90,maxLat=-90,minLng=180,maxLng=-180;
-  pts.forEach(([la,ln])=>{ minLat=Math.min(minLat,la);maxLat=Math.max(maxLat,la);minLng=Math.min(minLng,ln);maxLng=Math.max(maxLng,ln); });
-  if(pts.length<2){ minLat-=8;maxLat+=8;minLng-=12;maxLng+=12; }
-  // pad
-  const padLat=(maxLat-minLat||10)*0.22+4, padLng=(maxLng-minLng||10)*0.18+6;
-  minLat-=padLat;maxLat+=padLat;minLng-=padLng;maxLng+=padLng;
-  const mx=52, myTop=70, myBot=H*0.34;
-  const spanLng=maxLng-minLng||1, spanLat=maxLat-minLat||1;
-  // keep aspect reasonable
-  const proj=([la,ln])=>{
-    const x=mx+((ln-minLng)/spanLng)*(W-mx*2);
-    const y=myTop+((maxLat-la)/spanLat)*(H-myTop-myBot);
-    return [x,y];
-  };
-  return proj;
+function wrProject(legs, nodes, W, H) {
+    const pts = [...nodes.values()];
+    let minLat = 90, maxLat = -90, minLng = 180, maxLng = -180;
+    pts.forEach(([la, ln]) => { minLat = Math.min(minLat, la); maxLat = Math.max(maxLat, la); minLng = Math.min(minLng, ln); maxLng = Math.max(maxLng, ln); });
+    if (pts.length < 2) {
+        minLat -= 8;
+        maxLat += 8;
+        minLng -= 12;
+        maxLng += 12;
+    }
+    // pad
+    const padLat = (maxLat - minLat || 10) * 0.22 + 4, padLng = (maxLng - minLng || 10) * 0.18 + 6;
+    minLat -= padLat;
+    maxLat += padLat;
+    minLng -= padLng;
+    maxLng += padLng;
+    const mx = 52, myTop = 70, myBot = H * 0.34;
+    const spanLng = maxLng - minLng || 1, spanLat = maxLat - minLat || 1;
+    // keep aspect reasonable
+    const proj = ([la, ln]) => {
+        const x = mx + ((ln - minLng) / spanLng) * (W - mx * 2);
+        const y = myTop + ((maxLat - la) / spanLat) * (H - myTop - myBot);
+        return [x, y];
+    };
+    return proj;
 }
 /* Neon wireframe globe backdrop — rim + latitude/longitude ellipses, softly
    glowing and semi-transparent, with a slow meridian drift when animated. */
-function wrDrawGlobe(g, cx, cy, r, alpha, animate){
-  if(r<=0 || alpha<=0) return;
-  g.save();
-  // faint glow disc so it reads as a sphere
-  const disc=g.createRadialGradient(cx,cy-r*0.25,r*0.1,cx,cy,r*1.08);
-  disc.addColorStop(0,'rgba(90,140,255,0.12)'); disc.addColorStop(1,'rgba(90,140,255,0)');
-  g.globalAlpha=0.6*alpha; g.fillStyle=disc; g.beginPath(); g.arc(cx,cy,r,0,Math.PI*2); g.fill();
-  // wireframe
-  g.globalAlpha=0.30*alpha; g.strokeStyle='rgba(125,170,255,0.95)'; g.lineWidth=1.1;
-  g.shadowColor='rgba(110,155,255,0.65)'; g.shadowBlur=8;
-  g.beginPath(); g.arc(cx,cy,r,0,Math.PI*2); g.stroke();                 // rim
-  [-60,-30,0,30,60].forEach(deg=>{                                       // parallels
-    const phi=deg*Math.PI/180, yy=cy-r*Math.sin(phi), rx=r*Math.cos(phi), ry=Math.max(2,rx*0.16);
-    g.beginPath(); g.ellipse(cx,yy,rx,ry,0,0,Math.PI*2); g.stroke();
-  });
-  const phase = animate ? (performance.now()/7000) : 0.4;               // meridians (drift = slow spin)
-  for(let i=0;i<6;i++){ const a=(i/6)*Math.PI+phase; const rx=Math.abs(r*Math.cos(a));
-    g.beginPath(); g.ellipse(cx,cy,Math.max(0.6,rx),r,0,0,Math.PI*2); g.stroke(); }
-  g.shadowBlur=0; g.restore();
-}
-function wrDrawMap(canvas, progress){
-  const dpr=Math.min(2, window.devicePixelRatio||1);
-  const W=canvas.clientWidth||canvas.offsetWidth||360, H=canvas.clientHeight||canvas.offsetHeight||640;
-  canvas.width=W*dpr; canvas.height=H*dpr;
-  const g=canvas.getContext('2d'); g.setTransform(dpr,0,0,dpr,0,0); g.clearRect(0,0,W,H);
-  const { legs, nodes } = wrState._map || {legs:[],nodes:new Map()};
-  // neon wireframe globe backdrop
-  const gr = Math.min(W*0.46, H*0.30);
-  wrDrawGlobe(g, W/2, H*0.34, gr, Math.min(1, progress*1.6), true);
-  if(!legs.length) return;
-  const proj = wrState._proj || (wrState._proj = wrProject(legs, nodes, W, H));
-  const home = (store.settings&&store.settings.homeAirport||'').toUpperCase();
-  // longest leg for highlight
-  let li=0,lk=0; legs.forEach((l,idx)=>{ if(l.km>lk){lk=l.km;li=idx;} });
-  // arcs (staggered reveal)
-  const n=legs.length;
-  legs.forEach((l,idx)=>{
-    const start=idx/n*0.55, local=Math.max(0,Math.min(1,(progress-start)/0.45));
-    if(local<=0) return;
-    const [x1,y1]=proj(l.a), [x2,y2]=proj(l.b);
-    const mxp=(x1+x2)/2, myp=(y1+y2)/2;
-    const dist=Math.hypot(x2-x1,y2-y1);
-    const cx=mxp, cy=myp-Math.min(180, dist*0.42)-20; // bulge upward
-    // sample the quadratic bezier up to `local`
+function wrDrawGlobe(g, cx, cy, r, alpha, animate) {
+    if (r <= 0 || alpha <= 0)
+        return;
+    g.save();
+    // faint glow disc so it reads as a sphere
+    const disc = g.createRadialGradient(cx, cy - r * 0.25, r * 0.1, cx, cy, r * 1.08);
+    disc.addColorStop(0, 'rgba(90,140,255,0.12)');
+    disc.addColorStop(1, 'rgba(90,140,255,0)');
+    g.globalAlpha = 0.6 * alpha;
+    g.fillStyle = disc;
     g.beginPath();
-    for(let t=0;t<=local+0.0001;t+=0.02){
-      const tt=Math.min(1,t), it=1-tt;
-      const x=it*it*x1+2*it*tt*cx+tt*tt*x2, y=it*it*y1+2*it*tt*cy+tt*tt*y2;
-      if(t===0) g.moveTo(x,y); else g.lineTo(x,y);
+    g.arc(cx, cy, r, 0, Math.PI * 2);
+    g.fill();
+    // wireframe
+    g.globalAlpha = 0.30 * alpha;
+    g.strokeStyle = 'rgba(125,170,255,0.95)';
+    g.lineWidth = 1.1;
+    g.shadowColor = 'rgba(110,155,255,0.65)';
+    g.shadowBlur = 8;
+    g.beginPath();
+    g.arc(cx, cy, r, 0, Math.PI * 2);
+    g.stroke(); // rim
+    [-60, -30, 0, 30, 60].forEach(deg => {
+        const phi = deg * Math.PI / 180, yy = cy - r * Math.sin(phi), rx = r * Math.cos(phi), ry = Math.max(2, rx * 0.16);
+        g.beginPath();
+        g.ellipse(cx, yy, rx, ry, 0, 0, Math.PI * 2);
+        g.stroke();
+    });
+    const phase = animate ? (performance.now() / 7000) : 0.4; // meridians (drift = slow spin)
+    for (let i = 0; i < 6; i++) {
+        const a = (i / 6) * Math.PI + phase;
+        const rx = Math.abs(r * Math.cos(a));
+        g.beginPath();
+        g.ellipse(cx, cy, Math.max(0.6, rx), r, 0, 0, Math.PI * 2);
+        g.stroke();
     }
-    const hot = idx===li;
-    g.strokeStyle = hot ? 'rgba(255,150,214,0.95)' : 'rgba(150,132,255,0.72)';
-    g.lineWidth = hot ? 2.4 : 1.5;
-    g.shadowColor = hot ? 'rgba(255,120,200,0.7)' : 'rgba(139,125,255,0.6)';
-    g.shadowBlur = 10; g.stroke(); g.shadowBlur=0;
-  });
-  // nodes + labels
-  g.font='700 11px system-ui,-apple-system,sans-serif'; g.textAlign='center';
-  nodes.forEach((ll,code)=>{
-    const [x,yv]=proj(ll); const isHome=code===home;
-    g.beginPath(); g.arc(x,yv, isHome?4.5:3, 0, Math.PI*2);
-    g.fillStyle=isHome?'#ffd27d':'#cfc6ff'; g.shadowColor=isHome?'rgba(255,210,125,.9)':'rgba(180,165,255,.8)'; g.shadowBlur=10; g.fill(); g.shadowBlur=0;
-    if(progress>0.6){ g.globalAlpha=Math.min(1,(progress-0.6)/0.3); g.fillStyle='rgba(233,229,255,0.9)'; g.fillText(code, x, yv-9); g.globalAlpha=1; }
-  });
-  // plane travelling the longest arc
-  if(progress>=1 && legs[li]){
-    const l=legs[li]; const [x1,y1]=proj(l.a),[x2,y2]=proj(l.b);
-    const mxp=(x1+x2)/2,myp=(y1+y2)/2,dist=Math.hypot(x2-x1,y2-y1);
-    const cx=mxp,cy=myp-Math.min(180,dist*0.42)-20;
-    const t=((performance.now()/2600)%1), it=1-t;
-    const x=it*it*x1+2*it*t*cx+t*t*x2, y=it*it*y1+2*it*t*cy+t*t*y2;
-    g.beginPath(); g.arc(x,y,3.2,0,Math.PI*2); g.fillStyle='#fff'; g.shadowColor='#fff'; g.shadowBlur=12; g.fill(); g.shadowBlur=0;
-  }
+    g.shadowBlur = 0;
+    g.restore();
 }
-function wrDrawMapAnimated(){
-  const canvas=document.getElementById('wr-map'); if(!canvas||!wrState) return;
-  wrState._map = yearFlightLegs(); wrState._proj=null;
-  const reduce=WR_REDUCE();
-  const t0=performance.now(), dur=2600;
-  const loop=(t)=>{
-    if(!document.getElementById('wr-map')) return;
-    const p= reduce ? 1 : Math.min(1,(t-t0)/dur);
-    wrDrawMap(canvas, p);
-    // keep animating the plane after arcs finish, while slide is visible
-    if(document.querySelector('.wr-slide.on #wr-map')) requestAnimationFrame(loop);
-  };
-  requestAnimationFrame(loop);
+function wrDrawMap(canvas, progress) {
+    const dpr = Math.min(2, window.devicePixelRatio || 1);
+    const W = canvas.clientWidth || canvas.offsetWidth || 360, H = canvas.clientHeight || canvas.offsetHeight || 640;
+    canvas.width = W * dpr;
+    canvas.height = H * dpr;
+    const g = canvas.getContext('2d');
+    g.setTransform(dpr, 0, 0, dpr, 0, 0);
+    g.clearRect(0, 0, W, H);
+    const { legs, nodes } = wrState._map || { legs: [], nodes: new Map() };
+    // neon wireframe globe backdrop
+    const gr = Math.min(W * 0.46, H * 0.30);
+    wrDrawGlobe(g, W / 2, H * 0.34, gr, Math.min(1, progress * 1.6), true);
+    if (!legs.length)
+        return;
+    const proj = wrState._proj || (wrState._proj = wrProject(legs, nodes, W, H));
+    const home = (store.settings && store.settings.homeAirport || '').toUpperCase();
+    // longest leg for highlight
+    let li = 0, lk = 0;
+    legs.forEach((l, idx) => { if (l.km > lk) {
+        lk = l.km;
+        li = idx;
+    } });
+    // arcs (staggered reveal)
+    const n = legs.length;
+    legs.forEach((l, idx) => {
+        const start = idx / n * 0.55, local = Math.max(0, Math.min(1, (progress - start) / 0.45));
+        if (local <= 0)
+            return;
+        const [x1, y1] = proj(l.a), [x2, y2] = proj(l.b);
+        const mxp = (x1 + x2) / 2, myp = (y1 + y2) / 2;
+        const dist = Math.hypot(x2 - x1, y2 - y1);
+        const cx = mxp, cy = myp - Math.min(180, dist * 0.42) - 20; // bulge upward
+        // sample the quadratic bezier up to `local`
+        g.beginPath();
+        for (let t = 0; t <= local + 0.0001; t += 0.02) {
+            const tt = Math.min(1, t), it = 1 - tt;
+            const x = it * it * x1 + 2 * it * tt * cx + tt * tt * x2, y = it * it * y1 + 2 * it * tt * cy + tt * tt * y2;
+            if (t === 0)
+                g.moveTo(x, y);
+            else
+                g.lineTo(x, y);
+        }
+        const hot = idx === li;
+        g.strokeStyle = hot ? 'rgba(255,150,214,0.95)' : 'rgba(150,132,255,0.72)';
+        g.lineWidth = hot ? 2.4 : 1.5;
+        g.shadowColor = hot ? 'rgba(255,120,200,0.7)' : 'rgba(139,125,255,0.6)';
+        g.shadowBlur = 10;
+        g.stroke();
+        g.shadowBlur = 0;
+    });
+    // nodes + labels
+    g.font = '700 11px system-ui,-apple-system,sans-serif';
+    g.textAlign = 'center';
+    nodes.forEach((ll, code) => {
+        const [x, yv] = proj(ll);
+        const isHome = code === home;
+        g.beginPath();
+        g.arc(x, yv, isHome ? 4.5 : 3, 0, Math.PI * 2);
+        g.fillStyle = isHome ? '#ffd27d' : '#cfc6ff';
+        g.shadowColor = isHome ? 'rgba(255,210,125,.9)' : 'rgba(180,165,255,.8)';
+        g.shadowBlur = 10;
+        g.fill();
+        g.shadowBlur = 0;
+        if (progress > 0.6) {
+            g.globalAlpha = Math.min(1, (progress - 0.6) / 0.3);
+            g.fillStyle = 'rgba(233,229,255,0.9)';
+            g.fillText(code, x, yv - 9);
+            g.globalAlpha = 1;
+        }
+    });
+    // plane travelling the longest arc
+    if (progress >= 1 && legs[li]) {
+        const l = legs[li];
+        const [x1, y1] = proj(l.a), [x2, y2] = proj(l.b);
+        const mxp = (x1 + x2) / 2, myp = (y1 + y2) / 2, dist = Math.hypot(x2 - x1, y2 - y1);
+        const cx = mxp, cy = myp - Math.min(180, dist * 0.42) - 20;
+        const t = ((performance.now() / 2600) % 1), it = 1 - t;
+        const x = it * it * x1 + 2 * it * t * cx + t * t * x2, y = it * it * y1 + 2 * it * t * cy + t * t * y2;
+        g.beginPath();
+        g.arc(x, y, 3.2, 0, Math.PI * 2);
+        g.fillStyle = '#fff';
+        g.shadowColor = '#fff';
+        g.shadowBlur = 12;
+        g.fill();
+        g.shadowBlur = 0;
+    }
 }
-
+function wrDrawMapAnimated() {
+    const canvas = document.getElementById('wr-map');
+    if (!canvas || !wrState)
+        return;
+    wrState._map = yearFlightLegs();
+    wrState._proj = null;
+    const reduce = WR_REDUCE();
+    const t0 = performance.now(), dur = 2600;
+    const loop = (t) => {
+        if (!document.getElementById('wr-map'))
+            return;
+        const p = reduce ? 1 : Math.min(1, (t - t0) / dur);
+        wrDrawMap(canvas, p);
+        // keep animating the plane after arcs finish, while slide is visible
+        if (document.querySelector('.wr-slide.on #wr-map'))
+            requestAnimationFrame(loop);
+    };
+    requestAnimationFrame(loop);
+}
 /* ---- shareable poster (1080×1920 PNG) ---- */
-function drawWrappedCanvas(y, name){
-  const W=1080,H=1920,cv=document.createElement('canvas'); cv.width=W; cv.height=H;
-  const g=cv.getContext('2d');
-  const grad=g.createLinearGradient(0,0,W*0.4,H);
-  grad.addColorStop(0,'#2c2060'); grad.addColorStop(.55,'#1a1538'); grad.addColorStop(1,'#100d20');
-  g.fillStyle=grad; g.fillRect(0,0,W,H);
-  const glow=g.createRadialGradient(W*0.8,H*0.1,0,W*0.8,H*0.1,W); glow.addColorStop(0,'rgba(139,125,255,.30)'); glow.addColorStop(1,'rgba(139,125,255,0)');
-  g.fillStyle=glow; g.fillRect(0,0,W,H);
-
-  const PAD=90;
-  // header
-  let cy=168; g.textAlign='left';
-  g.fillStyle='#a99dff'; g.font='800 30px system-ui,-apple-system,sans-serif'; g.fillText('OPERATE · YEAR IN REVIEW', PAD, cy);
-  cy+=128; g.fillStyle='#f4f2fb'; g.font='900 172px system-ui,-apple-system,sans-serif'; g.fillText(String(y.year), PAD, cy);
-  if(name){ cy+=48; g.fillStyle='#d7d2f2'; g.font='700 42px system-ui,-apple-system,sans-serif'; g.fillText(name, PAD, cy); }
-
-  // mini flight map band
-  try{
-    const { legs, nodes } = yearFlightLegs();
-    if(legs.length){
-      const bx=70,by=430,bw=W-140,bh=360;
-      const proj=wrProject(legs,nodes,bw,bh);
-      const home=(store.settings&&store.settings.homeAirport||'').toUpperCase();
-      let li=0,lk=0; legs.forEach((l,i)=>{ if(l.km>lk){lk=l.km;li=i;} });
-      g.save(); g.translate(bx,by);
-      wrDrawGlobe(g, bw/2, bh*0.44, Math.min(bw*0.42, bh*0.46), 1, false);
-      legs.forEach((l,idx)=>{ const [x1,y1]=proj(l.a),[x2,y2]=proj(l.b);
-        const mxp=(x1+x2)/2,myp=(y1+y2)/2,dist=Math.hypot(x2-x1,y2-y1),cyy=myp-Math.min(130,dist*0.4)-12;
-        g.beginPath(); g.moveTo(x1,y1); g.quadraticCurveTo(mxp,cyy,x2,y2);
-        const hot=idx===li; g.strokeStyle=hot?'rgba(255,150,214,0.95)':'rgba(150,132,255,0.55)'; g.lineWidth=hot?4:2.2;
-        g.shadowColor=hot?'rgba(255,120,200,.6)':'rgba(139,125,255,.5)'; g.shadowBlur=12; g.stroke(); g.shadowBlur=0; });
-      nodes.forEach((ll,code)=>{ const [x,yv]=proj(ll); const ih=code===home;
-        g.beginPath(); g.arc(x,yv,ih?7:5,0,Math.PI*2); g.fillStyle=ih?'#ffd27d':'#d3caff'; g.shadowColor='rgba(180,165,255,.8)'; g.shadowBlur=12; g.fill(); g.shadowBlur=0; });
-      g.restore();
+function drawWrappedCanvas(y, name) {
+    const W = 1080, H = 1920, cv = document.createElement('canvas');
+    cv.width = W;
+    cv.height = H;
+    const g = cv.getContext('2d');
+    const grad = g.createLinearGradient(0, 0, W * 0.4, H);
+    grad.addColorStop(0, '#2c2060');
+    grad.addColorStop(.55, '#1a1538');
+    grad.addColorStop(1, '#100d20');
+    g.fillStyle = grad;
+    g.fillRect(0, 0, W, H);
+    const glow = g.createRadialGradient(W * 0.8, H * 0.1, 0, W * 0.8, H * 0.1, W);
+    glow.addColorStop(0, 'rgba(139,125,255,.30)');
+    glow.addColorStop(1, 'rgba(139,125,255,0)');
+    g.fillStyle = glow;
+    g.fillRect(0, 0, W, H);
+    const PAD = 90;
+    // header
+    let cy = 168;
+    g.textAlign = 'left';
+    g.fillStyle = '#a99dff';
+    g.font = '800 30px system-ui,-apple-system,sans-serif';
+    g.fillText('OPERATE · YEAR IN REVIEW', PAD, cy);
+    cy += 128;
+    g.fillStyle = '#f4f2fb';
+    g.font = '900 172px system-ui,-apple-system,sans-serif';
+    g.fillText(String(y.year), PAD, cy);
+    if (name) {
+        cy += 48;
+        g.fillStyle = '#d7d2f2';
+        g.font = '700 42px system-ui,-apple-system,sans-serif';
+        g.fillText(name, PAD, cy);
     }
-  }catch(e){}
-
-  const EARTH=40075;
-  const kmScale = y.km>=EARTH ? `${(y.km/EARTH).toFixed(1)}× around the planet` : y.km>0 ? `${Math.max(1,Math.round(y.km/EARTH*100))}% around the planet` : '';
-  const totMin=y.stageMins||0;
-
-  // full figure grid — every stat
-  const cells = [
-    ['Shows', String(y.shows)],
-    ['Km flown', y.km>0?y.km.toLocaleString():'—'],
-    ['Flights', String(y.flights)],
-    ['Airports', String(y.airports)],
-    ['Countries', String(y.countries)],
-    ['Cities', String(y.cities)],
-    ['Hours played', y.stageHrs>0?(y.stageHrs+'h'):'—'],
-    ['Nights away', String(y.nights)],
-    ['Days on road', String(y.daysOnRoad)],
-    ['Tours', String(y.tours)]
-  ];
-  const colX=[PAD, W/2+20]; const gy0=870, rowH=124;
-  cells.forEach((c,idx)=>{ const col=idx%2, row=(idx-col)/2; const x=colX[col], yy=gy0+row*rowH;
-    g.fillStyle='#9b93c4'; g.font='800 24px system-ui,-apple-system,sans-serif'; g.fillText(c[0].toUpperCase(), x, yy);
-    g.fillStyle='#fff'; g.font='900 66px system-ui,-apple-system,sans-serif'; g.fillText(c[1], x, yy+66);
-  });
-
-  // hours h/m/s band
-  let by2=gy0+5*rowH+30;
-  g.fillStyle='#a99dff'; g.font='800 24px system-ui,-apple-system,sans-serif'; g.fillText('BEHIND THE DECKS', PAD, by2);
-  by2+=52; g.fillStyle='#efeaff'; g.font='800 44px system-ui,-apple-system,sans-serif';
-  g.fillText(`${Math.round(totMin/60).toLocaleString()}h  ·  ${totMin.toLocaleString()} min  ·  ${(totMin*60).toLocaleString()} sec`, PAD, by2);
-
-  // highlights
-  let hy=by2+70;
-  const hl=[];
-  if(y.longest&&y.longest.km>0) hl.push(['Longest hop', `${y.longest.from} → ${y.longest.to} · ${Math.round(y.longest.km).toLocaleString()} km`]);
-  if(y.topCity) hl.push(['Home from home', `${y.topCity} · ${y.topCityN} show${y.topCityN===1?'':'s'}`]);
-  if(y.busiestMonth) hl.push(['Busiest month', `${y.busiestMonth} · ${y.busiestMonthN} show${y.busiestMonthN===1?'':'s'}`]);
-  if(kmScale) hl.push(['Distance', kmScale]);
-  hl.slice(0,4).forEach(h=>{
-    g.fillStyle='#8b83b8'; g.font='800 22px system-ui,-apple-system,sans-serif'; g.fillText(h[0].toUpperCase(), PAD, hy); hy+=38;
-    g.fillStyle='#e7e3f6'; g.font='700 32px system-ui,-apple-system,sans-serif'; g.fillText(h[1], PAD, hy); hy+=54;
-  });
-
-  // flags row
-  if(y.flags.length){ g.font='40px system-ui,-apple-system,sans-serif'; g.fillText(y.flags.slice(0,14).join(' '), PAD, Math.min(hy+10, H-150)); }
-
-  g.textAlign='center'; g.fillStyle='#7169a0'; g.font='800 34px system-ui,-apple-system,sans-serif';
-  g.fillText('o p e r a t e', W/2, H-70);
-  return cv;
+    // mini flight map band
+    try {
+        const { legs, nodes } = yearFlightLegs();
+        if (legs.length) {
+            const bx = 70, by = 430, bw = W - 140, bh = 360;
+            const proj = wrProject(legs, nodes, bw, bh);
+            const home = (store.settings && store.settings.homeAirport || '').toUpperCase();
+            let li = 0, lk = 0;
+            legs.forEach((l, i) => { if (l.km > lk) {
+                lk = l.km;
+                li = i;
+            } });
+            g.save();
+            g.translate(bx, by);
+            wrDrawGlobe(g, bw / 2, bh * 0.44, Math.min(bw * 0.42, bh * 0.46), 1, false);
+            legs.forEach((l, idx) => {
+                const [x1, y1] = proj(l.a), [x2, y2] = proj(l.b);
+                const mxp = (x1 + x2) / 2, myp = (y1 + y2) / 2, dist = Math.hypot(x2 - x1, y2 - y1), cyy = myp - Math.min(130, dist * 0.4) - 12;
+                g.beginPath();
+                g.moveTo(x1, y1);
+                g.quadraticCurveTo(mxp, cyy, x2, y2);
+                const hot = idx === li;
+                g.strokeStyle = hot ? 'rgba(255,150,214,0.95)' : 'rgba(150,132,255,0.55)';
+                g.lineWidth = hot ? 4 : 2.2;
+                g.shadowColor = hot ? 'rgba(255,120,200,.6)' : 'rgba(139,125,255,.5)';
+                g.shadowBlur = 12;
+                g.stroke();
+                g.shadowBlur = 0;
+            });
+            nodes.forEach((ll, code) => {
+                const [x, yv] = proj(ll);
+                const ih = code === home;
+                g.beginPath();
+                g.arc(x, yv, ih ? 7 : 5, 0, Math.PI * 2);
+                g.fillStyle = ih ? '#ffd27d' : '#d3caff';
+                g.shadowColor = 'rgba(180,165,255,.8)';
+                g.shadowBlur = 12;
+                g.fill();
+                g.shadowBlur = 0;
+            });
+            g.restore();
+        }
+    }
+    catch (e) { }
+    const EARTH = 40075;
+    const kmScale = y.km >= EARTH ? `${(y.km / EARTH).toFixed(1)}× around the planet` : y.km > 0 ? `${Math.max(1, Math.round(y.km / EARTH * 100))}% around the planet` : '';
+    const totMin = y.stageMins || 0;
+    // full figure grid — every stat
+    const cells = [
+        ['Shows', String(y.shows)],
+        ['Km flown', y.km > 0 ? y.km.toLocaleString() : '—'],
+        ['Flights', String(y.flights)],
+        ['Airports', String(y.airports)],
+        ['Countries', String(y.countries)],
+        ['Cities', String(y.cities)],
+        ['Hours played', y.stageHrs > 0 ? (y.stageHrs + 'h') : '—'],
+        ['Nights away', String(y.nights)],
+        ['Days on road', String(y.daysOnRoad)],
+        ['Tours', String(y.tours)]
+    ];
+    const colX = [PAD, W / 2 + 20];
+    const gy0 = 870, rowH = 124;
+    cells.forEach((c, idx) => {
+        const col = idx % 2, row = (idx - col) / 2;
+        const x = colX[col], yy = gy0 + row * rowH;
+        g.fillStyle = '#9b93c4';
+        g.font = '800 24px system-ui,-apple-system,sans-serif';
+        g.fillText(c[0].toUpperCase(), x, yy);
+        g.fillStyle = '#fff';
+        g.font = '900 66px system-ui,-apple-system,sans-serif';
+        g.fillText(c[1], x, yy + 66);
+    });
+    // hours h/m/s band
+    let by2 = gy0 + 5 * rowH + 30;
+    g.fillStyle = '#a99dff';
+    g.font = '800 24px system-ui,-apple-system,sans-serif';
+    g.fillText('BEHIND THE DECKS', PAD, by2);
+    by2 += 52;
+    g.fillStyle = '#efeaff';
+    g.font = '800 44px system-ui,-apple-system,sans-serif';
+    g.fillText(`${Math.round(totMin / 60).toLocaleString()}h  ·  ${totMin.toLocaleString()} min  ·  ${(totMin * 60).toLocaleString()} sec`, PAD, by2);
+    // highlights
+    let hy = by2 + 70;
+    const hl = [];
+    if (y.longest && y.longest.km > 0)
+        hl.push(['Longest hop', `${y.longest.from} → ${y.longest.to} · ${Math.round(y.longest.km).toLocaleString()} km`]);
+    if (y.topCity)
+        hl.push(['Home from home', `${y.topCity} · ${y.topCityN} show${y.topCityN === 1 ? '' : 's'}`]);
+    if (y.busiestMonth)
+        hl.push(['Busiest month', `${y.busiestMonth} · ${y.busiestMonthN} show${y.busiestMonthN === 1 ? '' : 's'}`]);
+    if (kmScale)
+        hl.push(['Distance', kmScale]);
+    hl.slice(0, 4).forEach(h => {
+        g.fillStyle = '#8b83b8';
+        g.font = '800 22px system-ui,-apple-system,sans-serif';
+        g.fillText(h[0].toUpperCase(), PAD, hy);
+        hy += 38;
+        g.fillStyle = '#e7e3f6';
+        g.font = '700 32px system-ui,-apple-system,sans-serif';
+        g.fillText(h[1], PAD, hy);
+        hy += 54;
+    });
+    // flags row
+    if (y.flags.length) {
+        g.font = '40px system-ui,-apple-system,sans-serif';
+        g.fillText(y.flags.slice(0, 14).join(' '), PAD, Math.min(hy + 10, H - 150));
+    }
+    g.textAlign = 'center';
+    g.fillStyle = '#7169a0';
+    g.font = '800 34px system-ui,-apple-system,sans-serif';
+    g.fillText('o p e r a t e', W / 2, H - 70);
+    return cv;
 }
-function shareWrapped(){
-  const y=computeYearStats(); const name=wrappedName();
-  let cv; try{ cv=drawWrappedCanvas(y,name); }catch(e){ toast('Could not build image','x'); return; }
-  toast('Building your card…','image');
-  cv.toBlob(async (blob)=>{
-    if(!blob){ toast('Could not build image','x'); return; }
-    const file=new File([blob], 'operate-'+y.year+'.png', {type:'image/png'});
-    try{
-      if(navigator.canShare && navigator.canShare({files:[file]})){ await navigator.share({ files:[file], title:(name?name+' · ':'')+y.year+' on Operate' }); return; }
-    }catch(e){ if(e && e.name==='AbortError') return; }
-    const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download=file.name; a.click(); setTimeout(()=>URL.revokeObjectURL(url),1000);
-    toast('Image saved','image');
-  }, 'image/png');
+function shareWrapped() {
+    const y = computeYearStats();
+    const name = wrappedName();
+    let cv;
+    try {
+        cv = drawWrappedCanvas(y, name);
+    }
+    catch (e) {
+        toast('Could not build image', 'x');
+        return;
+    }
+    toast('Building your card…', 'image');
+    cv.toBlob(async (blob) => {
+        if (!blob) {
+            toast('Could not build image', 'x');
+            return;
+        }
+        const file = new File([blob], 'operate-' + y.year + '.png', { type: 'image/png' });
+        try {
+            if (navigator.canShare && navigator.canShare({ files: [file] })) {
+                await navigator.share({ files: [file], title: (name ? name + ' · ' : '') + y.year + ' on Operate' });
+                return;
+            }
+        }
+        catch (e) {
+            if (e && e.name === 'AbortError')
+                return;
+        }
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = file.name;
+        a.click();
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
+        toast('Image saved', 'image');
+    }, 'image/png');
 }

@@ -10,13 +10,13 @@ const itinerary=(id: any)=>(store().itineraries||[]).find((x: any)=>x.id===id)||
 const shows=()=> (store().events||[]).filter((e: any)=>(e.kind||'show')==='show');
 
 export function ItineraryStartSheet(){
-  return <><p className="sheet-lede">First choose what this upload is for ÔÇö then pick the file.</p><div className="edit-section-grid">
-    <button className="edit-section-btn" onClick={()=>call('beginItineraryNewShow')}><Icon name="plus" size={16}/><span><b>New show</b><small>Upload ÔåÆ review basics</small></span></button>
+  return <><p className="sheet-lede">First choose what this upload is for — then pick the file.</p><div className="edit-section-grid">
+    <button className="edit-section-btn" onClick={()=>call('beginItineraryNewShow')}><Icon name="plus" size={16}/><span><b>New show</b><small>Upload → review basics</small></span></button>
     <button className="edit-section-btn" onClick={()=>call('beginItineraryExistingShow')}><Icon name="music" size={16}/><span><b>Existing show</b><small>Add an itinerary to a show you already have</small></span></button>
   </div><Spacer/></>;
 }
 export function ItineraryNewShowSheet(){
-  return <><p className="sheet-lede">Upload the itinerary. WeÔÇÖll read the details, then you check the show basics.</p><label className="btn" style={{marginTop:8}}><Icon name="plus" size={18}/> Upload itinerary<input type="file" accept="image/*,application/pdf" multiple hidden onChange={(e: any)=>call('submitItinerary',e.currentTarget,'new')}/></label><Spacer/></>;
+  return <><p className="sheet-lede">Upload the itinerary. We’ll read the details, then you check the show basics.</p><label className="btn" style={{marginTop:8}}><Icon name="plus" size={18}/> Upload itinerary<input type="file" accept="image/*,application/pdf" multiple hidden onChange={(e: any)=>call('submitItinerary',e.currentTarget,'new')}/></label><Spacer/></>;
 }
 function ShowPickRow({ show, selected, onPick }: Record<string, any>){
   const cats = getCats() || {};
@@ -24,7 +24,7 @@ function ShowPickRow({ show, selected, onPick }: Record<string, any>){
   const months = getMon() || [];
   const d = parseDT(show.date);
   const place = [show.city, show.country].filter(Boolean).join(', ');
-  const detail = [place, fmtDate(show.date)].filter(Boolean).join(' ┬À ');
+  const detail = [place, fmtDate(show.date)].filter(Boolean).join(' · ');
   const statusTag = show.status && show.status !== 'confirmed'
     ? <span className={`tag ${show.status}`} style={{ marginLeft: 6, verticalAlign: 'middle', fontSize: 10, padding: '2px 7px' }}>{show.status}</span>
     : null;
@@ -36,7 +36,7 @@ function ShowPickRow({ show, selected, onPick }: Record<string, any>){
           <span className="show-date-mon">{months[d.getMonth()] || ''}</span>
         </div>
       ) : (
-        <div className="ic show-date-ic" style={{ background: `${col}22`, color: col }}>ÔÇö</div>
+        <div className="ic show-date-ic" style={{ background: `${col}22`, color: col }}>—</div>
       )}
       <div className="body">
         <b><ShowListTitle show={show} statusTag={statusTag} /></b>
@@ -51,7 +51,7 @@ export function ItineraryExistingShowSheet({items}: Record<string, any>){
   const [picked, setPicked] = useState(list[0]?.id || '');
   if(!list.length) return <><div className="empty" style={{padding:'18px 8px'}}><div className="ic"><Icon name="music" size={26}/></div><b>No shows yet</b><span>Create a show first, or choose New show instead.</span></div><button className="btn secondary" onClick={()=>call('beginItineraryNewShow')}><Icon name="plus" size={16}/> New show from itinerary</button><Spacer/></>;
   return <>
-    <p className="sheet-lede">Pick the show, then upload. YouÔÇÖll review the details before anything is added.</p>
+    <p className="sheet-lede">Pick the show, then upload. You’ll review the details before anything is added.</p>
     <div className="field">
       <label>Show</label>
       <input id="itn-pick-show" type="hidden" value={picked} readOnly />
@@ -86,13 +86,13 @@ export function ItinerarySendingSheet({ variant = 'new', phase = 'loading', mess
     return <>
       <div className="empty" style={{ padding:'28px 10px' }}>
         <div className="ic"><Icon name="file" size={28}/></div>
-        <b>Adding to showÔÇª</b>
+        <b>Adding to show…</b>
         <span>Please wait while your itinerary is uploaded and processed.</span>
       </div>
       <Spacer/>
     </>;
   }
-  return <><div className="empty" style={{padding:'28px 10px'}}><div className="ic"><Icon name="file" size={28}/></div><b>Sending your fileÔÇª</b><span>Reading the itinerary. Waiting for show basics.</span></div><Spacer/></>;
+  return <><div className="empty" style={{padding:'28px 10px'}}><div className="ic"><Icon name="file" size={28}/></div><b>Sending your file…</b><span>Reading the itinerary. Waiting for show basics.</span></div><Spacer/></>;
 }
 
 const statuses=['confirmed','hold','cancelled'];
@@ -116,7 +116,7 @@ export function ItineraryReviewSheet({id,fields}: Record<string, any>){
     <div className="row-2"><Field label="Arrival" id="itn-rev-arr" type="time" value={normalTime(f.arrival)}/><Field label="Set time" id="itn-rev-set" type="time" value={normalTime(f.setTime)||'23:00'}/></div>
     <div className="row-2"><Field label="End time" id="itn-rev-end" type="time" value={normalTime(f.endTime)}/><Field label="Artist" id="itn-rev-artist" value={f.artist||settings.artistName} placeholder={settings.artistName||'Artist'}/></div>
     <Field label="Status"><div className="seg" id="itn-rev-status">{statuses.map((s: any)=><button type="button" data-v={s} className={status===s?'on':''} key={s} onClick={(e: any)=>call('segPick',e.currentTarget)}>{s[0].toUpperCase()+s.slice(1)}</button>)}</div></Field>
-    <Field label="Content to capture" id="itn-rev-content" value={f.content} placeholder="e.g. 2x reels ┬À crowd clip"/>
+    <Field label="Content to capture" id="itn-rev-content" value={f.content} placeholder="e.g. 2x reels · crowd clip"/>
     <div className="field"><label>Internal notes</label><textarea id="itn-rev-notes" className="textarea" defaultValue={f.notes||f.remarks||''} placeholder="Team-only notes"/></div>
     <Field label="Colour"><div className="swatches" id="itn-rev-cat">{Object.entries(getCats()||{}).map(([k,v]: any)=><div className={`sw${k===cat?' on':''}`} style={{background:v}} data-cat={k} key={k} onClick={(e: any)=>call('pickCat',e.currentTarget)}/>)}</div></Field>
     <button className="btn" id="itn-rev-save" onClick={()=>call('saveItineraryReview',id)}>Create show</button>
@@ -178,14 +178,14 @@ export function ItineraryExistingReviewSheet({id, fields, showName}: Record<stri
   const rows = itineraryExistingPreviewRows(fields || it.scanFields || {});
   const name = showName || 'this show';
   return <>
-    <p className="sheet-lede">Does this look correct for <b>{name}</b>? If yes, weÔÇÖll add the itinerary and open the show. If not, nothing is added.</p>
+    <p className="sheet-lede">Does this look correct for <b>{name}</b>? If yes, we’ll add the itinerary and open the show. If not, nothing is added.</p>
     <div className="card flush" style={{marginBottom:14}}>
       {rows.length ? rows.map((row: any) => (
         <div className="home-line" key={row.label}><b>{row.label}</b><span>{row.value}</span></div>
       )) : <div className="home-quiet">No preview details came back from the file. You can still confirm if you trust the upload, or go back and try again.</div>}
     </div>
     <button className="btn" id="itn-exist-confirm" onClick={()=>call('confirmExistingItineraryReview', id)}>Yes, add to show</button>
-    <button className="btn secondary" style={{marginTop:10}} onClick={()=>call('rejectExistingItineraryReview', id)}>No, donÔÇÖt add</button>
+    <button className="btn secondary" style={{marginTop:10}} onClick={()=>call('rejectExistingItineraryReview', id)}>No, don’t add</button>
     <button className="btn secondary" style={{marginTop:10}} onClick={()=>call('sendExistingItineraryUpload', id)}><Icon name="checkList" size={15}/> Upload again</button>
     <Spacer/>
   </>;
@@ -205,5 +205,5 @@ export function ItineraryDiscardSheet({id}: Record<string, any>){
 }
 export function ItineraryDetailsSheet({id,item}: Record<string, any>){
   const it=item||itinerary(id), list=shows();
-  return <><Field label="What is this?" id="itn-src" value={call('itinerarySourceLabel', it.source) || it.source || ''} placeholder="ABOSS itinerary / Google flight status"/><div className="row-2"><Field label="Date" id="itn-date" type="date" value={it.date}/><Field label="Time (optional)" id="itn-time" type="time" value={it.time}/></div><Field label="For which show?"><select id="itn-show" className="input" defaultValue={it.showId||''}><option value="">ÔÇö Not linked ÔÇö</option>{list.map((s: any)=><option key={s.id} value={s.id}>{s.venue} ┬À {fmtDate(s.date)}</option>)}</select></Field><div className="field"><label>Notes</label><textarea id="itn-note" className="textarea" defaultValue={it.note||''} placeholder="Anything to flag ÔÇö gate, hotel, key timesÔÇª"/></div><div className="field"><label>Screenshots</label><div className="thumb-row">{(it.imgs||[]).map((im: any)=><div className="thumb" key={im.id} onClick={()=>im.kind==='image'&&call('openViewer',im.data)}>{im.kind==='image'?<img src={im.data} alt=""/>:<div className="pdf"><Icon name="file" size={26}/><span>{im.name||'PDF'}</span></div>}<div className="del-badge" onClick={(e: any)=>{e.stopPropagation();call('delItinShot',id,im.id)}}><Icon name="x" size={13}/></div></div>)}<label className="thumb thumb-add"><Icon name="plus" size={22}/><span>Add</span><input type="file" accept="image/*,application/pdf" multiple hidden onChange={(e: any)=>call('addItineraryShots',id,e.currentTarget)}/></label></div></div><button className="btn" id="itn-save" onClick={()=>call('saveItinerary',id)}>Save itinerary</button><Spacer/></>;
+  return <><Field label="What is this?" id="itn-src" value={call('itinerarySourceLabel', it.source) || it.source || ''} placeholder="ABOSS itinerary / Google flight status"/><div className="row-2"><Field label="Date" id="itn-date" type="date" value={it.date}/><Field label="Time (optional)" id="itn-time" type="time" value={it.time}/></div><Field label="For which show?"><select id="itn-show" className="input" defaultValue={it.showId||''}><option value="">— Not linked —</option>{list.map((s: any)=><option key={s.id} value={s.id}>{s.venue} · {fmtDate(s.date)}</option>)}</select></Field><div className="field"><label>Notes</label><textarea id="itn-note" className="textarea" defaultValue={it.note||''} placeholder="Anything to flag — gate, hotel, key times…"/></div><div className="field"><label>Screenshots</label><div className="thumb-row">{(it.imgs||[]).map((im: any)=><div className="thumb" key={im.id} onClick={()=>im.kind==='image'&&call('openViewer',im.data)}>{im.kind==='image'?<img src={im.data} alt=""/>:<div className="pdf"><Icon name="file" size={26}/><span>{im.name||'PDF'}</span></div>}<div className="del-badge" onClick={(e: any)=>{e.stopPropagation();call('delItinShot',id,im.id)}}><Icon name="x" size={13}/></div></div>)}<label className="thumb thumb-add"><Icon name="plus" size={22}/><span>Add</span><input type="file" accept="image/*,application/pdf" multiple hidden onChange={(e: any)=>call('addItineraryShots',id,e.currentTarget)}/></label></div></div><button className="btn" id="itn-save" onClick={()=>call('saveItinerary',id)}>Save itinerary</button><Spacer/></>;
 }

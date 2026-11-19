@@ -1,0 +1,2278 @@
+/* ============================================================
+   Operate — Application
+   Architecture:
+     • store  = single source of truth (in-memory state)
+     • db      = persistence layer (localStorage now; swap for
+                 Supabase/Postgres in Phase 2 with same API)
+     • render  = pure view functions read from store
+     • actions = mutate store -> persist -> re-render everywhere
+   No screen holds its own copy of data.
+   ============================================================ */
+/* ---------- Icons (Lucide-style, stroked) ---------- */
+const I = (p, s=24) => `<svg width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${p}</svg>`;
+const ICON = {
+  home:      p=>I('<path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V21h14V9.5"/>',p),
+  calendar:  p=>I('<rect x="3" y="4.5" width="18" height="17" rx="3"/><path d="M3 9h18M8 2.5v4M16 2.5v4"/>',p),
+  trips:     p=>I('<rect x="3" y="8" width="18" height="12" rx="2.5"/><path d="M8 8V6a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M8 8v12M16 8v12"/>',p),
+  bag:       p=>I('<rect x="3" y="8" width="18" height="12" rx="2.5"/><path d="M8 8V6a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M8 8v12M16 8v12"/>',p),
+  idea:      p=>I('<path d="M9 18h6M10 21h4M12 2a7 7 0 0 0-4 12.7c.6.5 1 1.3 1 2.1V17h6v-.2c0-.8.4-1.6 1-2.1A7 7 0 0 0 12 2Z"/>',p),
+  note:      p=>I('<path d="M4 3h16v18l-4-3H4Z"/><path d="M8 8h8M8 12h6"/>',p),
+  plane:     p=>I('<path d="M21 15.5 3.5 21l4-6.5L3 9l2-1 4 3 5.5-6.5 2 .5-3 7 5 1Z"/>',p),
+  planeTop:  (s=24)=>`<svg width="${s}" height="${s}" viewBox="0 0 24 24" fill="currentColor" stroke="none"><path d="M21 16v-2l-8-5V3.5c0-.83-.67-1.5-1.5-1.5S10 2.67 10 3.5V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5l8 2.5z"/></svg>`,
+  planeUp:   p=>I('<path d="M12 2 4 14h5v8h6v-8h5Z"/>',p),
+  bed:       p=>I('<path d="M3 8v11M3 13h18v6M21 19v-6a4 4 0 0 0-4-4H8"/><circle cx="7" cy="11" r="2"/>',p),
+  pin:       p=>I('<path d="M12 21s7-6.5 7-12a7 7 0 1 0-14 0c0 5.5 7 12 7 12Z"/><circle cx="12" cy="9" r="2.5"/>',p),
+  map:       p=>I('<path d="m9 4-6 2v14l6-2 6 2 6-2V4l-6 2-6-2Z"/><path d="M9 4v14M15 6v14"/>',p),
+  clock:     p=>I('<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',p),
+  phone:     p=>I('<path d="M4 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L20 13l1 4v3h-3A15 15 0 0 1 4 6Z"/>',p),
+  chat:      p=>I('<path d="M21 12a8 8 0 0 1-11.5 7.2L3 21l1.8-6.5A8 8 0 1 1 21 12Z"/>',p),
+  car:       p=>I('<path d="M5 11l1.5-4.5A2 2 0 0 1 8.4 5h7.2a2 2 0 0 1 1.9 1.5L19 11M5 11h14v6H5Z"/><circle cx="7.5" cy="17" r="1.5"/><circle cx="16.5" cy="17" r="1.5"/>',p),
+  train:     p=>I('<path d="M4 15h16v3H4Z"/><path d="M6 15V7a3 3 0 0 1 3-3h6a3 3 0 0 1 3 3v8"/><path d="M8 18l-1.5 3M16 18l1.5 3"/><circle cx="9" cy="11" r="1.2"/><circle cx="15" cy="11" r="1.2"/><path d="M9 7h6"/>',p),
+  user:      p=>I('<circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 3.5-6 8-6s8 2 8 6"/>',p),
+  users:     p=>I('<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c0-3.5 3-5.5 6.5-5.5s6.5 2 6.5 5.5"/><path d="M16 5a3.5 3.5 0 0 1 0 6.5M21.5 20c0-2.8-1.6-4.6-4-5.2"/>',p),
+  check:     p=>I('<path d="M20 6 9 17l-5-5"/>',p),
+  checkList: p=>I('<path d="M9 6h11M9 12h11M9 18h11"/><path d="m3 6 1.2 1.2L6.5 5M3 12l1.2 1.2L6.5 11M3 18l1.2 1.2L6.5 17"/>',p),
+  plus:      p=>I('<path d="M12 5v14M5 12h14"/>',p),
+  chevR:     p=>I('<path d="m9 6 6 6-6 6"/>',p),
+  chevL:     p=>I('<path d="m15 6-6 6 6 6"/>',p),
+  bell:      p=>I('<path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M10.5 21a1.9 1.9 0 0 0 3 0"/>',p),
+  copy:      p=>I('<rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/>',p),
+  camera:    p=>I('<path d="M4 8h3l1.5-2h7L17 8h3v11H4Z"/><circle cx="12" cy="13" r="3.5"/>',p),
+  image:     p=>I('<rect x="3" y="4" width="18" height="16" rx="3"/><circle cx="8.5" cy="9.5" r="1.5"/><path d="m4 18 5-5 4 4 2-2 5 5"/>',p),
+  file:      p=>I('<path d="M14 3v5h5M6 3h8l5 5v13H6Z"/>',p),
+  ticket:    p=>I('<path d="M3 8a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2 2 2 0 0 0 0 4 2 2 0 0 1-2 2H5a2 2 0 0 1-2-2 2 2 0 0 0 0-4Z"/><path d="M12 6v12"/>',p),
+  play:      p=>I('<path d="M6 4v16l14-8Z"/>',p),
+  flag:      p=>I('<path d="M5 21V4M5 4h11l-2 4 2 4H5"/>',p),
+  music:     p=>I('<circle cx="6" cy="18" r="2.5"/><circle cx="17" cy="16" r="2.5"/><path d="M8.5 18V6l11-2v12"/>',p),
+  mic:       p=>I('<rect x="9" y="3" width="6" height="11" rx="3"/><path d="M6 11a6 6 0 0 0 12 0M12 17v4"/>',p),
+  video:     p=>I('<rect x="2" y="6" width="13" height="12" rx="2"/><path d="M15 10.5 22 7v10l-7-3.5Z"/>',p),
+  sun:       p=>I('<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4 12H2M22 12h-2M5 5l1.5 1.5M17.5 17.5 19 19M19 5l-1.5 1.5M6.5 17.5 5 19"/>',p),
+  search:    p=>I('<circle cx="11" cy="11" r="7"/><path d="m21 21-4-4"/>',p),
+  x:         p=>I('<path d="M6 6l12 12M18 6 6 18"/>',p),
+  trash:     p=>I('<path d="M4 7h16M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2M6 7l1 13h10l1-13"/>',p),
+  edit:      p=>I('<path d="M4 20h4L19 9l-4-4L4 16Z"/><path d="M14 5l4 4"/>',p),
+  archive:   p=>I('<rect x="3" y="4" width="18" height="5" rx="1"/><path d="M5 9v11h14V9M10 13h4"/>',p),
+  folder:    p=>I('<path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z"/>',p),
+  settings:  p=>I('<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M19 5l-2 2M7 17l-2 2"/>',p),
+  grip:      p=>I('<circle cx="9" cy="6" r="1"/><circle cx="15" cy="6" r="1"/><circle cx="9" cy="12" r="1"/><circle cx="15" cy="12" r="1"/><circle cx="9" cy="18" r="1"/><circle cx="15" cy="18" r="1"/>',p),
+  wake:      p=>I('<circle cx="12" cy="13" r="7"/><path d="M12 10v3l2 1M9 2 6 4M15 2l3 2"/>',p),
+  sound:     p=>I('<path d="M4 10v4M8 6v12M12 3v18M16 7v10M20 10v4"/>',p),
+  land:      p=>I('<path d="M2 20h20M3 15l17 3M6 9l1 5 6 1-3-8-2-.5L9 11 6.5 8.5Z"/>',p),
+  star:      p=>I('<path d="m12 3 2.6 5.3 5.9.9-4.3 4.1 1 5.8L12 16.9 6.8 19.2l1-5.8L3.5 9.2l5.9-.9Z"/>',p),
+  sparkle:   p=>I('<path d="M12 3v5M12 16v5M3 12h5M16 12h5M6 6l2.5 2.5M15.5 15.5 18 18M18 6l-2.5 2.5M8.5 15.5 6 18"/>',p),
+  reminder:  p=>I('<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',p),
+  wallet:    p=>I('<rect x="3" y="6" width="18" height="13" rx="2"/><path d="M3 10h18M16 14h2"/>',p),
+  globe:     p=>I('<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 3 2.5 15 0 18M12 3c-2.5 3-2.5 15 0 18"/>',p),
+  arrowUp:   p=>I('<path d="M12 19V5M6 11l6-6 6 6"/>',p),
+  share:     p=>I('<path d="M12 3v13M8 7l4-4 4 4M5 12v7a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-7"/>',p),
+  money:     p=>I('<rect x="2" y="6" width="20" height="12" rx="3"/><circle cx="12" cy="12" r="3"/><path d="M6 12h.01M18 12h.01"/>',p),
+  coins:     p=>I('<ellipse cx="9" cy="7" rx="6" ry="3"/><path d="M3 7v5c0 1.7 2.7 3 6 3s6-1.3 6-3V7"/><path d="M15 12.5c2.5-.2 6-1.2 6-3.5M9 15v2c0 1.7 2.7 3 6 3s6-1.3 6-3v-5"/>',p),
+  trend:     p=>I('<path d="M3 17l6-6 4 4 8-8M15 7h6v6"/>',p),
+  receipt:   p=>I('<path d="M5 3v18l2-1.5L9 21l2-1.5L13 21l2-1.5L17 21l2-1.5V3l-2 1.5L15 3l-2 1.5L11 3 9 4.5 7 3Z"/><path d="M8 8h8M8 12h6"/>',p),
+  wallet2:   p=>I('<path d="M3 7a2 2 0 0 1 2-2h13a1 1 0 0 1 1 1v2"/><path d="M3 7v10a2 2 0 0 0 2 2h14a1 1 0 0 0 1-1v-9a1 1 0 0 0-1-1H5a2 2 0 0 1-2-2Z"/><circle cx="17" cy="13" r="1.3"/>',p),
+  check2:    p=>I('<circle cx="12" cy="12" r="9"/><path d="m8.5 12 2.5 2.5 4.5-5"/>',p),
+  chevDown:  p=>I('<path d="m6 9 6 6 6-6"/>',p),
+  chevUp:    p=>I('<path d="m6 15 6-6 6 6"/>',p),
+  face:      p=>I('<rect x="4" y="4" width="16" height="16" rx="5"/><path d="M9 10v1M15 10v1M9.5 15a3 3 0 0 0 5 0"/>',p),
+  lock:      p=>I('<rect x="5" y="11" width="14" height="9" rx="2.5"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/>',p),
+  unlock:    p=>I('<rect x="5" y="11" width="14" height="9" rx="2.5"/><path d="M8 11V8a4 4 0 0 1 7.5-2"/>',p),
+  shield:    p=>I('<path d="M12 3l7 3v5c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6Z"/><path d="m9 12 2 2 4-4"/>',p),
+  ferry:     p=>I('<path d="M3 14l1.5 5.5a2 2 0 0 0 1.9 1.5h11.2a2 2 0 0 0 1.9-1.5L22 14M4 14l8-3 8 3M12 4v7M8 8h8"/>',p),
+  ban:       p=>I('<circle cx="12" cy="12" r="9"/><path d="M5.6 5.6l12.8 12.8"/>',p),
+  walk:      p=>I('<circle cx="13" cy="4" r="1.6"/><path d="M11 21l1.5-6L10 12l1-5 3 3 3 1M8 21l2.5-6"/>',p),
+  cycle:     p=>I('<circle cx="6.5" cy="17" r="3"/><circle cx="17.5" cy="17" r="3"/><path d="M6.5 17l4-9h5l3 9M10.5 8l4 9"/>',p),
+  bus:       p=>I('<path d="M4 15h16v3H4Z"/><path d="M6 15V6a3 3 0 0 1 3-3h6a3 3 0 0 1 3 3v9"/><path d="M7 18v2M17 18v2"/><path d="M8 8h8M8 11h8"/>',p),
+  refresh:   p=>I('<path d="M21 12a9 9 0 1 1-2.6-6.2"/><path d="M21 3v6h-6"/>',p),
+};
+
+/* Content types for Ideas */
+const IDEA_TYPES = {
+  reel:    {label:'Reel',      color:'#ff375f', icon:'video'},
+  caption: {label:'Caption',   color:'#0a84ff', icon:'edit'},
+  hook:    {label:'Hook',      color:'#ff9f0a', icon:'sparkle'},
+  youtube: {label:'YouTube',   color:'#ff453a', icon:'play'},
+  podcast: {label:'Podcast',   color:'#bf5af2', icon:'mic'},
+  interview:{label:'Interview',color:'#32d74b', icon:'chat'},
+  location:{label:'Location',  color:'#40cbe0', icon:'pin'},
+  other:   {label:'Idea',      color:'#8b7dff', icon:'idea'},
+};
+const CATS = {
+  purple:'#6d5efc', pink:'#ff375f', blue:'#0a84ff', green:'#32d74b',
+  orange:'#ff9f0a', teal:'#40cbe0', red:'#ff453a', yellow:'#ffd60a'
+};
+const PRIO = {high:'#ff453a', med:'#ff9f0a', low:'#32d74b'};
+/* Quick-pick journey headers for driver contacts. The header is free text —
+   these are just shortcuts, and it can be left blank as journeys vary. */
+const DRIVER_JOURNEYS = ['Airport → Hotel','Hotel → Venue','Venue → Hotel','Hotel → Airport'];
+const DRIVER_PLACE_KINDS = ['Airport', 'Hotel', 'Venue'];
+/* Split "Hotel → Airport" (or legacy free text) into from/to locations. */
+function parseDriverJourney(j){
+  const s = String(j || '').trim();
+  if(!s) return { from:'', to:'' };
+  const parts = s.split(/\s*→\s*|\s*->\s*|\s*>\s*|\s*–\s*|\s*—\s*/);
+  if(parts.length >= 2){
+    return { from: parts[0].trim(), to: parts.slice(1).join(' → ').trim() };
+  }
+  /* Plain hyphen only when both sides look like place words, not times. */
+  const dash = s.split(/\s+-\s+/);
+  if(dash.length === 2 && dash[0] && dash[1]) return { from: dash[0].trim(), to: dash[1].trim() };
+  return { from: s, to: '' };
+}
+function canonicalPlaceKind(s){
+  const t = String(s || '').trim().toLowerCase();
+  if(!t) return '';
+  const hit = DRIVER_PLACE_KINDS.find(k => k.toLowerCase() === t);
+  return hit || '';
+}
+function looksLikeAirportPlace(s, show){
+  const raw = String(s || '').trim();
+  if(!raw) return false;
+  if(/\bairport\b/i.test(raw)) return true;
+  const code = raw.toUpperCase();
+  if(!/^[A-Z]{3}$/.test(code)) return false;
+  const flights = (show && show.flights) || [];
+  return flights.some(f => {
+    const from = String((f && (f.fromCode || f.from)) || '').toUpperCase();
+    const to = String((f && (f.toCode || f.to)) || '').toUpperCase();
+    return from === code || to === code;
+  });
+}
+/* Turn a specific name ("Fuse", "The Grand Hotel") into the general place
+   kind used in journey titles: Airport, Hotel, or Venue. */
+function generalizePlaceLabel(raw, show){
+  const s = String(raw || '').trim();
+  if(!s) return '';
+  const kind = canonicalPlaceKind(s);
+  if(kind) return kind;
+  if(looksLikeAirportPlace(s, show)) return 'Airport';
+  if(/\bhotel\b/i.test(s)) return 'Hotel';
+  if(/\bvenue\b/i.test(s)) return 'Venue';
+  const hotel = String((show && show.hotel && show.hotel.name) || '').trim();
+  const venue = String((show && show.venue) || '').trim();
+  const eventName = String((show && show.eventName) || '').trim();
+  const lower = s.toLowerCase();
+  if(hotel && lower === hotel.toLowerCase()) return 'Hotel';
+  if(venue && lower === venue.toLowerCase()) return 'Venue';
+  if(eventName && lower === eventName.toLowerCase()) return 'Venue';
+  return s;
+}
+function displayPlaceLabel(v){
+  const s = String(v == null ? '' : v).trim();
+  if(!s) return '';
+  if(/^[A-Z]{3}$/.test(s)) return s;
+  if(s.length > 1 && s === s.toUpperCase() && /[A-Z]/.test(s)){
+    return s.toLowerCase().replace(/(^|[\s/()-])([a-z])/g, (m, a, b) => a + b.toUpperCase());
+  }
+  return s;
+}
+function driverJourneyLabel(d){
+  if(!d) return '';
+  const from = String(d.from || '').trim();
+  const to = String(d.to || '').trim();
+  if(from && to) return from + ' → ' + to;
+  if(from || to) return from || to;
+  return '';
+}
+function ensureDriverLocations(d){
+  if(!d) return d;
+  const from = String(d.from || '').trim();
+  const to = String(d.to || '').trim();
+  if(from || to){
+    d.from = from;
+    d.to = to;
+    d.journey = driverJourneyLabel(d);
+    return d;
+  }
+  if(d.journey){
+    const p = parseDriverJourney(d.journey);
+    d.from = p.from;
+    d.to = p.to;
+    d.journey = driverJourneyLabel(d);
+  }
+  return d;
+}
+function keepRealPlaceName(compact, currentName, raw){
+  if(String(currentName || '').trim()) return String(currentName).trim();
+  const r = String(raw || '').trim();
+  if(!r) return '';
+  if(canonicalPlaceKind(r)) return '';
+  if(r.toLowerCase() === String(compact || '').toLowerCase()) return '';
+  return r;
+}
+function applyGeneralDriverPlaces(d, show){
+  if(!d) return d;
+  ensureDriverLocations(d);
+  const rawFrom = String(d.from || '').trim();
+  const rawTo = String(d.to || '').trim();
+  if(d.fromKind || d.toKind){
+    if(typeof v2CompactLocationLabel === 'function'){
+      if(d.fromKind) d.from = v2CompactLocationLabel(d.fromKind, d.fromName || d.from);
+      if(d.toKind) d.to = v2CompactLocationLabel(d.toKind, d.toName || d.to);
+    }
+  } else {
+    if(rawFrom) d.from = generalizePlaceLabel(rawFrom, show);
+    if(rawTo) d.to = generalizePlaceLabel(rawTo, show);
+  }
+  const fromName = keepRealPlaceName(d.from, d.fromName, rawFrom);
+  const toName = keepRealPlaceName(d.to, d.toName, rawTo);
+  if(fromName) d.fromName = fromName;
+  if(toName) d.toName = toName;
+  d.journey = driverJourneyLabel(d);
+  return d;
+}
+function groundTransferTitle(d){
+  return 'Drive';
+}
+function groundRouteRealName(compact, realName, show){
+  const c = String(compact || '').trim();
+  const n = String(realName || '').trim();
+  if(n && n.toLowerCase() !== c.toLowerCase()) return displayPlaceLabel(n);
+  const kind = canonicalPlaceKind(c) || generalizePlaceLabel(c, show);
+  if(kind === 'Hotel'){
+    const hotel = String((show && show.hotel && show.hotel.name) || '').trim();
+    return hotel && hotel.toLowerCase() !== 'hotel' ? hotel : '';
+  }
+  if(kind === 'Venue'){
+    const venue = String((show && (show.venue || show.eventName)) || '').trim();
+    return venue && venue.toLowerCase() !== 'venue' ? venue : '';
+  }
+  return '';
+}
+/* A show can have several driver contacts (one per journey). Returns the
+   drivers array, lazily migrating a legacy single `e.driver` into the list. */
+function showDrivers(e){
+  if(!e) return [];
+  if(!Array.isArray(e.drivers)) e.drivers = e.driver ? [Object.assign({id:uid('drv'), journey:''}, e.driver)] : [];
+  e.drivers.forEach(d => applyGeneralDriverPlaces(d, e));
+  return e.drivers;
+}
+window.parseDriverJourney = parseDriverJourney;
+window.driverJourneyLabel = driverJourneyLabel;
+window.ensureDriverLocations = ensureDriverLocations;
+window.generalizePlaceLabel = generalizePlaceLabel;
+window.applyGeneralDriverPlaces = applyGeneralDriverPlaces;
+window.groundTransferTitle = groundTransferTitle;
+window.groundRouteRealName = groundRouteRealName;
+window.DRIVER_PLACE_KINDS = DRIVER_PLACE_KINDS;
+
+/* ---------- Persistence layer (swap-able) ---------- */
+/* DB_KEY / clearLegacyLocalStore live in js/db-v2-state.js */
+const db = {
+  read(){
+    try{
+      const raw = localStorage.getItem(DB_KEY);
+      if(!raw) return null;
+      const state = JSON.parse(raw);
+      if(state){
+        /* Never revive a stuck full-sync flag from disk — that made every
+           later add rewrite the whole tour and mint duplicate rows. */
+        delete state._forceFullSync;
+        if(typeof reviveDirty === 'function') state._dirty = reviveDirty(state._dirty);
+        else state._dirty = Object.create(null);
+      }
+      return state;
+    }catch(e){}
+    return null;
+  },
+  write(state){
+    // Move image/PDF bytes to IndexedDB, and never write base64 data: URLs into
+    // localStorage — a single photo can exceed the quota and abort the whole save.
+    try{ if(typeof stashBlobs==='function') stashBlobs(state); }catch(e){}
+    // Strip base64 ONLY from attachments we've copied to IndexedDB (this._idb).
+    // `this` in a replacer is the object that owns the key, so siblings are visible.
+    const replacer = function(this: { _idb?: unknown }, k, v){
+      if(k === '_forceFullSync') return undefined;
+      if(k === '_dirty') return (typeof serializeDirty === 'function') ? serializeDirty(v) : v;
+      if(k==='homeHeader' && typeof v==='string' && v.startsWith('data:')) return undefined;
+      return (k==='data' && this && this._idb && typeof v==='string' && v.startsWith('data:')) ? undefined : v;
+    };
+    try{ localStorage.setItem(DB_KEY, JSON.stringify(state, replacer)); }
+    catch(e){ try{ localStorage.setItem(DB_KEY, JSON.stringify(state, replacer)); }catch(e2){ toast('Storage full','x'); } }
+  },
+};
+
+/* ---------- Central store ---------- */
+let store = null;
+/* UUIDs match Postgres primary keys (V2-native). */
+const uid = (_p) => {
+  if(store) store._seq = (store._seq || 1) + 1;
+  return newUuid();
+};
+
+/* Show flights: shared route details + a passengers[] list (name, seat, passes).
+   Old single-seat / single-pass flights migrate into one default passenger. */
+function ensureFlightPassengers(f){
+  if(!f) return [];
+  if(!Array.isArray(f.passengers)) f.passengers = [];
+  const topPasses = Array.isArray(f.passes) ? f.passes : [];
+  if(f.passengers.length){
+    /* Only migrate truly orphan top-level passes. Never re-pool passes that
+       already sit on a passenger — that made every pass appear under person 1. */
+    if(topPasses.length){
+      const claimed = new Set();
+      f.passengers.forEach(p => (p && p.passes || []).forEach(pass => {
+        if(pass && pass.id) claimed.add(pass.id);
+      }));
+      const orphans = topPasses.filter(p => p && p.id && !claimed.has(p.id));
+      if(orphans.length){
+        const first = f.passengers[0];
+        first.passes = (typeof mergePassesById === 'function')
+          ? mergePassesById(first.passes || [], orphans)
+          : [...(first.passes || []), ...orphans];
+      }
+      f.passes = [];
+    }
+    if(f.seat && !f.passengers.some(p => p && p.seat)){
+      if(!f.passengers[0].seat) f.passengers[0].seat = f.seat;
+      f.seat = '';
+    }
+    f.passengers.forEach(p => { if(p && !Array.isArray(p.passes)) p.passes = []; });
+    return f.passengers;
+  }
+  if(f.seat || topPasses.length){
+    f.passengers = [{ id: uid('pax'), name: '', seat: f.seat || '', passes: topPasses.slice() }];
+    f.seat = '';
+    f.passes = [];
+  }
+  return f.passengers;
+}
+function flightPassengers(f){
+  return ensureFlightPassengers(f);
+}
+function flightAllPasses(f){
+  if(!f) return [];
+  const fromPax = flightPassengers(f).flatMap(p => (p && p.passes) || []);
+  if(fromPax.length) return fromPax;
+  return Array.isArray(f.passes) ? f.passes : [];
+}
+/* True only when a flight has something worth showing (route, number, times, gate info, or people). */
+function flightHasDetails(f){
+  if(!f) return false;
+  if(String(f.code||'').trim()) return true;
+  if(String(f.from||'').trim()) return true;
+  if(String(f.to||'').trim()) return true;
+  if(String(f.fromCode||'').trim()) return true;
+  if(String(f.toCode||'').trim()) return true;
+  if(String(f.flightNo||f.flight_no||'').trim()) return true;
+  if(String(f.dep||'').trim()) return true;
+  if(String(f.arr||'').trim()) return true;
+  if(String(f.seat||'').trim()) return true;
+  if(String(f.gate||'').trim()) return true;
+  if(String(f.terminal||'').trim()) return true;
+  if(String(f.fstatus||'').trim()) return true;
+  if(String(f.delay||'').trim()) return true;
+  if(String(f.notes||'').trim()) return true;
+  if(Array.isArray(f.passes) && f.passes.length) return true;
+  const pax = Array.isArray(f.passengers) ? f.passengers : [];
+  return pax.some(p => p && (
+    String(p.name||'').trim() ||
+    String(p.seat||'').trim() ||
+    String(p.booking_reference||p.bookingRef||'').trim() ||
+    (Array.isArray(p.passes) && p.passes.length)
+  ));
+}
+function passengerBookingRef(p){
+  return String((p && (p.booking_reference || p.bookingRef)) || '').trim();
+}
+/* Move old show-level flightNo/gate/terminal onto the first flight so one place holds it. */
+function migrateShowFlightInfo(e){
+  if(!e) return;
+  const legacy = e.flightNo||e.gate||e.terminal||e.fstatus||e.delay;
+  if(!legacy) return;
+  e.flights = e.flights || [];
+  let f = e.flights.find(x => flightHasDetails(x)) || e.flights[0];
+  if(!f){
+    f = { id: uid('fl'), code:'', from:'', to:'', dep:'', arr:'', seat:'', passengers:[], passes:[], done:false };
+    e.flights.push(f);
+  }
+  if(!f.code && e.flightNo) f.code = e.flightNo;
+  if(!f.terminal && e.terminal) f.terminal = e.terminal;
+  if(!f.gate && e.gate) f.gate = e.gate;
+  if(!f.fstatus && e.fstatus) f.fstatus = e.fstatus;
+  if(!f.delay && e.delay) f.delay = e.delay;
+  if(e.fiUpdated && !f.fiUpdated) f.fiUpdated = e.fiUpdated;
+  e.flightNo = ''; e.terminal = ''; e.gate = ''; e.fstatus = ''; e.delay = ''; e.fiUpdated = null;
+}
+function flightPassengerSummary(f){
+  return flightPassengers(f).map(p => {
+    const bits = [p.name, p.seat ? ('Seat ' + p.seat) : ''].filter(Boolean);
+    return bits.join(' · ');
+  }).filter(Boolean).join(' · ');
+}
+function flightParseDep(dep, fallbackDate){
+  const raw = String(dep || '').trim();
+  if(!raw) return { date: fallbackDate || '', time: '' };
+  const parts = raw.split(/\s+/);
+  if(/^\d{4}-\d{2}-\d{2}/.test(parts[0])){
+    return { date: parts[0].slice(0, 10), time: (parts[1] || '').slice(0, 5) };
+  }
+  if(/^\d{1,2}:\d{2}/.test(parts[0])){
+    return { date: fallbackDate || '', time: parts[0].slice(0, 5) };
+  }
+  return { date: fallbackDate || '', time: '' };
+}
+function journeyTimeText(item){
+  if(!item) return '';
+  const dep = flightParseDep(item.dep, '');
+  if(dep.time) return dep.time;
+  const raw = item.start || item.time || item.setTime || '';
+  return raw ? String(raw).slice(0, 5) : '';
+}
+function journeyDateText(item, fallbackDate){
+  if(!item) return fallbackDate || '';
+  const dep = flightParseDep(item.dep, fallbackDate || '');
+  if(dep.date) return dep.date;
+  if(item.trueDate) return item.trueDate;
+  if(item.date) return item.date;
+  return fallbackDate || '';
+}
+/* Earliest-first timestamp for any journey-like row. Missing date+time sinks to the end.
+   A clock time before 05:00 on the show date is treated as the morning after, unless
+   the row already has an explicit calendar datetime (typical flight departure). */
+function journeyWhenMs(item, fallbackDate?){
+  if(!item) return Number.POSITIVE_INFINITY;
+  const dep = flightParseDep(item.dep, '');
+  const time = journeyTimeText(item);
+  const ownDate = dep.date || item.trueDate || item.date || '';
+  if(!time && !ownDate) return Number.POSITIVE_INFINITY;
+  if(!time){
+    const d = parseDT(ownDate, '00:00');
+    return d ? d.getTime() : Number.POSITIVE_INFINITY;
+  }
+  const date = ownDate || fallbackDate || '';
+  if(!date) return Number.POSITIVE_INFINITY;
+  const showDate = fallbackDate || date;
+  let trueDate = date;
+  if(dep.date){
+    trueDate = dep.date;
+  } else if(typeof showItemTrueDate === 'function' && showDate){
+    const explicit = ownDate && ownDate !== showDate ? ownDate : '';
+    trueDate = showItemTrueDate({ date: showDate }, time, explicit);
+    const mins = typeof clockMinutes === 'function' ? clockMinutes(time) : null;
+    if(trueDate === showDate && mins != null && mins < 5 * 60){
+      trueDate = typeof addDaysYmd === 'function' ? addDaysYmd(showDate, 1) : trueDate;
+    }
+  }
+  const d = parseDT(trueDate || date, time);
+  return d ? d.getTime() : Number.POSITIVE_INFINITY;
+}
+function sortJourneysChrono(items, fallbackDate){
+  return (items || []).slice().map((item, idx) => ({ item, idx })).sort((a, b) => {
+    const ka = journeyWhenMs(a.item, fallbackDate);
+    const kb = journeyWhenMs(b.item, fallbackDate);
+    if(ka !== kb) return ka - kb;
+    return a.idx - b.idx;
+  }).map(x => x.item);
+}
+function flightDepMs(f, fallbackDate){
+  return journeyWhenMs(f, fallbackDate);
+}
+function sortFlightsChrono(flights, fallbackDate){
+  return sortJourneysChrono(flights, fallbackDate);
+}
+function flightDepDateLabel(f, fallbackDate){
+  const p = flightParseDep(f && f.dep, fallbackDate || '');
+  if(!p.date || typeof fmtDate !== 'function') return '';
+  return fmtDate(p.date);
+}
+/* Show-day timeline: auto steps from flights / hotel / transport / set / advancing,
+   plus any custom steps saved on e.timeline. Built live so it stays in sync. */
+function showDayTimeline(e){
+  if(!e) return [];
+  const autoDone = e.timelineAutoDone || {};
+  const rows = [];
+  const stamp = (time, explicitDate)=>{
+    const trueDate = showItemTrueDate(e, time, explicitDate);
+    const dayOffset = dateDiffDays(e.date, trueDate);
+    return { time: time || '', trueDate, dayOffset };
+  };
+
+  if(e.arrival){
+    rows.push(Object.assign({
+      id:'auto:arrival', auto:true, kind:'arrival', icon:'pin',
+      title:'Arrive at venue', sub:'',
+      done:!!autoDone['auto:arrival']
+    }, stamp(e.arrival, e.arrivalDate)));
+  }
+
+  (e.flights||[]).forEach(f=>{
+    if(typeof flightHasDetails==='function' && !flightHasDetails(f)) return;
+    const parsed = flightParseDep(f.dep, e.date);
+    const route = (f.from&&f.to) ? (f.from+' → '+f.to) : (f.code||'Flight');
+    const bits = [
+      f.code||'',
+      parsed.date && parsed.date!==e.date ? parsed.date : '',
+      f.gate ? ('Gate '+f.gate) : '',
+      f.terminal ? ('Term '+f.terminal) : ''
+    ].filter(Boolean);
+    rows.push(Object.assign({
+      id:'auto:flight:'+f.id, auto:true, kind:'flight', icon:'planeTop', refId:f.id,
+      from:f.from||'', to:f.to||'', code:f.code||'',
+      title:route, sub:bits.join(' · '),
+      done:!!f.done
+    }, stamp(parsed.time||'', parsed.date)));
+  });
+
+  if(e.hotel && (e.hotel.name||e.hotel.address||e.hotel.city||e.hotel.checkin)){
+    const when = e.hotel.checkin && e.hotel.checkin!==e.date ? ('Check-in '+e.hotel.checkin) : 'Check-in';
+    const hotelDate = e.hotel.checkin||e.date;
+    rows.push({
+      id:'auto:hotel', auto:true, kind:'hotel', icon:'bed',
+      time:'', title:e.hotel.name||'Accommodation', sub:when,
+      done:!!e.hotel.done, trueDate:hotelDate, dayOffset:dateDiffDays(e.date, hotelDate)
+    });
+  }
+
+  showDrivers(e).forEach((d, idx)=>{
+    ensureDriverLocations(d);
+    const label = driverJourneyLabel(d);
+    if(!(d.time||label||d.name||d.noGround||d.from||d.to)) return;
+    const id = d.id || ('i'+idx);
+    const arrangeSub = typeof groundArrangeSummary === 'function' ? groundArrangeSummary(d) : 'Arrange at time';
+    rows.push(Object.assign({
+      id:'auto:drv:'+id, auto:true, kind:'transport', icon:'car', refId:id,
+      from:d.from||'', to:d.to||'',
+      title:label||(d.noGround?'Ground':(d.name||'Ground')),
+      sub:d.noGround?arrangeSub:[d.name,d.vehicle].filter(Boolean).join(' · '),
+      done:!!d.done
+    }, stamp(d.time||'', d.date)));
+  });
+
+  ((e.advance&&e.advance.schedule)||[]).forEach((s,i)=>{
+    if(!(s.time||s.label||s.title)) return;
+    const id='auto:adv:'+i;
+    rows.push(Object.assign({
+      id, auto:true, kind:'advance', icon:'clock',
+      title:s.label||s.title||'Schedule',
+      sub:'', done:!!(s.done||autoDone[id])
+    }, stamp(s.time||'', s.date)));
+  });
+
+  if(e.advance&&e.advance.soundcheck){
+    const id='auto:soundcheck';
+    rows.push({
+      id, auto:true, kind:'advance', icon:'music',
+      time:'', title:'Sound check', sub:String(e.advance.soundcheck),
+      done:!!autoDone[id], trueDate:e.date, dayOffset:0
+    });
+  }
+
+  if(e.setTime || e.venue){
+    const overnight = showEndsNextDay(e);
+    const endBit = e.endTime ? (' – '+e.endTime+(overnight?' next day':'')) : '';
+    rows.push(Object.assign({
+      id:'auto:set', auto:true, kind:'set', icon:'music',
+      title:e.eventName||e.venue||'Set',
+      sub:e.setTime?('Set '+e.setTime+endBit):'Set TBA',
+      done:!!e.setDone, endTime:e.endTime||'', endDate:showSetEndDate(e)
+    }, stamp(e.setTime||'', showSetStartDate(e))));
+  }
+
+  (e.timeline||[]).forEach(s=>{
+    if(!s) return;
+    rows.push(Object.assign({
+      id:s.id, auto:false, kind:'custom', icon:'clock',
+      title:s.title||'Step', sub:s.sub||'',
+      done:!!s.done
+    }, stamp(s.time||'', s.date)));
+  });
+
+  rows.sort((a,b)=>{
+    const ka=showTimelineSortKey(e,a), kb=showTimelineSortKey(e,b);
+    if(ka!==kb) return ka-kb;
+    return String(a.title||'').localeCompare(String(b.title||''));
+  });
+  return rows;
+}
+function showTimelineStepDate(e, step){
+  if(!step) return (e && e.date) || '';
+  if(step.trueDate) return step.trueDate;
+  if(step.date) return step.date;
+  if(step.dayOffset != null && e && e.date) return addDaysYmd(e.date, Number(step.dayOffset) || 0);
+  return showItemTrueDate(e, step.time || '', step.date);
+}
+/* Split a show timeline into calendar days so overnight lists can show a date heading. */
+function groupShowTimelineByDay(e, steps){
+  const list = steps || [];
+  const n = new Date();
+  const today = `${n.getFullYear()}-${pad(n.getMonth()+1)}-${pad(n.getDate())}`;
+  const groups = [];
+  list.forEach(s => {
+    let date = showTimelineStepDate(e, s) || (e && e.date) || '';
+    const mins = clockMinutes(s && s.time);
+    const last = groups[groups.length - 1];
+    /* Same stored date but the clock went backwards (14:00 then 07:30) → next morning. */
+    if(last && date && last.date === date && mins != null && last.lastMins != null && mins < last.lastMins){
+      date = addDaysYmd(date, 1);
+    }
+    if(!last || last.date !== date){
+      groups.push({
+        date,
+        label: (typeof fmtDate === 'function' ? fmtDate(date) : date) || date,
+        today: !!(date && date === today),
+        lastMins: mins,
+        steps: [s]
+      });
+    } else {
+      last.steps.push(s);
+      if(mins != null) last.lastMins = mins;
+    }
+  });
+  groups.forEach(g => { delete g.lastMins; });
+  const unique = [];
+  groups.forEach(g => {
+    if(g.date && unique.indexOf(g.date) === -1) unique.push(g.date);
+  });
+  return { multi: unique.length > 1, groups };
+}
+function showTimelineStepClock(step){
+  if(!step) return null;
+  if(step.time) return clockMinutes(step.time);
+  if(step.kind === 'advance'){
+    const sub = String(step.sub || '').trim();
+    if(/^\d{1,2}:\d{2}\b/.test(sub)) return clockMinutes(sub.slice(0, 5));
+  }
+  return null;
+}
+/* Which timeline step is “now” on the show day (for live progress on the show page). */
+function showTimelineLiveState(e, tl){
+  const list = Array.isArray(tl) ? tl : [];
+  const showDate = String(e && e.date || '').slice(0, 10);
+  const n = new Date();
+  const today = `${n.getFullYear()}-${pad(n.getMonth()+1)}-${pad(n.getDate())}`;
+  const showDay = !!(showDate && showDate === today);
+  const state = { showDay, activeId: null, beforeIds: [], progress: 0, upcoming: false };
+  if(!showDay || !list.length) return state;
+  const nowMins = n.getHours() * 60 + n.getMinutes();
+  const timed = [];
+  list.forEach(s => {
+    const mins = showTimelineStepClock(s);
+    if(mins != null) timed.push({ id: s.id, mins });
+  });
+  if(!timed.length) return state;
+  let activeIdx = -1;
+  for(let i = 0; i < timed.length; i++){
+    if(timed[i].mins <= nowMins) activeIdx = i;
+    else break;
+  }
+  if(activeIdx < 0){
+    state.activeId = timed[0].id;
+    state.upcoming = true;
+    return state;
+  }
+  state.activeId = timed[activeIdx].id;
+  state.beforeIds = timed.slice(0, activeIdx).map(t => t.id);
+  if(activeIdx < timed.length - 1){
+    const cur = timed[activeIdx];
+    const next = timed[activeIdx + 1];
+    const span = next.mins - cur.mins;
+    if(span > 0 && nowMins >= cur.mins){
+      state.progress = Math.min(1, Math.max(0, (nowMins - cur.mins) / span));
+    }
+  }
+  return state;
+}
+function toggleShowAutoTimelineStep(e, sid){
+  if(!e || !sid) return false;
+  if(sid==='auto:set'){ e.setDone=!e.setDone; return true; }
+  if(sid==='auto:hotel'){
+    if(!e.hotel) e.hotel={};
+    e.hotel.done=!e.hotel.done;
+    return true;
+  }
+  if(sid.startsWith('auto:flight:')){
+    const f=(e.flights||[]).find(x=>x.id===sid.slice(12));
+    if(f){ f.done=!f.done; return true; }
+    return false;
+  }
+  if(sid.startsWith('auto:drv:')){
+    const d=showDrivers(e).find(x=>String(x.id)===sid.slice(9));
+    if(d){ d.done=!d.done; return true; }
+    return false;
+  }
+  if(sid.startsWith('auto:adv:')){
+    const i=+sid.slice(9);
+    const s=e.advance&&e.advance.schedule&&e.advance.schedule[i];
+    if(s){ s.done=!s.done; return true; }
+  }
+  e.timelineAutoDone = e.timelineAutoDone || {};
+  e.timelineAutoDone[sid] = !e.timelineAutoDone[sid];
+  return true;
+}
+
+/* persist(scope, id) = day-to-day scoped dirty; online flush is immediate.
+   persistAll() = intentional full tour sync (bootstrap / recovery only).
+   Bare persist() with no scope still full-syncs but logs a warning — migrate callers. */
+function persistAll(){
+  if(typeof markDirtyAll === 'function') markDirtyAll();
+  if(store) store._forceFullSync = true;
+  db.write(store);
+  if(typeof flushDirtyNow === 'function' && typeof syncActive === 'function' && syncActive()
+      && (typeof navigator === 'undefined' || navigator.onLine !== false)){
+    flushDirtyNow();
+  } else {
+    queueSync();
+  }
+  if(typeof notifyStore === 'function') notifyStore();
+}
+function persist(scope, id?){
+  let scoped = false;
+  if(typeof markDirty === 'function'){
+    if(scope == null || scope === true || scope === '*'){
+      if(typeof console !== 'undefined' && console.warn){
+        console.warn('persist() without scope triggers a full sync — prefer persist(scope, id) or persistAll()');
+      }
+      if(typeof markDirtyAll === 'function') markDirtyAll();
+      if(store) store._forceFullSync = true;
+    } else {
+      markDirty(scope, id == null ? '*' : id);
+      scoped = true;
+    }
+  }
+  db.write(store);
+  /* Online scoped edits: push dirty set now (single-row / partial). Offline: queue for reconnect flush. */
+  if(scoped && typeof flushDirtyNow === 'function' && typeof syncActive === 'function' && syncActive()
+      && (typeof navigator === 'undefined' || navigator.onLine !== false)){
+    flushDirtyNow();
+    } else {
+    queueSync();
+  }
+  if(typeof notifyStore === 'function') notifyStore();
+}
+function commit(){ persistAll(); render(); }
+
+/* ---------- Utilities ---------- */
+const $ = sel => document.querySelector(sel);
+const esc = s => (s==null?'':String(s)).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+/* Show notes: one text value can hold several items. A single note stays plain
+   text (old rows keep working). Two or more are stored as a JSON array. */
+function parseNoteItems(value){
+  if(Array.isArray(value)) return normalizeNoteItems(value);
+  if(value == null || value === '') return [];
+  if(typeof value === 'object'){
+    if(value.text != null || value.body != null) return normalizeNoteItems([value]);
+    return [];
+  }
+  const raw = String(value);
+  const trimmed = raw.trim();
+  if(!trimmed) return [];
+  if(trimmed.charAt(0) === '['){
+    try{
+      const parsed = JSON.parse(trimmed);
+      if(Array.isArray(parsed)) return normalizeNoteItems(parsed);
+    }catch(_){}
+  }
+  return [{ id: 'legacy', text: raw }];
+}
+function normalizeNoteItems(arr){
+  const out = [];
+  (arr || []).forEach((x, i) => {
+    if(typeof x === 'string'){
+      const text = x.trim();
+      if(text) out.push({ id: 'n'+i, text });
+      return;
+    }
+    if(!x || typeof x !== 'object') return;
+    const text = String(x.text != null ? x.text : (x.body || '')).trim();
+    if(!text) return;
+    out.push({ id: String(x.id || ('n'+i)), text });
+  });
+  return out;
+}
+function serializeNoteItems(items){
+  const clean = [];
+  (items || []).forEach((x, i) => {
+    const text = String(x && x.text != null ? x.text : x || '').trim();
+    if(!text) return;
+    clean.push({ id: String((x && x.id) || ('n'+i)), text });
+  });
+  if(!clean.length) return '';
+  if(clean.length === 1) return clean[0].text;
+  return JSON.stringify(clean);
+}
+function noteItemsPlain(value){
+  return parseNoteItems(value).map(x => x.text).join('\n\n');
+}
+function noteItemsHas(value){
+  return parseNoteItems(value).length > 0;
+}
+function noteItemsForDb(value){
+  const items = parseNoteItems(value);
+  if(!items.length) return null;
+  return items.map(x => ({ id: x.id, text: x.text }));
+}
+function noteItemsFromDb(value){
+  if(value == null || value === '') return '';
+  return serializeNoteItems(parseNoteItems(value));
+}
+function collectNoteItems(listId){
+  const key = String(listId == null ? '' : listId).replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+  const root = document.querySelector('[data-note-list="'+key+'"]');
+  if(!root){
+    const el = document.getElementById(listId);
+    return el ? String(el.value || '').trim() : '';
+  }
+  const items = [];
+  root.querySelectorAll('.note-item').forEach(row => {
+    const id = row.getAttribute('data-note-id') || '';
+    const text = (row.querySelector('.note-item-text') || {}).value || '';
+    items.push({ id, text });
+  });
+  return serializeNoteItems(items);
+}
+function noteItemsReadHtml(label, value){
+  const items = parseNoteItems(value);
+  if(!items.length) return '';
+  const body = items.map(x => `<div class="v note-item-read">${esc(x.text)}</div>`).join('');
+  return `<div class="tx"><div class="k">${esc(label)}</div>${body}</div>`;
+}
+function addNoteItemRow(btn, placeholder){
+  const root = btn && btn.closest ? btn.closest('.note-items') : null;
+  if(!root) return;
+  const id = (typeof uid === 'function') ? uid('note') : ('note-'+Date.now());
+  const wrap = document.createElement('div');
+  wrap.className = 'note-item';
+  wrap.setAttribute('data-note-id', id);
+  wrap.innerHTML = `<textarea class="textarea note-item-text" placeholder="${esc(placeholder || '')}"></textarea><button type="button" class="note-item-del" onclick="removeNoteItemRow(this)" aria-label="Remove note">${typeof ICON==='object'&&ICON.x?ICON.x(16):'×'}</button>`;
+  root.insertBefore(wrap, btn);
+  const ta = wrap.querySelector('textarea');
+  if(ta) ta.focus();
+}
+function removeNoteItemRow(btn){
+  const row = btn && btn.closest ? btn.closest('.note-item') : null;
+  const root = row && row.parentElement;
+  if(row) row.remove();
+  if(root && !root.querySelector('.note-item')){
+    const add = root.querySelector('.note-items-add');
+    if(add && typeof addNoteItemRow === 'function') addNoteItemRow(add, '');
+  }
+}
+/* Plain-text headline: "event - venue" when both exist. */
+function showTitle(e, fallback?){
+  if(!e) return fallback || 'Untitled show';
+  const eventName = String(e.eventName || '').trim();
+  const venue = String(e.venue || '').trim();
+  if(eventName && venue) return `${eventName} - ${venue}`;
+  return eventName || venue || fallback || 'Untitled show';
+}
+/* Same bold title line as showTitle (optional status HTML after the name). */
+function showListTitleHtml(e, statusHtml?){
+  if(!e) return esc('Untitled show');
+  const tag = statusHtml || '';
+  return `${esc(showTitle(e))}${tag}`;
+}
+/* Escape a value that is interpolated as a JS *string literal* inside a
+   double-quoted inline handler, e.g. onclick="fn('${jsAttr(x)}')".
+   HTML entity-encoding (esc) is NOT enough there: the parser decodes it back
+   before the JS runs, so a raw ' still breaks out. This escapes for the JS
+   string context and keeps the attribute intact. */
+const jsAttr = s => (s==null?'':String(s))
+  .replace(/&/g,'&amp;')
+  .replace(/"/g,'&quot;')
+  .replace(/\\/g,'\\\\')
+  .replace(/'/g,"\\'")
+  .replace(/</g,'\\x3C')
+  .replace(/\r?\n/g,'\\n');
+function detailParts(title, primary, meta){
+  const p = primary ? `<div class="detail-primary">${primary}</div>` : '';
+  const m = meta ? `<div class="detail-meta">${meta}</div>` : '';
+  return `<div class="detail-title">${title}</div>${p}${m}`;
+}
+function detailTx(title, primary, meta?){
+  return `<div class="tx">${detailParts(title, primary, meta)}</div>`;
+}
+function fieldTx(label, value){
+  return `<div class="tx"><div class="k">${label}</div><div class="v">${value}</div></div>`;
+}
+function showGroup(id, title, iconHTML, summary, bodyHTML, defOpen?, extraClass?){
+  /* Show groups default collapsed; pass defOpen true for the one section to leave open. */
+  const open = isOpen(id, defOpen === true);
+  const chev = ICON.chevDown ? ICON.chevDown(20) : ICON.chevR(20);
+  return `<section class="show-group ${open?'open':''}${extraClass?' '+extraClass:''}" id="fold-${id}">
+    <div class="show-group-head" onclick="toggleFold('${id}')" role="button" aria-expanded="${open?'true':'false'}">
+      <div class="show-group-ic">${iconHTML}</div>
+      <div class="show-group-titles"><b>${esc(title)}</b>${summary?`<span>${esc(summary)}</span>`:''}</div>
+      <span class="fold-chev show-group-chev">${chev}</span>
+    </div>
+    <div class="fold-body show-group-fold"><div class="show-group-body">${bodyHTML}</div></div>
+  </section>`;
+}
+function showSubsection(id, title, addBtnHTML, bodyHTML, defOpen?){
+  /* Subsections with content default open; empty ones stay closed until tapped. */
+  const open = isOpen(id, defOpen === true);
+  const chev = ICON.chevDown ? ICON.chevDown(16) : ICON.chevR(16);
+  return `<div class="show-subsection ${open?'open':''}" id="fold-${id}">
+    <div class="show-subsection-head" onclick="toggleFold('${id}')" role="button" aria-expanded="${open?'true':'false'}">
+      <span>${esc(title)}</span>
+      <div class="show-subsection-actions" onclick="event.stopPropagation()">
+        ${addBtnHTML||''}
+        <span class="fold-chev show-subsection-chev" onclick="event.stopPropagation();toggleFold('${id}')">${chev}</span>
+      </div>
+    </div>
+    <div class="fold-body show-subsection-fold"><div class="show-subsection-body">${bodyHTML}</div></div>
+  </div>`;
+}
+function showSourceLabel(text){
+  return `<div class="show-source-label">${esc(text)}</div>`;
+}
+
+/* ---------- Logistics items (journey legs on a show) ---------- */
+function logisticTypeLabel(l){
+  if(!l) return '';
+  if(l.kind==='stay') return 'Accommodation';
+  const ic = l.icon || 'plane';
+  if(ic==='plane') return 'Flight';
+  if(ic==='car'){
+    const gt = String(l.groundType || '').toLowerCase();
+    if(gt === 'uber') return 'Uber';
+    if(gt === 'taxi') return 'Taxi';
+    if(gt === 'shuttle') return 'Shuttle';
+    if(gt === 'minibus') return 'Minibus';
+    if(gt === 'bus') return 'Bus';
+    if(gt === 'chauffeur') return 'Chauffeur';
+    if(gt === 'private_car') return 'Private car';
+    return 'Driver';
+  }
+  if(ic==='ferry') return 'Ferry';
+  if(ic==='walk') return 'Walk';
+  if(ic==='cycle' || ic==='bike') return 'Cycle';
+  if(ic==='train') return 'Train';
+  if(ic==='bus') return 'Coach';
+  return 'Transfer';
+}
+function inferIconFromLogisticTitle(title){
+  const t = (title||'').toLowerCase();
+  if(/ferry|boat/.test(t)) return 'ferry';
+  if(/train|rail/.test(t)) return 'train';
+  if(/coach|bus/.test(t)) return 'bus';
+  if(/cycle|bike|cycling/.test(t)) return 'cycle';
+  if(/driver|uber|taxi|transfer/.test(t)) return 'car';
+  if(/walk/.test(t)) return 'walk';
+  return 'plane';
+}
+function parseLogisticRouteFromLegacy(title){
+  if(!title) return null;
+  let rest = String(title).replace(/^\[[^\]]*\]\s*-?\s*/,'').trim();
+  rest = rest.replace(/^(flight|transfer|ferry|driver|hotel|stay|walk)\s*(?:\d+\s*)?[-–:]\s*/i,'').trim();
+  const m = rest.match(/^(.+?)\s*(?:→|->|>|–|-)\s*(.+)$/i);
+  if(!m) return null;
+  return { from: m[1].trim(), to: m[2].trim() };
+}
+function isNormalizedLogisticTitle(title){
+  return ['Flight','Hotel','Accommodation','Driver','Ferry','Walk','Train','Transfer','Cycle','Coach','Uber','Taxi','Shuttle','Minibus','Bus','Chauffeur','Private car'].includes(title);
+}
+function extractFlightNoFromTitle(title){
+  const t = String(title||'');
+  const m = t.match(/\b([A-Z]{2,3}\s*\d{2,4}[A-Z]?)\b/i);
+  if(!m) return '';
+  const code = m[1].replace(/\s/g,'').toUpperCase();
+  return /^[A-Z0-9]{2,}\d/.test(code) ? code : '';
+}
+function extractLegacyLogisticFields(e){
+  let source = e.legacyTitle;
+  if(!source && e.title && !isNormalizedLogisticTitle(e.title)) source = e.title;
+  if(!source) return;
+  if(!e.legacyTitle) e.legacyTitle = source;
+  const raw = String(source).trim();
+  if(!e.icon) e.icon = inferIconFromLogisticTitle(raw);
+  const ic = e.icon || 'plane';
+  if(!e.from && !e.to){
+    const leg = parseLogisticRouteFromLegacy(raw);
+    if(leg){
+      e.from = leg.from.toUpperCase();
+      e.to = leg.to.toUpperCase();
+    } else if(ic==='car'){
+      let name = raw.replace(/^\[[^\]]*\]\s*-?\s*/,'').replace(/^driver\s*[-–:]?\s*/i,'').trim();
+      if(name && !/^transfer$/i.test(name) && !/>|→/.test(name)) e.driverName = name;
+    }
+  }
+  if(!e.flightNo && ic==='plane') e.flightNo = extractFlightNoFromTitle(raw);
+}
+function extractLegacyStayFields(e){
+  let source = e.legacyTitle;
+  if(!source && e.title && !isNormalizedLogisticTitle(e.title)) source = e.title;
+  if(!source) return;
+  if(!e.legacyTitle) e.legacyTitle = source;
+  if(!e.place && /^hotel/i.test(source)){
+    e.place = String(source).replace(/^\[[^\]]*\]\s*-?\s*/,'').replace(/^hotel\s*[-–:]?\s*/i,'').trim();
+  }
+}
+function unpackLogisticInfoFields(e){
+  const raw = e.info;
+  if(!raw || typeof raw !== 'string' || raw[0] !== '{') return;
+  try{
+    const o = JSON.parse(raw);
+    if(o.v !== 2) return;
+    if(e.kind==='travel'){
+      if(o.from) e.from = o.from;
+      if(o.to) e.to = o.to;
+      if(o.flightNo) e.flightNo = o.flightNo;
+      if(o.trainNo) e.trainNo = o.trainNo;
+      if(o.ferryNo) e.ferryNo = o.ferryNo;
+      if(o.coachNo) e.coachNo = o.coachNo;
+      if(o.platform) e.platform = o.platform;
+      if(o.operator) e.operator = o.operator;
+      if(o.bookingRef) e.bookingRef = o.bookingRef;
+      if(o.phone) e.phone = o.phone;
+      if(o.whatsapp) e.whatsapp = o.whatsapp;
+      if(o.driverName) e.driverName = o.driverName;
+      if(o.legacyTitle) e.legacyTitle = o.legacyTitle;
+      if(o.gate != null) e.gate = o.gate;
+      if(o.terminal != null) e.terminal = o.terminal;
+      if(o.fstatus != null) e.fstatus = o.fstatus;
+      if(o.delay != null) e.delay = o.delay;
+      e.info = o.note || '';
+    } else if(e.kind==='stay'){
+      if(o.place) e.place = o.place;
+      if(o.checkIn != null) e.info = o.checkIn;
+      if(o.addr) e.addr = o.addr;
+      if(o.bookingRef) e.bookingRef = o.bookingRef;
+    }
+  }catch(err){}
+}
+function packLogisticInfo(e){
+  if(e.kind==='travel'){
+    const has = e.from || e.to || e.flightNo || e.trainNo || e.ferryNo || e.coachNo || e.phone || e.whatsapp || e.driverName || e.gate || e.terminal || e.fstatus || e.delay || e.info || e.platform || e.operator || e.bookingRef;
+    if(has){
+      return JSON.stringify({
+        v:2, from:e.from||'', to:e.to||'', flightNo:e.flightNo||'', trainNo:e.trainNo||'', ferryNo:e.ferryNo||'', coachNo:e.coachNo||'',
+        note:e.info||'',
+        phone:e.phone||'', whatsapp:e.whatsapp||'', driverName:e.driverName||'',
+        legacyTitle:e.legacyTitle||'',
+        gate:e.gate||'', terminal:e.terminal||'', fstatus:e.fstatus||'', delay:e.delay||'',
+        platform:e.platform||'', operator:e.operator||'', bookingRef:e.bookingRef||''
+      });
+    }
+  }
+  if(e.kind==='stay' && (e.place || e.addr || e.bookingRef)){
+    return JSON.stringify({ v:2, place:e.place||'', checkIn:e.info||'', addr:e.addr||'', bookingRef:e.bookingRef||'' });
+  }
+  return e.info || null;
+}
+function normalizeLogisticItem(e){
+  if(!e || (e.kind!=='travel' && e.kind!=='stay')) return;
+  unpackLogisticInfoFields(e);
+  if(e.kind==='travel'){
+    extractLegacyLogisticFields(e);
+    e.title = logisticTypeLabel(e);
+  }
+  if(e.kind==='stay'){
+    extractLegacyStayFields(e);
+    e.title = 'Accommodation';
+  }
+}
+function logisticRoute(l){
+  if(l.from || l.to) return `${(l.from||'?').toUpperCase()} → ${(l.to||'?').toUpperCase()}`;
+  const leg = parseLogisticRouteFromLegacy(l.title);
+  if(leg) return `${leg.from} → ${leg.to}`;
+  return '';
+}
+/* Visual route: Place ── icon ── Place. Flights rotate the plane; ground
+   uses the same lines with a car / ferry / train icon. */
+function journeyRouteModeIcon(mode, size=13){
+  const m = String(mode || 'car').toLowerCase();
+  if(!ICON) return '';
+  if(m==='plane' || m==='flight' || m==='planetop'){
+    return ICON.planeTop ? ICON.planeTop(size) : (ICON.plane ? ICON.plane(size) : '');
+  }
+  if(m==='ferry' || m==='boat') return ICON.ferry ? ICON.ferry(size) : '';
+  if(m==='walk') return ICON.walk ? ICON.walk(size) : '';
+  if(m==='cycle' || m==='bike') return ICON.cycle ? ICON.cycle(size) : (ICON.walk ? ICON.walk(size) : '');
+  if(m==='train' || m==='rail') return ICON.train ? ICON.train(size) : (ICON.car ? ICON.car(size) : '');
+  if(m==='bus' || m==='coach') return ICON.bus ? ICON.bus(size) : (ICON.car ? ICON.car(size) : '');
+  return ICON.car ? ICON.car(size) : '';
+}
+function journeyRouteRailHtml(icon, isAir){
+  return `<span class="flight-route-rail" aria-hidden="true">
+    <span class="flight-route-line"></span>
+    <span class="flight-route-icon${isAir?' is-air':''}">${icon}</span>
+    <span class="flight-route-line"></span>
+  </span>`;
+}
+function journeyRouteHtml(from, to, mode){
+  const m = String(mode || 'car').toLowerCase();
+  const isAir = m==='plane' || m==='flight' || m==='planetop';
+  const aRaw = String(from || '').trim();
+  const bRaw = String(to || '').trim();
+  const a = isAir ? (aRaw.toUpperCase() || '?') : (aRaw || '?');
+  const b = isAir ? (bRaw.toUpperCase() || '?') : (bRaw || '?');
+  const icon = journeyRouteModeIcon(isAir ? 'planeTop' : m);
+  return `<span class="flight-route journey-route${isAir?' is-air':''}" aria-label="${esc(a)} to ${esc(b)}">
+    <span class="flight-route-code">${esc(a)}</span>
+    ${journeyRouteRailHtml(icon, isAir)}
+    <span class="flight-route-code">${esc(b)}</span>
+  </span>`;
+}
+function flightRouteHtml(from, to){
+  return journeyRouteHtml(from, to, 'plane');
+}
+window.flightRouteHtml = flightRouteHtml;
+window.journeyRouteHtml = journeyRouteHtml;
+/* Variant that keeps original casing for airport/city names.
+   We still use the flight-style icon/rail, but avoid forced uppercase. */
+function journeyRouteHtmlCased(from, to, mode, {upperAirCodes=true}={}){
+  const m = String(mode || 'car').toLowerCase();
+  const isAir = m==='plane' || m==='flight' || m==='planetop';
+  const aRaw = String(from || '').trim();
+  const bRaw = String(to || '').trim();
+  const a = isAir
+    ? ((upperAirCodes ? aRaw.toUpperCase() : aRaw) || '?')
+    : (aRaw || '?');
+  const b = isAir
+    ? ((upperAirCodes ? bRaw.toUpperCase() : bRaw) || '?')
+    : (bRaw || '?');
+  const icon = journeyRouteModeIcon(isAir ? 'planeTop' : m);
+  return `<span class="flight-route journey-route${isAir?' is-air':''}" aria-label="${esc(a)} to ${esc(b)}">
+    <span class="flight-route-code">${esc(a)}</span>
+    ${journeyRouteRailHtml(icon, isAir)}
+    <span class="flight-route-code">${esc(b)}</span>
+  </span>`;
+}
+window.journeyRouteHtmlCased = journeyRouteHtmlCased;
+function flightRouteTextHtml(from, to){
+  return journeyRouteHtmlCased(from, to, 'plane', {upperAirCodes:false});
+}
+window.flightRouteTextHtml = flightRouteTextHtml;
+function isIataCode(s){
+  return /^[A-Za-z]{3}$/.test(String(s || '').trim());
+}
+function flightRouteEndParts(code, name){
+  const c = String(code || '').trim();
+  const n = String(name || '').trim();
+  let primary = '';
+  let secondary = '';
+  if(isIataCode(c)){
+    primary = c.toUpperCase();
+    if(n && n.toUpperCase() !== primary) secondary = n;
+  } else if(isIataCode(n)){
+    primary = n.toUpperCase();
+  } else {
+    primary = c || n || '?';
+    if(n && c && n.toUpperCase() !== c.toUpperCase()) secondary = n;
+  }
+  return { primary: primary || '?', secondary };
+}
+/* Compact label on top (Hotel / Venue / IATA); real place name underneath when it adds information. */
+function placeRouteEndParts(compact, realName){
+  const c = displayPlaceLabel(compact) || String(compact || '').trim();
+  const n = displayPlaceLabel(realName) || String(realName || '').trim();
+  if(isIataCode(c)){
+    const primary = c.toUpperCase();
+    return { primary, secondary: (n && n.toUpperCase() !== primary) ? n : '' };
+  }
+  if(!c && !n) return { primary: '?', secondary: '' };
+  if(!n || !c || n.toLowerCase() === c.toLowerCase()){
+    return { primary: c || n || '?', secondary: '' };
+  }
+  return { primary: c, secondary: n };
+}
+/* Codes on one row with the connector; city names sit under each code, centred, with no second rail. */
+function travelRouteStackedHtml(fromCode, fromName, toCode, toName, mode){
+  const m = String(mode || 'plane').toLowerCase();
+  const isAir = m==='plane' || m==='flight' || m==='planetop';
+  const a = isAir
+    ? flightRouteEndParts(fromCode, fromName)
+    : placeRouteEndParts(fromCode, fromName);
+  const b = isAir
+    ? flightRouteEndParts(toCode, toName)
+    : placeRouteEndParts(toCode, toName);
+  const icon = journeyRouteModeIcon(isAir ? 'planeTop' : m);
+  const end = (side, parts) => `<span class="flight-route-end is-${side}">
+    <span class="flight-route-code">${esc(parts.primary)}</span>
+    ${parts.secondary ? `<span class="flight-route-name">${esc(parts.secondary)}</span>` : ''}
+  </span>`;
+  return `<span class="flight-route-stack${isAir?'':' is-place'}" aria-label="${esc(a.primary)} to ${esc(b.primary)}">
+    ${end('from', a)}
+    <span class="flight-route-rail" aria-hidden="true">
+      <span class="flight-route-line"></span>
+      <span class="flight-route-icon${isAir?' is-air':''}">${icon}</span>
+      <span class="flight-route-line"></span>
+    </span>
+    ${end('to', b)}
+  </span>`;
+}
+function flightRouteStackedHtml(fromCode, fromName, toCode, toName){
+  return travelRouteStackedHtml(fromCode, fromName, toCode, toName, 'plane');
+}
+window.placeRouteEndParts = placeRouteEndParts;
+window.travelRouteStackedHtml = travelRouteStackedHtml;
+window.flightRouteStackedHtml = flightRouteStackedHtml;
+/* Back-compat alias — ground journeys now use the flight-style rail with a mode icon. */
+function groundRouteHtml(from, to, mode){
+  return journeyRouteHtml(from, to, mode || 'car');
+}
+window.groundRouteHtml = groundRouteHtml;
+function logisticTimes(l){
+  if(l.kind==='stay') return l.info || '';
+  if(l.start && l.end) return `${l.start} – ${l.end}`;
+  if(l.start) return `Dep ${l.start}`;
+  if(l.end) return `Arr ${l.end}`;
+  return '';
+}
+function logisticMetaLine(l){
+  const bits = [];
+  if(l.kind==='travel'){
+    if(l.flightNo) bits.push(l.flightNo);
+    else if(l.trainNo) bits.push(l.trainNo);
+    else if(l.ferryNo) bits.push(l.ferryNo);
+    else if(l.coachNo) bits.push(l.coachNo);
+    if(l.operator) bits.push(l.operator);
+    if(l.bookingRef) bits.push(l.bookingRef);
+    if(l.platform) bits.push('Plat ' + l.platform);
+  }
+  const t = logisticTimes(l);
+  if(t) bits.push(t);
+  return bits.join(' · ');
+}
+function logisticDisplayLines(l){
+  normalizeLogisticItem(l);
+  if(l.kind==='stay'){
+    return { title: logisticTypeLabel(l), primary: l.place || '', meta: [l.info, l.addr].filter(Boolean).join(' · ') };
+  }
+  const isDrv = (l.icon||'plane')==='car' || !!l.driverName;
+  if(isDrv){
+    const route = logisticRoute(l);
+    return {
+      title: 'Driver',
+      primary: l.driverName || route,
+      meta: [l.driverName && route ? route : '', logisticMetaLine(l)].filter(Boolean).join(' · ')
+    };
+  }
+  return { title: logisticTypeLabel(l), primary: logisticRoute(l), meta: logisticMetaLine(l) };
+}
+function logisticRowHtml(l){
+  const d = logisticDisplayLines(l);
+  const isFlight = l.kind === 'travel' && (l.icon || 'plane') === 'plane' && !l.driverName;
+  const isGround = l.kind === 'travel' && !isFlight && (l.from || l.to);
+  let primary = '';
+  if(isFlight && (l.from || l.to)) primary = flightRouteHtml(l.from, l.to);
+  else if(isGround && typeof groundRouteHtml === 'function') primary = groundRouteHtml(l.from, l.to, l.icon || 'car');
+  else if(d.primary) primary = esc(d.primary);
+  return detailParts(esc(d.title), primary, d.meta ? esc(d.meta) : '');
+}
+function haptic(){ if(navigator.vibrate) try{navigator.vibrate(8);}catch(e){} }
+let toastT;
+function toast(msg, icon='check'){
+  haptic();
+  if(typeof OperateReact !== 'undefined' && OperateReact && typeof OperateReact.mountShell === 'function'){
+    OperateReact.mountShell();
+  }
+  if(typeof OperateReact !== 'undefined' && OperateReact && typeof OperateReact.chromeToast === 'function'
+      && typeof OperateReact.isShellMounted === 'function' && OperateReact.isShellMounted()){
+    OperateReact.chromeToast(msg, icon);
+    return;
+  }
+  const t = $('#toast');
+  if(!t) return;
+  t.innerHTML = `<span class="tic">${ICON[icon]?ICON[icon](18):''}</span>${esc(msg)}`;
+  t.classList.add('on');
+  clearTimeout(toastT); toastT = setTimeout(()=>t.classList.remove('on'), 2100);
+}
+function pad(n){ return String(n).padStart(2,'0'); }
+function parseDT(dateStr, timeStr?){
+  if(!dateStr) return null;
+  const [y,m,d] = dateStr.split('-').map(Number);
+  let hh=0, mm=0;
+  if(timeStr){ [hh,mm] = timeStr.split(':').map(Number); }
+  return new Date(y, m-1, d, hh||0, mm||0);
+}
+function addDaysYmd(dateStr, days){
+  const d = parseDT(dateStr);
+  if(!d) return dateStr || '';
+  d.setDate(d.getDate() + (Number(days) || 0));
+  return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
+}
+function clockMinutes(hhmm){
+  if(!hhmm) return null;
+  const parts = String(hhmm).trim().split(':');
+  const h = Number(parts[0]), m = Number(parts[1] || 0);
+  if(!Number.isFinite(h)) return null;
+  return h * 60 + (Number.isFinite(m) ? m : 0);
+}
+function timesCrossMidnight(start, end){
+  const a = clockMinutes(start), b = clockMinutes(end);
+  return a != null && b != null && b < a;
+}
+function dateDiffDays(from, to){
+  const a = parseDT(from), b = parseDT(to);
+  if(!a || !b) return 0;
+  return Math.round((b.getTime() - a.getTime()) / 86400000);
+}
+/* End time is next calendar morning when it is earlier than set start,
+   or when set_end_date is stored after set_start_date. */
+function showEndsNextDay(e){
+  if(!e) return false;
+  const start = e.setStartDate || (typeof resolveSetStartDate === 'function' ? resolveSetStartDate(e) : e.date);
+  const end = e.setEndDate || (typeof resolveSetEndDate === 'function' ? resolveSetEndDate(e) : '');
+  if(start && end && end > start) return true;
+  if(e.endsNextDay === true) return true;
+  return timesCrossMidnight(e.setTime, e.endTime);
+}
+function resolveSetStartDate(e){
+  if(!e || !e.date) return '';
+  const mins = clockMinutes(e.setTime);
+  /* 01:00–02:30 on a Saturday show: the set itself is Sunday morning. */
+  if(mins != null && mins < 6 * 60 && !timesCrossMidnight(e.setTime, e.endTime)) return addDaysYmd(e.date, 1);
+  if(e.setTime) return e.date;
+  if(e.setStartDate) return e.setStartDate;
+  return e.date;
+}
+function resolveSetEndDate(e){
+  if(!e || !e.date) return '';
+  const startDate = resolveSetStartDate(e) || e.date;
+  if(timesCrossMidnight(e.setTime, e.endTime)) return addDaysYmd(startDate, 1);
+  if(e.setTime || e.endTime) return startDate;
+  if(e.setEndDate) return e.setEndDate;
+  return startDate;
+}
+/* Clock times from 00:00 up to (but not including) noon, when they sit
+   before a late set start, belong to the morning after the show date. */
+function isPostMidnightOnShow(e, hhmm){
+  const mins = clockMinutes(hhmm);
+  if(mins == null || !e) return false;
+  if(!showEndsNextDay(e) && !(e.setTime && clockMinutes(e.setTime) < 6 * 60)) return false;
+  const setMins = clockMinutes(e.setTime);
+  if(setMins == null) return mins < 6 * 60;
+  return mins < setMins && mins < 12 * 60;
+}
+function showItemTrueDate(e, hhmm, explicitDate?){
+  if(!e || !e.date) return explicitDate || '';
+  if(explicitDate && explicitDate !== e.date) return explicitDate;
+  if(isPostMidnightOnShow(e, hhmm)) return addDaysYmd(e.date, 1);
+  return explicitDate || e.date;
+}
+function showSetStartDate(e){
+  return (typeof resolveSetStartDate === 'function') ? resolveSetStartDate(e) : (e && e.date) || '';
+}
+function showSetEndDate(e){
+  return resolveSetEndDate(e);
+}
+function showSetStartMs(e){
+  if(!e || !e.setTime) return null;
+  const d = parseDT(showSetStartDate(e), e.setTime);
+  return d ? d.getTime() : null;
+}
+function showSetEndMs(e){
+  if(!e) return null;
+  const t = e.endTime || e.setTime;
+  if(!t) return null;
+  const date = e.endTime ? showSetEndDate(e) : showSetStartDate(e);
+  const d = parseDT(date, t);
+  return d ? d.getTime() : null;
+}
+function showTimelineSortKey(e, item){
+  const time = item && (item.time || item.start || item.setTime) || '';
+  const mins = clockMinutes(time);
+  if(mins == null) return 100000;
+  const trueDate = (item && (item.trueDate || item.date)) || showItemTrueDate(e, time, item && item.date);
+  const offset = (item && item.dayOffset != null)
+    ? Number(item.dayOffset)
+    : dateDiffDays(e && e.date, trueDate);
+  return (Number.isFinite(offset) ? offset : 0) * 1440 + mins;
+}
+/* True set-start time in ms. A set in the small hours (before 06:00) is
+   played the morning *after* the show's listed day — a show dated Thursday
+   with a 01:00 set actually starts Friday 01:00 — so roll it to the next
+   day. Returns null when no set time is entered. */
+function setStartMs(dateStr, timeStr){
+  if(!timeStr) return null;
+  const d = parseDT(dateStr, timeStr);
+  if(!d) return null;
+  const hh = Number(String(timeStr).split(':')[0]);
+  if(hh < 6) d.setDate(d.getDate() + 1);
+  return d.getTime();
+}
+const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+const MON = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+const DOW = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+function fmtDate(dstr){
+  const d = parseDT(dstr); if(!d) return '';
+  return `${DOW[d.getDay()]} ${d.getDate()} ${MON[d.getMonth()]}`;
+}
+function fmtDayDate(dstr){
+  const d = parseDT(dstr); if(!d) return '';
+  return `${DOW[d.getDay()]} ${d.getDate()}`;
+}
+function fmtDateLong(dstr){
+  const d = parseDT(dstr); if(!d) return '';
+  return `${DOW[d.getDay()]}, ${d.getDate()} ${MONTHS[d.getMonth()]} ${d.getFullYear()}`;
+}
+/* Full venue address from split fields (line1, line2, city, region, postcode, country). */
+function formatVenueAddress(e, opts: EngineRow={}){
+  if(!e) return '';
+  const parts = opts.withVenue
+    ? [cleanVenue(e.venue), e.venueAddr, e.venueAddr2, e.city, e.venueRegion, e.venuePostcode, e.country]
+    : [e.venueAddr, e.venueAddr2, e.city, e.venueRegion, e.venuePostcode, e.country];
+  const seen = new Set();
+  return parts
+    .map(x => (x || '').toString().trim())
+    .filter(x => {
+      if(!x) return false;
+      const k = x.toLowerCase();
+      if(seen.has(k)) return false;
+      seen.add(k);
+      return true;
+    })
+    .join(', ');
+}
+/* Full hotel address from split fields (same shape as venue). Falls back to a
+   single legacy address string when granular parts were never filled in. */
+function formatHotelAddress(h, opts: EngineRow={}){
+  if(!h) return '';
+  const parts = opts.withName
+    ? [h.name, h.address, h.address2, h.city, h.region, h.postcode, h.country]
+    : [h.address, h.address2, h.city, h.region, h.postcode, h.country];
+  const seen = new Set();
+  return parts
+    .map(x => (x || '').toString().trim())
+    .filter(x => {
+      if(!x) return false;
+      const k = x.toLowerCase();
+      if(seen.has(k)) return false;
+      seen.add(k);
+      return true;
+    })
+    .join(', ');
+}
+function hotelBookingRef(h){
+  if(!h) return '';
+  return (h.conf || h.bookingRef || '').toString().trim();
+}
+function relDay(dstr){
+  const d = parseDT(dstr); if(!d) return '';
+  const today = new Date(); today.setHours(0,0,0,0);
+  const dd = new Date(d); dd.setHours(0,0,0,0);
+  const diff = Math.round((dd.getTime() - today.getTime()) / 86400000);
+  if(diff === 0) return 'Today';
+  if(diff === 1) return 'Tomorrow';
+  if(diff === -1) return 'Yesterday';
+  if(diff > 1){
+    if(diff <= 6) return 'In ' + diff + ' days';
+    if(diff <= 28){
+      const w = Math.min(4, Math.max(1, Math.round(diff / 7)));
+      return 'In ' + w + ' week' + (w === 1 ? '' : 's');
+    }
+    const mo = Math.round(diff / 30) || 1;
+    return 'In ' + mo + ' month' + (mo === 1 ? '' : 's');
+  }
+  const abs = Math.abs(diff);
+  if(abs <= 6) return abs + ' day' + (abs === 1 ? '' : 's') + ' ago';
+  if(abs <= 28){
+    const w = Math.min(4, Math.max(1, Math.round(abs / 7)));
+    return w + ' week' + (w === 1 ? '' : 's') + ' ago';
+  }
+  if(abs <= 365){
+    const mo = Math.round(abs / 30) || 1;
+    return mo + ' month' + (mo === 1 ? '' : 's') + ' ago';
+  }
+  return fmtDate(dstr);
+}
+function nowMs(){ return Date.now(); }
+/* Same clock time, N calendar months ahead. End-of-month dates clamp
+   (31 Jan + 1 month lands on the last day of February). */
+function addCalendarMonths(date, n){
+  const d = new Date(date.getTime());
+  const day = d.getDate();
+  d.setDate(1);
+  d.setMonth(d.getMonth() + n);
+  const last = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
+  d.setDate(Math.min(day, last));
+  return d;
+}
+function countdown(targetMs){
+  const diff = targetMs - nowMs();
+  if(!(diff > 0)) return {done:true, txt:'—', unit:''};
+  let months = 0;
+  while(addCalendarMonths(new Date(), months + 1).getTime() <= targetMs) months += 1;
+  const rem = months ? (targetMs - addCalendarMonths(new Date(), months).getTime()) : diff;
+  const day = 86400000;
+  const week = 7 * day;
+  const hour = 3600000;
+  const bits = [];
+  const push = (n, label) => { if(n > 0) bits.push(n + label); };
+  /* A month or more: months, then the leftover weeks and days. */
+  if(months > 0){
+    push(months, 'mo');
+    push(Math.floor(rem / week), 'w');
+    push(Math.floor((rem % week) / day), 'd');
+    return {done:false, txt: bits.join(' ') || (months + 'mo'), unit:''};
+  }
+  /* Under a month: weeks and days. */
+  if(rem >= week){
+    push(Math.floor(rem / week), 'w');
+    push(Math.floor((rem % week) / day), 'd');
+    return {done:false, txt: bits.join(' '), unit:''};
+  }
+  /* Under a week: days and hours. Minutes only once both of those are zero. */
+  push(Math.floor(rem / day), 'd');
+  push(Math.floor((rem % day) / hour), 'h');
+  if(bits.length) return {done:false, txt: bits.join(' '), unit:''};
+  return {done:false, txt: Math.max(1, Math.ceil(rem / 60000)) + 'm', unit:''};
+}
+function timeAgo(ms){
+  const diff = nowMs()-ms;
+  const m = Math.floor(diff/60000);
+  if(m<1) return 'Just now'; if(m<60) return m+'m ago';
+  const h=Math.floor(m/60); if(h<24) return h+'h ago';
+  const d=Math.floor(h/24); if(d<7) return d+'d ago';
+  return new Date(ms).getDate()+' '+MON[new Date(ms).getMonth()];
+}
+
+/* ---------- Selectors (derived data — never duplicated) ---------- */
+const sel = {
+  isShow: e => (e.kind||'show')==='show',
+  events: () => store.events.filter(e=>(e.kind||'show')==='show').sort((a,b)=> (a.date+(a.setTime||'')).localeCompare(b.date+(b.setTime||''))),
+  allItems: () => store.events.slice(),
+  upcoming: () => {
+    const today = new Date(); today.setHours(0,0,0,0);
+    return sel.events().filter(e=>{ const d=parseDT(e.date); return d && d>=today && e.status!=='cancelled'; });
+  },
+  nextEvent: () => sel.upcoming()[0] || null,
+  event: id => store.events.find(e=>e.id===id),
+  trip: id => store.trips.find(t=>t.id===id),
+  trips: () => store.trips.slice().sort((a,b)=> (b.startDate||'').localeCompare(a.startDate||'')),
+  activeTrip: () => store.trips.find(t=>t.id===store.activeTripId) || null,
+  tripEvents: tid => sel.events().filter(e=>e.tripId===tid),
+  ideas: () => store.ideas.slice().sort((a,b)=> b.created-a.created),
+  notes: () => store.notes.slice().sort((a,b)=> b.updated-a.updated),
+  noteFolders: () => (store.noteFolders || []).slice().sort((a,b)=> (a.sortOrder-b.sortOrder) || (a.name||'').localeCompare(b.name||'')),
+  noteFolder: id => (store.noteFolders || []).find(f => f.id === id) || null,
+  noteFolderByName: name => {
+    const q = (name || '').trim().toLowerCase();
+    if(!q) return null;
+    return (store.noteFolders || []).find(f => (f.name || '').trim().toLowerCase() === q) || null;
+  },
+  noteBelongsToFolder: n => {
+    if(!n) return false;
+    if(n.folderId) return true;
+    return !!sel.noteFolderByName(n.folder);
+  },
+  noteResolvedFolderId: n => {
+    if(!n) return null;
+    if(n.folderId) return n.folderId;
+    return sel.noteFolderByName(n.folder)?.id || null;
+  },
+  notesInFolder: folderId => sel.notes().filter(n => {
+    if(!folderId) return !sel.noteBelongsToFolder(n);
+    return sel.noteResolvedFolderId(n) === folderId;
+  }),
+  unfiledNotes: () => sel.notes().filter(n => !sel.noteBelongsToFolder(n)),
+  eventChecklistProgress: e => {
+    const items = e.checklist||[]; if(!items.length) return {done:0,total:0,pct:0};
+    const done = items.filter(i=>i.done).length;
+    return {done, total:items.length, pct:Math.round(done/items.length*100)};
+  },
+  tripProgress: t => {
+    const items = t.checklist||[]; const tl = t.timeline||[];
+    const all = items.length + tl.length;
+    if(!all) return {pct:0,done:0,total:0};
+    const done = items.filter(i=>i.done).length + tl.filter(i=>i.done).length;
+    return {pct:Math.round(done/all*100), done, total:all};
+  },
+};
+
+/* ---------- Money / finance engine (multi-currency) ---------- */
+const CURSYM = {GBP:'£',EUR:'€',USD:'$',CHF:'CHF ',AUD:'A$',CAD:'C$',AED:'AED ',SGD:'S$',SEK:'kr ',NOK:'kr ',DKK:'kr ',PLN:'zł ',CZK:'Kč ',ZAR:'R ',JPY:'¥',NZD:'NZ$',HKD:'HK$'};
+function fxRate(cur){ return (store && store.settings && store.settings.fx && store.settings.fx[cur]) || 1; }
+function toBase(amount, cur){ const base = (store && store.settings && store.settings.baseCurrency) || 'EUR'; return (amount||0) * fxRate(cur) / (fxRate(base)||1); }
+function fmtMoney(amount, cur){
+  const sym = CURSYM[cur]||(cur+' ');
+  const n = Math.round(amount||0);
+  return sym + n.toLocaleString('en-GB');
+}
+function fmtBase(amount){ return fmtMoney(amount, (store && store.settings && store.settings.baseCurrency) || 'EUR'); }
+const money = {
+  eventCalc: e => {
+    const f = e.finance||{fee:0,currency:store.settings.baseCurrency,expenses:[],perDiem:0,commission:0};
+    const cur = f.currency||store.settings.baseCurrency;
+    const gross = +f.fee||0;
+    const commissionAmt = gross*((+f.commission||0)/100);
+    const expenses = (f.expenses||[]).reduce((s,x)=>s+(+x.amount||0),0);
+    const perDiem = +f.perDiem||0;
+    const net = gross - commissionAmt - expenses + perDiem;
+    return {cur, gross, commissionAmt, expenses, perDiem, net,
+      grossBase: toBase(gross,cur), netBase: toBase(net,cur), commissionBase: toBase(commissionAmt,cur), expensesBase: toBase(expenses,cur), paid:!!f.paid};
+  },
+  summary: (events) => {
+    events = events || sel.events();
+    let grossBase=0, netBase=0, commissionBase=0, expensesBase=0, collectedBase=0, outstandingBase=0;
+    const byCur = {}; const upcomingBase = {val:0}; const today=new Date(); today.setHours(0,0,0,0);
+    events.forEach(e=>{
+      if(e.status==='cancelled') return;
+      const c = money.eventCalc(e);
+      grossBase+=c.grossBase; netBase+=c.netBase; commissionBase+=c.commissionBase; expensesBase+=c.expensesBase;
+      if(c.paid) collectedBase+=c.netBase; else outstandingBase+=c.netBase;
+      const d=parseDT(e.date); if(d && d>=today) upcomingBase.val+=c.netBase;
+      byCur[c.cur]=(byCur[c.cur]||0)+c.gross;
+    });
+    return {grossBase, netBase, commissionBase, expensesBase, collectedBase, outstandingBase, upcomingBase:upcomingBase.val, byCur};
+  },
+};
+
+/* ---------- Tours ("runs") — split by flights out of home and back home ----------
+   A tour starts on the show where you fly out of your home airport. Later shows
+   stay in that tour only when they connect (the next flight leaves the airport
+   you just arrived at), or they have no flight and are within two days.
+   The tour ends on the show where you fly back home. A new flight out of home
+   starts a new tour. Shows that don't connect are listed on their own — a show
+   is not pulled in just because its date sits between two flights. */
+function dayIdx(ds){ const d=parseDT(ds); return d?Math.floor(d.getTime()/86400000):0; }
+function homeAirport(){ return airportCode(store.settings.homeAirport || 'AMS'); }
+/* Strip b2b / bracketed extras from a venue name so the address + map search use the main name only. */
+function cleanVenue(v){ v=String(v||'').trim(); const c=v.replace(/\s*[\(\[][^\)\]]*[\)\]]\s*/g,' ').replace(/\s+b2b\b.*$/i,'').replace(/\s{2,}/g,' ').trim(); return c||v; }
+/* The artist's money currency follows their home airport: UK airports -> GBP, everywhere else -> EUR. */
+const UK_AIRPORTS=['LHR','LGW','STN','LTN','LCY','MAN','BHX','EDI','GLA','BRS','NCL','LPL','LBA','BFS','SEN','EMA','ABZ','CWL','SOU','EXT','GLA','INV','DSA'];
+function homeCurrency(){ return UK_AIRPORTS.includes(homeAirport())?'GBP':'EUR'; }
+/* Pull a 3-letter airport code out of "AMS", "ams", or "Amsterdam (AMS)". */
+function airportCode(v){
+  const s=String(v||'').toUpperCase().trim();
+  if(/^[A-Z]{3}$/.test(s)) return s;
+  const m=s.match(/\(([A-Z]{3})\)/) || s.match(/\b([A-Z]{3})\b/);
+  return m?m[1]:s;
+}
+function iataFromFlightEndpoint(raw, codeField, nameField){
+  const direct = airportCode(codeField || raw || '');
+  if(direct && /^[A-Z]{3}$/.test(direct)) return direct;
+  if(typeof flightIataFromPlace === 'function'){
+    const guessed = flightIataFromPlace(codeField || raw || nameField || '');
+    if(guessed) return airportCode(guessed);
+  }
+  return airportCode(raw || '');
+}
+function flightEndpointCodes(f){
+  if(!f) return { from:'', to:'' };
+  return {
+    from: iataFromFlightEndpoint(f.from, f.fromCode, f.fromName),
+    to: iataFromFlightEndpoint(f.to, f.toCode, f.toName)
+  };
+}
+function travelFlightCodes(e){
+  if(!e) return { from:'', to:'' };
+  return {
+    from: iataFromFlightEndpoint(e.from, e.fromCode, e.fromName),
+    to: iataFromFlightEndpoint(e.to, e.toCode, e.toName)
+  };
+}
+function isHomeFlight(e){
+  if(e.kind!=='travel') return false;
+  const h = homeAirport();
+  const { to } = travelFlightCodes(e);
+  if(to && to === h) return true;
+  return new RegExp('>\\s*'+h+'(\\b|\\))','i').test(e.title||'') || new RegExp('→\\s*'+h+'(\\b|$)','i').test(e.info||'');
+}
+function isHomeOutboundTravel(e){
+  if(e.kind!=='travel') return false;
+  const h = homeAirport();
+  const { from, to } = travelFlightCodes(e);
+  if(from === h && to && to !== h) return true;
+  return new RegExp('^\\s*'+h+'\\s*>','i').test(e.title||'') || new RegExp('^\\s*'+h+'\\s*→','i').test(e.info||'');
+}
+/* Prefer arrival day/time when present — that's when the leg actually finishes. */
+function flightLegWhen(f, fallbackDate, fallbackTime?){
+  const arrParts=String(f&&f.arr||'').trim().split(/\s+/);
+  const depParts=String(f&&f.dep||'').trim().split(/\s+/);
+  if(arrParts[0]&&/^\d{4}-\d{2}-\d{2}/.test(arrParts[0])){
+    return { date:arrParts[0], start:arrParts[1]||fallbackTime||'12:00' };
+  }
+  if(depParts[0]&&/^\d{4}-\d{2}-\d{2}/.test(depParts[0])){
+    return {
+      date:depParts[0],
+      start:depParts[1]||(depParts[0].includes(':')&&!depParts[0].includes('-')?depParts[0]:'')||fallbackTime||'12:00'
+    };
+  }
+  if(depParts[0]&&depParts[0].includes(':')&&!depParts[0].includes('-')){
+    return { date:fallbackDate, start:depParts[0] };
+  }
+  return { date:fallbackDate, start:fallbackTime||'12:00' };
+}
+function tourMarkerKey(date, start){ return (date||'')+' '+(start||'12:00'); }
+function isPlaneLeg(e){ return e && e.kind==='travel' && (e.icon||'plane')==='plane'; }
+/* Leaving flights and return flights, in time order. Ground legs are ignored. */
+function homeTourMarkers(){
+  const h = homeAirport();
+  const markers = [];
+  const seen = new Set();
+  const push = (type, date, start)=>{
+    if(!date) return;
+    const key = tourMarkerKey(date, start || '12:00');
+    const id = type + '|' + key;
+    if(seen.has(id)) return;
+    seen.add(id);
+    markers.push({ type, date, start:start||'12:00', key });
+  };
+
+  store.events.forEach(e=>{
+    if(!isPlaneLeg(e)) return;
+    if(isHomeOutboundTravel(e)) push('out', e.date, e.start||'12:00');
+    else if(isHomeFlight(e)){
+      const when=flightLegWhen({arr:e.arr||e.arrival, dep:((e.date||'')+' '+(e.start||'')).trim()}, e.date, e.start||'12:00');
+      push('in', when.date||e.date, when.start||e.start||'12:00');
+    }
+  });
+
+  store.events.forEach(s=>{
+    if((s.kind||'show')!=='show' || !Array.isArray(s.flights)) return;
+    s.flights.forEach(f=>{
+      if(!f || (typeof flightHasDetails==='function' && !flightHasDetails(f))) return;
+      const { from, to } = flightEndpointCodes(f);
+      const when=flightLegWhen(f, s.date);
+      if(from===h && to && to!==h) push('out', when.date||s.date, when.start||'12:00');
+      else if(to===h && from && from!==h) push('in', when.date||s.date, when.start||'12:00');
+    });
+  });
+  markers.sort((a,b)=>a.key.localeCompare(b.key));
+  return markers;
+}
+/* Plane legs saved on a show. Unlinked travel copies are ignored — they often
+   repeat the same flight with the airports swapped. */
+function showFlightLegs(show){
+  const legs = [];
+  const push = (f, fallbackDate) => {
+    if(!f || (typeof flightHasDetails === 'function' && !flightHasDetails(f))) return;
+    const { from, to } = flightEndpointCodes(f);
+    if(!from && !to) return;
+    const when = flightLegWhen(f, fallbackDate || (show && show.date) || '');
+    legs.push({
+      from, to,
+      key: tourMarkerKey(when.date || (show && show.date) || '', when.start || '12:00')
+    });
+  };
+  (show && show.flights || []).forEach(f => push(f, show.date));
+  (store.events || []).forEach(e => {
+    if(!show || !isPlaneLeg(e) || e.showId !== show.id) return;
+    push({
+      from: e.from, to: e.to, fromCode: e.fromCode, toCode: e.toCode,
+      fromName: e.fromName, toName: e.toName,
+      dep: ((e.date || '') + ' ' + (e.start || '')).trim(),
+      arr: e.arr || e.arrival || ''
+    }, e.date || show.date);
+  });
+  legs.sort((a, b) => a.key.localeCompare(b.key));
+  return legs;
+}
+function ymdGap(a, b){
+  const da = parseDT(a), db = parseDT(b);
+  if(!da || !db) return 99;
+  return Math.abs(Math.round((db.getTime() - da.getTime()) / 86400000));
+}
+function decorateRuns(groups){
+  return groups.map(r => {
+    const row: EngineRow = { shows: r.shows || [] };
+    row.key = row.shows[0] ? row.shows[0].id : uid('run');
+    row.start = row.shows[0] ? row.shows[0].date : '';
+    row.end = row.shows.length ? row.shows[row.shows.length - 1].date : row.start;
+    row.cities = [];
+    row.shows.forEach(s => { const c = String(s.city || '').trim(); if(c && row.cities.indexOf(c) === -1) row.cities.push(c); });
+    row.color = (row.shows[0] && row.shows[0].color) || 'green';
+    row.title = row.cities.length
+      ? (row.cities.length > 3 ? row.cities.slice(0, 3).join(' · ') + ' +' + (row.cities.length - 3) : row.cities.join(' · '))
+      : ((row.shows[0] && (row.shows[0].venue || row.shows[0].eventName)) || 'Show');
+    return row;
+  });
+}
+function runs(){
+  const h = homeAirport();
+  const shows = sel.events(); // shows only, sorted by date
+  const groups = [];
+  let open = null;
+  const close = () => {
+    if(open && open.shows.length) groups.push({ shows: open.shows });
+    open = null;
+  };
+  const lastStop = legs => (legs.length && legs[legs.length - 1].to) || '';
+
+  shows.forEach(sh => {
+    const legs = showFlightLegs(sh);
+    const leaves = legs.some(l => l.from === h && l.to && l.to !== h);
+    const lands = legs.some(l => l.to === h && l.from && l.from !== h);
+    const prev = open && open.shows[open.shows.length - 1];
+    const gap = prev ? ymdGap(prev.date, sh.date) : 99;
+    const last = open ? open.lastAirport : '';
+    const connects = !!(last && legs.some(l => l.from && l.from === last));
+
+    /* Flying out of home always starts a new tour, even if the last one
+       never recorded a flight home. */
+    if(leaves){
+      close();
+      open = { shows: [sh], lastAirport: lastStop(legs) };
+      if(lands) close();
+      return;
+    }
+    if(open){
+      const flightlessNear = !legs.length && gap <= 2;
+      const landingNear = lands && (connects || gap <= 2);
+      if(connects || flightlessNear || landingNear){
+        open.shows.push(sh);
+        if(legs.length && !lands) open.lastAirport = lastStop(legs) || open.lastAirport;
+        if(lands) close();
+        return;
+      }
+      close();
+    }
+    groups.push({ shows: [sh] });
+  });
+  close();
+  groups.sort((a, b) => String((a.shows[0] && a.shows[0].date) || '').localeCompare(String((b.shows[0] && b.shows[0].date) || '')));
+  return decorateRuns(groups);
+}
+function runOf(showId){ return runs().find(r=>r.shows.some(s=>s.id===showId)) || null; }
+function activeRun(){ return store.activeShowId ? runOf(store.activeShowId) : null; }
+/* All logistics + set anchors for a run, chronological — the day-of timeline */
+function runTimeline(run){
+  const ids = new Set(run.shows.map(s=>s.id));
+  const items = store.events.filter(e=> (e.kind==='travel'||e.kind==='stay') && ids.has(e.showId));
+  const rows = items.map(e=>{
+    normalizeLogisticItem(e);
+    const d = logisticDisplayLines(e);
+    const sub = e.kind==='travel' ? logisticMetaLine(e) : (e.info||'');
+    const show = run.shows.find(s=>s.id===e.showId);
+    const time = e.start||(e.info&&(e.info.match(/(\d{1,2}:\d{2})/)||[])[1])||'';
+    const showDate = (show && show.date) || e.date;
+    const trueDate = show ? showItemTrueDate(show, time, e.date) : e.date;
+    return {id:e.id, kind:e.kind, date:e.date, showId:e.showId||null, showDate, trueDate, dayOffset:dateDiffDays(showDate, trueDate), time, title:d.title, sub: e.kind==='travel' ? [d.primary, sub].filter(Boolean).join(' · ') : sub, icon:e.icon||(e.kind==='stay'?'bed':'plane'), done:!!e.done, ref:e};
+  }).filter(r=>{
+    if(r.kind==='travel' && (r.icon||'plane')==='plane'){
+      const e=r.ref||{};
+      return !!(e.from||e.to||e.flightNo||e.code||(r.sub&&String(r.sub).trim())||(r.title&&r.title!=='Flight'&&r.title!=='Travel'));
+    }
+    if(r.kind==='stay'){
+      const e=r.ref||{};
+      return !!(e.place||e.addr||e.bookingRef||(r.sub&&String(r.sub).trim())||(r.title&&r.title!=='Hotel'&&r.title!=='Accommodation'));
+    }
+    return true;
+  });
+  // Info entered inside a show's own sections is embedded on the show, not a
+  // separate leg — surface it too, unless a leg of that kind already exists.
+  const hasPlane = new Set(items.filter(x=>x.kind==='travel' && (x.icon||'plane')==='plane').map(x=>x.showId));
+  const hasStay  = new Set(items.filter(x=>x.kind==='stay').map(x=>x.showId));
+  const hasCar   = new Set(items.filter(x=>x.kind==='travel' && (x.icon||'plane')==='car').map(x=>x.showId));
+  run.shows.forEach(s=>{
+    if(!hasPlane.has(s.id) && Array.isArray(s.flights)){
+      s.flights.forEach(f=>{
+        if(typeof flightHasDetails==='function' && !flightHasDetails(f)) return;
+        if(typeof ensureFlightPassengers==='function') ensureFlightPassengers(f);
+        const parts=String(f.dep||'').trim().split(/\s+/);
+        const paxSub = typeof flightPassengerSummary==='function' ? flightPassengerSummary(f) : (f.seat?'Seat '+f.seat:'');
+        const passes = typeof flightAllPasses==='function' ? flightAllPasses(f) : (f.passes||[]);
+        const fltDate = parts[0]&&/^\d{4}-\d{2}-\d{2}/.test(parts[0])?parts[0]:(s.date);
+        rows.push({id:'shflt_'+f.id, kind:'travel', icon:'plane', date:fltDate, showId:s.id, showDate:s.date, trueDate:fltDate, dayOffset:dateDiffDays(s.date, fltDate), time:parts[1]||(parts[0]&&parts[0].includes(':')&&!parts[0].includes('-')?parts[0]:'')||'',
+          title:(f.from&&f.to)?f.from+' → '+f.to:(f.code||'Flight'),
+          sub:[f.code, f.gate?('Gate '+f.gate):'', f.terminal?('Term '+f.terminal):'', paxSub].filter(Boolean).join(' · '),
+          done:!!f.done, embedded:true, ref:Object.assign({kind:'travel', icon:'plane', showId:s.id, to:f.to, from:f.from, embedded:true, passes, flightNo:f.code||'', terminal:f.terminal||'', gate:f.gate||'', fstatus:f.fstatus||'', delay:f.delay||'', fiUpdated:f.fiUpdated||null}, f)});
+      });
+    }
+    if(!hasStay.has(s.id) && s.hotel && (s.hotel.name||s.hotel.address||s.hotel.city)){
+      const hSub = typeof formatHotelAddress === 'function'
+        ? formatHotelAddress(s.hotel)
+        : [s.hotel.address, s.hotel.postcode].filter(Boolean).join(', ');
+      const stayDate = s.hotel.checkin||s.date;
+      rows.push({id:'shhotel_'+s.id, kind:'stay', icon:'bed', date:stayDate, showId:s.id, showDate:s.date, trueDate:stayDate, dayOffset:dateDiffDays(s.date, stayDate), time:'',
+        title:s.hotel.name||'Accommodation', sub:hSub,
+        done:!!s.hotel.done, embedded:true, ref:{kind:'stay', icon:'bed', showId:s.id, place:s.hotel.name, addr:hSub || s.hotel.address, embedded:true}});
+    }
+    if(!hasCar.has(s.id)){
+      showDrivers(s).forEach(d=>{
+        ensureDriverLocations(d);
+        if(!d.time) return;
+        const label = driverJourneyLabel(d);
+        const drvDate = showItemTrueDate(s, d.time, d.date);
+        rows.push({id:'shdrv_'+d.id, kind:'travel', icon:'car', date:drvDate, showId:s.id, showDate:s.date, time:d.time,
+          title:label||(d.noGround?'Ground':(d.name||'Ground')),
+          sub:d.noGround?(typeof groundArrangeSummary==='function'?groundArrangeSummary(d):'Arrange at time'):[d.name, d.phone].filter(Boolean).join(' · '),
+          done:!!d.done, embedded:true, trueDate:drvDate, dayOffset:dateDiffDays(s.date, drvDate),
+          ref:Object.assign({kind:'travel', icon:'car', showId:s.id, embedded:true}, d, {
+            from: d.from || '', to: d.to || '', title: label||'', legacyTitle: label||'', date: drvDate
+          })});
+      });
+    }
+  });
+  run.shows.forEach(s=>{
+    const overnight = showEndsNextDay(s);
+    rows.push({
+      id:'set_'+s.id, kind:'set', date:s.date, showId:s.id, showDate:s.date, time:s.setTime||'',
+      title:s.eventName||s.venue||'Set',
+      sub:s.setTime?('Set '+s.setTime+(s.endTime?' - '+s.endTime+(overnight?' next day':''):'')):'Set TBA',
+      icon:'music', done:!!s.setDone,
+      trueDate: showSetStartDate(s), dayOffset: dateDiffDays(s.date, showSetStartDate(s)),
+      endTime:s.endTime||'', endDate:showSetEndDate(s)
+    });
+  });
+  rows.sort((a,b)=>{
+    const da = a.showDate || a.date || '';
+    const db = b.showDate || b.date || '';
+    if(da!==db) return da.localeCompare(db);
+    const ia = run.shows.findIndex(s=>s.id===(a.showId||(a.ref&&a.ref.showId)));
+    const ib = run.shows.findIndex(s=>s.id===(b.showId||(b.ref&&b.ref.showId)));
+    if(ia!==ib && ia>=0 && ib>=0) return ia-ib;
+    const show = run.shows[ia>=0?ia:ib] || { date: da };
+    return showTimelineSortKey(show, a) - showTimelineSortKey(show, b);
+  });
+  return rows;
+}
+function runProgress(run){
+  const tl = runTimeline(run); const pk = store.packing||[];
+  const all = tl.length + pk.length; if(!all) return {pct:0,done:0,total:0};
+  const done = tl.filter(r=>r.done).length + pk.filter(p=>p.done).length;
+  return {pct:Math.round(done/all*100), done, total:all};
+}
+
+/* ---------- Account types (roles) ---------- */
+const ACCOUNT_TYPES = {
+  dj:      {label:'DJ / Artist',  icon:'music',  desc:'You perform. Your shows, travel & content.'},
+  manager: {label:'Manager',      icon:'user',   desc:'You manage an artist’s career & schedule.'},
+  tm:      {label:'Tour Manager', icon:'map',    desc:'You run logistics on the road.'},
+  agent:   {label:'Agent',        icon:'trend',  desc:'You book shows & handle deals.'},
+};
+function acct(){ return ACCOUNT_TYPES[store.settings.accountType]||ACCOUNT_TYPES.dj; }
+/* Home uses the saved account type for order and wording only — not for access. */
+function homePersona(){
+  const k = store && store.settings && store.settings.accountType;
+  return (k && ACCOUNT_TYPES[k]) ? k : 'dj';
+}
+function homePersonaBlurb(){
+  const blurbs = {
+    dj: 'Your next show and travel at a glance',
+    manager: 'Shows, tasks and business requiring attention',
+    tm: "Today's tour operations",
+    agent: 'Bookings, availability and upcoming shows'
+  };
+  return blurbs[homePersona()] || blurbs.dj;
+}
+
+/* ---------- Collapsible state ---------- */
+let folds = {}; // id -> open(bool)
+function isOpen(id, def){ return folds[id]===undefined ? !!def : folds[id]; }
+function setFoldOpen(id, open){ folds[id] = !!open; }
+/* Clear remembered open/closed state for a show so sections start collapsed
+   each time you open that show. Quiet sync remounts keep the user's expands. */
+function resetShowFolds(showId){
+  if(!showId) return;
+  const prefixes = ['sg-'+showId+'-', 'ss-'+showId+'-'];
+  Object.keys(folds).forEach(k => {
+    if(prefixes.some(p => k.startsWith(p))) delete folds[k];
+  });
+}
+function toggleFold(id){
+  const el = document.getElementById('fold-'+id);
+  const currentlyOpen = el ? el.classList.contains('open') : !!isOpen(id, false);
+  folds[id] = !currentlyOpen;
+  if(el){
+    el.classList.toggle('open', folds[id]);
+    const head = el.querySelector('[aria-expanded]');
+    if(head) head.setAttribute('aria-expanded', folds[id] ? 'true' : 'false');
+  }
+  haptic();
+}
+function foldSection(id, iconHTML, title, sub, bodyHTML, defOpen, cls?){
+  const open = isOpen(id, defOpen);
+  return `<div class="fold ${open?'open':''} ${cls||''}" id="fold-${id}">
+    <div class="fold-head" onclick="toggleFold('${id}')">
+      <div class="ic" style="background:var(--card-2)">${iconHTML}</div>
+      <div class="ft"><b>${esc(title)}</b>${sub?`<span>${esc(sub)}</span>`:''}</div>
+      <span class="fold-chev">${ICON.chevDown?ICON.chevDown(20):ICON.chevR(20)}</span>
+    </div>
+    <div class="fold-body"><div class="fold-inner">${bodyHTML}</div></div>
+  </div>`;
+}
+
+/* ---------- Security / passcode lock ---------- */
+let session = { appUnlocked:false, financeUnlocked:false };
+function pinHash(pin){ let h=5381; for(const c of String(pin)) h=((h<<5)+h+c.charCodeAt(0))>>>0; return 'h'+h; }
+function secOn(){ const s=store.settings.security; return s&&s.enabled&&s.pin; }
+function appLockActive(){ return secOn() && store.settings.security.scope==='app' && !session.appUnlocked; }
+function financeLockActive(){ const s=store.settings.security; if(!secOn()) return false;
+  if(s.scope==='app') return !session.appUnlocked;      // app lock already covers finance
+  if(s.scope==='finance') return !session.financeUnlocked;
+  return false;
+}
+let pinBuf='', pinPurpose=null, pinResolve=null;
+function renderLock(purpose){
+  pinPurpose=purpose; pinBuf='';
+  const isSetup = purpose==='setup';
+  const s=store.settings.security;
+  const title = isSetup? 'Create a passcode' : (purpose==='app'?'Operate locked':'Finance locked');
+  const sub = isSetup? 'Enter a 4-digit passcode' : 'Enter your passcode to continue';
+  const bio = !isSetup && s.biometric;
+  if(typeof OperateReact !== 'undefined' && OperateReact && typeof OperateReact.mountShell === 'function'){
+    OperateReact.mountShell();
+  }
+  if(typeof OperateReact !== 'undefined' && OperateReact && typeof OperateReact.chromeShowLock === 'function'
+      && typeof OperateReact.isShellMounted === 'function' && OperateReact.isShellMounted()){
+    OperateReact.chromeShowLock({ purpose, title, sub, bio: !!bio, pinLen: 0, err: false });
+    if(bio) setTimeout(()=>biometricUnlock(true), 350);
+    return;
+  }
+  const el=$('#lock');
+  el.innerHTML = `
+    <div class="lock-logo"><svg width="42" height="42" viewBox="0 0 1024 1024" fill="none" stroke="#fff" stroke-linecap="round"><circle cx="512" cy="512" r="232" stroke-width="72"/><path d="M 446 512 L 578 512" stroke-width="46"/></svg></div>
+    <div class="lock-title">${title}</div>
+    <div class="lock-sub">${sub}</div>
+    <div class="pin-dots" id="pin-dots">${[0,1,2,3].map(i=>`<i></i>`).join('')}</div>
+    <div class="pad">
+      ${[1,2,3,4,5,6,7,8,9].map(n=>`<button class="key" onclick="pinKey('${n}')">${n}</button>`).join('')}
+      <div class="key blank"></div>
+      <button class="key" onclick="pinKey('0')">0</button>
+      <button class="key act" onclick="pinDel()">⌫</button>
+    </div>
+    ${bio?`<button class="lock-bio" onclick="biometricUnlock()">${ICON.face(18)} Unlock with Face ID</button>`:''}
+    ${(!isSetup && appLockActive())?'':''}
+  `;
+  el.classList.add('on');
+  if(bio) setTimeout(()=>biometricUnlock(true), 350);
+}
+function pinKey(n){
+  if(pinBuf.length>=4) return;
+  pinBuf+=n; haptic(); paintDots();
+  if(pinBuf.length===4) setTimeout(pinSubmit, 120);
+}
+function pinDel(){ pinBuf=pinBuf.slice(0,-1); paintDots(); }
+function paintDots(){
+  if(typeof OperateReact !== 'undefined' && OperateReact && typeof OperateReact.chromeUpdateLock === 'function'
+      && typeof OperateReact.isShellMounted === 'function' && OperateReact.isShellMounted()){
+    OperateReact.chromeUpdateLock({ pinLen: pinBuf.length, err: false });
+    return;
+  }
+  const d=$('#pin-dots'); if(!d) return; [...d.children].forEach((c,i)=>c.classList.toggle('f', i<pinBuf.length));
+}
+function pinSubmit(){
+  const s=store.settings.security;
+  if(pinPurpose==='setup'){
+    if(pinSetupFirst===null){
+      pinSetupFirst=pinBuf; pinBuf=''; paintDots();
+      if(typeof OperateReact !== 'undefined' && OperateReact && typeof OperateReact.chromeUpdateLock === 'function'
+          && typeof OperateReact.isShellMounted === 'function' && OperateReact.isShellMounted()){
+        OperateReact.chromeUpdateLock({ title:'Confirm passcode', sub:'Re-enter to confirm', pinLen:0 });
+      } else {
+        const t=$('#lock .lock-title'); const u=$('#lock .lock-sub');
+        if(t) t.textContent='Confirm passcode'; if(u) u.textContent='Re-enter to confirm';
+      }
+      return;
+    }
+    if(pinBuf===pinSetupFirst){ s.pin=pinHash(pinBuf); s.enabled=true; persist('settings'); pinSetupFirst=null; closeLock(); toast('Passcode set','check'); if(pinResolve){pinResolve(true);pinResolve=null;} }
+    else {
+      pinSetupFirst=null; pinBuf=''; shakeDots();
+      if(typeof OperateReact !== 'undefined' && OperateReact && typeof OperateReact.chromeUpdateLock === 'function'
+          && typeof OperateReact.isShellMounted === 'function' && OperateReact.isShellMounted()){
+        OperateReact.chromeUpdateLock({ title:'Create a passcode', sub:"Didn't match — try again", pinLen:0 });
+      } else {
+        const t=$('#lock .lock-title'); const u=$('#lock .lock-sub');
+        if(t) t.textContent='Create a passcode'; if(u) u.textContent="Didn't match — try again";
+      }
+    }
+    return;
+  }
+  if(pinHash(pinBuf)===s.pin){
+    if(pinPurpose==='app'){ session.appUnlocked=true; session.financeUnlocked=true; }
+    if(pinPurpose==='finance'){ session.financeUnlocked=true; }
+    closeLock(); if(pinResolve){pinResolve(true);pinResolve=null;} else render();
+  } else { pinBuf=''; shakeDots(); }
+}
+let pinSetupFirst=null;
+function shakeDots(){
+  if(typeof OperateReact !== 'undefined' && OperateReact && typeof OperateReact.chromeUpdateLock === 'function'
+      && typeof OperateReact.isShellMounted === 'function' && OperateReact.isShellMounted()){
+    OperateReact.chromeUpdateLock({ err: true, pinLen: 0 });
+    setTimeout(()=>{ if(typeof OperateReact.chromeUpdateLock === 'function') OperateReact.chromeUpdateLock({ err: false, pinLen: pinBuf.length }); }, 400);
+    return;
+  }
+  const d=$('#pin-dots'); if(d){ d.classList.add('err'); setTimeout(()=>{d.classList.remove('err'); paintDots();},400); }
+}
+function closeLock(){
+  if(typeof OperateReact !== 'undefined' && OperateReact && typeof OperateReact.chromeHideLock === 'function'
+      && typeof OperateReact.isShellMounted === 'function' && OperateReact.isShellMounted()){
+    OperateReact.chromeHideLock();
+    return;
+  }
+  $('#lock').classList.remove('on'); $('#lock').innerHTML='';
+}
+function lockFinanceNow(){ session.financeUnlocked=false; if(store.settings.security.scope==='app') session.appUnlocked=false; overlay=null; store.tab='home'; render(); toast('Finance locked','lock'); }
+function requireUnlock(purpose, cb){
+  if(purpose==='finance' && !financeLockActive()){ cb(); return; }
+  pinResolve=(ok)=>{ if(ok) cb(); };
+  renderLock(purpose);
+}
+async function biometricUnlock(silent){
+  const s=store.settings.security;
+  try{
+    if(!window.PublicKeyCredential || !navigator.credentials){ if(!silent) toast('Use your passcode','x'); return; }
+    // Best-effort platform authenticator assertion; falls back to passcode on any failure.
+    const cred = await navigator.credentials.get({ publicKey:{
+      challenge: Uint8Array.from('artisthq-'+Date.now(), c=>c.charCodeAt(0)),
+      timeout: 20000, userVerification:'required', allowCredentials:[]
+    }}).catch(()=>null);
+    if(cred){ if(pinPurpose==='app'){session.appUnlocked=true;session.financeUnlocked=true;} else session.financeUnlocked=true; closeLock(); if(pinResolve){pinResolve(true);pinResolve=null;}else render(); }
+    else if(!silent) toast('Use your passcode','x');
+  }catch(e){ if(!silent) toast('Use your passcode','x'); }
+}
+
+/* ---------- Empty store (no bundled demo tour) ---------- */
+function seed(){
+  const s = emptyOperateState();
+  s.packing = (s.settings.packingTemplate || []).map(x => ({ id: uid('pk'), label: x, done: false }));
+  store = s;
+  if(typeof migrate === 'function') migrate();
+  db.write(store);
+}
+/* Attach each flight/hotel/driver to the show it belongs to (nearest show, preferring the upcoming one). */
+function assignLogistics(){
+  const shows = store.events.filter(e=>(e.kind||'show')==='show');
+  if(!shows.length) return;
+  const dayNum = ds => { const d=parseDT(ds); return d?Math.floor(d.getTime()/86400000):0; };
+  store.events.forEach(e=>{
+    if((e.kind||'show')==='show' || e.kind==='marker') return;
+    const ed = dayNum(e.date);
+    let best=null, bestDiff=1e9;
+    shows.forEach(sh=>{ const diff=Math.abs(dayNum(sh.date)-ed);
+      if(diff<bestDiff || (diff===bestDiff && sh.date>=e.date)){ bestDiff=diff; best=sh; } });
+    e.showId = best?best.id:null;
+  });
+}
+function snapshotPreLogisticsBackup(){
+  try{
+    if(localStorage.getItem(DB_BACKUP_KEY)) return;
+    const raw = localStorage.getItem(DB_KEY);
+    if(!raw || !/(FLIGHT|DRIVER|HOTEL|FERRY)\s*[-–]/i.test(raw)) return;
+    localStorage.setItem(DB_BACKUP_KEY, raw);
+  }catch(e){}
+}
+function logisticsMatchKey(e){
+  const icon = e.kind==='stay' ? 'bed' : (e.icon || 'plane');
+  return `${e.date}|${e.start||''}|${e.end||''}|${icon}|${e.kind}`;
+}
+function logisticsNeedsRecovery(e){
+  if(e.kind==='stay') return isNormalizedLogisticTitle(e.title) && !e.place;
+  if(e.kind==='travel'){
+    if(!isNormalizedLogisticTitle(e.title)) return false;
+    return !(e.from||e.to||e.flightNo||e.driverName);
+  }
+  return false;
+}
+function recoverLogisticsMetadata(){
+  let n = 0;
+  try{
+    const bak = localStorage.getItem(DB_BACKUP_KEY);
+    if(bak){
+      const old = JSON.parse(bak);
+      const byId = {};
+      (old.events||[]).forEach(o=>{ if(o.id) byId[o.id]=o; });
+      store.events.forEach(e=>{
+        if(e.kind!=='travel' && e.kind!=='stay') return;
+        const o = byId[e.id];
+        if(!o) return;
+        if(o.title && !isNormalizedLogisticTitle(o.title)){
+          e.legacyTitle = o.title; n++;
+        }
+        if(o.passes?.length && (!e.passes||!e.passes.length)){
+          e.passes = JSON.parse(JSON.stringify(o.passes)); n++;
+        }
+      });
+    }
+  }catch(err){}
+  if(typeof buildTourLogisticsCatalog === 'function'){
+    const byKey = {};
+    buildTourLogisticsCatalog().forEach((row: EngineRow)=>{
+      const k = `${row.date}|${row.start||''}|${row.end||''}|${row.icon}|${row.kind}`;
+      (byKey[k]=byKey[k]||[]).push(row);
+    });
+    store.events.forEach(e=>{
+      if(!logisticsNeedsRecovery(e)) return;
+      const hits = byKey[logisticsMatchKey(e)];
+      if(!hits || hits.length!==1) return;
+      if(!e.legacyTitle) e.legacyTitle = hits[0].title;
+      if(e.kind==='stay' && hits[0].info && !e.info) e.info = hits[0].info;
+      n++;
+    });
+  }
+  return n;
+}
+function restoreMissingLogistics(){
+  const n = recoverLogisticsMetadata();
+  store.events.forEach(e=>{ if(e.kind==='travel'||e.kind==='stay') normalizeLogisticItem(e); });
+  if(store.events.some(e=>(e.kind==='travel'||e.kind==='stay') && e.showId===undefined)) assignLogistics();
+  persistAll();
+  renderView();
+  toast(n ? `Restored details on ${n} journey item${n>1?'s':''}` : 'No extra journey details found to restore','check');
+}
+const OPERATE_BOOT_VERSION = 2;
+function isBundledDemoStore(){
+  const ev = store && store.events;
+  if(!Array.isArray(ev) || ev.length < 10) return false;
+  return ev.some(e => /WYTWOODS|Creamfields|Smaakmarkt|Open Air Smaakmarkt/i.test(String(e.venue || e.eventName || '')));
+}
+/* Forward-compat: backfill fields added in later versions */
+function migrate(){
+  if(store && (store._bootVersion || 1) < OPERATE_BOOT_VERSION){
+    store._bootVersion = OPERATE_BOOT_VERSION;
+    if(isBundledDemoStore()){
+      store.events = [];
+      store.trips = [];
+      store.ideas = [];
+      store.notes = [];
+      store.noteFolders = [];
+      store.contacts = [];
+      store.invoices = [];
+      store.itineraries = [];
+      if(typeof emptyV2Collections === 'function') store.v2 = emptyV2Collections();
+      try{ localStorage.removeItem(DB_BACKUP_KEY); }catch(e){}
+    }
+  }
+  const s=store.settings;
+  if(typeof ensureCurrencySettings === 'function') ensureCurrencySettings(s);
+  else {
+    if(!s.fx) s.fx = { GBP: 1, EUR: 0.86 };
+    if(!s.baseCurrency) s.baseCurrency = 'GBP';
+  }
+  if(!s.homeAirport) s.homeAirport='AMS';
+  if(s.baseCurrencyAuto !== false && typeof homeCurrency === 'function') s.baseCurrency = homeCurrency();
+  if(!s.billing) s.billing={name:'',address:'',taxId:'',iban:'',email:''};
+  if(!s.invoicePrefix) s.invoicePrefix='AHQ';
+  if(s.invoiceSeq==null) s.invoiceSeq=1;
+  if(s.invoiceTerms==null) s.invoiceTerms=14;
+  if(!store.contacts) store.contacts=[];
+  if(!store.reminders) store.reminders=[];
+  if(!store.invoices) store.invoices=[];
+  if(!store.itineraries) store.itineraries=[];
+  if(!s.accountType) s.accountType='dj';
+  if(!s.homeAirport) s.homeAirport='AMS';
+  if(!s.security) s.security={enabled:false,pin:'',scope:'finance',biometric:false};
+  if(!store.packing) store.packing = (s.packingTemplate||[]).map(x=>({id:uid('pk'),label:x,done:false}));
+  store.events.forEach(e=>{ if((e.kind||'show')==='show' && !e.finance) e.finance={fee:0,currency:s.baseCurrency,dealType:'Guarantee',expenses:[],perDiem:0,commission:0,paid:false}; });
+  store.events.forEach(e=>{ if((e.kind||'show')==='show'){ showDrivers(e); e.driver = e.drivers.find(d=>!d.noGround) || null; } });
+  snapshotPreLogisticsBackup();
+  recoverLogisticsMetadata();
+  store.events.forEach(e=>{ if(e.kind==='travel'||e.kind==='stay') normalizeLogisticItem(e); });
+  if(store.events.some(e=>(e.kind==='travel'||e.kind==='stay') && e.showId===undefined)) assignLogistics();
+  db.write(store);
+}
+
+/* React islands read globals via window.* — const/let are NOT on window. */
+(function exposeOperateStateGlobals(){
+  const w: EngineRow = window;
+  Object.defineProperty(w, 'store', {
+    get(){ return store; },
+    set(v){ store = v; },
+    configurable: true
+  });
+  w.ICON = ICON;
+  w.CATS = CATS;
+  w.IDEA_TYPES = IDEA_TYPES;
+  w.PRIO = PRIO;
+  w.DRIVER_JOURNEYS = DRIVER_JOURNEYS;
+  w.DRIVER_PLACE_KINDS = DRIVER_PLACE_KINDS;
+  w.MONTHS = MONTHS;
+  w.MON = MON;
+  w.DOW = DOW;
+  w.CURSYM = CURSYM;
+  w.money = money;
+  w.sel = sel;
+  w.ACCOUNT_TYPES = ACCOUNT_TYPES;
+  w.homePersona = homePersona;
+  w.homePersonaBlurb = homePersonaBlurb;
+  w.showTitle = showTitle;
+  w.showListTitleHtml = showListTitleHtml;
+  w.journeyWhenMs = journeyWhenMs;
+  w.sortJourneysChrono = sortJourneysChrono;
+  w.sortFlightsChrono = sortFlightsChrono;
+  w.flightDepDateLabel = flightDepDateLabel;
+})();
+

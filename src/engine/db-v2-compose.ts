@@ -1,0 +1,895 @@
+/* Compose look-identical view projections from V2 entity collections.
+   Screens keep reading events/trips field names; ids are Postgres UUIDs. */
+
+function showDisplay(show, venue, artist){
+  if(!show) return null;
+  return {
+    id: show.id,
+    kind: 'show',
+    date: show.show_date,
+    artist: artist?.display_name || '',
+    tripId: show.tour_id || null,
+    status: V2_SHOW_STATUS_TO_STORE[show.show_status] || show.show_status,
+    color: show.color_key,
+    textColor: show.text_color_key || null,
+    eventName: show.event_name || '',
+    venue: show.venue_name || venue?.venue_name || '',
+    city: venue?.city || '',
+    country: venue?.country_code || '',
+    setTime: show.set_start_time ? String(show.set_start_time).slice(0, 5) : '',
+    endTime: show.set_end_time ? String(show.set_end_time).slice(0, 5) : '',
+    setStartDate: show.set_start_date || '',
+    setEndDate: show.set_end_date || '',
+    endsNextDay: !!(show.set_end_date && (show.set_start_date || show.show_date) && show.set_end_date > (show.set_start_date || show.show_date)),
+    arrival: show.venue_arrival_time ? String(show.venue_arrival_time).slice(0, 5) : '',
+    venueAddr: venue?.address_line_1 || '',
+    venueAddr2: venue?.address_line_2 || '',
+    venueRegion: venue?.region || '',
+    venuePostcode: venue?.postal_code || '',
+    notes: (typeof noteItemsFromDb === 'function' ? noteItemsFromDb(show.internal_notes) : (show.internal_notes || '')),
+    content: show.content_plan || '',
+    setDone: !!show.is_set_done,
+    noAccommodation: !!show.no_accommodation
+  };
+}
+
+function v2ClassifyJourney(j){
+  const leg = j.legacy_id || '';
+  if(leg.startsWith('show_primary_flight:') || j.sort_order === -1 && j.journey_type === 'flight' && j.related_show_id)
+    return 'show_primary_flight';
+  if(leg.startsWith('show_flight:')) return 'show_flight';
+  if(leg.startsWith('show_driver_journey:')) return 'show_driver';
+  if(leg.startsWith('logistics:')) return 'travel';
+  if(j.related_show_id && j.journey_type === 'ground_transfer') return 'show_driver';
+  if(j.related_show_id && j.journey_type === 'flight') return 'show_flight';
+  return 'travel';
+}
+
+function v2ClassifyHotelBooking(b){
+  const leg = b.legacy_id || '';
+  if(leg.startsWith('show_hotel:')) return 'show_hotel';
+  if(leg.startsWith('logistics_stay:')) return 'stay';
+  return 'stay';
+}
+
+function v2ContactView(c){
+  if(!c) return null;
+  return {
+    id: c.id,
+    name: c.display_name || '',
+    phone: c.phone_number || '',
+    whatsapp: c.whatsapp_number || '',
+    email: c.email_address || '',
+    notes: c.contact_notes || '',
+    company: ''
+  };
+}
+
+function homeHeaderPosFromFile(file){
+  if(!file || !file.file_description) return null;
+  try{
+    const p = JSON.parse(file.file_description);
+    const x = Number(p && p.x);
+    const y = Number(p && p.y);
+    if(!Number.isFinite(x) || !Number.isFinite(y)) return null;
+    return { x, y };
+  }catch(e){
+    return null;
+  }
+}
+
+async function composeViewFromV2(v2, opts){
+  opts = opts || {};
+  const prevEvents = opts.prevEvents || [];
+  /* Keep passenger ids stable across quiet rebuilds so the UI does not thrash. */
+  const prevFlightById = {};
+  prevEvents.forEach(e => {
+    (e.flights || []).forEach(f => { if(f && f.id) prevFlightById[f.id] = f; });
+  });
+  const venueById = {};
+  (v2.venues || []).forEach(v => { venueById[v.id] = v; });
+  const artistById = {};
+  (v2.artists || []).forEach(a => { artistById[a.id] = a; });
+  const contactById = {};
+  (v2.contacts || []).forEach(c => { contactById[c.id] = c; });
+  const fileById = {};
+  (v2.files || []).forEach(f => { fileById[f.id] = f; });
+  const hotelById = {};
+  (v2.hotels || []).forEach(h => { hotelById[h.id] = h; });
+
+  const advanceByShow = {};
+  (v2.show_advances || []).forEach(a => { advanceByShow[a.show_id] = a; });
+  const finByShow = {};
+  (v2.show_financials || []).forEach(f => { finByShow[f.show_id] = f; });
+  const expByShow = {};
+  (v2.show_expenses || []).forEach(x => {
+    (expByShow[x.show_id] = expByShow[x.show_id] || []).push(x);
+  });
+  const chkByShow = {}, chkByTour = {};
+  (v2.checklist_items || []).forEach(c => {
+    if(c.show_id) (chkByShow[c.show_id] = chkByShow[c.show_id] || []).push(c);
+    if(c.tour_id) (chkByTour[c.tour_id] = chkByTour[c.tour_id] || []).push(c);
+  });
+  const schedByShow = {}, schedByTour = {};
+  (v2.schedule_items || []).forEach(s => {
+    if(s.show_id) (schedByShow[s.show_id] = schedByShow[s.show_id] || []).push(s);
+    if(s.tour_id) (schedByTour[s.tour_id] = schedByTour[s.tour_id] || []).push(s);
+  });
+  const showContactsByShow = {};
+  (v2.show_contacts || []).forEach(sc => {
+    (showContactsByShow[sc.show_id] = showContactsByShow[sc.show_id] || []).push(sc);
+  });
+  const emergencyByTour = {};
+  (v2.tour_contacts || []).forEach(tc => {
+    if(tc.contact_role !== 'emergency') return;
+    (emergencyByTour[tc.tour_id] = emergencyByTour[tc.tour_id] || []).push(tc);
+  });
+  const journeyContactByJourney = {};
+  (v2.journey_contacts || []).forEach(jc => {
+    (journeyContactByJourney[jc.journey_id] = journeyContactByJourney[jc.journey_id] || []).push(jc);
+  });
+  const ticketsByJourney = {};
+  (v2.travel_tickets || []).forEach(t => {
+    (ticketsByJourney[t.journey_id] = ticketsByJourney[t.journey_id] || []).push(t);
+  });
+  const journeyBags = (typeof v2JourneyBagsFromV2 === 'function')
+    ? v2JourneyBagsFromV2(v2)
+    : { flight:{}, rail:{}, ground:{}, ferry:{}, coach:{}, passengers:{} };
+  const attachmentsByShow = {};
+  (v2.show_files || []).forEach(link => {
+    const f = fileById[link.file_id];
+    if(!f) return;
+    (attachmentsByShow[link.show_id] = attachmentsByShow[link.show_id] || []).push({ link, file: f });
+  });
+  const bookingShowsByBooking = {};
+  (v2.hotel_booking_shows || []).forEach(hbs => {
+    (bookingShowsByBooking[hbs.hotel_booking_id] = bookingShowsByBooking[hbs.hotel_booking_id] || []).push(hbs);
+  });
+
+  const embeddedHotelByShow = {};
+  const stayEvents = [];
+  (v2.hotel_bookings || []).forEach(b => {
+    const h = hotelById[b.hotel_id];
+    const links = bookingShowsByBooking[b.id] || [];
+    const kind = v2ClassifyHotelBooking(b);
+    if(kind === 'show_hotel'){
+      const showUuid = links[0]?.show_id;
+      if(showUuid){
+        const bookingRef = b.booking_reference || '';
+        embeddedHotelByShow[showUuid] = {
+          name: h?.hotel_name || '',
+          address: h?.address_line_1 || '',
+          address2: h?.address_line_2 || '',
+          city: h?.city || '',
+          region: h?.region || '',
+          postcode: h?.postal_code || '',
+          country: h?.country_code || '',
+          checkin: b.check_in_date,
+          checkout: b.check_out_date,
+          done: b.is_done,
+          bookingRef,
+          conf: bookingRef,
+          notes: (typeof noteItemsFromDb === 'function'
+            ? (noteItemsFromDb(b.room_notes) || noteItemsFromDb(h?.hotel_notes) || (typeof b.booking_notes === 'string' ? b.booking_notes : ''))
+            : (b.room_notes || b.booking_notes || h?.hotel_notes || '')),
+          phone: h?.phone_number || '',
+          email: h?.email_address || '',
+          _bookingId: b.id,
+          _hotelId: h?.id
+        };
+      }
+      return;
+    }
+    stayEvents.push({
+      booking: b, hotel: h,
+      showId: links[0]?.show_id || null
+    });
+  });
+
+  function v2JourneyDepMs(j){
+    if(!j || !j.departure_at) return Number.POSITIVE_INFINITY;
+    const ms = Date.parse(j.departure_at);
+    return Number.isFinite(ms) ? ms : Number.POSITIVE_INFINITY;
+  }
+  function v2ByDeparture(a, b){
+    const ka = v2JourneyDepMs(a), kb = v2JourneyDepMs(b);
+    if(ka !== kb) return ka - kb;
+    return (a.sort_order || 0) - (b.sort_order || 0);
+  }
+
+  const flightJourneysByShow = {};
+  const travelJourneys = [];
+  const driverJourneysByShow = {};
+  (v2.journeys || []).forEach(j => {
+    if(typeof v2AttachJourneyDetails === 'function') v2AttachJourneyDetails(j, journeyBags);
+    const kind = v2ClassifyJourney(j);
+    if(kind === 'show_primary_flight'){
+      if(j.related_show_id){
+        (flightJourneysByShow[j.related_show_id] = flightJourneysByShow[j.related_show_id] || { primary: null, flights: [] }).primary = j;
+      }
+      return;
+    }
+    if(kind === 'show_flight'){
+      if(j.related_show_id){
+        (flightJourneysByShow[j.related_show_id] = flightJourneysByShow[j.related_show_id] || { primary: null, flights: [] }).flights.push(j);
+      }
+      return;
+    }
+    if(kind === 'show_driver'){
+      if(j.related_show_id){
+        (driverJourneysByShow[j.related_show_id] = driverJourneysByShow[j.related_show_id] || []).push(j);
+      }
+      return;
+    }
+    travelJourneys.push(j);
+  });
+
+  const markers = (v2.schedule_items || []).filter(s =>
+    s.schedule_item_type === 'calendar_marker' || (s.legacy_id || '').startsWith('logistics_marker:')
+  );
+
+  function advanceToStore(a){
+    if(!a) return null;
+    const adv: EngineRow = {
+      stage: a.stage_name || '',
+      access: a.access_notes || '',
+      soundcheck: a.soundcheck_notes || '',
+      curfew: a.curfew_notes || '',
+      dressingRoom: a.dressing_room_notes || '',
+      guestlist: a.guestlist_notes || '',
+      catering: a.catering_notes || '',
+      parking: a.parking_notes || '',
+      wifi: a.wifi_notes || '',
+      navAddr: a.navigation_address || '',
+      remarks: a.general_remarks || ''
+    };
+    let fromCol = a.running_order;
+    if(typeof fromCol === 'string'){
+      try{ fromCol = JSON.parse(fromCol); }catch(e){ fromCol = []; }
+    }
+    if(!Array.isArray(fromCol)) fromCol = [];
+    const schedule = fromCol
+      .map(s => ({
+        id: s.id,
+        time: s.time ? String(s.time).slice(0, 5) : '',
+        label: s.label || s.title || '',
+        title: s.label || s.title || '',
+        done: !!s.done
+      }))
+      .filter(s => s.time || s.label);
+    adv.schedule = schedule;
+    return Object.keys(adv).length ? adv : null;
+  }
+
+  function financeToStore(showId, orgSettings){
+    const f = finByShow[showId];
+    if(!f) return { fee: 0, currency: orgSettings?.base_currency_code || 'GBP', dealType: 'Guarantee', expenses: [], perDiem: 0, commission: 0, paid: false };
+    return {
+      fee: f.agreed_fee_amount != null ? Number(f.agreed_fee_amount) : 0,
+      currency: f.currency_code || orgSettings?.base_currency_code || 'GBP',
+      dealType: f.deal_type || 'Guarantee',
+      expenses: (expByShow[showId] || []).map(x => ({
+        id: x.id, label: x.expense_label, amount: Number(x.expense_amount)
+      })),
+      perDiem: f.per_diem_amount != null ? Number(f.per_diem_amount) : 0,
+      commission: f.commission_percent != null ? Number(f.commission_percent) : 0,
+      paid: !!f.is_paid,
+      estimated: !!f.is_estimated,
+      notDisclosed: !!f.is_not_disclosed
+    };
+  }
+
+  async function passFromTicket(t){
+    const f = fileById[t.file_id];
+    if(!f) return null;
+    const p = {
+      id: f.id,
+      name: f.file_title || f.original_filename || '',
+      kind: mimeToKind(f.mime_type),
+      _storagePath: f.storage_path,
+      data: f.storage_path,
+      _ticketId: t.id,
+      _passengerId: t.ticket_reference || null
+    };
+    if(typeof resolveAttachment === 'function') await resolveAttachment(p);
+    return p;
+  }
+
+  async function passesFromJourney(j){
+    const list = ticketsByJourney[j.id] || [];
+    const out = [];
+    for(const t of list){
+      const p = await passFromTicket(t);
+      if(p) out.push(p);
+    }
+    return out;
+  }
+
+  function paxNamesMatch(a, b){
+    const x = String(a || '').trim().toLowerCase();
+    const y = String(b || '').trim().toLowerCase();
+    return !!x && !!y && x === y;
+  }
+
+  /* Shared flight details + per-person seat/name; passes hang off each passenger.
+     Preferred link: travel_tickets.ticket_reference = passenger id.
+     OCR often puts a booking code in ticket_reference instead — then we match
+     by passenger_name and still read name/seat from the ticket columns. */
+  async function passengersFromJourney(j){
+    const tickets = ticketsByJourney[j.id] || [];
+    const fromRows = (typeof v2PassengerMetaFromRows === 'function')
+      ? v2PassengerMetaFromRows(j.passenger_rows)
+      : (j.passenger_rows || []).map(r => ({
+          id: r.id, name: r.name || '', seat: r.seat || '',
+          booking_reference: r.booking_reference || ''
+        }));
+    const meta = fromRows || [];
+    const prevPax = (prevFlightById[j.id] && prevFlightById[j.id].passengers) || [];
+    const stablePaxId = (idx, preferred?) => {
+      if(preferred && String(preferred).trim()) return String(preferred).trim();
+      return prevPax[idx]?.id || newUuid();
+    };
+    const metaIds = new Set(
+      meta.map(m => m && m.id != null ? String(m.id).trim() : '').filter(Boolean)
+    );
+
+    const byRef = Object.create(null);
+    const unassigned = [];
+    for(const t of tickets){
+      const pass = await passFromTicket(t);
+      if(!pass) continue;
+      const ref = (t.ticket_reference || '').trim();
+      const entry = {
+        pass,
+        name: t.passenger_name || '',
+        seat: t.seat_number || '',
+        ticket: t
+      };
+      /* Only treat ticket_reference as a passenger id when it matches known
+         meta ids or is a UUID (app contract). Booking codes like KCPTR3S stay
+         unassigned and match by name. */
+      const refIsPaxId = ref && (
+        metaIds.has(ref) ||
+        (typeof isUuid === 'function' && isUuid(ref))
+      );
+      if(refIsPaxId) (byRef[ref] = byRef[ref] || []).push(entry);
+      else unassigned.push(entry);
+    }
+
+    const usedUnassigned = new Set();
+    let pax = meta.map((m, idx) => {
+      const id = stablePaxId(idx, m.id);
+      const linked = byRef[String(m.id || '').trim()] || byRef[id] || [];
+      const nameHits = unassigned.filter((u, i) => {
+        if(usedUnassigned.has(i)) return false;
+        if(!paxNamesMatch(u.name, m.name)) return false;
+        usedUnassigned.add(i);
+        return true;
+      });
+      const fromTickets = linked.concat(nameHits);
+      const hint = fromTickets[0];
+      return {
+        id,
+        name: (m.name || hint?.name || '').trim(),
+        seat: (m.seat || hint?.seat || '').trim(),
+        booking_reference: String(m.booking_reference || m.bookingRef || '').trim(),
+        passes: fromTickets.map(x => x.pass)
+      };
+    });
+
+    if(!pax.length){
+      const pool = unassigned.slice();
+      Object.keys(byRef).forEach(k => { pool.push(...byRef[k]); });
+      if(pool.length){
+        const byName = Object.create(null);
+        const order = [];
+        pool.forEach(u => {
+          const key = String(u.name || '').trim().toLowerCase() || '__anon__:' + order.length;
+          if(!byName[key]){
+            byName[key] = { name: u.name || '', seat: u.seat || '', passes: [] };
+            order.push(key);
+          }
+          if(u.seat && !byName[key].seat) byName[key].seat = u.seat;
+          byName[key].passes.push(u.pass);
+        });
+        pax = order.map((key, idx) => ({
+          id: stablePaxId(idx),
+          name: byName[key].name,
+          seat: byName[key].seat || '',
+          booking_reference: '',
+          passes: byName[key].passes
+        }));
+      }
+    } else {
+      const leftover = unassigned.filter((_, i) => !usedUnassigned.has(i));
+      if(leftover.length && pax[0]){
+        pax[0].passes = [...(pax[0].passes || []), ...leftover.map(u => u.pass)];
+        if(!pax[0].name && leftover[0].name) pax[0].name = leftover[0].name;
+        if(!pax[0].seat && leftover[0].seat) pax[0].seat = leftover[0].seat;
+      }
+    }
+    return pax;
+  }
+
+  function flightDateTimeLocal(ts){
+    if(!ts) return '';
+    const d = v2DateFromTs(ts);
+    const t = v2TimeFromTs(ts);
+    return d && t ? `${d} ${t}` : (t || '');
+  }
+
+  function flightDurationText(depAt, arrAt){
+    if(!depAt || !arrAt) return '';
+    const depMs = Date.parse(depAt);
+    const arrMs = Date.parse(arrAt);
+    if(!Number.isFinite(depMs) || !Number.isFinite(arrMs)) return '';
+    if(arrMs < depMs) return '';
+    const mins = Math.round((arrMs - depMs) / 60000);
+    const h = Math.floor(mins / 60);
+    const m = mins % 60;
+    if(h <= 0) return `${m}m`;
+    return `${h}h ${m}m`;
+  }
+
+  let events = [];
+  const orgSettings = v2.organisation_settings;
+
+  for(const s of (v2.shows || [])){
+    const v = s.venue_id ? venueById[s.venue_id] : null;
+    const ar = s.primary_artist_id ? artistById[s.primary_artist_id] : null;
+    const fj = flightJourneysByShow[s.id] || { primary: null, flights: [] };
+    const base = showDisplay(s, v, ar);
+
+    const fl = [];
+    for(const j of fj.flights.sort(v2ByDeparture)){
+      const passengers = await passengersFromJourney(j);
+      const notes = (typeof noteItemsFromDb === 'function') ? noteItemsFromDb(j.note_items) : '';
+      const row = {
+        id: j.id,
+        code: (typeof v2JourneyFlightNumber === 'function' ? v2JourneyFlightNumber(j) : '') || j.journey_title || '',
+        fromName: (typeof v2JourneyFromName === 'function' ? v2JourneyFromName(j) : (j.departure_location_name || '')) || '',
+        toName: (typeof v2JourneyToName === 'function' ? v2JourneyToName(j) : (j.arrival_location_name || '')) || '',
+        fromCode: (typeof v2JourneyDepIata === 'function' ? v2JourneyDepIata(j) : '') || '',
+        toCode: (typeof v2JourneyArrIata === 'function' ? v2JourneyArrIata(j) : '') || '',
+        from: (typeof v2JourneyCompactFrom === 'function' ? v2JourneyCompactFrom(j) : (j.departure_location_name || '')) || '',
+        to: (typeof v2JourneyCompactTo === 'function' ? v2JourneyCompactTo(j) : (j.arrival_location_name || '')) || '',
+        operator: j.operator_name || '',
+        bookingRef: j.booking_reference || '',
+        duration: flightDurationText(j.departure_at, j.arrival_at),
+        dep: flightDateTimeLocal(j.departure_at),
+        arr: flightDateTimeLocal(j.arrival_at),
+        terminal: (j.flight_details && j.flight_details.departure_terminal) || '',
+        gate: (j.flight_details && j.flight_details.departure_gate) || '',
+        fstatus: j.journey_status || '',
+        delay: j.delay_description || '',
+        fiUpdated: j.status_updated_at ? Date.parse(j.status_updated_at) : null,
+        seat: '',
+        notes,
+        passengers,
+        /* Passes live on each passenger — keep top-level empty so reload
+           does not re-pool every pass under the first person. */
+        passes: []
+      };
+      if(typeof flightHasDetails === 'function' ? flightHasDetails(row) : (row.code || row.from || row.to || row.dep || row.arr || passengers.length)){
+        fl.push(row);
+      }
+    }
+
+    const attachments = [];
+    for(const { link, file: f } of (attachmentsByShow[s.id] || [])){
+      const att = {
+        id: f.id,
+        name: f.file_title || f.original_filename || '',
+        kind: mimeToKind(f.mime_type),
+        mime: f.mime_type || '',
+        _storagePath: f.storage_path,
+        data: f.storage_path,
+        fromItinerary: link.file_description === 'original_itinerary'
+      };
+      if(typeof resolveAttachment === 'function') await resolveAttachment(att);
+      attachments.push(att);
+    }
+    attachments.sort((a, b) => Number(!!b.fromItinerary) - Number(!!a.fromItinerary) || 0);
+
+    const scList = (showContactsByShow[s.id] || [])
+      .slice()
+      .sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0));
+    /* Primary artist_liaison is the dedicated Artist Liaison field; other
+       show_contacts (including driver-role key contacts and custom Other) go
+       into e.contacts. Journey drivers still come from journey_contacts. */
+    const promoterSc = scList.find(x => x.contact_role === 'artist_liaison' && x.is_primary)
+      || scList.find(x => x.contact_role === 'artist_liaison');
+    const promoter = promoterSc ? v2ContactView(contactById[promoterSc.contact_id]) : null;
+    const showContactList = scList
+      .filter(x => !promoterSc || x.id !== promoterSc.id)
+      .map(x => {
+        const c: EngineRow = v2ContactView(contactById[x.contact_id]);
+        if(!c) return null;
+        if(x.contact_role === 'other' && x.contact_notes) c.role = x.contact_notes;
+        else c.role = x.contact_role || 'other';
+        return c;
+      }).filter(Boolean);
+
+    const showHotel = embeddedHotelByShow[s.id] || null;
+    const showCtx = Object.assign({}, base, {
+      hotel: showHotel,
+      flights: fl,
+      noAccommodation: !!(s.no_accommodation) && !showHotel
+    });
+    const drivers = (driverJourneysByShow[s.id] || [])
+      .sort(v2ByDeparture)
+      .map(j => {
+        const jcs = journeyContactByJourney[j.id] || [];
+        const driverLink = jcs.find(x => x && x.contact_role === 'driver') || jcs[0];
+        const c = driverLink ? contactById[driverLink.contact_id] : null;
+        const row = (typeof v2ComposeGroundFrontend === 'function')
+          ? v2ComposeGroundFrontend(j, c)
+          : {
+              id: j.id,
+              from: j.departure_location_name || '',
+              to: j.arrival_location_name || '',
+              time: j.departure_at ? v2TimeFromTs(j.departure_at) : '',
+              name: (c?.display_name || j.operator_name || ''),
+              groundType: (j.ground_details && j.ground_details.ground_transport_type) || '',
+              noGround: false
+            };
+        if(typeof applyGeneralDriverPlaces === 'function') applyGeneralDriverPlaces(row, showCtx);
+        else if(typeof ensureDriverLocations === 'function') ensureDriverLocations(row);
+        return row;
+      });
+
+    const timeline = (schedByShow[s.id] || [])
+      .filter(t => !(t.legacy_id || '').startsWith('advance_schedule:')
+        && (t.schedule_item_type === 'custom' || (t.legacy_id || '').startsWith('show_timeline:')))
+      .map(t => ({
+        id: t.id,
+        time: t.scheduled_time ? String(t.scheduled_time).slice(0, 5) : '',
+        date: t.scheduled_date || '',
+        endDate: t.scheduled_end_date || '',
+        endTime: t.scheduled_end_time ? String(t.scheduled_end_time).slice(0, 5) : '',
+        title: t.item_title || '',
+        sub: t.item_notes || '',
+        done: t.is_done
+      }));
+
+    const primary = fj.primary;
+    events.push(Object.assign(base, {
+      flightNo: (primary && typeof v2JourneyFlightNumber === 'function' ? v2JourneyFlightNumber(primary) : '') || '',
+      terminal: (primary && primary.flight_details && primary.flight_details.departure_terminal) || '',
+      gate: (primary && primary.flight_details && primary.flight_details.departure_gate) || '',
+      fstatus: primary?.journey_status || '',
+      delay: primary?.delay_description || '',
+      fiUpdated: primary?.status_updated_at ? new Date(primary.status_updated_at).getTime() : null,
+      fiLive: primary?.is_live_status || false,
+      _primaryFlightId: primary?.id || null,
+      hotel: embeddedHotelByShow[s.id] || null,
+      drivers, driver: drivers.find(d => !d.noGround) || null,
+      promoter, finance: financeToStore(s.id, orgSettings),
+      advance: advanceToStore(advanceByShow[s.id]),
+      contacts: showContactList,
+      flights: fl, attachments,
+      checklist: (chkByShow[s.id] || []).map(c => ({
+        id: c.id, label: c.item_label, done: c.is_done
+      })),
+      timeline
+    }));
+  }
+
+  for(const j of travelJourneys){
+    const dep = j.departure_at ? new Date(j.departure_at) : null;
+    const arr = j.arrival_at ? new Date(j.arrival_at) : null;
+    const passes = await passesFromJourney(j);
+    const it: EngineRow = {
+      id: j.id,
+      kind: 'travel',
+      date: dep ? v2DateFromTs(j.departure_at) : (arr ? v2DateFromTs(j.arrival_at) : ''),
+      showId: j.related_show_id || null,
+      title: j.journey_title || '',
+      start: dep ? `${String(dep.getUTCHours()).padStart(2,'0')}:${String(dep.getUTCMinutes()).padStart(2,'0')}` : '',
+      end: arr ? `${String(arr.getUTCHours()).padStart(2,'0')}:${String(arr.getUTCMinutes()).padStart(2,'0')}` : '',
+      endDate: (arr && dep && v2DateFromTs(j.arrival_at) !== v2DateFromTs(j.departure_at)) ? v2DateFromTs(j.arrival_at) : '',
+      icon: v2IconFromJourneyType(j.journey_type),
+      info: (typeof noteItemsFromDb === 'function' ? noteItemsFromDb(j.note_items) : '') || '',
+      allDay: false,
+      done: j.is_done,
+      passes,
+      from: (typeof v2JourneyCompactFrom === 'function' ? v2JourneyCompactFrom(j) : (j.departure_location_name || '')) || '',
+      to: (typeof v2JourneyCompactTo === 'function' ? v2JourneyCompactTo(j) : (j.arrival_location_name || '')) || '',
+      fromCode: (typeof v2JourneyDepIata === 'function' ? v2JourneyDepIata(j) : '') || '',
+      toCode: (typeof v2JourneyArrIata === 'function' ? v2JourneyArrIata(j) : '') || '',
+      fromName: (typeof v2JourneyFromName === 'function' ? v2JourneyFromName(j) : (j.departure_location_name || '')) || '',
+      toName: (typeof v2JourneyToName === 'function' ? v2JourneyToName(j) : (j.arrival_location_name || '')) || '',
+      fromKind: j.departure_location_kind || '',
+      toKind: j.arrival_location_kind || '',
+      fromAddress: j.departure_location_address || '',
+      toAddress: j.arrival_location_address || '',
+      flightNo: (typeof v2JourneyFlightNumber === 'function' ? v2JourneyFlightNumber(j) : '')
+        || (typeof v2JourneyTrainNumber === 'function' ? v2JourneyTrainNumber(j) : '')
+        || (typeof v2JourneyFerryNumber === 'function' ? v2JourneyFerryNumber(j) : '')
+        || (typeof v2JourneyCoachNumber === 'function' ? v2JourneyCoachNumber(j) : '')
+        || '',
+      gate: (j.flight_details && j.flight_details.departure_gate) || '',
+      terminal: (j.flight_details && j.flight_details.departure_terminal) || '',
+      operator: j.operator_name || '',
+      bookingRef: j.booking_reference || '',
+      trainNo: (typeof v2JourneyTrainNumber === 'function' ? v2JourneyTrainNumber(j) : '') || '',
+      ferryNo: (typeof v2JourneyFerryNumber === 'function' ? v2JourneyFerryNumber(j) : '') || '',
+      coachNo: (typeof v2JourneyCoachNumber === 'function' ? v2JourneyCoachNumber(j) : '') || '',
+      platform: (j.rail_details && (j.rail_details.departure_platform || j.rail_details.arrival_platform)) || '',
+      groundType: (j.ground_details && j.ground_details.ground_transport_type) || '',
+      arrangement: (j.ground_details && j.ground_details.arrangement) || '',
+      preferredMethod: (j.ground_details && j.ground_details.preferred_method) || '',
+      pickup: (j.ground_details && j.ground_details.pickup_instructions) || '',
+      vehicle: (j.ground_details && j.ground_details.vehicle_details) || '',
+      fstatus: j.journey_status || '',
+      delay: j.delay_description || ''
+    };
+    const travelDriver = (journeyContactByJourney[j.id] || []).find(x => x && x.contact_role === 'driver');
+    const travelContact = travelDriver ? contactById[travelDriver.contact_id] : null;
+    if(travelContact){
+      it.driverName = travelContact.display_name || '';
+      it.phone = travelContact.phone_number || '';
+      it.whatsapp = travelContact.whatsapp_number || '';
+    } else if(j.journey_type === 'ground_transfer' && j.operator_name && !(j.ground_details && j.ground_details.arrangement)){
+      it.driverName = j.operator_name;
+    }
+    if(typeof normalizeLogisticItem === 'function') normalizeLogisticItem(it);
+    events.push(it);
+  }
+
+  for(const st of stayEvents){
+    const b = st.booking, h = st.hotel;
+    const it = {
+      id: b.id,
+      kind: 'stay',
+      date: b.check_in_date,
+      showId: st.showId,
+      title: h?.hotel_name || 'Accommodation',
+      start: '',
+      end: '',
+      icon: 'bed',
+      allDay: true,
+      done: b.is_done,
+      passes: [],
+      place: h?.hotel_name || '',
+      addr: [h?.address_line_1, h?.city, h?.postal_code].filter(Boolean).join(', '),
+      bookingRef: b.booking_reference || '',
+      info: b.check_in_date || '',
+      _hotelId: h?.id
+    };
+    if(typeof normalizeLogisticItem === 'function') normalizeLogisticItem(it);
+    events.push(it);
+  }
+
+  for(const m of markers){
+    if((m.legacy_id || '').startsWith('show_timeline:')) continue;
+    if(m.schedule_item_type === 'custom' && m.show_id && !(m.legacy_id || '').startsWith('logistics_marker:')) continue;
+    if(m.schedule_item_type !== 'calendar_marker' && !(m.legacy_id || '').startsWith('logistics_marker:')) continue;
+    events.push({
+      id: m.id,
+      kind: 'marker',
+      date: m.scheduled_date,
+      showId: m.show_id || null,
+      title: m.item_title || '',
+      start: m.scheduled_time ? String(m.scheduled_time).slice(0, 5) : '',
+      end: m.scheduled_end_time ? String(m.scheduled_end_time).slice(0, 5) : '',
+      endDate: m.scheduled_end_date || '',
+      icon: 'pin',
+      info: m.item_notes || '',
+      allDay: m.is_all_day,
+      done: m.is_done
+    });
+  }
+
+  /* Stable order so quiet sync snapshots do not flip when dates tie. */
+  events.sort((a, b) => (a.date || '').localeCompare(b.date || '') || String(a.id || '').localeCompare(String(b.id || '')));
+  if(typeof dedupeEventsById === 'function') events = dedupeEventsById(events);
+  if(typeof applyLocalPassMerge === 'function') applyLocalPassMerge(prevEvents, events);
+
+  const fx = {};
+  (v2.organisation_exchange_rates || []).forEach(r => { fx[r.currency_code] = Number(r.rate_to_base); });
+  const uiPrefs = v2.user_preferences?.ui_preferences || {};
+  const headerFile = orgSettings?.home_header_file_id
+    ? (v2.files || []).find(f => f && f.id === orgSettings.home_header_file_id && !f.deleted_at)
+    : null;
+  const headerPos = homeHeaderPosFromFile(headerFile) || uiPrefs.homeHeaderPos || null;
+  const billing = v2.organisation_billing_profiles;
+  const settings: EngineRow = {
+    artistName: (v2.artists || []).find(a => a.is_default)?.display_name || uiPrefs.artistName || 'You',
+    baseCurrency: orgSettings?.base_currency_code || 'GBP',
+    homeAirport: orgSettings?.home_airport_iata || 'AMS',
+    accountType: V2_ACCT_TO_STORE[orgSettings?.account_type] || orgSettings?.account_type || 'dj',
+    invoicePrefix: orgSettings?.invoice_prefix || 'INV',
+    invoiceSeq: orgSettings?.invoice_next_sequence || 1,
+    invoiceTerms: orgSettings?.invoice_default_terms_days || 30,
+    fx,
+    billing: billing ? {
+      name: billing.billing_name || '',
+      email: billing.billing_email_address || '',
+      phone: billing.billing_phone_number || '',
+      address: billing.address_line_1 || '',
+      addressLine2: billing.address_line_2 || '',
+      city: billing.city || '',
+      region: billing.region || '',
+      postcode: billing.postal_code || '',
+      countryCode: billing.country_code || '',
+      vatNumber: billing.tax_identifier || '',
+      bankAccountName: billing.bank_account_name || '',
+      bankAccountNumber: billing.bank_account_number || '',
+      sortCode: billing.bank_sort_code || '',
+      iban: billing.bank_iban || '',
+      swift: billing.bank_swift_bic || '',
+      paymentNotes: billing.payment_notes || ''
+    } : {},
+    packingTemplate: [],
+    security: uiPrefs.security || { enabled: false, pin: '', scope: 'finance', biometric: false },
+    homeHeader: headerFile?.storage_path || uiPrefs.homeHeaderPath || null,
+    _homeHeaderPath: headerFile?.storage_path || uiPrefs.homeHeaderPath || null,
+    _homeHeaderFileId: headerFile?.id || null,
+    homeHeaderPos: headerPos
+  };
+  if(uiPrefs.usbReminder === false || uiPrefs.usbReminder === true){
+    settings.usbReminder = uiPrefs.usbReminder !== false;
+  }
+
+  const defaultPackingList = (v2.packing_lists || [])[0];
+  if(defaultPackingList){
+    settings.packingTemplate = (v2.packing_list_items || [])
+      .filter(p => p.packing_list_id === defaultPackingList.id)
+      .sort((a,b) => (a.sort_order||0) - (b.sort_order||0))
+      .map(p => p.item_label);
+  } else if(uiPrefs.packingTemplate){
+    settings.packingTemplate = uiPrefs.packingTemplate;
+  }
+
+  const orgContacts = (v2.contacts || []).map(c => Object.assign(v2ContactView(c), { role: 'Promoter' }));
+
+  const linesByInv = {};
+  (v2.invoice_line_items || []).forEach(l => {
+    (linesByInv[l.invoice_id] = linesByInv[l.invoice_id] || []).push(l);
+  });
+  const storeInvoices = (v2.invoices || []).map(inv => ({
+    id: inv.id,
+    eventId: inv.show_id || null,
+    number: inv.invoice_number,
+    date: inv.invoice_date,
+    dueDate: inv.due_date,
+    client: inv.client_name || '',
+    clientEmail: inv.client_email_address || '',
+    clientAddr: inv.client_address || '',
+    currency: inv.currency_code,
+    status: inv.invoice_status,
+    terms: inv.payment_terms_days,
+    notes: inv.invoice_notes || '',
+    lines: (linesByInv[inv.id] || []).map(l => ({
+      label: l.line_label, amount: Number(l.unit_amount), description: l.line_description
+    }))
+  }));
+
+  const subFilesBySub = {};
+  (v2.itinerary_submission_files || []).forEach(sf => {
+    (subFilesBySub[sf.itinerary_submission_id] = subFilesBySub[sf.itinerary_submission_id] || []).push(sf);
+  });
+  const storeItineraries = [];
+  if(Array.isArray(uiPrefs.itineraries) && uiPrefs.itineraries.length){
+    for(const it of uiPrefs.itineraries){
+      const imgs = [];
+      for(const im of (it.imgs || [])){
+        const copy = Object.assign({}, im);
+        if(typeof resolveAttachment === 'function') await resolveAttachment(copy);
+        imgs.push(copy);
+      }
+      storeItineraries.push(Object.assign({}, it, { imgs }));
+    }
+  }
+  for(const sub of (v2.itinerary_submissions || [])){
+    const payload = sub.raw_scan_response || {};
+    const imgs = [];
+    for(const sf of (subFilesBySub[sub.id] || [])){
+      const f = fileById[sf.file_id];
+      if(!f) continue;
+      const im = {
+        id: f.id,
+        name: f.file_title || f.original_filename || '',
+        kind: mimeToKind(f.mime_type),
+        _storagePath: f.storage_path,
+        data: f.storage_path
+      };
+      if(typeof resolveAttachment === 'function') await resolveAttachment(im);
+      imgs.push(im);
+    }
+    const entry = {
+      id: payload.id || sub.id,
+      date: payload.date || '',
+      showId: payload.showId || payload.show_id || null,
+      note: payload.note || '',
+      created: payload.created || (sub.created_at ? new Date(sub.created_at).getTime() : null),
+      imgs: typeof mergePassesById === 'function' ? mergePassesById(imgs, []) : imgs
+    };
+    if(!storeItineraries.some(x => x.id === entry.id)) storeItineraries.push(entry);
+  }
+
+  const trips = (v2.tours || []).map(t => ({
+    id: t.id,
+    name: t.tour_name,
+    color: t.color_key,
+    start: t.start_date,
+    end: t.end_date,
+    archived: t.is_archived,
+    checklist: (chkByTour[t.id] || []).map(c => ({
+      id: c.id, label: c.item_label, done: c.is_done
+    })),
+    timeline: (schedByTour[t.id] || []).map(s => ({
+      id: s.id,
+      date: s.scheduled_date,
+      time: s.scheduled_time ? String(s.scheduled_time).slice(0, 5) : '',
+      endTime: s.scheduled_end_time ? String(s.scheduled_end_time).slice(0, 5) : '',
+      endDate: s.scheduled_end_date || '',
+      title: s.item_title || '',
+      sub: s.item_notes || '',
+      allDay: s.is_all_day,
+      done: s.is_done,
+      type: s.schedule_item_type
+    })),
+    emergency: (emergencyByTour[t.id] || []).map(tc => {
+      const c = v2ContactView(contactById[tc.contact_id]);
+      return c ? Object.assign(c, { role: 'Emergency' }) : null;
+    }).filter(Boolean)
+  }));
+
+  const ideas = (v2.ideas || []).map(x => ({
+    id: x.id,
+    type: x.idea_type,
+    title: x.idea_title,
+    note: x.idea_note,
+    prio: V2_PRIO_TO_STORE[x.priority_level] || x.priority_level,
+    done: x.is_done,
+    eventId: x.show_id || null,
+    tripId: x.tour_id || null
+  }));
+
+  const noteFolders = (v2.note_folders || [])
+    .filter(f => f && !f.deleted_at)
+    .map(f => ({
+      id: f.id,
+      name: f.folder_name || '',
+      sortOrder: f.sort_order || 0
+    }))
+    .sort((a, b) => (a.sortOrder - b.sortOrder) || a.name.localeCompare(b.name));
+
+  const folderNameById = new Map(noteFolders.map(f => [f.id, f.name]));
+
+  const notes = (v2.notes || []).map(x => {
+    let folderId = x.folder_id || null;
+    let folder = x.folder_name || '';
+    if(!folderId && folder){
+      const match = noteFolders.find(f => f.name.toLowerCase() === folder.trim().toLowerCase());
+      if(match) folderId = match.id;
+    }
+    if(folderId && !folder){
+      folder = folderNameById.get(folderId) || '';
+    }
+    return {
+      id: x.id,
+      title: x.note_title,
+      body: x.note_body,
+      folderId,
+      folder,
+      updated: x.updated_at ? new Date(x.updated_at).getTime() : null,
+      created: x.created_at ? new Date(x.created_at).getTime() : null
+    };
+  });
+
+  const artists = (v2.artists || []).map(a => ({
+    id: a.id,
+    name: a.display_name,
+    default: a.is_default
+  }));
+
+  return {
+    events, trips, ideas, notes, noteFolders, artists, settings,
+    contacts: orgContacts,
+    invoices: storeInvoices,
+    itineraries: storeItineraries
+  };
+}

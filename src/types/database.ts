@@ -1,7 +1,7 @@
 /**
- * Row shapes for the Supabase tables the app already uses.
- * These match the checked-in schema. They are not a live generated dump:
- * run the Supabase CLI against the project when you want a full generated file.
+ * Handy names for the database rows the screens already understand.
+ * The full generated list from the live operate-dev database is in supabase.generated.ts.
+ * These shorter names stay in use so a generated-file refresh does not rewrite the screens.
  * Nothing here changes the database.
  */
 
@@ -60,6 +60,9 @@ export interface DbShow {
   internal_notes?: string | null;
   content_plan?: string | null;
   is_set_done?: boolean;
+  no_accommodation?: boolean;
+  set_start_date?: string | null;
+  text_color_key?: string | null;
   created_at?: string;
   updated_at?: string;
   deleted_at?: string | null;

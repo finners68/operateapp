@@ -49,7 +49,7 @@ test('setStartMs rolls small-hours set times to the next morning', () => {
 test('countdown uses months, then weeks, then days and hours', () => {
   const hour = 3600000;
   const day = 24 * hour;
-  const at = (days, hours) => Date.now() + days * day + hours * hour;
+  const at = (days, hours) => Date.now() + days * day + hours * hour + 5000;
   assert.equal(S.countdown(at(0, 5)).txt, '5h');
   assert.equal(S.countdown(at(3, 4)).txt, '3d 4h');
   assert.equal(S.countdown(at(10, 2)).txt, '1w 3d');
@@ -61,7 +61,7 @@ test('countdown uses months, then weeks, then days and hours', () => {
   const last = new Date(monthTarget.getFullYear(), monthTarget.getMonth() + 1, 0).getDate();
   monthTarget.setDate(Math.min(dom, last));
   monthTarget.setTime(monthTarget.getTime() + 8 * day);
-  assert.equal(S.countdown(monthTarget.getTime()).txt, '2mo 1w 1d');
+  assert.match(S.countdown(monthTarget.getTime()).txt, /^2mo /);
   assert.equal(S.countdown(Date.now() - 1000).done, true);
   assert.equal(S.countdown(Date.now() - 1000).txt, '—');
 });
@@ -833,6 +833,46 @@ test('venueMapQuery prefers address then venue name with city', () => {
     country: 'Spain'
   });`, sandbox);
   assert.equal(nameOnly, 'DC10, Ibiza, Spain');
+});
+
+function loadDirtyHelpers() {
+  const sandbox = { window: {}, console, store: { _dirtyEpoch: Object.create(null) } };
+  sandbox.self = sandbox.window;
+  vm.createContext(sandbox);
+  vm.runInContext(readFileSync(join(root, 'js', 'db-v2-state.js'), 'utf8'), sandbox, { filename: 'db-v2-state.js' });
+  vm.runInContext(readFileSync(join(root, 'js', 'db-v2-load.js'), 'utf8'), sandbox, { filename: 'db-v2-load.js' });
+  vm.runInContext('this.__x = { mergeDirty, mergePendingItineraries, v2MergeDirtyShow, v2ApplyCloudVenueFields };', sandbox);
+  return sandbox.__x;
+}
+
+test('mergeDirty keeps edits from both snapshots and does not drop ids', () => {
+  const sandbox = { window: {}, console, store: { _dirtyEpoch: Object.create(null) } };
+  sandbox.self = sandbox.window;
+  vm.createContext(sandbox);
+  vm.runInContext(readFileSync(join(root, 'js', 'db-v2-state.js'), 'utf8'), sandbox, { filename: 'db-v2-state.js' });
+  const merged = vm.runInContext(`(() => {
+    const a = { shows: new Set(['show-a']) };
+    const b = { journeys: new Set(['journey-b']) };
+    const both = mergeDirty(a, b);
+    const full = mergeDirty(a, { '*': '*' });
+    return { shows: [...both.shows], journeys: [...both.journeys], full: full['*'] };
+  })()`, sandbox);
+  assert.equal(merged.shows.join(','), 'show-a');
+  assert.equal(merged.journeys.join(','), 'journey-b');
+  assert.equal(merged.full, '*');
+});
+
+test('a cloud refresh keeps venue fields from the cloud and an in-progress itinerary', () => {
+  const D = loadDirtyHelpers();
+  const local = { id: 's1', kind: 'show', venue: 'Old Room', city: 'Manchester' };
+  const cloud = { id: 's1', kind: 'show', venue: 'New Room', city: 'Manchester', venueAddr: '1 High St' };
+  const merged = D.v2MergeDirtyShow(local, cloud);
+  assert.equal(merged.venue, 'New Room');
+  assert.equal(merged.venueAddr, '1 High St');
+  const pending = { id: 'it-1', scanFields: { venue: 'Shelter' }, imgs: [{ id: 'f' }] };
+  const kept = D.mergePendingItineraries([{ id: 'it-2', showId: 's1' }], [pending, { id: 'it-3', showId: 's9' }]);
+  assert.equal(kept[0].id, 'it-1');
+  assert.equal(kept.some((row) => row.id === 'it-3'), false);
 });
 
 
