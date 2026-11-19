@@ -228,13 +228,18 @@ async function authBoot(){
   if(authBootDone) return;
   authBootDone = true;
 
+  /* Paint local data before any network sign-in wait — avoids a blank #view on refresh. */
+  bootApp();
+  if(typeof OperateReact !== 'undefined' && OperateReact.mountApp && typeof OperateReact.isAppMounted === 'function' && !OperateReact.isAppMounted()){
+    OperateReact.mountApp();
+  }
+
   if(!isSupabaseConfigured()){
-    bootApp();
     return;
   }
 
   const sb = getSupabase();
-  if(!sb){ bootApp(); return; }
+  if(!sb) return;
 
   if(isDevHardwireMode()){
     await devHardwireBoot();
@@ -248,7 +253,6 @@ async function authBoot(){
   }
 
   if(!isAuthRequired()){
-    bootApp();
     if(isSyncEnabled()){
       sb.auth.onAuthStateChange(async (event, session) => {
         if(event === 'SIGNED_IN' && session?.user){

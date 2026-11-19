@@ -69,8 +69,9 @@ function emptyOperateState(){
     settings: {
       artistName: 'You',
       packingTemplate: ['Passport', 'USBs', 'Headphones', 'Power Bank', 'Chargers', 'Camera', 'SD Cards', 'Laptop', 'IEMs'],
-      baseCurrency: 'EUR',
-      fx: { GBP: 1, EUR: 0.85, USD: 0.79, CHF: 0.88, AUD: 0.52, CAD: 0.58, AED: 0.215, SGD: 0.59, SEK: 0.075, NOK: 0.075, DKK: 0.114, PLN: 0.20, CZK: 0.034, ZAR: 0.043 },
+      baseCurrency: 'GBP',
+      baseCurrencyAuto: true,
+      fx: { GBP: 1, EUR: 0.86 },
       billing: { name: '', address: '', taxId: '', iban: '', email: '' },
       invoicePrefix: 'AHQ', invoiceSeq: 1, invoiceTerms: 14,
       accountType: 'dj', homeAirport: 'AMS',

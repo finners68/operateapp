@@ -1,0 +1,397 @@
+import { useSyncExternalStore, useRef, useEffect, useState } from 'react';
+import { call, fmtDate, getCats, getMon, getMonths, getSel, getShowsListRenderSnapshot, getShowsListState, iconHtml, notifyStore, pad, parseDT, relDay, showPassed, subscribeStore } from '../api/operate.js';
+import { Icon } from '../show/ui.jsx';
+import { ShowListTitle } from '../show/ShowListTitle.jsx';
+
+function listState(){
+  const fn = getShowsListState;
+  if(typeof fn === 'function') return fn();
+  return { mode: 'shows', filter: 'all', search: '' };
+}
+
+function PageIntro({ id, title, body }: Record<string, any>){
+  const html = call('pageIntro', id, title, body);
+  if(!html) return null;
+  /* pageIntro returns HTML with a dismiss button — keep behavior via Legacy. */
+  return <div dangerouslySetInnerHTML={{ __html: html }} />;
+}
+
+function ShowRow({ show }: Record<string, any>){
+  const CATS = getCats() || {};
+  const col = CATS[show.color] || CATS.purple || '#6d5efc';
+  const MON = getMon() || [];
+  const d = parseDT ? parseDT(show.date) : null;
+  const meta = [show.city, show.country].filter(Boolean).join(', ');
+  const timeBit = show.setTime ? `${show.setTime}${show.endTime ? ` – ${show.endTime}` : ''}` : '—';
+  const detail = [meta, timeBit].filter(Boolean).join(' · ');
+  const statusTag = show.status && show.status !== 'confirmed' ? (
+    <span className={`tag ${show.status}`} style={{ marginLeft: 6, verticalAlign: 'middle', fontSize: 10, padding: '2px 7px' }}>{show.status}</span>
+  ) : null;
+
+  return (
+    <div className="row show-row" onClick={() => call('openView', 'event', show.id)}>
+      {d ? (
+        <div className="ic show-date-ic" style={{ background: `${col}22`, color: col }} aria-label={fmtDate ? fmtDate(show.date) : show.date}>
+          <span className="show-date-day">{d.getDate()}</span>
+          <span className="show-date-mon">{MON[d.getMonth()] || ''}</span>
+        </div>
+      ) : (
+        <div className="ic show-date-ic" style={{ background: `${col}22`, color: col }}>—</div>
+      )}
+      <div className="body">
+        <b><ShowListTitle show={show} statusTag={statusTag} /></b>
+        <span>{detail}</span>
+      </div>
+      <button
+        type="button"
+        className="header-btn show-row-edit"
+        title="Edit show"
+        onClick={(e: any) => { e.stopPropagation(); call('eventMenu', show.id); }}
+      >
+        <Icon name="edit" size={16} />
+      </button>
+      <div className="trail">
+        <span style={{ fontSize: 12, fontWeight: 400 }}>{relDay ? relDay(show.date) : show.date}</span>
+        <Icon name="chevR" size={15} />
+      </div>
+    </div>
+  );
+}
+
+function filteredShows(filter: any, search: any){
+  const sel = getSel();
+  const all = sel?.events ? sel.events() : [];
+  const q = String(search || '').toLowerCase().trim();
+  let list = all.slice();
+  if(filter === 'upcoming') list = all.filter((e: any) => !(showPassed && showPassed(e)) && e.status !== 'cancelled');
+  else if(filter === 'past') list = all.filter((e: any) => showPassed && showPassed(e));
+  else if(filter === 'confirmed' || filter === 'hold' || filter === 'cancelled') list = all.filter((e: any) => e.status === filter);
+  if(filter === 'upcoming'){
+    list.sort((a: any, b: any) => String((a.date || '') + (a.setTime || '')).localeCompare(String((b.date || '') + (b.setTime || ''))));
+  }else{
+    list.sort((a: any, b: any) => String((b.date || '') + (b.setTime || '')).localeCompare(String((a.date || '') + (a.setTime || ''))));
+  }
+  if(q) list = call('filterShowsList', list, q) || list;
+  return { all, list };
+}
+
+function groupByMonth(list: any){
+  const MONTHS = getMonths() || [];
+  const out: any[] = [];
+  let cur: any = null;
+  list.forEach((e: any) => {
+    const d = parseDT ? parseDT(e.date) : null;
+    const key = d ? `${MONTHS[d.getMonth()]} ${d.getFullYear()}` : 'No date';
+    if(key !== cur){ cur = key; out.push({ label: key, items: [] }); }
+    out[out.length - 1].items.push(e);
+  });
+  return out;
+}
+
+function showsEmptyCopy(filter: any, hasQuery: any){
+  if(hasQuery){
+    return { title: 'No matches', body: 'Try another search term.', showAdd: false };
+  }
+  if(filter === 'past'){
+    return { title: 'You have no past shows.', body: 'Past shows appear here 24 hours after they finish.', showAdd: false };
+  }
+  if(filter === 'confirmed' || filter === 'hold' || filter === 'cancelled'){
+    const kind = filter === 'hold' ? 'hold' : filter;
+    return {
+      title: `You have no ${kind} shows.`,
+      body: "Change a show's status when you edit it.",
+      showAdd: false
+    };
+  }
+  if(filter === 'upcoming'){
+    return {
+      title: 'You have no upcoming shows.',
+      body: 'Tap + to add a venue, date and set time — then open the show for flights and hotels.',
+      showAdd: true
+    };
+  }
+  /* all */
+  return {
+    title: 'You have no shows.',
+    body: 'Tap + to add a venue, date and set time — then open the show for flights and hotels.',
+    showAdd: true
+  };
+}
+
+function ShowsBody({ filter, search }: Record<string, any>){
+  const { list } = filteredShows(filter, search);
+  const q = String(search || '').trim();
+  if(!list.length){
+    const { title, body, showAdd } = showsEmptyCopy(filter, !!q);
+    return (
+      <div className="empty">
+        <div className="ic"><Icon name="music" size={28} /></div>
+        <b>{title}</b>
+        <span>{body}</span>
+        {showAdd ? (
+          <button type="button" className="btn" style={{ marginTop: 14, maxWidth: 240 }} onClick={() => call('sheetEvent')}>
+            <Icon name="plus" size={18} /> Add show
+          </button>
+        ) : null}
+      </div>
+    );
+  }
+  const groups = groupByMonth(list);
+  return groups.map((grp: any) => (
+    <div key={grp.label}>
+      <div className="shows-month">{grp.label} · {grp.items.length}</div>
+      <div className="card flush" style={{ marginBottom: 12 }}>
+        {grp.items.map((e: any) => <ShowRow key={e.id} show={e} />)}
+      </div>
+    </div>
+  ));
+}
+
+function TourShowRow({ show }: Record<string, any>){
+  const CATS = getCats() || {};
+  const col = CATS[show.color] || CATS.purple || '#6d5efc';
+  const MON = getMon() || [];
+  const d = parseDT ? parseDT(show.date) : null;
+  const meta = [show.city, show.country].filter(Boolean).join(', ');
+  const timeBit = show.setTime ? `${show.setTime}${show.endTime ? ` – ${show.endTime}` : ''}` : '—';
+  const detail = [meta, timeBit].filter(Boolean).join(' · ');
+  const statusTag = show.status && show.status !== 'confirmed' ? (
+    <span className={`tag ${show.status}`} style={{ marginLeft: 6, verticalAlign: 'middle', fontSize: 10, padding: '2px 7px' }}>{show.status}</span>
+  ) : null;
+
+  return (
+    <div className="row show-row tour-show-row" onClick={() => call('openView', 'event', show.id)}>
+      {d ? (
+        <div className="ic show-date-ic" style={{ background: `${col}22`, color: col }} aria-label={fmtDate ? fmtDate(show.date) : show.date}>
+          <span className="show-date-day">{d.getDate()}</span>
+          <span className="show-date-mon">{MON[d.getMonth()] || ''}</span>
+        </div>
+      ) : (
+        <div className="ic show-date-ic" style={{ background: `${col}22`, color: col }}>—</div>
+      )}
+      <div className="body">
+        <b><ShowListTitle show={show} statusTag={statusTag} /></b>
+        <span>{detail}</span>
+      </div>
+      <button
+        type="button"
+        className="header-btn show-row-edit"
+        title="Edit show"
+        onClick={(e: any) => { e.stopPropagation(); call('eventMenu', show.id); }}
+      >
+        <Icon name="edit" size={16} />
+      </button>
+      <div className="trail">
+        <span style={{ fontSize: 12, fontWeight: 400 }}>{relDay ? relDay(show.date) : show.date}</span>
+        <Icon name="chevR" size={15} />
+      </div>
+    </div>
+  );
+}
+
+function TourListCard({ run }: Record<string, any>){
+  const CATS = getCats() || {};
+  const c = CATS[run.color] || CATS.green || '#32d74b';
+  const active = call('activeRun')?.key === run.key;
+  const [open, setOpen] = useState(false);
+  const dateLabel = call('runDateLabel', run)
+    || (run.start
+      ? (run.end && run.end !== run.start ? `${fmtDate(run.start)} – ${fmtDate(run.end)}` : fmtDate(run.start))
+      : 'Tour');
+  const destinations = call('runDestinationsSummary', run) || run.title || '';
+
+  return (
+    <div
+      className={`fold tour-list-fold ${open ? 'open' : ''}${active ? ' tour-list-live' : ''}`}
+      style={{ marginBottom: 14, borderColor: active ? `${c}66` : undefined }}
+    >
+      <div
+        className="fold-head"
+        role="button"
+        aria-expanded={open}
+        onClick={() => setOpen((v: any) => !v)}
+      >
+        <div className="ic" style={{ background: `${c}22`, color: c }}>
+          <Icon name="trips" size={18} />
+        </div>
+        <div className="ft">
+          <b>{destinations}</b>
+          <span>
+            {active ? <><span className="tag confirmed" style={{ marginRight: 6, verticalAlign: 'middle' }}>Live</span></> : null}
+            {dateLabel}
+          </span>
+        </div>
+        <span className="fold-chev"><Icon name="chevDown" size={20} /></span>
+      </div>
+      <div className="fold-body">
+        <div className="fold-inner">
+          <div className="card flush tour-list-shows">
+            {(run.shows || []).map((e: any) => <TourShowRow key={e.id} show={e} />)}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ToursBody(){
+  const all = call('runs') || [];
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const upcoming = all.filter((r: any) => {
+    const end = parseDT ? parseDT(r.end) : null;
+    return end && end >= today;
+  });
+  const past = all.filter((r: any) => {
+    const end = parseDT ? parseDT(r.end) : null;
+    return end && end < today;
+  }).reverse();
+
+  return (
+    <>
+      {upcoming.length ? (
+        <div>
+          {upcoming.map((r: any) => <TourListCard key={r.key} run={r} />)}
+        </div>
+      ) : (
+        <div className="empty">
+          <div className="ic"><Icon name="trips" size={28} /></div>
+          <b>No upcoming tours</b>
+          <span>Add shows first — a tour starts when you fly out from your home airport and ends when you land back there.</span>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 14, maxWidth: 240, width: '100%' }}>
+            <button type="button" className="btn" onClick={() => call('sheetEvent')}>
+              <Icon name="plus" size={18} /> Add show
+            </button>
+            <button type="button" className="btn secondary" onClick={() => call('go', 'calendar')}>
+              <Icon name="calendar" size={18} /> Go to Calendar
+            </button>
+          </div>
+        </div>
+      )}
+      {past.length ? (
+        <div className="section">
+          <div className="section-head">
+            <div className="section-title" style={{ fontSize: 16, color: 'var(--text-2)' }}>Past</div>
+          </div>
+          <div>
+            {past.slice(0, 12).map((r: any) => <TourListCard key={r.key} run={r} />)}
+          </div>
+        </div>
+      ) : null}
+    </>
+  );
+}
+
+function SearchAndChips({ filter, search, onSearch }: Record<string, any>){
+  const sel = getSel();
+  const all = sel?.events ? sel.events() : [];
+  const upcomingN = all.filter((e: any) => !(showPassed && showPassed(e)) && e.status !== 'cancelled').length;
+  const chips = [
+    { k: 'upcoming', l: `Upcoming · ${upcomingN}` },
+    { k: 'past', l: 'Past' },
+    { k: 'confirmed', l: 'Confirmed' },
+    { k: 'hold', l: 'Hold' },
+    { k: 'cancelled', l: 'Cancelled' },
+    { k: 'all', l: `All · ${all.length}` },
+  ];
+  const [localSearch, setLocalSearch] = useState(search);
+  useEffect(() => { setLocalSearch(search); }, [search]);
+
+  return (
+    <>
+      <div className="searchbar">
+        <span className="ic" dangerouslySetInnerHTML={{ __html: iconHtml('search', 18) }} />
+        <input
+          placeholder="Search venue or city"
+          value={localSearch}
+          onChange={(e: any) => {
+            const v = e.target.value;
+            setLocalSearch(v);
+            onSearch(v);
+          }}
+        />
+      </div>
+      <div className="chips shows-filter-chips">
+        {chips.map((c: any) => (
+          <button
+            key={c.k}
+            type="button"
+            className={`chip ${filter === c.k ? 'on' : ''}`}
+            onClick={() => call('setShowFilter', c.k)}
+          >
+            {c.l}
+          </button>
+        ))}
+      </div>
+    </>
+  );
+}
+
+export default function ShowsListPage(){
+  /* Re-render only when show list data / filters / tours actually change — not on every global store tick. */
+  useSyncExternalStore(subscribeStore, getShowsListRenderSnapshot, () => '');
+  const { mode, filter, search } = listState();
+  const isTours = mode === 'tours';
+  const sel = getSel();
+  const all = sel?.events ? sel.events() : [];
+  const upcomingN = all.filter((e: any) => !(showPassed && showPassed(e)) && e.status !== 'cancelled').length;
+  const tourN = (call('runs') || []).length;
+  const title = isTours ? 'Tours' : 'Shows';
+  const sub = isTours
+    ? `${tourN} tour${tourN !== 1 ? 's' : ''} · tap to expand`
+    : `${upcomingN} upcoming · tap to open`;
+
+  const searchTimer = useRef<any>(null);
+  const onSearch = (v: any) => {
+    call('setShowSearchQuiet', v);
+    clearTimeout(searchTimer.current);
+    searchTimer.current = setTimeout(() => {
+      const n = notifyStore;
+      if(typeof n === 'function') n();
+      else if(typeof window !== 'undefined' && window.OperateReact?.refreshShowsList) window.OperateReact.refreshShowsList();
+    }, 120);
+  };
+
+  useEffect(() => () => clearTimeout(searchTimer.current), []);
+
+  return (
+    <div className="tab-page" id="shows-mode-page">
+      <div className="tab-page-sticky">
+        <div className="lg-header">
+          <div>
+            <div className="lg-title" id="shows-mode-title">{title}</div>
+            <div className="lg-sub" id="shows-mode-sub">{sub}</div>
+          </div>
+          <div id="shows-mode-actions" className="shows-header-actions">
+            <div className="seg shows-mode-seg-compact" id="shows-mode-seg">
+              <button type="button" data-v="shows" className={isTours ? '' : 'on'} aria-label="Shows" onClick={() => call('setShowsMode', 'shows')}>
+                <Icon name="music" size={15} />
+              </button>
+              <button type="button" data-v="tours" className={isTours ? 'on' : ''} aria-label="Tours" onClick={() => call('setShowsMode', 'tours')}>
+                <Icon name="trips" size={15} />
+              </button>
+            </div>
+            <button type="button" className="header-btn" onClick={() => call('sheetEvent')}>
+              <Icon name="plus" size={22} />
+            </button>
+          </div>
+        </div>
+        <div id="shows-mode-sticky-tools" className="shows-sticky-tools">
+          {isTours ? null : <SearchAndChips filter={filter} search={search} onSearch={onSearch} />}
+        </div>
+      </div>
+      <div className="screen-pad tab-page-body" id="shows-mode-panel">
+        <PageIntro
+          id="shows"
+          title="Shows & tours in one place"
+          body={isTours
+            ? 'Tours are grouped from your shows. Tap a date range to see its shows — tap a show to open or edit it. Use Tour Mode for the live day-of view.'
+            : 'Every show, and the tours they auto-group into. Switch views with the toggle top-right. Tap a row to open details.'}
+        />
+        <div className="section" style={{ marginTop: 8 }}>
+          {isTours ? <ToursBody /> : <ShowsBody filter={filter} search={search} />}
+        </div>
+        <div className="spacer" />
+      </div>
+    </div>
+  );
+}

@@ -354,8 +354,6 @@ async function refreshFromCloud(opts){
   }
   syncRefreshInFlight = true;
   document.documentElement.classList.add('is-refreshing');
-  const btn = document.getElementById('desktop-refresh');
-  if(btn) btn.classList.add('spinning');
   document.querySelectorAll('.nav-refresh').forEach(el => el.classList.add('spinning'));
   syncSetStatus('syncing');
   try{
@@ -373,7 +371,6 @@ async function refreshFromCloud(opts){
   }finally{
     syncRefreshInFlight = false;
     document.documentElement.classList.remove('is-refreshing');
-    if(btn) btn.classList.remove('spinning');
     document.querySelectorAll('.nav-refresh').forEach(el => el.classList.remove('spinning'));
   }
 }

@@ -1,0 +1,123 @@
+import { call, getItineraryFullUploadByShow, getPassFileAccept, getStore } from '../api/operate.js';
+import { Icon } from './ui.jsx';
+
+export function UploadBanner({ showId }: Record<string, any>){
+  const map = getItineraryFullUploadByShow() || {};
+  const st = map[showId];
+  if(!st) return null;
+
+  if(st.status === 'uploading'){
+    return (
+      <div className="hint" style={{ textAlign: 'left', margin: '0 0 14px', padding: '12px 14px', borderRadius: 12, background: 'rgba(99,102,241,.12)', color: 'var(--text-1)', fontWeight: 500 }}>
+        {call('publicItineraryMessage', st.message, 'Uploading itinerary details… Accommodation, travel and the rest will appear on this show.') || st.message}
+      </div>
+    );
+  }
+  if(st.status === 'done'){
+    return (
+      <div className="hint" style={{ textAlign: 'left', margin: '0 0 14px', padding: '12px 14px', borderRadius: 12, background: 'rgba(34,197,94,.12)', color: 'var(--text-1)', fontWeight: 500 }}>
+        {call('publicItineraryMessage', st.message, 'Itinerary details uploaded successfully.') || 'Itinerary details uploaded successfully.'}
+      </div>
+    );
+  }
+  if(st.status === 'error'){
+    return (
+      <div className="hint" style={{ textAlign: 'left', margin: '0 0 14px', padding: '12px 14px', borderRadius: 12, background: 'rgba(239,68,68,.12)', color: 'var(--text-1)', fontWeight: 500 }}>
+        {call('publicItineraryMessage', st.message, 'Couldn’t finish itinerary upload.') || 'Couldn’t finish itinerary upload.'}
+        <button type="button" className="link-btn" style={{ display: 'inline', marginLeft: 8 }} onClick={() => call('retryItineraryFullUpload', showId)}>
+          Retry
+        </button>
+      </div>
+    );
+  }
+  return null;
+}
+
+function ActTile({ icon, color, label, onClick }: Record<string, any>){
+  return (
+    <button type="button" className="show-qa-chip" onClick={onClick}>
+      <div className="ic" style={{ background: `${color}22`, color }}><Icon name={icon} size={16} /></div>
+      <span>{label}</span>
+    </button>
+  );
+}
+
+function ActFileTile({ icon, color, label, itemId }: Record<string, any>){
+  return (
+    <label className="show-qa-chip">
+      <div className="ic" style={{ background: `${color}22`, color }}><Icon name={icon} size={16} /></div>
+      <span>{label}</span>
+      <input
+        type="file"
+        accept={getPassFileAccept() || 'image/*,application/pdf'}
+        style={{ display: 'none' }}
+        onChange={(e: any) => call('uploadItemPass', itemId, e.target)}
+      />
+    </label>
+  );
+}
+
+export function QuickLinks({ show }: Record<string, any>){
+  const store = getStore();
+  const items = (store?.events || []).filter((x: any) => x.showId === show.id);
+  const flights = items.filter((x: any) => x.kind === 'travel' && (x.icon || 'plane') === 'plane');
+  const hotelItem = items.find((x: any) => x.kind === 'stay');
+  const drivers = items.filter((x: any) => x.kind === 'travel' && call('isDriverItem', x));
+
+  const safe = (name: any, ...args: any[]) => {
+    try { return call(name, ...args); }
+    catch(err){ console.error(name, err); return ''; }
+  };
+  const venueQ = safe('venueMapQuery', show)
+    || safe('formatVenueAddress', show)
+    || [show.city, show.country].filter(Boolean).join(', ');
+
+  const tiles: any[] = [];
+  tiles.push(
+    <ActTile key="venue" icon="map" color="var(--blue)" label="Venue" onClick={() => call('openMaps', venueQ)} />
+  );
+  tiles.push(
+    <ActTile key="contacts" icon="users" color="var(--show-color, var(--accent-2))" label="Key contacts" onClick={() => call('sheetKeyContacts', show.id)} />
+  );
+
+  if(flights.length){
+    const withPass = flights.find((f: any) => f.passes && f.passes.length);
+    if(withPass){
+      tiles.push(
+        <ActTile key="board" icon="ticket" color="var(--show-color, var(--accent-2))" label="Boarding" onClick={() => call('viewItemPass', withPass.id)} />
+      );
+    } else {
+      tiles.push(
+        <ActFileTile key="board" icon="ticket" color="var(--show-color, var(--accent-2))" label="Boarding" itemId={flights[0].id} />
+      );
+    }
+  }
+
+  if(hotelItem || show.hotel){
+    const q = show.hotel
+      ? safe('hotelMapQuery', show)
+      : `${String(hotelItem?.place || hotelItem?.title || '').replace(/^hotel\s*[-–:]?\s*/i, '').trim()} ${show.city || ''}`.trim();
+    tiles.push(
+      <ActTile key="hotel" icon="bed" color="var(--orange)" label="Hotel" onClick={() => call('openMaps', q)} />
+    );
+  }
+
+  const drvPhone = show.driver && show.driver.phone;
+  if(drvPhone){
+    tiles.push(
+      <ActTile key="drv" icon="car" color="var(--green)" label="Driver" onClick={() => call('contactDriver', show.id)} />
+    );
+  } else if(drivers.length){
+    tiles.push(
+      <ActTile key="drv" icon="car" color="var(--green)" label="Driver" onClick={() => call('sheetDriver', show.id)} />
+    );
+  }
+
+  const shown = tiles.slice(0, 4);
+  if(!shown.length) return null;
+  return (
+    <div className={`show-qa-strip cols-${shown.length}`}>
+      {shown}
+    </div>
+  );
+}

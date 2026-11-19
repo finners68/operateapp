@@ -351,6 +351,9 @@ function flightHasDetails(f){
   if(String(f.code||'').trim()) return true;
   if(String(f.from||'').trim()) return true;
   if(String(f.to||'').trim()) return true;
+  if(String(f.fromCode||'').trim()) return true;
+  if(String(f.toCode||'').trim()) return true;
+  if(String(f.flightNo||f.flight_no||'').trim()) return true;
   if(String(f.dep||'').trim()) return true;
   if(String(f.arr||'').trim()) return true;
   if(String(f.seat||'').trim()) return true;
@@ -622,6 +625,53 @@ function groupShowTimelineByDay(e, steps){
   });
   return { multi: unique.length > 1, groups };
 }
+function showTimelineStepClock(step){
+  if(!step) return null;
+  if(step.time) return clockMinutes(step.time);
+  if(step.kind === 'advance'){
+    const sub = String(step.sub || '').trim();
+    if(/^\d{1,2}:\d{2}\b/.test(sub)) return clockMinutes(sub.slice(0, 5));
+  }
+  return null;
+}
+/* Which timeline step is “now” on the show day (for live progress on the show page). */
+function showTimelineLiveState(e, tl){
+  const list = Array.isArray(tl) ? tl : [];
+  const showDate = String(e && e.date || '').slice(0, 10);
+  const n = new Date();
+  const today = `${n.getFullYear()}-${pad(n.getMonth()+1)}-${pad(n.getDate())}`;
+  const showDay = !!(showDate && showDate === today);
+  const state = { showDay, activeId: null, beforeIds: [], progress: 0, upcoming: false };
+  if(!showDay || !list.length) return state;
+  const nowMins = n.getHours() * 60 + n.getMinutes();
+  const timed = [];
+  list.forEach(s => {
+    const mins = showTimelineStepClock(s);
+    if(mins != null) timed.push({ id: s.id, mins });
+  });
+  if(!timed.length) return state;
+  let activeIdx = -1;
+  for(let i = 0; i < timed.length; i++){
+    if(timed[i].mins <= nowMins) activeIdx = i;
+    else break;
+  }
+  if(activeIdx < 0){
+    state.activeId = timed[0].id;
+    state.upcoming = true;
+    return state;
+  }
+  state.activeId = timed[activeIdx].id;
+  state.beforeIds = timed.slice(0, activeIdx).map(t => t.id);
+  if(activeIdx < timed.length - 1){
+    const cur = timed[activeIdx];
+    const next = timed[activeIdx + 1];
+    const span = next.mins - cur.mins;
+    if(span > 0 && nowMins >= cur.mins){
+      state.progress = Math.min(1, Math.max(0, (nowMins - cur.mins) / span));
+    }
+  }
+  return state;
+}
 function toggleShowAutoTimelineStep(e, sid){
   if(!e || !sid) return false;
   if(sid==='auto:set'){ e.setDone=!e.setDone; return true; }
@@ -835,8 +885,8 @@ function fieldTx(label, value){
   return `<div class="tx"><div class="k">${label}</div><div class="v">${value}</div></div>`;
 }
 function showGroup(id, title, iconHTML, summary, bodyHTML, defOpen, extraClass){
-  /* Show groups default open so the page is scannable; user can still collapse. */
-  const open = isOpen(id, defOpen !== false);
+  /* Show groups default collapsed; pass defOpen true for the one section to leave open. */
+  const open = isOpen(id, defOpen === true);
   const chev = ICON.chevDown ? ICON.chevDown(20) : ICON.chevR(20);
   return `<section class="show-group ${open?'open':''}${extraClass?' '+extraClass:''}" id="fold-${id}">
     <div class="show-group-head" onclick="toggleFold('${id}')" role="button" aria-expanded="${open?'true':'false'}">
@@ -1522,7 +1572,7 @@ const sel = {
 };
 
 /* ---------- Money / finance engine (multi-currency) ---------- */
-const CURSYM = {GBP:'£',EUR:'€',USD:'$',CHF:'CHF ',AUD:'A$',CAD:'C$',AED:'AED ',SGD:'S$',SEK:'kr ',NOK:'kr ',DKK:'kr ',PLN:'zł ',CZK:'Kč ',ZAR:'R '};
+const CURSYM = {GBP:'£',EUR:'€',USD:'$',CHF:'CHF ',AUD:'A$',CAD:'C$',AED:'AED ',SGD:'S$',SEK:'kr ',NOK:'kr ',DKK:'kr ',PLN:'zł ',CZK:'Kč ',ZAR:'R ',JPY:'¥',NZD:'NZ$',HKD:'HK$'};
 function fxRate(cur){ return (store && store.settings && store.settings.fx && store.settings.fx[cur]) || 1; }
 function toBase(amount, cur){ const base = (store && store.settings && store.settings.baseCurrency) || 'EUR'; return (amount||0) * fxRate(cur) / (fxRate(base)||1); }
 function fmtMoney(amount, cur){
@@ -1559,12 +1609,15 @@ const money = {
   },
 };
 
-/* ---------- Tours ("runs") — bounded by the flight out and the flight home ----------
-   A tour is the shows that fall between a flight leaving the home airport and
-   the next flight landing back there. A leaving flight with no return yet does
-   not pull later shows into one long tour. A show outside that pair stands alone. */
+/* ---------- Tours ("runs") — split by flights out of home and back home ----------
+   A tour starts on the show where you fly out of your home airport. Later shows
+   stay in that tour only when they connect (the next flight leaves the airport
+   you just arrived at), or they have no flight and are within two days.
+   The tour ends on the show where you fly back home. A new flight out of home
+   starts a new tour. Shows that don't connect are listed on their own — a show
+   is not pulled in just because its date sits between two flights. */
 function dayIdx(ds){ const d=parseDT(ds); return d?Math.floor(d.getTime()/86400000):0; }
-function homeAirport(){ return (store.settings.homeAirport||'AMS').toUpperCase(); }
+function homeAirport(){ return airportCode(store.settings.homeAirport || 'AMS'); }
 /* Strip b2b / bracketed extras from a venue name so the address + map search use the main name only. */
 function cleanVenue(v){ v=String(v||'').trim(); const c=v.replace(/\s*[\(\[][^\)\]]*[\)\]]\s*/g,' ').replace(/\s+b2b\b.*$/i,'').replace(/\s{2,}/g,' ').trim(); return c||v; }
 /* The artist's money currency follows their home airport: UK airports -> GBP, everywhere else -> EUR. */
@@ -1577,16 +1630,41 @@ function airportCode(v){
   const m=s.match(/\(([A-Z]{3})\)/) || s.match(/\b([A-Z]{3})\b/);
   return m?m[1]:s;
 }
+function iataFromFlightEndpoint(raw, codeField, nameField){
+  const direct = airportCode(codeField || raw || '');
+  if(direct && /^[A-Z]{3}$/.test(direct)) return direct;
+  if(typeof flightIataFromPlace === 'function'){
+    const guessed = flightIataFromPlace(codeField || raw || nameField || '');
+    if(guessed) return airportCode(guessed);
+  }
+  return airportCode(raw || '');
+}
+function flightEndpointCodes(f){
+  if(!f) return { from:'', to:'' };
+  return {
+    from: iataFromFlightEndpoint(f.from, f.fromCode, f.fromName),
+    to: iataFromFlightEndpoint(f.to, f.toCode, f.toName)
+  };
+}
+function travelFlightCodes(e){
+  if(!e) return { from:'', to:'' };
+  return {
+    from: iataFromFlightEndpoint(e.from, e.fromCode, e.fromName),
+    to: iataFromFlightEndpoint(e.to, e.toCode, e.toName)
+  };
+}
 function isHomeFlight(e){
   if(e.kind!=='travel') return false;
   const h = homeAirport();
-  if(e.to && airportCode(e.to) === h) return true;
+  const { to } = travelFlightCodes(e);
+  if(to && to === h) return true;
   return new RegExp('>\\s*'+h+'(\\b|\\))','i').test(e.title||'') || new RegExp('→\\s*'+h+'(\\b|$)','i').test(e.info||'');
 }
 function isHomeOutboundTravel(e){
   if(e.kind!=='travel') return false;
   const h = homeAirport();
-  if(e.from && airportCode(e.from) === h && airportCode(e.to) !== h) return true;
+  const { from, to } = travelFlightCodes(e);
+  if(from === h && to && to !== h) return true;
   return new RegExp('^\\s*'+h+'\\s*>','i').test(e.title||'') || new RegExp('^\\s*'+h+'\\s*→','i').test(e.info||'');
 }
 /* Prefer arrival day/time when present — that's when the leg actually finishes. */
@@ -1613,9 +1691,14 @@ function isPlaneLeg(e){ return e && e.kind==='travel' && (e.icon||'plane')==='pl
 function homeTourMarkers(){
   const h = homeAirport();
   const markers = [];
+  const seen = new Set();
   const push = (type, date, start)=>{
     if(!date) return;
-    markers.push({ type, date, start:start||'12:00', key:tourMarkerKey(date, start||'12:00') });
+    const key = tourMarkerKey(date, start || '12:00');
+    const id = type + '|' + key;
+    if(seen.has(id)) return;
+    seen.add(id);
+    markers.push({ type, date, start:start||'12:00', key });
   };
 
   store.events.forEach(e=>{
@@ -1631,57 +1714,106 @@ function homeTourMarkers(){
     if((s.kind||'show')!=='show' || !Array.isArray(s.flights)) return;
     s.flights.forEach(f=>{
       if(!f || (typeof flightHasDetails==='function' && !flightHasDetails(f))) return;
-      const from=airportCode(f.from), to=airportCode(f.to);
+      const { from, to } = flightEndpointCodes(f);
       const when=flightLegWhen(f, s.date);
       if(from===h && to && to!==h) push('out', when.date||s.date, when.start||'12:00');
-      else if(to===h && from!==h) push('in', when.date||s.date, when.start||'12:00');
+      else if(to===h && from && from!==h) push('in', when.date||s.date, when.start||'12:00');
     });
   });
   markers.sort((a,b)=>a.key.localeCompare(b.key));
   return markers;
 }
-/* Each leaving flight pairs with the next landing back home. An unmatched
-   leaving flight does not open a tour. */
-function tourWindows(markers){
-  const windows=[];
-  let open=null;
-  (markers||[]).forEach(m=>{
-    if(m.type==='out'){ if(!open) open=m; }
-    else if(m.type==='in' && open && m.key>open.key){
-      windows.push({ start:open.date, end:m.date });
-      open=null;
-    }
+/* Plane legs saved on a show. Unlinked travel copies are ignored — they often
+   repeat the same flight with the airports swapped. */
+function showFlightLegs(show){
+  const legs = [];
+  const push = (f, fallbackDate) => {
+    if(!f || (typeof flightHasDetails === 'function' && !flightHasDetails(f))) return;
+    const { from, to } = flightEndpointCodes(f);
+    if(!from && !to) return;
+    const when = flightLegWhen(f, fallbackDate || (show && show.date) || '');
+    legs.push({
+      from, to,
+      key: tourMarkerKey(when.date || (show && show.date) || '', when.start || '12:00')
+    });
+  };
+  (show && show.flights || []).forEach(f => push(f, show.date));
+  (store.events || []).forEach(e => {
+    if(!show || !isPlaneLeg(e) || e.showId !== show.id) return;
+    push({
+      from: e.from, to: e.to, fromCode: e.fromCode, toCode: e.toCode,
+      fromName: e.fromName, toName: e.toName,
+      dep: ((e.date || '') + ' ' + (e.start || '')).trim(),
+      arr: e.arr || e.arrival || ''
+    }, e.date || show.date);
   });
-  return windows;
+  legs.sort((a, b) => a.key.localeCompare(b.key));
+  return legs;
+}
+function ymdGap(a, b){
+  const da = parseDT(a), db = parseDT(b);
+  if(!da || !db) return 99;
+  return Math.abs(Math.round((db.getTime() - da.getTime()) / 86400000));
+}
+function decorateRuns(groups){
+  return groups.map(r => {
+    const row = { shows: r.shows || [] };
+    row.key = row.shows[0] ? row.shows[0].id : uid('run');
+    row.start = row.shows[0] ? row.shows[0].date : '';
+    row.end = row.shows.length ? row.shows[row.shows.length - 1].date : row.start;
+    row.cities = [];
+    row.shows.forEach(s => { const c = String(s.city || '').trim(); if(c && row.cities.indexOf(c) === -1) row.cities.push(c); });
+    row.color = (row.shows[0] && row.shows[0].color) || 'green';
+    row.title = row.cities.length
+      ? (row.cities.length > 3 ? row.cities.slice(0, 3).join(' · ') + ' +' + (row.cities.length - 3) : row.cities.join(' · '))
+      : ((row.shows[0] && (row.shows[0].venue || row.shows[0].eventName)) || 'Show');
+    return row;
+  });
 }
 function runs(){
+  const h = homeAirport();
   const shows = sel.events(); // shows only, sorted by date
-  const windows = tourWindows(homeTourMarkers());
-  const windowOf = new Map();
-  shows.forEach(sh=>{
-    let best=-1;
-    windows.forEach((w,i)=>{
-      if(sh.date>=w.start && sh.date<=w.end && (best<0 || w.start>=windows[best].start)) best=i;
-    });
-    if(best>=0) windowOf.set(sh.id, best);
+  const groups = [];
+  let open = null;
+  const close = () => {
+    if(open && open.shows.length) groups.push({ shows: open.shows });
+    open = null;
+  };
+  const lastStop = legs => (legs.length && legs[legs.length - 1].to) || '';
+
+  shows.forEach(sh => {
+    const legs = showFlightLegs(sh);
+    const leaves = legs.some(l => l.from === h && l.to && l.to !== h);
+    const lands = legs.some(l => l.to === h && l.from && l.from !== h);
+    const prev = open && open.shows[open.shows.length - 1];
+    const gap = prev ? ymdGap(prev.date, sh.date) : 99;
+    const last = open ? open.lastAirport : '';
+    const connects = !!(last && legs.some(l => l.from && l.from === last));
+
+    /* Flying out of home always starts a new tour, even if the last one
+       never recorded a flight home. */
+    if(leaves){
+      close();
+      open = { shows: [sh], lastAirport: lastStop(legs) };
+      if(lands) close();
+      return;
+    }
+    if(open){
+      const flightlessNear = !legs.length && gap <= 2;
+      const landingNear = lands && (connects || gap <= 2);
+      if(connects || flightlessNear || landingNear){
+        open.shows.push(sh);
+        if(legs.length && !lands) open.lastAirport = lastStop(legs) || open.lastAirport;
+        if(lands) close();
+        return;
+      }
+      close();
+    }
+    groups.push({ shows: [sh] });
   });
-  const out=[];
-  const emitted=new Set();
-  shows.forEach(sh=>{
-    const wi=windowOf.has(sh.id) ? windowOf.get(sh.id) : null;
-    if(wi==null){ out.push({shows:[sh]}); return; }
-    if(emitted.has(wi)) return;
-    emitted.add(wi);
-    out.push({ shows: shows.filter(s=>windowOf.get(s.id)===wi) });
-  });
-  return out.map(r=>{
-    r.key = r.shows[0].id;
-    r.start = r.shows[0].date; r.end = r.shows[r.shows.length-1].date;
-    r.cities = [...new Set(r.shows.map(s=>s.city).filter(Boolean))];
-    r.color = r.shows[0].color || 'green';
-    r.title = r.cities.length ? (r.cities.length>3 ? r.cities.slice(0,3).join(' · ')+' +'+(r.cities.length-3) : r.cities.join(' · ')) : (r.shows[0].venue||'Show');
-    return r;
-  });
+  close();
+  groups.sort((a, b) => String((a.shows[0] && a.shows[0].date) || '').localeCompare(String((b.shows[0] && b.shows[0].date) || '')));
+  return decorateRuns(groups);
 }
 function runOf(showId){ return runs().find(r=>r.shows.some(s=>s.id===showId)) || null; }
 function activeRun(){ return store.activeShowId ? runOf(store.activeShowId) : null; }
@@ -1973,209 +2105,12 @@ async function biometricUnlock(silent){
   }catch(e){ if(!silent) toast('Use your passcode','x'); }
 }
 
-/* ---------- Seed data (demo tour so the app feels alive) ---------- */
+/* ---------- Empty store (no bundled demo tour) ---------- */
 function seed(){
   const s = emptyOperateState();
+  s.packing = (s.settings.packingTemplate || []).map(x => ({ id: uid('pk'), label: x, done: false }));
   store = s;
-  // ---- builders ----
-  const parseCity = title => { const p=title.split(' - '); return p.length>1 ? p[p.length-1].trim() : ''; };
-  /* Estimated placeholder fee — region-aware currency, tiered by type. Edit per show. */
-  const UKC=['birmingham','manchester','newcastle','london','leeds','sheffield','brighton','nottingham','edinburgh','bristol','liverpool','isle of wight','isle of weight','belfast'];
-  const USC=['new york','la','dallas','chicago','miami','denver','san diego','orlando'];
-  const AMER=['medellin','lima','peru','montevideo'];
-  function estFee(title,city){
-    const c=(city||'').toLowerCase(); const t=(title||'').toLowerCase();
-    let cur='EUR';
-    if(UKC.some(x=>c.includes(x))) cur='GBP';
-    else if(USC.some(x=>c.includes(x))) cur='USD';
-    else if(AMER.some(x=>c.includes(x))) cur='USD';
-    const fest=/festival|creamfields|hard summer|arc|crssd|fly|caposile|rise|boiler room|ants|wonderland|eastern electrics|audio obscura|smaakmarkt|hide & seek/;
-    const big=/hï|hi ibiza|fuse|space|fabric|printworks|watergate|ushua|elsewhere|mission ballroom|elixir|cntrl/;
-    let base = fest.test(t)?12000 : big.test(t)?8000 : 4500;
-    if(cur==='GBP') base=Math.round(base*0.82/500)*500;
-    if(cur==='USD') base=Math.round(base*1.05/500)*500;
-    return {fee:base, currency:cur};
-  }
-  function show(date,title,start,end,color){
-    const city=parseCity(title);
-    const venue = city ? title.slice(0, title.length-city.length-3).trim() : title;
-    const ef=estFee(title,city);
-    s.events.push({ id:uid('evt'), kind:'show', artist:'You', tripId:null,
-      status: color==='orange'?'hold':'confirmed', color:(color==='orange'?'orange':'green'),
-      venue, city, country:'', date, setTime:start||'', endTime:end||'', arrival:'',
-      venueAddr:'', venueAddr2:'', venueRegion:'', venuePostcode:'', hotel:null, flights:[], driver:null, promoter:null, notes:'', content:'',
-      checklist:[], timeline:[], attachments:[],
-      finance:{fee:ef.fee, currency:ef.currency, dealType:'Guarantee', expenses:[], perDiem:0, commission:10, paid:false, estimated:true} });
-  }
-  function trav(date,title,start,end,icon){ s.events.push({id:uid('evt'),kind:'travel',date,title,start:start||'',end:end||'',icon:icon||'plane'}); }
-  const fly=(d,t,s1,e1)=>trav(d,t,s1,e1,'plane');
-  const car=(d,t,s1,e1)=>trav(d,t,s1,e1,'car');
-  const boat=(d,t,s1,e1)=>trav(d,t,s1,e1,'ferry');
-  function stay(date,title,info){ s.events.push({id:uid('evt'),kind:'stay',date,title,info:info||'',icon:'bed'}); }
-  function mark(date,title){ s.events.push({id:uid('evt'),kind:'marker',date,title,allDay:true}); }
-
-  /* ===== Real tour schedule (imported from ABOSS) ===== */
-  // July 2026
-  fly('2026-07-17','FLIGHT - AMS > SOU','17:25','17:35');
-  car('2026-07-17','[UBER] - Southampton Airport > Terminal','18:00','18:30');
-  boat('2026-07-17','FERRY - Southampton to East Cowes','20:00','21:00');
-  stay('2026-07-17','HOTEL - Prince of Wales','Check-in: 21:00');
-  car('2026-07-17','DRIVER - Ferry Terminal > Hotel','21:00','21:10');
-  car('2026-07-17','DRIVER - Hotel > Venue','22:45','23:00');
-  show('2026-07-17','WYTWOODS - Isle of Wight','23:30','01:00','green');
-  car('2026-07-17','DRIVER - Venue > Hotel','01:00','01:30');
-  car('2026-07-18','WALK - Hotel > Ferry Terminal','05:30','05:45');
-  boat('2026-07-18','FERRY - East Cowes to Southampton','06:30','07:30');
-  fly('2026-07-18','FLIGHT - SOU > AMS','09:15','11:25');
-  show('2026-07-18','Open Air Smaakmarkt - Nijmegen','21:30','23:00','green');
-  fly('2026-07-21','FLIGHT - AMS > ZTH','06:05','10:15');
-  car('2026-07-21','DRIVER - Airport > Hotel','10:15','10:30');
-  stay('2026-07-21','HOTEL - Tzante','Check-in: 15:00');
-  car('2026-07-21','DRIVER - Hotel > Venue','00:30','00:35');
-  show('2026-07-21','Wonderland Zakynthos (b2b Laidlaw)','01:00','03:30','green');
-  car('2026-07-21','DRIVER - Venue > Hotel','03:30','03:35');
-  car('2026-07-22','DRIVER - Hotel > Airport','06:45','07:00');
-  fly('2026-07-22','FLIGHT 1 - ZTH > MXP','08:35','10:00');
-  stay('2026-07-22','HOTEL - Tzante','Check-out: 10:30');
-  fly('2026-07-22','FLIGHT 2 - MXP > IBZ','13:40','15:40');
-  stay('2026-07-22','[WES + JAKE] - HOTEL - Core Hotel','Check-in: 14:00');
-  stay('2026-07-23','[WES + JAKE] - HOTEL - Core Hotel','Full day');
-  mark('2026-07-23','JAKE WORKING');
-  show('2026-07-23','Solid Grooves - Ibiza','','','green');
-  fly('2026-07-23','[JAKE FLIGHT] - MAN > IBZ','15:05','18:50');
-  mark('2026-07-24','JAKE WORKING');
-  stay('2026-07-24','HOTEL - Weston Mannor','TBA');
-  fly('2026-07-24','[WES + JAKE] - FLIGHT - IBZ > BHX','11:35','13:15');
-  stay('2026-07-24','[WES + JAKE] - HOTEL - Core Hotel','Check-out: 12:00');
-  show('2026-07-24','AB - Hide & Seek - Birmingham','18:00','21:00','green');
-  mark('2026-07-25','JAKE WORKING');
-  fly('2026-07-25','[WES + JAKE] FLIGHT - MAN > MUC','10:35','13:35');
-  show('2026-07-25','Praterinsel - Munich','18:00','20:00','green');
-  stay('2026-07-26','HOTEL - Weston Mannor','TBA');
-  fly('2026-07-26','[WES + JAKE] - FLIGHT - MUC > MAN','08:45','09:50');
-  show('2026-07-26','Hide & Seek - Birmingham','15:30','17:00','green');
-  mark('2026-07-26','JAKE WORKING');
-  fly('2026-07-27','FLIGHT - BHX > AMS','13:25','15:35');
-  mark('2026-07-28','DEADLINE CO:BRAND, TRACKS AANLEVEREN');
-  fly('2026-07-30','[JAKE FLIGHT] - MAN > AMS','05:55','08:20');
-  fly('2026-07-30','[WES + JAKE] FLIGHT - AMS > JFK','10:10','12:32');
-  show('2026-07-31','Elsewhere - New York','01:00','03:00','green');
-  show('2026-07-31','USA TOUR','','','green');
-  // August 2026
-  fly('2026-08-01','[WES + JAKE] FLIGHT - JFK > LAX','11:00','13:49');
-  stay('2026-08-01','HOTEL - Los Angeles Airport Marriott','Check-in: 14:00');
-  show('2026-08-01','Hard Summer - LA','16:00','17:00','green');
-  stay('2026-08-02','HOTEL - Los Angeles Airport Marriott','Check-out: 11:00');
-  fly('2026-08-02','[WES + JAKE] FLIGHT - LAX > AMS','13:50','09:05');
-  fly('2026-08-03','[JAKE FLIGHT 2] - AMS > MAN','12:50','13:15');
-  mark('2026-08-04','Teaser video shoot Utrecht');
-  mark('2026-08-06','Teaser video shoot Amsterdam');
-  fly('2026-08-09','FLIGHT - AMS > LCY (London City)','10:15','10:45');
-  stay('2026-08-09','HOTEL - Hampton by Hilton London','Check-in: 14:00');
-  show('2026-08-09','Eastern Electrics - London','17:00','19:30','green');
-  fly('2026-08-10','FLIGHT - LCY > AMS','10:00','12:10');
-  fly('2026-08-13','FLIGHT - AMS > TFS','14:55','18:55');
-  show('2026-08-13','Monkey Club - Tenerife','01:30','03:30','green');
-  fly('2026-08-14','WES FLIGHT - TFS > BFS','12:25','16:50');
-  fly('2026-08-14','JAKE FLIGHT - MAN > BHD','15:30','16:25');
-  stay('2026-08-14','HOTEL - Fitzwilliam Hotel Belfast','19:00 - 20:00');
-  show('2026-08-14','Custom House Square - Belfast','19:00','20:00','green');
-  show('2026-08-14','Limelight - Belfast','00:30','02:30','green');
-  fly('2026-08-15','[WES] FLIGHT - BHD > AMS','09:50','12:25');
-  fly('2026-08-15','[JAKE FLIGHT] - BFS > MAN','11:05','12:10');
-  stay('2026-08-16','HOTEL - Ocean Drive, Talamanca','TBA');
-  fly('2026-08-16','FLIGHT - AMS > IBZ','13:35','16:10');
-  show('2026-08-16','AB - FUSE - 528 Ibiza','17:30','20:00','green');
-  fly('2026-08-17','FLIGHT - IBZ > AMS','16:55','19:30');
-  fly('2026-08-19','FLIGHT - AMS > MAD','11:00','13:40');
-  fly('2026-08-19','FLIGHT - MAD > MDE','16:40','20:05');
-  show('2026-08-20',"Hi I'm Sci - Medellin",'01:00','03:30','green');
-  fly('2026-08-21','FLIGHT - MDE > BOG','10:40','11:35');
-  fly('2026-08-21','FLIGHT - BOG > LIM','13:30','16:30');
-  show('2026-08-22','Damian Club - Lima, Peru','','','green');
-  fly('2026-08-23','FLIGHT - LIM > MVD','23:50','06:25');
-  show('2026-08-24','KEY - Montevideo','01:00','03:00','green');
-  mark('2026-08-25','Teaser video 1');
-  fly('2026-08-25','FLIGHT - MAD > AMS','07:05','09:40');
-  fly('2026-08-25','FLIGHT - MVD > MAD','12:20','05:10');
-  show('2026-08-28','Societe - Scheveningen','23:30','01:00','green');
-  show('2026-08-29','Onder de Radar - Enschede','18:30','20:30','green');
-  fly('2026-08-30','FLIGHT - AMS > MAN','10:20','10:40');
-  show('2026-08-30','Creamfields - Manchester','19:30','21:00','green');
-  show('2026-08-30','Mint - Leeds','01:00','03:00','green');
-  mark('2026-08-31','HOME');
-  fly('2026-08-31','FLIGHT - MAN > AMS','11:00','13:20');
-  // September 2026
-  mark('2026-09-01','ARTWORK RELEASE 1 DEADLINE');
-  fly('2026-09-01','FLIGHT - AMS > IBZ','12:20','14:55');
-  stay('2026-09-01','HOTEL - Ocean Drive, Talamanca','Check-in: 14:00');
-  show('2026-09-01','PIV - Ibiza','23:00','00:30','green');
-  mark('2026-09-02','teaser video 2');
-  stay('2026-09-02','HOTEL - Ocean Drive, Talamanca','Check-out: 11:00');
-  fly('2026-09-02','FLIGHT - IBZ > AMS','16:05','18:45');
-  show('2026-09-03','USA TOUR','','','green');
-  fly('2026-09-03','[WES + MARIEKE FLIGHT] - AMS > DFW','10:55','14:10');
-  show('2026-09-04','CNTRL Room - Dallas','','','green');
-  mark('2026-09-05','OFF CHICAGO');
-  fly('2026-09-05','[WES + MARIEKE FLIGHT] - DFW > ORD','13:10','15:55');
-  show('2026-09-06','ARC Festival - Chicago','15:00','16:00','green');
-  fly('2026-09-06','[WES + MARIEKE] - ORD > MIA','18:59','23:11');
-  show('2026-09-06','Space - Miami','','','green');
-  fly('2026-09-08','[WES + MARIEKE] - MIA > AMS','16:55','07:40');
-  mark('2026-09-11','1st release?');
-  show('2026-09-12','FLY Festival - Edinburgh','16:00','17:30','green');
-  show('2026-09-13','BRET ALL DAY LONG - Amsterdam','','','green');
-  fly('2026-09-18','FLIGHT - AMS > MLA','07:00','10:00');
-  show('2026-09-18','Fuse - Malta (BOAT)','12:00','15:00','green');
-  show('2026-09-18','AB - FUSE Malta','22:00','00:00','green');
-  show('2026-09-19','Mas Tiempo - Hi Ibiza','','','green');
-  stay('2026-09-19','HOTEL - Ocean Drive Talamanca','Check-in: 14:00');
-  stay('2026-09-20','HOTEL - Ocean Drive Talamanca','Check-out: 12:00');
-  show('2026-09-25','Mission Ballroom - Denver','','','green');
-  show('2026-09-26','CRSSD - San Diego','','','green');
-  show('2026-09-27','Elixir - Orlando','','','green');
-  // October 2026
-  show('2026-10-02','After Caposile - Ibiza','03:00','04:00','green');
-  mark('2026-10-05','sleuteloverdracht');
-  show('2026-10-09','Fabric - London','','','green');
-  show('2026-10-10','USS - Manchester','01:00','03:00','green');
-  show('2026-10-16','Circolo - Rome','02:00','04:00','green');
-  show('2026-10-17','il Muretto - Venice','01:30','03:00','green');
-  show('2026-10-21','Modern Funktion ADE - Amsterdam','00:30','02:00','green');
-  show('2026-10-23','Georgia Records - Nottingham','','','orange');
-  show('2026-10-24','Audio Obscura - Amsterdam','','','orange');
-  show('2026-10-25','Raw Cutz - Amsterdam','','','orange');
-  show('2026-10-26','Slapfunk - ADE (AB)','','','green');
-  show('2026-10-31','Slapfunk - Leeds','19:00','21:00','green');
-  // November 2026
-  show('2026-11-06','Caposile Festival - Verona','23:30','01:00','green');
-  show('2026-11-07','Club Colette - Birmingham','','','orange');
-  show('2026-11-07','subcultuur - nijmegen','','','orange');
-  show('2026-11-13','On & On - Utrecht','01:00','03:00','green');
-  show('2026-11-14','Tank - Sheffield','01:00','03:00','green');
-  show('2026-11-15','Boiler Room Amsterdam','','','orange');
-  show('2026-11-20','La Java - Paris','','','orange');
-  show('2026-11-21','ANTS - Birmingham','','','orange');
-  show('2026-11-21','Quarters - Brighton','03:30','05:00','green');
-  show('2026-11-27','WHP - Manchester','','','orange');
-  show('2026-11-27','NX - Newcastle','','','orange');
-  show('2026-11-27','Herfstdrift - Nijmegen','','','green');
-  show('2026-11-28','La Java - Paris','','','orange');
-  show('2026-11-28','Hot Creations - Newcastle','','','orange');
-  show('2026-11-29','AB - Slapfunk Manchester Nowhere','','','orange');
-  // December 2026
-  show('2026-12-05','(NIGHT) Modern Funktion - Liverpool','','','green');
-  show('2026-12-05','(DAY) Modern Funktion Bristol','','','green');
-  show('2026-12-09','RISE Festival - Alpes','21:00','22:30','green');
-
-  s.ideas = [];
-  s.notes = [];
-  s.contacts = [];
-  s.invoices = [];
-  s.packing = s.settings.packingTemplate.map(x=>({id:uid('pk'),label:x,done:false}));
-  assignLogistics();
-  /* Local only — never full-sync seed into a cloud org (that duplicates every show). */
-  store = s;
+  if(typeof migrate === 'function') migrate();
   db.write(store);
 }
 /* Attach each flight/hotel/driver to the show it belongs to (nearest show, preferring the upcoming one). */
@@ -2258,13 +2193,37 @@ function restoreMissingLogistics(){
   renderView();
   toast(n ? `Restored details on ${n} journey item${n>1?'s':''}` : 'No extra journey details found to restore','check');
 }
+const OPERATE_BOOT_VERSION = 2;
+function isBundledDemoStore(){
+  const ev = store && store.events;
+  if(!Array.isArray(ev) || ev.length < 10) return false;
+  return ev.some(e => /WYTWOODS|Creamfields|Smaakmarkt|Open Air Smaakmarkt/i.test(String(e.venue || e.eventName || '')));
+}
 /* Forward-compat: backfill fields added in later versions */
 function migrate(){
+  if(store && (store._bootVersion || 1) < OPERATE_BOOT_VERSION){
+    store._bootVersion = OPERATE_BOOT_VERSION;
+    if(isBundledDemoStore()){
+      store.events = [];
+      store.trips = [];
+      store.ideas = [];
+      store.notes = [];
+      store.noteFolders = [];
+      store.contacts = [];
+      store.invoices = [];
+      store.itineraries = [];
+      if(typeof emptyV2Collections === 'function') store.v2 = emptyV2Collections();
+      try{ localStorage.removeItem(DB_BACKUP_KEY); }catch(e){}
+    }
+  }
   const s=store.settings;
-  if(!s.fx) s.fx={GBP:1,EUR:0.85,USD:0.79};
-  if(!s.baseCurrency) s.baseCurrency='GBP';
+  if(typeof ensureCurrencySettings === 'function') ensureCurrencySettings(s);
+  else {
+    if(!s.fx) s.fx = { GBP: 1, EUR: 0.86 };
+    if(!s.baseCurrency) s.baseCurrency = 'GBP';
+  }
   if(!s.homeAirport) s.homeAirport='AMS';
-  if(s.baseCurrencyAuto!==false) s.baseCurrency=homeCurrency();   // drive currency from home airport unless user overrode it
+  if(s.baseCurrencyAuto !== false && typeof homeCurrency === 'function') s.baseCurrency = homeCurrency();
   if(!s.billing) s.billing={name:'',address:'',taxId:'',iban:'',email:''};
   if(!s.invoicePrefix) s.invoicePrefix='AHQ';
   if(s.invoiceSeq==null) s.invoiceSeq=1;

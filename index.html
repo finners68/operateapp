@@ -9,11 +9,13 @@
 <meta name="apple-mobile-web-app-title" content="OperateApp">
 <meta name="theme-color" content="#0a0a0c">
 <title>Operate</title>
+<!-- Local build: react-show v349 — check page source if UI looks stale -->
+<meta http-equiv="Cache-Control" content="no-cache">
 <link rel="apple-touch-icon" href="icons/icon-180.png">
 <link rel="apple-touch-icon" sizes="192x192" href="icons/icon-192.png">
 <link rel="icon" type="image/png" sizes="512x512" href="icons/icon-512.png">
 <link rel="manifest" href="manifest.json">
-<link rel="stylesheet" href="styles.css?v=317">
+<link rel="stylesheet" href="styles.css?v=378">
 </head>
 <body>
 <div id="authSheet" class="auth-sheet"></div>
@@ -21,7 +23,7 @@
   <div id="screen">
     <button id="sidebar-reveal" type="button" class="sidebar-reveal" onclick="toggleSidebar(false)" title="Show sidebar"></button>
     <button id="desktop-refresh" type="button" class="desktop-refresh" onclick="refreshFromCloud()" title="Refresh from cloud"></button>
-    <div class="top-safe"></div><div id="view"></div></div>
+    <div class="top-safe"></div><div id="view"><div class="app-boot-placeholder" aria-busy="true" role="status"><b>Operate</b><span>Loading…</span></div></div></div>
   <button id="fab" class="fab" style="display:none"></button>
   <nav id="nav"></nav>
   <div id="scrim"></div>
@@ -35,33 +37,45 @@
 <script src="js/tour-logistics-catalog.js"></script>
 <script src="js/geo.js"></script>
 <script src="js/db-v2-state.js"></script>
-<script src="js/state.js"></script>
+<script src="js/state.js?v=330"></script>
+<script src="js/currency.js?v=2"></script>
 <script src="js/db-v2-maps.js"></script>
 <script src="js/db-v2-journeys.js"></script>
 <script src="js/db-v2-repo.js"></script>
 <script src="js/db-v2-compose.js"></script>
 <script src="js/db-v2-load.js"></script>
 <script src="js/db-v2-push.js"></script>
-<script src="js/db.js"></script>
+<script src="js/db.js?v=326"></script>
 <script src="js/sync.js"></script>
 <script src="js/auth.js"></script>
-<script src="js/shows.js"></script>
-<script src="js/trip.js"></script>
-<script src="js/calendar.js"></script>
+<script src="js/shows.js?v=322"></script>
+<script src="js/trip.js?v=339"></script>
+<script src="js/calendar.js?v=3"></script>
 <script src="js/ideas.js"></script>
 <script src="js/notes.js"></script>
-<script src="js/app.js"></script>
+<script src="js/search.js?v=2"></script>
+<script src="js/home-widgets.js?v=4"></script>
+<script src="js/app.js?v=337"></script>
 <script src="js/wrapped.js"></script>
-<script src="js/react-show.js?v=325"></script>
-<script src="js/pwa.js"></script>
+<script src="js/react-show.js?v=392"></script>
+<script src="js/pwa.js?v=2"></script>
 <script>
-  if(typeof OperateReact !== 'undefined' && OperateReact.mountApp){
-    OperateReact.mountApp();
-  } else if(typeof OperateReact !== 'undefined' && OperateReact.mountShell){
-    OperateReact.mountShell();
-    if(OperateReact.refreshShell) OperateReact.refreshShell();
-  }
-  authBoot();
+  (function startOperate(){
+    try{
+      if(typeof authBoot === 'function') authBoot();
+    }catch(e){
+      console.error('[Operate] start failed', e);
+      var v=document.getElementById('view');
+      if(v) v.innerHTML='<div class="card" style="margin:24px;padding:16px"><b>Could not start</b><p class="hint">Try a hard refresh (clear cache). If it keeps happening, run <code>operateErrors()</code> in the browser console.</p></div>';
+    }
+  })();
+  window.addEventListener('pageshow', function(ev){
+    if(!ev.persisted) return;
+    try{ if(typeof boot === 'function') boot(); }catch(_){}
+    try{
+      if(typeof OperateReact !== 'undefined' && OperateReact.mountApp) OperateReact.mountApp();
+    }catch(_){}
+  });
 </script>
 </body>
 </html>

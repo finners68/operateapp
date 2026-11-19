@@ -5,9 +5,12 @@
   "type": "module",
   "scripts": {
     "check": "node scripts/check-syntax.mjs",
-    "test": "node --test",
+    "typecheck": "tsc --noEmit",
+    "test": "node --experimental-strip-types --test",
     "build:react": "vite build",
-    "ci": "npm run check && npm test && npm run build:react"
+    "preview": "npm run build:react && npx --yes serve . -l 3000",
+    "preview:4180": "npm run build:react && npx --yes serve . -l 4180",
+    "ci": "npm run check && npm run typecheck && npm test && npm run build:react"
   },
   "dependencies": {
     "react": "^19.2.8",
@@ -15,7 +18,10 @@
     "react-router-dom": "^7.18.3"
   },
   "devDependencies": {
+    "@types/react": "^19.2.7",
+    "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^6.1.1",
+    "typescript": "^5.9.3",
     "vite": "^8.2.2"
   }
 }

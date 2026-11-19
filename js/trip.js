@@ -19,6 +19,11 @@ function viewTripMode(run){
   <div class="screen-pad stagger">
     <div class="tripmode-banner"><span class="pulse"></span> LIVE · ${fmtDate(run.start)}${run.end!==run.start?' – '+fmtDate(run.end):''}</div>
 
+    <div class="section">
+      <div class="section-head"><div class="section-title">Day timeline</div><div class="section-link">${tl.filter(x=>x.done).length}/${tl.length}</div></div>
+      ${dayTimeline(run.key, run)}
+    </div>
+
     ${nextStep?`
     <div class="hero nextshow">
       <div class="hero-label" style="color:var(--green)">${ICON.clock(14)} Up next${nextStep.time?' · '+esc(nextStep.time):''} · ${esc(relDay(nextStep.date))}</div>
@@ -48,11 +53,6 @@ function viewTripMode(run){
     <div class="section">
       <div class="section-head"><div class="section-title">Shows on this tour</div><div class="section-link">${run.shows.length}</div></div>
       <div class="card flush">${run.shows.map((e,i)=>tripLegRow(e,i,nextShow)).join('')}</div>
-    </div>
-
-    <div class="section">
-      <div class="section-head"><div class="section-title">Day timeline</div><div class="section-link">${tl.filter(x=>x.done).length}/${tl.length}</div></div>
-      ${dayTimeline(run.key, run)}
     </div>
 
     <div class="section">
@@ -166,10 +166,16 @@ window.resolveJourneyEndpoint = resolveJourneyEndpoint;
    address only when there's no venue name. */
 function venueMapQuery(sh){
   if(!sh) return '';
-  /* Maps should use the street address only — not the venue/club name. */
-  if(typeof formatVenueAddress === 'function'){
+  /* Prefer street address; when missing, use venue name + city so Maps still lands on the right place. */
+  const hasStreet = [sh.venueAddr, sh.venueAddr2, sh.venuePostcode].some(x => String(x || '').trim());
+  if(hasStreet && typeof formatVenueAddress === 'function'){
     const addr = formatVenueAddress(sh);
     if(addr) return addr;
+  }
+  const venueName = typeof cleanVenue === 'function' ? cleanVenue(sh.venue) : String(sh.venue || '').trim();
+  if(venueName){
+    const ctx = [sh.city, sh.country].map(x => String(x || '').trim()).filter(Boolean).join(', ');
+    return ctx ? (venueName + ', ' + ctx) : venueName;
   }
   const parts = [sh.venueAddr, sh.venueAddr2, sh.city, sh.venueRegion, sh.venuePostcode, sh.country];
   const seen = new Set();
@@ -347,6 +353,39 @@ function uploadItemPass(itemId, input){
     });
   });
 }
+/* Calendar-day groups for the React tour timeline (same date pills as show page). */
+function groupRunTimelineForPreview(run){
+  const list = runTimeline(run);
+  const n = new Date();
+  const today = `${n.getFullYear()}-${pad(n.getMonth()+1)}-${pad(n.getDate())}`;
+  const groups = [];
+  list.forEach(s => {
+    const date = String(s.trueDate || s.date || s.showDate || '').slice(0, 10);
+    const last = groups[groups.length - 1];
+    if(!last || last.date !== date){
+      groups.push({
+        date,
+        label: (typeof fmtDate === 'function' ? fmtDate(date) : date) || date,
+        today: !!(date && date === today),
+        steps: [s]
+      });
+    } else {
+      last.steps.push(s);
+    }
+  });
+  return { groups, list };
+}
+/* Live “now” dot for tour timeline steps on today’s calendar date. */
+function runTimelineLiveState(run, tl){
+  const list = Array.isArray(tl) ? tl : (run ? runTimeline(run) : []);
+  const n = new Date();
+  const today = `${n.getFullYear()}-${pad(n.getMonth()+1)}-${pad(n.getDate())}`;
+  const todaySteps = list.filter(s => String(s.trueDate || s.date || s.showDate || '').slice(0, 10) === today);
+  if(typeof showTimelineLiveState !== 'function'){
+    return { showDay: false, activeId: null, beforeIds: [], progress: 0, upcoming: false };
+  }
+  return showTimelineLiveState({ date: today }, todaySteps);
+}
 /* Group the run timeline by show so overnight items stay on that show's itinerary. */
 function runTimelineByDay(run){
   const rows=runTimeline(run); const groups=[]; const byKey=Object.create(null);
@@ -465,33 +504,137 @@ function viewTrips(){
     <div class="spacer"></div>
   </div>`;
 }
+/* Tours list — destinations as title, date range underneath (Shows → Tours). */
+function runDateLabel(run){
+  if(!run || !run.start) return 'Tour';
+  const a = fmtDate(run.start);
+  if(!run.end || run.end === run.start) return a;
+  return a + ' – ' + fmtDate(run.end);
+}
+function runDestinationsSummary(run){
+  const shows = (run && run.shows) || [];
+  const cities = [];
+  shows.forEach(s => {
+    const c = String(s.city || '').trim();
+    if(c && cities.indexOf(c) === -1) cities.push(c);
+  });
+  if(!cities.length){
+    shows.forEach(s => {
+      const v = typeof cleanVenue === 'function' ? cleanVenue(s.venue) : String(s.venue || '').trim();
+      const name = String(s.eventName || '').trim();
+      const label = (v && v.toLowerCase() !== 'venue' ? v : '') || name;
+      if(label && cities.indexOf(label) === -1) cities.push(label);
+    });
+  }
+  const n = cities.length;
+  if(!n) return shows.length ? (shows.length + ' show' + (shows.length !== 1 ? 's' : '')) : 'Tour';
+  if(n <= 3) return cities.join(', ');
+  return cities.slice(0, 2).join(', ') + ' +' + (n - 2) + ' more';
+}
+function tourListShowRows(run){
+  const body = (run.shows || []).map(e => (typeof showListRow === 'function' ? showListRow(e) : '')).filter(Boolean).join('');
+  return body ? '<div class="card flush tour-list-shows">' + body + '</div>' : '<div class="hint" style="padding:12px 16px">No shows in this tour.</div>';
+}
 function runCard(r){
   const c = CATS[r.color]||CATS.green;
-  const active = activeRun() && activeRun().key===r.key;
-  const p = runProgress(r);
-  return `<div class="card tap" style="margin-bottom:14px;border-color:${active?c+'66':'var(--stroke)'}" onclick="openView('trip','${r.key}')">
-    <div style="display:flex;align-items:center;gap:12px">
-      <div class="ic" style="width:44px;height:44px;border-radius:13px;background:${c}22;color:${c};display:flex;align-items:center;justify-content:center">${ICON.trips(22)}</div>
-      <div style="flex:1;min-width:0">
-        <div style="display:flex;align-items:center;gap:8px"><b style="font-size:17px;font-weight:600">${esc(r.title)}</b>${active?'<span class="tag confirmed">Live</span>':''}</div>
-        <div style="font-size:13px;color:var(--text-2);margin-top:2px">${fmtDate(r.start)}${r.end!==r.start?' – '+fmtDate(r.end):''}</div>
-      </div>
-      ${ICON.chevR(18)}
-    </div>
-    <div style="display:flex;justify-content:space-between;margin-top:12px;font-size:12.5px;color:var(--text-3);font-weight:600"><span>${r.shows.length} show${r.shows.length!==1?'s':''}</span><span>${esc(relDay(r.start))}</span></div>
-  </div>`;
+  const active = activeRun() && activeRun().key === r.key;
+  const sub = (active ? 'Live · ' : '') + runDateLabel(r);
+  const fold = foldSection('tourlist_' + r.key, ICON.trips(17), runDestinationsSummary(r), sub, tourListShowRows(r), false, active ? 'tour-list-fold tour-list-live' : 'tour-list-fold');
+  return '<div class="tour-list-item" style="margin-bottom:14px">' + fold + '</div>';
 }
 function runRow(r){
-  const c = CATS[r.color]||CATS.green;
-  return `<div class="row" onclick="openView('trip','${r.key}')">
-    <div class="ic" style="background:${c}22;color:${c}">${ICON.trips(18)}</div>
-    <div class="body"><b>${esc(r.title)}</b><span>${r.shows.length} show${r.shows.length!==1?'s':''} · ${fmtDate(r.start)}</span></div>
-    ${ICON.chevR(15)}
-  </div>`;
+  return runCard(r);
 }
 /* ============================================================
    TRIP DETAIL
    ============================================================ */
+function scrollUpNextCarousel(){
+  document.querySelectorAll('.up-next-carousel[data-next-idx]').forEach(el=>{
+    const idx = parseInt(el.getAttribute('data-next-idx'), 10);
+    if(!Number.isFinite(idx) || idx < 0) return;
+    const slide = el.querySelector('[data-step-idx="'+idx+'"]');
+    if(slide) slide.scrollIntoView({ inline:'center', block:'nearest', behavior:'instant' });
+    upNextCarouselSyncNav(el);
+  });
+}
+function upNextCarouselSyncNav(carousel){
+  if(!carousel) return;
+  const deck = carousel.closest('.up-next-deck');
+  if(!deck) return;
+  const slides = carousel.querySelectorAll('.up-next-slide');
+  const n = slides.length;
+  if(!n) return;
+  const w = Math.max(carousel.clientWidth, 1);
+  const idx = Math.max(0, Math.min(Math.round(carousel.scrollLeft / w), n - 1));
+  const pos = deck.querySelector('.up-next-deck-pos');
+  if(pos) pos.textContent = (idx + 1) + ' / ' + n;
+  const nav = deck.querySelector('.up-next-deck-nav');
+  if(!nav) return;
+  const prev = nav.querySelector('[data-up-next-prev]');
+  const next = nav.querySelector('[data-up-next-next]');
+  if(prev) prev.disabled = idx <= 0;
+  if(next) next.disabled = idx >= n - 1;
+}
+function scrollUpNextCarouselPage(dir, btn){
+  const deck = btn && btn.closest ? btn.closest('.up-next-deck') : null;
+  const carousel = deck ? deck.querySelector('.up-next-carousel') : null;
+  if(!carousel) return;
+  carousel.scrollBy({ left: dir * carousel.clientWidth, behavior: 'smooth' });
+}
+function upNextCarouselScroll(carousel){
+  upNextCarouselSyncNav(carousel);
+}
+function upNextCarouselHtml(runKey, tl){
+  if(!tl.length) return '<div class="hint">Add flights & hotels inside each show</div>';
+  const nextIdx = Math.max(0, tl.findIndex(s=>!s.done));
+  const cards = tl.map((s,i)=>{
+    const pills = stepPills(s) || '';
+    const flight = (s.ref && s.kind==='travel' && (s.ref.icon||'plane')==='plane') ? flightInfoWidget(s.ref) : '';
+    return `<article class="up-next-slide up-next-pane hero nextshow" data-step-idx="${i}" onclick="timelineStepOptions('${runKey}','${jsAttr(s.id)}')">
+      <div class="hero-label">${(ICON[s.icon]||ICON.clock)(14)} ${esc(relDay(s.date))}${s.time?' · '+esc(s.time):''}</div>
+      <div class="hero-venue" style="font-size:22px;margin-top:6px">${esc(s.title)}</div>
+      ${s.sub?`<div class="hero-city">${esc(s.sub)}</div>`:''}
+      ${pills?`<div class="hero-info" style="margin-top:15px;flex-wrap:wrap">${pills}</div>`:''}
+      ${flight}
+    </article>`;
+  }).join('');
+  return `<div class="card up-next-deck">
+      <div class="up-next-deck-head">
+        <p class="up-next-scroll-hint up-next-scroll-hint--touch">Swipe for earlier or later steps</p>
+        <p class="up-next-scroll-hint up-next-scroll-hint--desktop">Use arrows or the scrollbar below</p>
+        <div class="up-next-deck-nav">
+          <button type="button" class="header-btn" data-up-next-prev title="Previous step" onclick="scrollUpNextCarouselPage(-1, this)">${ICON.chevL(18)}</button>
+          <span class="up-next-deck-pos">1 / ${tl.length}</span>
+          <button type="button" class="header-btn" data-up-next-next title="Next step" onclick="scrollUpNextCarouselPage(1, this)">${ICON.chevR(18)}</button>
+        </div>
+      </div>
+      <div class="up-next-carousel up-next-carousel--inset up-next-carousel--desktop-bar" data-next-idx="${nextIdx}" onscroll="upNextCarouselScroll(this)">${cards}</div>
+    </div>`;
+}
+function syncTourModeViewToggle(isDay){
+  const seg = document.getElementById('tour-mode-view-seg');
+  if(!seg) return;
+  const opts = seg.querySelectorAll('.tour-mode-seg-opt');
+  if(opts[0]) opts[0].classList.toggle('active', !isDay);
+  if(opts[1]) opts[1].classList.toggle('active', isDay);
+  const label = isDay ? 'Tour timeline — click for up next' : 'Up next — click for tour timeline';
+  seg.setAttribute('aria-label', label);
+}
+function flipTourModeDashboardView(btn){
+  let tourDashDay = false;
+  try{ tourDashDay = sessionStorage.getItem('operate_tour_dash_view') === 'day'; }catch(e){}
+  setTourModeDashboardView(tourDashDay ? 'upnext' : 'day');
+}
+function setTourModeDashboardView(mode){
+  try{ sessionStorage.setItem('operate_tour_dash_view', mode === 'day' ? 'day' : 'upnext'); }catch(_){}
+  const up = document.getElementById('tour-view-upnext');
+  const day = document.getElementById('tour-view-day');
+  const isDay = mode === 'day';
+  if(up) up.style.display = isDay ? 'none' : '';
+  if(day) day.style.display = isDay ? '' : 'none';
+  syncTourModeViewToggle(isDay);
+  if(!isDay && typeof scrollUpNextCarousel === 'function') requestAnimationFrame(scrollUpNextCarousel);
+}
 /* The live tour dashboard body — shared by the Tour Mode tab and the tour
    detail overlay so both are always identical. */
 function tripBody(r){
@@ -501,8 +644,9 @@ function tripBody(r){
   const pk = store.packing||[];
   const nextIdx = tl.findIndex(s=>!s.done);
   const nextStep = nextIdx>=0 ? tl[nextIdx] : null;
-  const thenStep = nextIdx>=0 ? tl[nextIdx+1] : null;
   const legShow = nextStep ? (stepShow(nextStep) || r.shows.find(s=>!s.setDone)) : null;
+  let tourDashDay = false;
+  try{ tourDashDay = sessionStorage.getItem('operate_tour_dash_view') === 'day'; }catch(e){}
   return `
     <div class="dhero">
       <div class="cat-bar" style="background:${c}"></div>
@@ -510,35 +654,23 @@ function tripBody(r){
       <h1>${esc(r.title)}</h1>
       <div class="sub">${ICON.calendar(14)} ${fmtDateLong(r.start)}${r.end!==r.start?' – '+fmtDate(r.end):''}</div>
     </div>
+    <button type="button" class="tour-mode-seg" id="tour-mode-view-seg" aria-label="${tourDashDay ? 'Tour timeline — click for up next' : 'Up next — click for tour timeline'}" onclick="flipTourModeDashboardView(this)">
+      <span class="tour-mode-seg-opt ${tourDashDay ? '' : 'active'}">Up next</span>
+      <span class="tour-mode-seg-opt ${tourDashDay ? 'active' : ''}">Tour timeline</span>
+    </button>
 
-    <!-- 1) UP NEXT — the next thing to do; adaptive widgets; small tick advances -->
     <div class="section" style="margin-top:14px">
-      <div class="section-head"><div class="section-title">Up next</div></div>
-      ${nextStep ? `
-      <div class="hero nextshow">
-        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px">
-          <div class="hero-label">${(ICON[nextStep.icon]||ICON.clock)(14)} ${esc(relDay(nextStep.date))}${nextStep.time?' · '+esc(nextStep.time):''}</div>
-          <button class="mini-tick" onclick="completeRunStep('${r.key}','${nextStep.id}')" title="Done — next">${ICON.check(15)}</button>
+      <div id="tour-view-upnext" style="${tourDashDay ? 'display:none' : ''}">${upNextCarouselHtml(r.key, tl)}</div>
+      <div id="tour-view-day" style="${tourDashDay ? '' : 'display:none'}">
+        <div class="section-head" style="margin-top:0">
+          <div class="section-title">Tour timeline</div>
+          <div class="section-link">${r.shows.length} day${r.shows.length!==1?'s':''}</div>
         </div>
-        <div class="hero-venue" style="font-size:22px;margin-top:6px">${esc(nextStep.title)}</div>
-        ${nextStep.sub?`<div class="hero-city">${esc(nextStep.sub)}</div>`:''}
-        <div class="hero-info" style="margin-top:15px;flex-wrap:wrap">${stepPills(nextStep)}</div>
-        ${(nextStep.ref && nextStep.kind==='travel' && (nextStep.ref.icon||'plane')==='plane')?flightInfoWidget(nextStep.ref):''}
+        ${dayTimeline(r.key, r)}
       </div>
-      ${thenStep?`<div class="then-next">
-        <div class="then-lab">Then</div>
-        <div class="then-ic">${(ICON[thenStep.icon]||ICON.clock)(15)}</div>
-        <div class="then-body"><b>${esc(thenStep.title)}</b><span>${thenStep.time?esc(thenStep.time)+' · ':''}${esc(relDay(thenStep.date))}${thenStep.sub?' · '+esc(thenStep.sub):''}</span></div>
-      </div>`:''}` : `<div class="card" style="text-align:center;color:var(--text-2);padding:22px">${ICON.check(24)}<div style="margin-top:6px;font-weight:650">Tour complete 🎧</div></div>`}
     </div>
 
-    ${tourContacts(r).length?`<div class="section"><button class="btn secondary" onclick="openTourContacts('${r.key}')">${ICON.users(17)} Key contacts · ${tourContacts(r).length}</button></div>`:''}
-
-    <!-- 2) DAY TIMELINE — each day is its own dropdown, collapsed by default -->
-    <div class="section">
-      <div class="section-head"><div class="section-title">Day timeline</div><div class="section-link">${r.shows.length} day${r.shows.length!==1?'s':''}</div></div>
-      ${dayTimeline(r.key, r)}
-    </div>
+    ${tourContactsCompactHtml(r)}
 
     <!-- 3) SHOWS ON THIS TOUR -->
     <div class="section">
@@ -649,32 +781,122 @@ function saveTrip(tid){
    ============================================================ */
 function startTripFromShow(showId){ store.activeShowId=showId; persist('user_preferences'); overlay=null; navStack=[]; store.tab='trips'; if(typeof saveNavState==='function') saveNavState(); render({ resetScroll: true }); toast('Trip Mode on','play'); }
 function endTripMode(){ confirmSheet('End Trip Mode?','This turns off the live tour view. Nothing is deleted.','End Trip Mode',()=>{ store.activeShowId=null; persist('user_preferences'); overlay=null; store.tab='trips'; if(typeof saveNavState==='function') saveNavState(); render({ resetScroll: true }); toast('Trip Mode off','flag'); }); }
-/* Callable people saved on each show. The show contact list is the master
-   copy — the same person can also sit on a journey, and listing those
-   journeys would repeat them once per trip. */
-function tourContacts(run){
-  const out=[];
-  (run && run.shows || []).forEach(s=>{
-    const show = cleanVenue(s.venue)||s.city||'Show';
-    if(s.promoter && (s.promoter.phone||s.promoter.whatsapp)) out.push({show, label:'Artist Liaison', name:s.promoter.name||'', phone:s.promoter.phone||'', whatsapp:s.promoter.whatsapp||''});
-    (s.contacts||[]).forEach(c=>{ if(c.phone||c.whatsapp) out.push({show, label:showContactRoleLabel(c.role)||'Contact', name:c.name||'', phone:c.phone||'', whatsapp:c.whatsapp||''}); });
+function tourShowLabel(s){
+  return cleanVenue(s.venue) || s.city || 'Show';
+}
+/* Trip Mode contacts — grouped for the sheet (show/venue, drivers, hotel). */
+function tourContactsGrouped(run){
+  const showVenue = [];
+  const drivers = [];
+  const hotel = [];
+  (run && run.shows || []).forEach(s => {
+    const show = tourShowLabel(s);
+    const p = s.promoter;
+    if(p && (p.name || p.phone || p.whatsapp)){
+      showVenue.push({
+        category: 'show',
+        show,
+        label: 'Artist liaison',
+        sub: show,
+        name: p.name || 'Liaison',
+        phone: p.phone || '',
+        whatsapp: p.whatsapp || p.phone || ''
+      });
+    }
+    (s.contacts || []).forEach(c => {
+      const role = String(c.role || '').toLowerCase();
+      if(role === 'driver') return;
+      if(!c.name && !c.phone && !c.whatsapp) return;
+      showVenue.push({
+        category: 'show',
+        show,
+        label: (typeof showContactRoleLabel === 'function' ? showContactRoleLabel(c.role) : c.role) || 'Contact',
+        sub: show,
+        name: c.name || 'Contact',
+        phone: c.phone || '',
+        whatsapp: c.whatsapp || c.phone || ''
+      });
+    });
+    const h = s.hotel;
+    if(h && (h.name || h.phone || h.whatsapp)){
+      const bits = [];
+      if(h.checkin && typeof fmtDate === 'function') bits.push(fmtDate(h.checkin));
+      if(s.city) bits.push(s.city);
+      hotel.push({
+        category: 'hotel',
+        show,
+        label: h.name || 'Accommodation',
+        sub: bits.join(' · ') || show,
+        name: 'Reception',
+        phone: h.phone || '',
+        whatsapp: h.whatsapp || h.phone || ''
+      });
+    }
+    if(typeof orderedDrivers === 'function'){
+      orderedDrivers(s).forEach(({ d }) => {
+        ensureDriverLocations(d);
+        if(d.noGround && !d.name && !d.phone && !d.whatsapp) return;
+        if(!d.name && !d.phone && !d.whatsapp) return;
+        const bits = [];
+        const jl = typeof driverJourneyLabel === 'function' ? driverJourneyLabel(d) : (d.journey || '');
+        if(jl) bits.push(jl);
+        if(d.time) bits.push(d.time);
+        else if(d.start) bits.push(d.start);
+        drivers.push({
+          category: 'driver',
+          show,
+          sortMs: typeof journeyWhenMs === 'function' ? journeyWhenMs(d, s.date) : Number.POSITIVE_INFINITY,
+          name: d.name || 'Driver',
+          phone: d.phone || '',
+          whatsapp: d.whatsapp || d.phone || '',
+          journeySub: bits.join(' · ') || show,
+          label: '',
+          sub: ''
+        });
+      });
+    }
   });
-  return out;
+  drivers.sort((a, b) => {
+    const da = Number.isFinite(a.sortMs) ? a.sortMs : Number.POSITIVE_INFINITY;
+    const db = Number.isFinite(b.sortMs) ? b.sortMs : Number.POSITIVE_INFINITY;
+    if(da !== db) return da - db;
+    return String(a.show).localeCompare(String(b.show));
+  });
+  drivers.forEach((row, i) => {
+    row.label = `Driver ${i + 1} | ${row.name}`;
+    row.sub = row.journeySub;
+  });
+  return { show: showVenue, drivers, hotel };
+}
+/* Flat list for counts and legacy callers. */
+function tourContacts(run){
+  const g = tourContactsGrouped(run);
+  return [...g.show, ...g.drivers, ...g.hotel];
 }
 function openTourContacts(runKey){
-  const run=runOf(runKey); if(!run) return;
-  const list=tourContacts(run);
-  if(!list.length){ toast('No contacts saved on these shows yet','x'); return; }
-  const byShow={}; list.forEach(c=>{ (byShow[c.show]=byShow[c.show]||[]).push(c); });
-  const multi=Object.keys(byShow).length>1;
-  const body=Object.entries(byShow).map(([show,cs])=>`
-    ${multi?`<div class="prio-head" style="margin:14px 4px 8px"><span class="pd" style="background:var(--accent-2)"></span>${esc(show)}</div>`:''}
-    <div class="card flush">${cs.map(c=>`<div class="info-line info-line-stacked"><div class="ic">${ICON.user(17)}</div>
-      <div class="tx" style="flex:1;min-width:0">${detailParts(esc(c.label||'Contact'), esc(c.name||''), c.phone?esc(c.phone):'')}</div>
-      ${(c.whatsapp||c.phone)?`<button class="header-btn" style="width:34px;height:34px;align-self:center" onclick="whatsapp('${jsAttr(c.whatsapp||c.phone)}')">${ICON.chat(15)}</button>`:''}
-      ${c.phone?`<button class="header-btn" style="width:34px;height:34px;align-self:center" onclick="callNumber('${jsAttr(c.phone)}')">${ICON.phone(15)}</button>`:''}
-    </div>`).join('')}</div>`).join('');
-  openSheetReact('Key contacts', 'trip.contacts', { runKey, contacts: list, grouped: multi });
+  const run = runOf(runKey);
+  if(!run) return;
+  const grouped = tourContactsGrouped(run);
+  const callable = tourContacts(run).filter(c => c.phone || c.whatsapp);
+  if(!callable.length){ toast('No contacts with a phone number on this tour yet','x'); return; }
+  openSheetReact('Key contacts', 'trip.contacts', { runKey, grouped });
+}
+function tourContactsCompactHtml(run){
+  const list = tourContacts(run).filter(c => c.phone || c.whatsapp);
+  if(!list.length) return '';
+  const preview = list.slice(0, 2);
+  const rows = preview.map((c, i) => `<div class="tour-contacts-mini-row">
+      <span class="tour-contacts-mini-name">${esc(c.name || c.label)}</span>
+      ${c.phone ? `<button type="button" class="tour-contacts-mini-act" title="Call" onclick="callNumber('${jsAttr(c.phone)}')">${ICON.phone(14)}</button>` : ''}
+    </div>`).join('');
+  return `<div class="section tour-contacts-section"><div class="card tour-contacts-compact">
+    <button type="button" class="tour-contacts-compact-head" onclick="openTourContacts('${run.key}')">
+      ${ICON.users(16)} <span class="tour-contacts-compact-title">Key contacts</span>
+      <span class="tour-contacts-compact-count">${list.length}</span>
+      ${ICON.chevR(14)}
+    </button>
+    ${rows}
+  </div></div>`;
 }
 function completeRunStep(runKey, stepId){
   let done = null;
@@ -685,6 +907,7 @@ function completeRunStep(runKey, stepId){
   else { const it=store.events.find(x=>x.id===stepId); if(it){ it.done=!it.done; done=!!it.done; if(it.done) toast('Done ✓','check'); } }
   haptic(); persist('user_preferences');
   if(done == null || !patchCheckRowsById(stepId, done)) softRender();
+  if(typeof scrollUpNextCarousel === 'function') requestAnimationFrame(scrollUpNextCarousel);
 }
 function togglePack(id){
   const p=store.packing.find(x=>x.id===id);

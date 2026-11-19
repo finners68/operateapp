@@ -6,6 +6,7 @@ import vm from 'node:vm';
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { moveGridWidget, placeGridWidgetAtPointer, pointerToGridCell } from '../src/home/homeWidgetGrid.ts';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -425,6 +426,252 @@ test('ground cards keep Hotel to Venue as the title and the real place name unde
   assert.equal(S.groundRouteRealName('Hotel', 'Gerodan House', show), 'Gerodan House');
 });
 
+function loadRunsHarness() {
+  const sandbox = {
+    window: { addEventListener() {} },
+    document: { addEventListener() {}, getElementById() { return null; }, createElement() { return { getContext() { return {}; } }; } },
+    localStorage: { getItem() { return null; }, setItem() {} },
+    navigator: {}, crypto: { randomUUID: () => 'a'.repeat(32) },
+    console, setTimeout, clearTimeout,
+  };
+  sandbox.self = sandbox.window;
+  vm.createContext(sandbox);
+  vm.runInContext(readFileSync(join(root, 'js', 'state.js'), 'utf8'), sandbox, { filename: 'state.js' });
+  return sandbox;
+}
+
+test('tour runs group shows between home outbound and inbound flights', () => {
+  const sb = loadRunsHarness();
+  vm.runInContext(`
+    store = {
+      settings: { homeAirport: 'AMS' },
+      events: [
+        { id: 'a', kind: 'show', date: '2026-06-01', city: 'Belfast', flights: [
+          { fromCode: 'AMS', toCode: 'BFS', dep: '2026-06-01 09:00' }
+        ]},
+        { id: 'b', kind: 'show', date: '2026-06-03', city: 'Glasgow', flights: [] },
+        { id: 'c', kind: 'show', date: '2026-06-05', city: 'Liverpool', flights: [
+          { fromCode: 'LPL', toCode: 'AMS', arr: '2026-06-05 23:00' }
+        ]},
+        { id: 'd', kind: 'show', date: '2026-06-20', city: 'Berlin', flights: [] }
+      ],
+      trips: []
+    };
+  `, sb);
+  const runs = sb.runs();
+  assert.equal(runs.length, 2);
+  assert.equal(runs[0].shows.length, 3);
+  assert.equal(runs[0].shows.map(s => s.id).join(','), 'a,b,c');
+  assert.equal(runs[1].shows.length, 1);
+});
+
+test('a flight out of home does not swallow later shows that do not connect', () => {
+  const sb = loadRunsHarness();
+  vm.runInContext(`
+    store = {
+      settings: { homeAirport: 'AMS' },
+      events: [
+        { id: 'a', kind: 'show', date: '2026-08-01', city: 'A', flights: [
+          { fromCode: 'AMS', toCode: 'MAN', dep: '2026-08-01 08:00' }
+        ]},
+        { id: 'b', kind: 'show', date: '2026-08-03', city: 'B', flights: [] },
+        { id: 'c', kind: 'show', date: '2026-08-10', city: 'C', flights: [] }
+      ],
+      trips: []
+    };
+  `, sb);
+  const runs = sb.runs();
+  assert.equal(runs.length, 2);
+  assert.equal(runs[0].shows.map(s => s.id).join(','), 'a,b');
+  assert.equal(runs[1].shows[0].id, 'c');
+});
+
+test('connecting flights stay together and a later flight home does not pull in unrelated shows', () => {
+  const sb = loadRunsHarness();
+  vm.runInContext(`
+    store = {
+      settings: { homeAirport: 'MAN' },
+      events: [
+        { id: 'ny', kind: 'show', date: '2026-10-06', city: 'New York', flights: [
+          { fromCode: 'MAN', toCode: 'EWR', dep: '2026-10-06 09:00' }
+        ]},
+        { id: 'nj', kind: 'show', date: '2026-10-12', city: 'New Jersey', flights: [
+          { fromCode: 'EWR', toCode: 'EWR', dep: '2026-10-12 12:00' }
+        ]},
+        { id: 'malta', kind: 'show', date: '2026-10-15', city: 'Malta', flights: [] },
+        { id: 'home', kind: 'show', date: '2026-11-25', city: 'Glasgow', flights: [
+          { fromCode: 'BCN', toCode: 'MAN', arr: '2026-11-25 18:00' }
+        ]}
+      ],
+      trips: []
+    };
+  `, sb);
+  const runs = sb.runs();
+  assert.equal(runs.length, 3);
+  assert.equal(runs[0].shows.map(s => s.id).join(','), 'ny,nj');
+  assert.equal(runs[1].shows[0].id, 'malta');
+  assert.equal(runs[2].shows[0].id, 'home');
+});
+
+test('tour runs split on home return, not the next outbound alone', () => {
+  const sb = loadRunsHarness();
+  vm.runInContext(`
+    store = {
+      settings: { homeAirport: 'AMS' },
+      events: [
+        { id: 't1a', kind: 'show', date: '2026-09-01', city: 'A', flights: [
+          { fromCode: 'AMS', toCode: 'MAN', dep: '2026-09-01 08:00' }
+        ]},
+        { id: 't1b', kind: 'show', date: '2026-09-03', city: 'B', flights: [
+          { fromCode: 'MAN', toCode: 'AMS', arr: '2026-09-03 22:00' }
+        ]},
+        { id: 'solo', kind: 'show', date: '2026-09-12', city: 'Solo', flights: [] },
+        { id: 't2a', kind: 'show', date: '2026-09-15', city: 'C', flights: [
+          { fromCode: 'AMS', toCode: 'BER', dep: '2026-09-15 07:00' }
+        ]},
+        { id: 't2b', kind: 'show', date: '2026-09-17', city: 'D', flights: [
+          { fromCode: 'BER', toCode: 'AMS', arr: '2026-09-17 21:00' }
+        ]}
+      ],
+      trips: []
+    };
+  `, sb);
+  const runs = sb.runs();
+  assert.equal(runs.length, 3);
+  assert.equal(runs[0].shows.length, 2);
+  assert.equal(runs[0].shows.map(s => s.id).join(','), 't1a,t1b');
+  assert.equal(runs[1].shows[0].id, 'solo');
+  assert.equal(runs[2].shows.length, 2);
+});
+
+test('tour runs count IATA-only flights and ignore stray return markers', () => {
+  const sb = loadRunsHarness();
+  vm.runInContext(`
+    store = {
+      settings: { homeAirport: 'Amsterdam (AMS)' },
+      events: [
+        { id: 't1a', kind: 'show', date: '2026-07-01', city: 'A', flights: [
+          { fromCode: 'AMS', toCode: 'MAN', dep: '2026-07-01 08:00' }
+        ]},
+        { id: 't1b', kind: 'show', date: '2026-07-03', city: 'B', flights: [] },
+        { id: 't1c', kind: 'show', date: '2026-07-05', city: 'C', flights: [
+          { fromCode: 'MAN', toCode: 'AMS', arr: '2026-07-05 22:00' }
+        ]},
+        { id: 't2a', kind: 'show', date: '2026-07-12', city: 'D', flights: [
+          { fromCode: 'AMS', toCode: 'BER', dep: '2026-07-12 07:00' }
+        ]},
+        { id: 't2b', kind: 'show', date: '2026-07-14', city: 'E', flights: [
+          { fromCode: 'BER', toCode: 'AMS', arr: '2026-07-14 21:00' }
+        ]}
+      ],
+      trips: []
+    };
+  `, sb);
+  const runs = sb.runs();
+  assert.equal(runs.length, 2);
+  assert.equal(runs[0].shows.length, 3);
+  assert.equal(runs[1].shows.length, 2);
+});
+
+function loadSearch() {
+  const sandbox = {
+    window: { addEventListener() {} },
+    document: { addEventListener() {}, getElementById() { return null; }, createElement() { return { getContext() { return {}; } }; } },
+    localStorage: { getItem() { return null; }, setItem() {} },
+    navigator: {}, crypto: { randomUUID: () => 'a'.repeat(32) },
+    console, setTimeout, clearTimeout,
+    CATS: { purple: '#6d5efc' },
+    ICON: {
+      chevR: () => '',
+      planeTop: () => '',
+      map: () => '',
+      bed: () => '',
+      car: () => '',
+      users: () => '',
+      receipt: () => '',
+      clip: () => ''
+    },
+    esc: s => String(s ?? ''),
+    jsAttr: s => String(s ?? '').replace(/'/g, "\\'"),
+    fmtDate: d => d || '',
+    relDay: d => d || '',
+    parseDT: (d) => d ? new Date(d + 'T12:00:00') : null,
+    showTitle: (e) => e.eventName || e.venue || '',
+    cleanVenue: v => String(v || '').trim(),
+    runDestinationsSummary: () => '',
+    runDateLabel: () => '',
+    runs: () => [],
+    flightHasDetails: f => !!(f && (f.code || f.from || f.to)),
+    flightEndpointCodes: f => ({ from: f.fromCode || f.from || '', to: f.toCode || f.to || '' }),
+    travelFlightCodes: e => ({ from: e.fromCode || e.from || '', to: e.toCode || e.to || '' }),
+    runs: () => [],
+    runDestinationsSummary: () => '',
+    runDateLabel: () => ''
+  };
+  sandbox.store = { events: [], contacts: [], invoices: [] };
+  sandbox.sel = {
+    events: () => (sandbox.store.events || []).filter(e => (e.kind || 'show') === 'show'),
+    event: (id) => (sandbox.store.events || []).find(e => e.id === id)
+  };
+  sandbox.self = sandbox.window;
+  vm.createContext(sandbox);
+  vm.runInContext(readFileSync(join(root, 'js', 'search.js'), 'utf8'), sandbox, { filename: 'search.js' });
+  return sandbox;
+}
+
+test('global search ignores note bodies and matches structured show fields', () => {
+  const sb = loadSearch();
+  Object.assign(sb.store, {
+    events: [
+      { id: 's1', kind: 'show', eventName: 'Parklife', venue: 'Heaton Park', city: 'Manchester', date: '2026-06-20', flights: [] }
+    ],
+    contacts: [],
+    invoices: [],
+    notes: [{ id: 'n1', title: 'Ideas', body: 'Parklife should not match from this paragraph' }]
+  });
+  const pack = sb.globalSearch('parklife');
+  assert.equal(pack.results.length, 1);
+  assert.equal(pack.results[0].type, 'show');
+  assert.equal(pack.results[0].id, 's1');
+});
+
+test('global search surfaces flights and venues without scraping travel info notes', () => {
+  const sb = loadSearch();
+  Object.assign(sb.store, {
+    events: [
+      { id: 's1', kind: 'show', eventName: 'NYC', venue: 'Terminal 5', city: 'New York', date: '2026-10-06',
+        flights: [{ id: 'f1', code: 'BA123', fromCode: 'MAN', toCode: 'JFK', dep: '2026-10-06 09:00' }]
+      },
+      { id: 't1', kind: 'travel', icon: 'plane', showId: null, fromCode: 'MAN', toCode: 'JFK', flightNo: 'BA123', title: 'Flight', date: '2026-10-06', start: '09:00',
+        info: 'random baggage note mentioning unrelated words' }
+    ],
+    contacts: [],
+    invoices: []
+  });
+  const byCode = sb.globalSearch('ba123');
+  assert.ok(byCode.results.some(r => r.type === 'flight'));
+  const byVenue = sb.globalSearch('terminal');
+  assert.equal(byVenue.results.length, 1);
+  assert.equal(byVenue.results[0].type, 'venue');
+});
+
+test('global search dedupes show vs venue and ranks exact names first', () => {
+  const sb = loadSearch();
+  Object.assign(sb.store, {
+    events: [
+      { id: 'a', kind: 'show', eventName: 'Parklife', venue: 'Heaton Park', city: 'Manchester', date: '2026-06-20', flights: [] },
+      { id: 'b', kind: 'show', eventName: 'Other', venue: 'SWG3', city: 'Glasgow', date: '2026-09-10', flights: [] }
+    ],
+    contacts: [],
+    invoices: []
+  });
+  const exact = sb.globalSearch('parklife');
+  assert.equal(exact.results[0].title.toLowerCase().includes('parklife'), true);
+  const venueOnly = sb.globalSearch('swg3');
+  assert.equal(venueOnly.results.length, 1);
+  assert.equal(venueOnly.results[0].type, 'venue');
+});
+
 test('home persona follows the saved account type and falls back to DJ', () => {
   const sandbox = {
     window: { addEventListener() {} },
@@ -455,6 +702,137 @@ test('home persona follows the saved account type and falls back to DJ', () => {
   assert.equal(out.tmBlurb, "Today's tour operations");
   assert.equal(out.agent, 'agent');
   assert.equal(out.unknown, 'dj');
+});
+
+function loadCurrencyHarness() {
+  const sandbox = {
+    store: { settings: { baseCurrency: 'GBP', fx: { GBP: 1, EUR: 0.86, USD: 0.79 } } },
+    console,
+    persist() {},
+    toBase(amount, cur) {
+      const fx = sandbox.store.settings.fx;
+      const base = sandbox.store.settings.baseCurrency;
+      return (amount || 0) * (fx[cur] || 1) / (fx[base] || 1);
+    },
+    fxRate(cur) { return sandbox.store.settings.fx[cur] || 1; },
+    homeCurrency() { return 'GBP'; },
+  };
+  vm.createContext(sandbox);
+  vm.runInContext(readFileSync(join(root, 'js', 'currency.js'), 'utf8'), sandbox, { filename: 'currency.js' });
+  return sandbox;
+}
+
+test('currencyCodes always includes GBP and EUR', () => {
+  const C = loadCurrencyHarness();
+  const codes = C.currencyCodes({ baseCurrency: 'GBP', fx: { GBP: 1, USD: 0.79 } });
+  assert.ok(codes.includes('GBP'));
+  assert.ok(codes.includes('EUR'));
+  assert.ok(codes.includes('USD'));
+});
+
+test('ensureCurrencySettings fills default EUR rate', () => {
+  const C = loadCurrencyHarness();
+  const settings = { baseCurrency: 'GBP', fx: { GBP: 1 } };
+  C.ensureCurrencySettings(settings);
+  assert.equal(typeof settings.fx.EUR, 'number');
+  assert.ok(settings.fx.EUR > 0);
+});
+
+test('convertCurrency converts via base', () => {
+  const C = loadCurrencyHarness();
+  const inEur = C.convertCurrency(100, 'GBP', 'EUR');
+  assert.ok(inEur > 100);
+  assert.equal(C.convertCurrency(50, 'EUR', 'EUR'), 50);
+});
+
+test('defaultFxTable has unit rate for base', () => {
+  const C = loadCurrencyHarness();
+  const fx = C.defaultFxTable('EUR');
+  assert.equal(fx.EUR, 1);
+  assert.ok(fx.GBP > 0);
+});
+
+test('removeAppCurrency blocks removing GBP', () => {
+  const C = loadCurrencyHarness();
+  const r = C.removeAppCurrency('GBP');
+  assert.equal(r.ok, false);
+});
+
+test('rebaseFxForNewBase keeps GBP/EUR relationship when switching base', () => {
+  const C = loadCurrencyHarness();
+  C.store.settings = { baseCurrency: 'GBP', fx: { GBP: 1, EUR: 0.86 } };
+  C.rebaseFxForNewBase(C.store.settings, 'EUR');
+  assert.equal(C.store.settings.baseCurrency, 'EUR');
+  assert.equal(C.store.settings.fx.EUR, 1);
+  assert.ok(C.store.settings.fx.GBP > 1.1);
+  assert.ok(Math.abs(C.convertCurrency(100, 'GBP', 'EUR') - 116) < 2);
+});
+
+test('emptyOperateState has no bundled shows', () => {
+  const sandbox = { console, crypto: { randomUUID: () => 'aaaaaaaa-bbbb-4ccc-yyyy-xxxxxxxxxxxx' } };
+  vm.createContext(sandbox);
+  vm.runInContext(readFileSync(join(root, 'js', 'db-v2-state.js'), 'utf8'), sandbox, { filename: 'db-v2-state.js' });
+  const s = vm.runInContext('emptyOperateState();', sandbox);
+  assert.equal(Array.isArray(s.events), true);
+  assert.equal(s.events.length, 0);
+  assert.equal((s.v2 && s.v2.shows) ? s.v2.shows.length : 0, 0);
+});
+
+test('moveGridWidget places widgets side by side on the same row', () => {
+  const grid = [
+    { id: 'a', x: 0, y: 0, w: 4, h: 3, size: 'small' },
+    { id: 'b', x: 0, y: 3, w: 4, h: 3, size: 'small' },
+  ];
+  const next = moveGridWidget(grid, 'b', 4, 0, 12);
+  const b = next.find((g) => g.id === 'b');
+  assert.equal(b.x, 4);
+  assert.equal(b.y, 0);
+  assert.equal(next.find((g) => g.id === 'a').x, 0);
+});
+
+test('placeGridWidgetAtPointer snaps to grid column under the pointer', () => {
+  const grid = [
+    { id: 'a', x: 0, y: 0, w: 6, h: 4, size: 'medium' },
+    { id: 'b', x: 0, y: 4, w: 6, h: 4, size: 'medium' },
+  ];
+  const container = {
+    getBoundingClientRect: () => ({ left: 100, top: 200, width: 612, height: 900 }),
+  };
+  const cell = pointerToGridCell(container, 100 + 320, 200 + 40, 12, 76, 12);
+  assert.equal(cell.x, 6);
+  assert.equal(cell.y, 0);
+  const next = placeGridWidgetAtPointer(grid, 'b', container, 100 + 320, 200 + 40, 12, 76);
+  const b = next.find((g) => g.id === 'b');
+  assert.equal(b.x, 6);
+  assert.equal(b.y, 0);
+});
+
+test('venueMapQuery prefers address then venue name with city', () => {
+  const sandbox = {
+    window: {},
+    document: { addEventListener() {}, getElementById() { return null; } },
+    localStorage: { getItem() { return null; }, setItem() {} },
+    store: { settings: {} },
+    console,
+    sel: { event() { return null; } },
+  };
+  sandbox.self = sandbox.window;
+  vm.createContext(sandbox);
+  vm.runInContext(readFileSync(join(root, 'js', 'state.js'), 'utf8'), sandbox, { filename: 'state.js' });
+  vm.runInContext(readFileSync(join(root, 'js', 'trip.js'), 'utf8'), sandbox, { filename: 'trip.js' });
+  const withAddr = vm.runInContext(`venueMapQuery({
+    venue: 'DC10',
+    venueAddr: 'Carrer de la Playa',
+    city: 'Ibiza',
+    country: 'Spain'
+  });`, sandbox);
+  assert.ok(/playa/i.test(withAddr));
+  const nameOnly = vm.runInContext(`venueMapQuery({
+    venue: 'DC10',
+    city: 'Ibiza',
+    country: 'Spain'
+  });`, sandbox);
+  assert.equal(nameOnly, 'DC10, Ibiza, Spain');
 });
 
 

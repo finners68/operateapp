@@ -12,7 +12,7 @@ export default defineConfig({
   build: {
     emptyOutDir: false,
     lib: {
-      entry: fileURLToPath(new URL('./src/show/main.jsx', import.meta.url)),
+      entry: fileURLToPath(new URL('./src/show/main.tsx', import.meta.url)),
       name: 'OperateReact',
       formats: ['iife'],
       fileName: () => 'react-show.js'

@@ -17,14 +17,29 @@ if(typeof window !== 'undefined'){
   window.addEventListener('unhandledrejection', (e)=> logClientError('promise', (e.reason && e.reason.message) || e.reason));
 }
 /* ---------- Boot ---------- */
+let bootDone = false;
 function boot(){
+  if(bootDone){
+    render();
+    if(typeof notifyStore === 'function') notifyStore();
+    return;
+  }
+  bootDone = true;
   if(typeof clearLegacyLocalStore === 'function') clearLegacyLocalStore();
   const saved = db.read();
   if(saved && saved.v2 && Array.isArray(saved.events)){ store = saved; if(store.tab==null) store.tab='home'; migrate(); }
   else { seed(); }
   restoreNavState();
   if(store.tab==='notes'){ store.tab='ideas'; if(typeof contentMode!=='undefined') contentMode='notes'; }
-  render();
+  const R = (typeof OperateReact !== 'undefined') ? OperateReact : null;
+  if(R && typeof R.mountApp === 'function'){
+    if(typeof R.isAppMounted !== 'function' || !R.isAppMounted()) R.mountApp();
+    else if(typeof notifyStore === 'function') notifyStore();
+    if(typeof setFab === 'function') setFab();
+    if(typeof syncScreenChrome === 'function') syncScreenChrome();
+  }else{
+    render();
+  }
   if(typeof rehydrateBlobs==='function'){ rehydrateBlobs(store).then(()=>renderView()).catch(()=>{}); }
   if(store && store.settings && typeof applyHomeHeaderDisplay === 'function'){
     applyHomeHeaderDisplay(store.settings).then(() => { if(typeof renderView === 'function') renderView(); }).catch(()=>{});
@@ -459,6 +474,7 @@ function saveNavState(){
       tab:store.tab,
       overlay,
       navStack,
+      navReturn:(typeof window !== 'undefined' ? window.__navReturn : null),
       hash,
       scrollY:screen?screen.scrollTop:0,
       showsMode:(typeof showsMode!=='undefined'?showsMode:'shows'),
@@ -467,6 +483,18 @@ function saveNavState(){
   }catch(e){}
 }
 function loadNavState(){ try{ return JSON.parse(localStorage.getItem(NAV_KEY)||'null'); }catch(e){ return null; } }
+function hashPathname(){
+  const raw = String((typeof location !== 'undefined' && location.hash) ? location.hash : '').replace(/^#/, '').trim();
+  if(!raw || raw === '/') return '';
+  return raw.startsWith('/') ? raw : '/' + raw;
+}
+function navFromHash(){
+  const path = hashPathname();
+  if(!path) return null;
+  const legacyFn = (typeof window !== 'undefined' && window.__operateLegacyFromPath) ? window.__operateLegacyFromPath : null;
+  if(typeof legacyFn !== 'function') return null;
+  try{ return legacyFn(path); }catch(_){ return null; }
+}
 /* Cloud reloads replace `store`. Re-apply the tab/modes the user navigated to
    (saved by go/openView/back) so a mid-fetch section change is not overwritten. */
 function applySavedNavToStore(){
@@ -477,21 +505,39 @@ function applySavedNavToStore(){
   if(ns.contentMode && typeof contentMode !== 'undefined') contentMode = ns.contentMode;
 }
 function restoreNavState(){
-  const ns=loadNavState(); if(!ns) return;
-  if(ns.tab) store.tab=ns.tab;
-  if(store.tab==='notes'){ store.tab='ideas'; if(typeof contentMode!=='undefined') contentMode='notes'; }
-  if(ns.showsMode && typeof showsMode!=='undefined') showsMode=ns.showsMode;
-  if(ns.contentMode && typeof contentMode!=='undefined') contentMode=ns.contentMode;
-  overlay = ns.overlay || null;
-  navStack = Array.isArray(ns.navStack) ? ns.navStack : [];
-  // Never auto-open a lock-protected screen on reopen
-  if(overlay && overlay.type==='finance' && typeof financeLockActive==='function' && financeLockActive()){ overlay=null; }
-  navStack = navStack.filter(o=>!(o&&o.type==='finance' && typeof financeLockActive==='function' && financeLockActive()));
-  if(ns.scrollY){ requestAnimationFrame(()=>{ const s=document.getElementById('screen'); if(s) s.scrollTop=ns.scrollY; }); }
+  const ns = loadNavState();
+  const fromHash = navFromHash();
+  const curHash = hashPathname() || '/';
+
+  if(fromHash){
+    /* URL hash wins on refresh — stops saved tab/overlay fighting React Router. */
+    if(fromHash.tab) store.tab = fromHash.tab;
+    if(store.tab === 'notes'){ store.tab = 'ideas'; if(typeof contentMode !== 'undefined') contentMode = 'notes'; }
+    overlay = fromHash.overlay || null;
+    navStack = [];
+  }else if(ns){
+    if(ns.tab) store.tab = ns.tab;
+    if(store.tab === 'notes'){ store.tab = 'ideas'; if(typeof contentMode !== 'undefined') contentMode = 'notes'; }
+    overlay = ns.overlay || null;
+    navStack = Array.isArray(ns.navStack) ? ns.navStack : [];
+  }
+  if(ns){
+    if(ns.showsMode && typeof showsMode !== 'undefined') showsMode = ns.showsMode;
+    if(ns.contentMode && typeof contentMode !== 'undefined') contentMode = ns.contentMode;
+  }
+  if(overlay && overlay.type === 'finance' && typeof financeLockActive === 'function' && financeLockActive()){ overlay = null; }
+  navStack = navStack.filter(o => !(o && o.type === 'finance' && typeof financeLockActive === 'function' && financeLockActive()));
+  if(typeof window !== 'undefined' && ns && ns.navReturn && overlay) window.__navReturn = ns.navReturn;
+  const savedHash = String((ns && ns.hash) || '/').replace(/^#/, '').trim() || '/';
+  const savedPath = savedHash.startsWith('/') ? savedHash : '/' + savedHash;
+  if(ns && ns.scrollY && savedPath === (curHash || '/')){
+    requestAnimationFrame(() => { const s = document.getElementById('screen'); if(s) s.scrollTop = ns.scrollY; });
+  }
 }
 function go(tab){
   navStack=[];
   overlay=null;
+  if(typeof window !== 'undefined') window.__navReturn = null;
   store.tab=tab;
   if(tab==='ideas') ideasStale=false;
   if(typeof OperateReact !== 'undefined' && OperateReact.nav && typeof OperateReact.nav.goTab === 'function'
@@ -502,6 +548,13 @@ function go(tab){
   }
   haptic(); persist('user_preferences'); saveNavState(); render({ resetScroll: true, quiet: true });
 }
+function rememberNavReturnBeforeOpen(){
+  if(typeof window === 'undefined' || overlay) return;
+  const path = hashPathname() || '/';
+  const fromHash = navFromHash();
+  const tab = (fromHash && fromHash.tab) || store.tab || 'home';
+  window.__navReturn = { tab, path, label: overlayBackLabelFromTab(tab) };
+}
 function openView(type, id){
   if(type==='finance' && financeLockActive()){ requireUnlock('finance', ()=>openView('finance', id)); return; }
   if(typeof OperateReact !== 'undefined' && OperateReact.nav && typeof OperateReact.nav.navigateTo === 'function'
@@ -511,6 +564,7 @@ function openView(type, id){
     return;
   }
   if(overlay) navStack.push(overlay);   // remember where we came from
+  else rememberNavReturnBeforeOpen();
   overlay={type, id};
   if(type==='event' && id && typeof resetShowFolds==='function') resetShowFolds(id);
   haptic(); saveNavState(); renderView({ resetScroll: true, quiet: true });
@@ -531,6 +585,7 @@ function back(){
    that section instead. */
 function activeNavTab(){
   if(overlay){
+    if(typeof window !== 'undefined' && window.__navReturn && window.__navReturn.tab) return window.__navReturn.tab;
     if(overlay.type==='trip') return 'trips';
     if(overlay.type==='event') return 'shows';
     if(overlay.type==='idea') return 'ideas';
@@ -847,6 +902,7 @@ function reopenSheetReturn(ret){
   else if(ret.kind==='showTimeline' && ret.id) sheetShowTimeline(ret.id);
   else if(ret.kind==='showFlights' && ret.id) sheetFlight(ret.id);
   else if(ret.kind==='showContacts' && ret.id) sheetKeyContacts(ret.id);
+  else if(ret.kind==='settingsCurrency') sheetCurrency();
 }
 /* Open a show-edit section and remember to return to the Edit show panel. */
 function openFromEventMenu(eid, opener){
@@ -2836,6 +2892,11 @@ function confirmDeleteIdea(iid){ confirmSheet('Delete idea?','This can\'t be und
    Settings
    ============================================================ */
 function openSettings(){ openView('settings'); }
+function sheetHomeWidgets(){
+  if(typeof window.__homeStartWidgetEdit === 'function') window.__homeStartWidgetEdit();
+  else toast('Open Home and tap Edit widgets', 'edit');
+}
+window.sheetHomeWidgets = sheetHomeWidgets;
 function sheetAccountType(){
   openSheetReact('Account type', 'settings.accountType', {});
 }
@@ -2919,7 +2980,7 @@ function viewSettings(){
 
     <div class="set-title">Money</div>
     <div class="set-group">
-      <div class="set-row tap" onclick="sheetCurrency()"><div class="ic" style="background:var(--card-2);color:var(--text-2)">${ICON.globe(17)}</div><div class="body"><b>Base currency & rates</b><span>${s.baseCurrency} · ${Object.keys(s.fx).length} currencies</span></div><div class="trail">${ICON.chevR(15)}</div></div>
+      <div class="set-row tap" onclick="sheetCurrency()"><div class="ic" style="background:var(--card-2);color:var(--text-2)">${ICON.globe(17)}</div><div class="body"><b>Base currency & rates</b><span>${s.baseCurrency} · ${(typeof currencyCodes === 'function' ? currencyCodes(s) : Object.keys(s.fx)).length} currencies</span></div><div class="trail">${ICON.chevR(15)}</div></div>
       <div class="set-row tap" onclick="openBilling()"><div class="ic" style="background:var(--card-2);color:var(--text-2)">${ICON.wallet2(17)}</div><div class="body"><b>Billing & invoicing</b><span>${s.billing.name?esc(s.billing.name):'Set up for invoices'}</span></div><div class="trail">${ICON.chevR(15)}</div></div>
     </div>
 
@@ -2946,13 +3007,22 @@ function viewSettings(){
 
     <div class="set-title is-danger">Danger zone</div>
     <div class="set-group">
-      <div class="set-row tap" onclick="confirmReset()"><div class="ic" style="background:var(--red-soft);color:var(--red)">${ICON.trash(17)}</div><div class="body"><b style="color:var(--red)">Reset all app data</b><span>Permanently remove locally stored app data</span></div><div class="trail">${ICON.chevR(15)}</div></div>
+      <div class="set-row tap" onclick="confirmReset()"><div class="ic" style="background:var(--red-soft);color:var(--red)">${ICON.trash(17)}</div><div class="body"><b style="color:var(--red)">Delete all app data</b><span>Permanently remove everything on this device</span></div><div class="trail">${ICON.chevR(15)}</div></div>
     </div>
     <div class="hint">Operate · local-first with optional cloud sync via Supabase.</div>
     <div class="spacer"></div>
   </div>`;
 }
-function overlayBackLabel(){ return store.tab==='home'?'Home':(store.tab.charAt(0).toUpperCase()+store.tab.slice(1)); }
+function overlayBackLabelFromTab(tab){
+  const row = TABS.find(t=>t.id===tab);
+  if(row) return row.label;
+  return tab==='home'?'Home':(tab.charAt(0).toUpperCase()+tab.slice(1));
+}
+function overlayBackLabel(){
+  if(typeof window !== 'undefined' && window.__navReturn && window.__navReturn.label) return window.__navReturn.label;
+  return overlayBackLabelFromTab(store.tab);
+}
+window.overlayBackLabelFromTab = overlayBackLabelFromTab;
 
 /* ---------- STATS (hidden in settings) ---------- */
 function computeStats(){
@@ -3320,11 +3390,24 @@ function sheetCurrency(){
   const s=store.settings;
   openSheetReact('Currency & rates', 'settings.currency', { settings: s });
 }
+function sheetCurrencyAdd(){
+  const extras = typeof pickableExtraCurrencies === 'function' ? pickableExtraCurrencies() : [];
+  if(!extras.length){ toast('No more currencies to add','x'); return; }
+  sheetReturnStack.push({ kind: 'settingsCurrency' });
+  openSheetReact('Add currency', 'settings.currencyAdd', {});
+}
 function saveCurrency(){
   const base=rawVal('set-base')||store.settings.baseCurrency;
   withButton($('#set-save'), ()=>{
     document.querySelectorAll('#set-rates input[data-cur]').forEach(inp=>{ const r=parseFloat(inp.value); if(r>0) store.settings.fx[inp.dataset.cur]=r; });
-    store.settings.baseCurrency=base; store.settings.baseCurrencyAuto=false; persist('settings'); closeSheet(); renderView();
+    const prevBase = store.settings.baseCurrency;
+    store.settings.baseCurrencyAuto=false;
+    if(base !== prevBase && typeof rebaseFxForNewBase === 'function') rebaseFxForNewBase(store.settings, base);
+    else {
+      store.settings.baseCurrency = base;
+      if(typeof ensureCurrencySettings === 'function') ensureCurrencySettings(store.settings);
+    }
+    persist('settings'); closeSheet(); renderView();
   }, 'Rates saved');
 }
 function sheetPacking(){
@@ -3354,7 +3437,41 @@ function importData(input){
   r.onerror=()=>toast('Could not read file','x');
   r.readAsText(f);
 }
-function confirmReset(){ confirmSheet('Reset everything?','All shows, trips, ideas and notes on this device will be deleted and demo data restored.','Reset all data',()=>{ localStorage.removeItem(DB_KEY); seed(); store.tab='home'; overlay=null; closeSheet(); render(); toast('Reset to demo data','check'); }, true); }
+function resetAllLocalAppData(){
+  if(typeof clearLegacyLocalStore === 'function') clearLegacyLocalStore();
+  try{ localStorage.removeItem(DB_KEY); }catch(e){}
+  try{ localStorage.removeItem(DB_BACKUP_KEY); }catch(e){}
+  try{ localStorage.removeItem(ITINERARY_UPLOAD_STATE_KEY); }catch(e){}
+  itineraryFullUploadByShow = {};
+  sheetReturnStack = [];
+  overlay = null;
+  if(typeof session !== 'undefined' && session){
+    session.appUnlocked = true;
+    session.financeUnlocked = true;
+  }
+  if(typeof showsMode !== 'undefined') showsMode = 'shows';
+  if(typeof contentMode !== 'undefined') contentMode = 'ideas';
+  if(typeof searchFilter !== 'undefined') searchFilter = 'all';
+  if(typeof searchQ !== 'undefined') searchQ = '';
+  seed();
+  store.tab = 'home';
+  store.activeShowId = null;
+  store.activeTripId = null;
+  if(typeof notifyStore === 'function') notifyStore();
+  saveNavState();
+  return typeof idbClearAll === 'function' ? idbClearAll() : Promise.resolve();
+}
+function confirmReset(){ confirmSheet('Delete all app data?','Permanently removes all shows, tours, notes, contacts and other data stored on this device. Your Supabase cloud data is not deleted — sign in again to reload from the cloud, or keep working with an empty app.','Delete all data',()=>{
+  const finish = ()=>{
+    closeSheet(true, { noReturn: true });
+    if(typeof go === 'function') go('home');
+    render();
+    toast('All app data deleted','check');
+  };
+  const p = resetAllLocalAppData();
+  if(p && typeof p.then === 'function') p.then(finish).catch(finish);
+  else finish();
+}, true); }
 
 /* ---------- Finance overview (overlay) ---------- */
 function viewFinance(){
@@ -3429,30 +3546,32 @@ Object.defineProperty(window, 'searchQ', {
   set(v){ searchQ = v; },
   configurable: true
 });
+let searchFilter = 'all';
+Object.defineProperty(window, 'searchFilter', {
+  get(){ return searchFilter; },
+  set(v){ searchFilter = String(v || 'all'); },
+  configurable: true
+});
+function setSearchFilter(v){ searchFilter = String(v || 'all'); if(typeof debouncedSearch === 'function') debouncedSearch(); }
 function viewSearch(){
-  const q=searchQ.trim().toLowerCase();
-  let ev=[],tr=[],id=[],nt=[];
-  if(q){
-    ev=sel.events().filter(e=>(e.venue+' '+e.city+' '+e.country+' '+(e.promoter?e.promoter.name:'')).toLowerCase().includes(q));
-    tr=runs().filter(r=>r.title.toLowerCase().includes(q) || r.cities.join(' ').toLowerCase().includes(q));
-    id=sel.ideas().filter(i=>i.title.toLowerCase().includes(q));
-    nt=sel.notes().filter(n=>(n.title+' '+n.body+' '+(n.folder||'')).toLowerCase().includes(q));
-  }
-  const total=ev.length+tr.length+id.length+nt.length;
+  const hasQ = typeof searchTokens === 'function' ? searchTokens(searchQ).length > 0 : searchQ.trim().length >= 2;
+  const pack = typeof globalSearchWithIndex === 'function'
+    ? globalSearchWithIndex(searchQ, { category: searchFilter })
+    : { results: [], total: 0 };
+  const hits = pack.results || [];
+  const total = pack.total || hits.length;
+  const chips = typeof SEARCH_FILTER_CHIPS !== 'undefined' ? SEARCH_FILTER_CHIPS : [];
+  const chipHtml = chips.map(c => `<button type="button" class="chip ${searchFilter===c.id?'on':''}" onclick="setSearchFilter('${c.id}')">${esc(c.label)}</button>`).join('');
   return `
   <div class="detail-top"><div class="detail-bar" style="padding-right:14px">
     <button class="back-btn" onclick="back()">${ICON.chevL(20)}</button>
-    <div class="searchbar" style="flex:1;margin:0"><span class="ic">${ICON.search(18)}</span><input id="search-input" placeholder="Search shows, trips, ideas, notes" value="${esc(searchQ)}" oninput="searchQ=this.value;debouncedSearch()"></div>
+    <div class="searchbar" style="flex:1;margin:0"><span class="ic">${ICON.search(18)}</span><input id="search-input" placeholder="Search shows, tours, flights, venues…" value="${esc(searchQ)}" oninput="searchQ=this.value;debouncedSearch()" autocomplete="off" spellcheck="false"></div>
   </div></div>
   <div class="screen-pad">
-    ${!q?`<div class="empty"><div class="ic">${ICON.search(26)}</div><b>Search everything</b><span>Find any show, trip, idea or note instantly.</span></div>`
-      : total===0?`<div class="empty"><div class="ic">${ICON.search(26)}</div><b>No matches for "${esc(searchQ)}"</b></div>`
-      : `
-      ${ev.length?`<div class="section" style="margin-top:6px"><div class="section-head"><div class="section-title" style="font-size:16px">Shows</div><span class="section-link">${ev.length}</span></div><div class="card flush">${ev.map(eventRow).join('')}</div></div>`:''}
-      ${tr.length?`<div class="section"><div class="section-head"><div class="section-title" style="font-size:16px">Tours</div><span class="section-link">${tr.length}</span></div><div class="card flush">${tr.map(runRow).join('')}</div></div>`:''}
-      ${id.length?`<div class="section"><div class="section-head"><div class="section-title" style="font-size:16px">Ideas</div><span class="section-link">${id.length}</span></div><div class="idea-grid">${id.map(ideaCard).join('')}</div></div>`:''}
-      ${nt.length?`<div class="section"><div class="section-head"><div class="section-title" style="font-size:16px">Notes</div><span class="section-link">${nt.length}</span></div><div class="card flush">${nt.map(noteRowFull).join('')}</div></div>`:''}
-      `}
+    <div class="chips shows-filter-chips" style="margin-bottom:12px">${chipHtml}</div>
+    ${!hasQ?`<div class="empty"><div class="ic">${ICON.search(26)}</div><b>Search your tour</b><span>Find shows, tours, flights, venues, hotels, transport and contacts. Notes and long descriptions are not searched.</span></div>`
+      : total===0?`<div class="empty"><div class="ic">${ICON.search(26)}</div><b>No matches for "${esc(searchQ)}"</b><span>Try a venue, city, flight number or booking reference.</span></div>`
+      : `<div class="card flush">${hits.map(searchResultRow).join('')}</div>`}
     <div class="spacer"></div>
   </div>`;
 }
@@ -3735,5 +3854,4 @@ function saveContact(id){
   }, id?'Contact saved':'Contact added');
 }
 function delContact(id){ confirmSheet('Delete contact?','','Delete',()=>{ store.contacts=store.contacts.filter(x=>x.id!==id); persist('contacts', id); closeSheet(); if(overlay&&overlay.type==='contacts') renderView(); }, true); }
-/* ---------- Launch ---------- */
-boot();
+/* Launch: authBoot() in index.html after react-show.js loads (avoids painting before React). */

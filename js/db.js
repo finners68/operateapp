@@ -170,6 +170,17 @@ function _idb(){
 }
 function idbSet(key,val){ return _idb().then(db=>new Promise((res,rej)=>{ const t=db.transaction(IDB_STORE,'readwrite'); t.objectStore(IDB_STORE).put(val,key); t.oncomplete=()=>res(); t.onerror=()=>rej(t.error); })).catch(()=>{}); }
 function idbGet(key){ return _idb().then(db=>new Promise((res)=>{ const t=db.transaction(IDB_STORE,'readonly'); const rq=t.objectStore(IDB_STORE).get(key); rq.onsuccess=()=>res(rq.result||null); rq.onerror=()=>res(null); })).catch(()=>null); }
+function idbClearAll(){
+  return _idb().then(db=>new Promise(res=>{
+    try{
+      const t = db.transaction(IDB_STORE, 'readwrite');
+      const rq = t.objectStore(IDB_STORE).clear();
+      rq.onsuccess = ()=>res();
+      rq.onerror = ()=>res();
+      t.onerror = ()=>res();
+    }catch(e){ res(); }
+  })).catch(()=>{});
+}
 /* Visit every image/PDF attachment across the store. */
 function eachBlobAtt(state, fn){
   (state && state.events || []).forEach(e=>{
@@ -1124,12 +1135,16 @@ async function bootstrapRemoteData(){
     if(!error) cloudEmpty = !count;
     else console.warn('bootstrap show count failed — preferring cloud load', error);
   }
-  /* Prefer cloud. Only seed-push when cloud is empty AND local cache already
-     belongs to this org — never upload another org's local tour by mistake. */
+  /* Empty cloud → always load from Supabase (stay empty). Never auto-upload a
+     stale local cache unless dev hardwire explicitly enables it. */
   const localIsV2 = !!(local && local.v2);
   const localMatchesOrg = !!(local && local.organisationId && local.organisationId === orgId);
-  const pushLocal = localIsV2 && local?.events?.length && cloudEmpty && localMatchesOrg &&
-    (!isMigrated(orgId) || isDevHardwireMode());
+  const pushLocal = !!(typeof isDevHardwireMode === 'function' && isDevHardwireMode()
+    && localIsV2 && local?.events?.length && cloudEmpty && localMatchesOrg);
+  if(cloudEmpty){
+    try{ localStorage.removeItem(DB_KEY); }catch(e){}
+    try{ localStorage.removeItem(DB_BACKUP_KEY); }catch(e){}
+  }
   if(pushLocal){
     store = local;
     if(!store.v2) store.v2 = emptyV2Collections();

@@ -1,0 +1,608 @@
+﻿import { useState } from 'react';
+import { NoteItemsField } from '../../show/NoteItems.jsx';
+import { AddTravelPicker } from '../../show/Travel.jsx';
+import { Icon } from '../../show/ui.jsx';
+import { call, getCats, getDaySheetText, getDriverJourneys, getEvent, getPassFileAccept, getStore, parseDT } from '../../api/operate.js';
+
+const Field = ({ label, id, value = '', placeholder, type = 'text', className = 'input', children, ...rest }: Record<string, any>) => (
+  <div className="field">
+    {label ? <label>{label}</label> : null}
+    {children || <input id={id} type={type} className={className} defaultValue={value} placeholder={placeholder} {...rest} />}
+  </div>
+);
+const TextArea = ({ label, id, value = '', placeholder, style }: Record<string, any>) => (
+  <div className="field"><label>{label}</label><textarea id={id} className="textarea" defaultValue={value} placeholder={placeholder} style={style} /></div>
+);
+const Spacer = () => <div className="spacer" />;
+const picker = (id: any) => call('openInputPicker', id);
+const Seg = ({ id, values, selected, onPick, className = '' }: Record<string, any>) => (
+  <div className={`seg${className ? ' '+className : ''}`} id={id}>{values.map((v: any) => {
+    const [value, label = value] = Array.isArray(v) ? v : [v, `${v[0].toUpperCase()}${v.slice(1)}`];
+    return <button type="button" key={value} data-v={value} className={selected === value ? 'on' : ''} onClick={(e: any) => { call('segPick', e.currentTarget); if(onPick) onPick(value); }}>{label}</button>;
+  })}</div>
+);
+const Swatches = ({ id, selected = 'purple', allowDefault = false }: Record<string, any>) => {
+  const cats = getCats() || {};
+  const hasSelection = selected != null && selected !== '';
+  return (
+    <div className="swatches" id={id}>
+      {allowDefault ? (
+        <div
+          key="__default"
+          className={`sw sw-default${!hasSelection ? ' on' : ''}`}
+          style={{ background: 'var(--text)' }}
+          data-cat=""
+          title="Default"
+          onClick={(e: any) => call('pickCat', e.currentTarget)}
+        />
+      ) : null}
+      {Object.entries(cats).map(([key, color]: any) =>
+        <div
+          key={key}
+          className={`sw${hasSelection && key === selected ? ' on' : ''}`}
+          style={{ background: color }}
+          data-cat={key}
+          onClick={(e: any) => call('pickCat', e.currentTarget)}
+        />
+      )}
+    </div>
+  );
+};
+const eventOf = (props: any) => props.event || getEvent(props.eid || props.id) || {};
+
+export function ShowEventSheet({ eid, event }: Record<string, any>){
+  const e = event || (eid ? getEvent(eid) : null);
+  const now = new Date();
+  const date = e?.date || `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
+  const cat = e?.color || 'purple';
+  const textCat = e?.textColor || '';
+  const color = (getCats() || {})[cat] || '#7c3aed';
+  const titleColor = textCat ? ((getCats() || {})[textCat] || color) : undefined;
+  return <>
+    <div className="dhero sheet-event-preview" id="ev-preview" style={{ background:`linear-gradient(155deg,${color}33,var(--card) 65%)`, borderColor:`${color}44` }}>
+      <div className="cat-bar" style={{ background:color }} />
+      <div className="sheet-event-tone" style={{ fontSize:12,fontWeight:700,textTransform:'uppercase',letterSpacing:'.06em',color }}>{eid?'Edit show':'New show'}</div>
+      <div id="ev-preview-venue" style={{fontSize:20,fontWeight:600,marginTop:4, color: titleColor || undefined}}>{e?.eventName || e?.venue || 'Event name'}</div>
+      {e?.eventName && e?.venue ? <div style={{fontSize:13,opacity:.75,marginTop:2}}>{e.venue}</div> : null}
+    </div>
+    <Field label="Event name" id="ev-event-name" value={e?.eventName} placeholder="e.g. Parklife, Support slot" onInput={() => call('updateEventPreviewVenue')} />
+    <Field label="Venue name" id="ev-venue" value={e?.venue} placeholder="e.g. Shelter" onInput={() => call('updateEventPreviewVenue')} />
+    <Field label="Address" id="ev-addr" value={e?.venueAddr} placeholder="Street and number" />
+    <Field label="Address line 2" id="ev-addr2" value={e?.venueAddr2} placeholder="Building, floor, unit (optional)" />
+    <div className="row-2"><Field label="City" id="ev-city" value={e?.city} placeholder="Amsterdam" /><Field label="Region" id="ev-region" value={e?.venueRegion} placeholder="North Holland" /></div>
+    <div className="row-2"><Field label="Postcode" id="ev-postcode" value={e?.venuePostcode} placeholder="1012 AB" /><Field label="Country" id="ev-country" value={e?.country} placeholder="Netherlands" /></div>
+    <div className="field picker-field" onClick={() => picker('ev-date')}><label>Date</label><input id="ev-date" type="date" className="input" defaultValue={date} onClick={(x: any)=>{x.stopPropagation();picker('ev-date')}} /></div>
+    <div className="row-2">
+      <div className="field picker-field" onClick={() => picker('ev-arr')}><label>Arrival</label><input id="ev-arr" type="time" className="input" defaultValue={e?.arrival || ''} onClick={(x: any)=>{x.stopPropagation();picker('ev-arr')}} /></div>
+      <div className="field picker-field" onClick={() => picker('ev-set')}><label>Set time</label><input id="ev-set" type="time" className="input" defaultValue={e?.setTime || '23:00'} onClick={(x: any)=>{x.stopPropagation();picker('ev-set')}} /></div>
+    </div>
+    {eid ? (
+      <>
+        <div className="row-2">
+          <div className="field picker-field" onClick={() => picker('ev-end')}><label>End time</label><input id="ev-end" type="time" className="input" defaultValue={e?.endTime || ''} onClick={(x: any)=>{x.stopPropagation();picker('ev-end')}} /></div>
+          <Field label="Artist" id="ev-artist" value={e?.artist} placeholder={getStore()?.settings?.artistName || 'Artist'} />
+        </div>
+        {e?.endTime && e?.setTime && e.endTime < e.setTime ? <div className="hint" style={{ textAlign:'left', padding:'0 2px 10px' }}>Ends after midnight ÔÇö treated as the next morning, still on this show day.</div> : null}
+      </>
+    ) : null}
+    <Field label="Status"><Seg id="ev-status" values={['confirmed','hold','cancelled']} selected={e?.status || 'confirmed'} /></Field>
+    <Field label="Content to capture" id="ev-content" value={e?.content} placeholder="e.g. 2x reels ┬À crowd clip" />
+    {eid ? <NoteItemsField label="Internal notes" listId="ev-notes" value={e?.notes} placeholder="Team-only notes" /> : null}
+    <Field label="Colour"><Swatches id="ev-cat" selected={cat} /></Field>
+    <Field label="Text colour"><Swatches id="ev-text-cat" selected={textCat} allowDefault /></Field>
+    <div className="hint" style={{ textAlign:'left', padding:'0 2px 10px' }}>Text colour tints titles on this show page. Default keeps normal app text.</div>
+    {eid ? <button type="button" className="btn secondary" style={{marginBottom:10}} onClick={()=>{call('closeSheet',true,{noReturn:true});call('eventMenu',eid)}}><Icon name="edit" size={16} /> All show sectionsÔÇª</button> : null}
+    <button type="button" className="btn" id="ev-save" onClick={()=>call('saveEvent',eid||'')}>{eid?'Save changes':'Add show'}</button><Spacer />
+  </>;
+}
+
+export function ShowAddTravelSheet({ eid }: Record<string, any>){
+  const e = eventOf({ eid });
+  if(!e) return <div className="hint">Show not found.</div>;
+  return <>
+    <p className="sheet-lede">Choose how you are getting there.</p>
+    <AddTravelPicker show={e} inSheet />
+    <Spacer />
+  </>;
+}
+
+function travelLegIcon(mode: any){
+  if(mode === 'coach') return 'bus';
+  return mode || 'train';
+}
+
+function travelLegSpec(mode: any){
+  const icon = travelLegIcon(mode);
+  const specs = {
+    train: {
+      lede: 'Add each train in the trip, including changes.',
+      from: 'From station',
+      to: 'To station',
+      fromPh: 'e.g. Amsterdam Centraal',
+      toPh: 'e.g. Brussel-Zuid',
+      code: 'Train number',
+      codePh: 'e.g. ICE 123',
+      save: 'Add train',
+      showCode: true,
+      showPlatform: true,
+      showOperator: true,
+      showBooking: true
+    },
+    bus: {
+      lede: 'Stops, times and the coach service.',
+      from: 'From',
+      to: 'To',
+      fromPh: 'Departure stop',
+      toPh: 'Arrival stop',
+      code: 'Service number',
+      codePh: 'e.g. FlixBus 1234',
+      save: 'Add coach',
+      showCode: true,
+      showOperator: true,
+      showBooking: true
+    },
+    ferry: {
+      lede: 'Ports, times and the sailing.',
+      from: 'From port',
+      to: 'To port',
+      fromPh: 'e.g. Dover',
+      toPh: 'e.g. Calais',
+      code: 'Sailing / service number',
+      codePh: 'e.g. DFDS 809',
+      save: 'Add ferry',
+      showCode: true,
+      showOperator: true,
+      showBooking: true
+    },
+    walk: {
+      lede: 'Where you walk, and roughly when.',
+      from: 'From',
+      to: 'To',
+      fromPh: 'Start',
+      toPh: 'Finish',
+      save: 'Add walk'
+    },
+    cycle: {
+      lede: 'Where you cycle, and roughly when.',
+      from: 'From',
+      to: 'To',
+      fromPh: 'Start',
+      toPh: 'Finish',
+      save: 'Add cycle'
+    }
+  };
+  return specs[icon] || specs.train;
+}
+
+export function ShowTravelLegSheet({ eid, mode }: Record<string, any>){
+  const e = eventOf({ eid });
+  const spec = travelLegSpec(mode);
+  const icon = travelLegIcon(mode);
+  const isTrain = icon === 'train';
+  const [legs, setLegs] = useState([{ key: 'leg-1' }]);
+  if(!e || !e.id) return <div className="hint">Show not found.</div>;
+
+  const addChange = () => {
+    const rows = document.querySelectorAll('#tl-legs .tl-leg');
+    const last = rows[rows.length - 1];
+    const toEl = last ? last.querySelector('.tl-to') as HTMLInputElement | null : null;
+    const prevTo = toEl ? toEl.value : '';
+    setLegs((list: any) => [...list, { key: 'leg-' + Date.now(), from: prevTo }]);
+  };
+  const removeLeg = (key: any) => setLegs((list: any) => list.length <= 1 ? list : list.filter((l: any) => l.key !== key));
+
+  const legFields = (leg: any, i: any) => (
+    <div className="tl-leg" key={leg.key}>
+      {isTrain ? (
+        <div className="tl-leg-head">
+          <span>{legs.length > 1 ? `Train ${i + 1}` : 'Train'}</span>
+          {legs.length > 1 ? (
+            <button type="button" className="add" onClick={() => removeLeg(leg.key)}>Remove</button>
+          ) : null}
+        </div>
+      ) : null}
+      <div className="row-2">
+        <Field label={spec.from}><input className="input tl-from" defaultValue={leg.from || ''} placeholder={spec.fromPh} /></Field>
+        <Field label={spec.to}><input className="input tl-to" defaultValue={leg.to || ''} placeholder={spec.toPh} /></Field>
+      </div>
+      <div className="row-2">
+        <Field label="Departure"><input className="input tl-start" type="time" defaultValue={leg.start || ''} /></Field>
+        <Field label="Arrival"><input className="input tl-end" type="time" defaultValue={leg.end || ''} /></Field>
+      </div>
+      {spec.showCode ? <Field label={spec.code}><input className="input tl-code" defaultValue={leg.code || ''} placeholder={spec.codePh} /></Field> : null}
+      {spec.showPlatform ? <Field label="Platform (optional)"><input className="input tl-platform" defaultValue={leg.platform || ''} placeholder="e.g. 5a" /></Field> : null}
+    </div>
+  );
+
+  return <>
+    <p className="sheet-lede">{spec.lede}</p>
+    <Field label="Date" id="tl-date" type="date" value={e.date} />
+    <div id="tl-legs">{isTrain ? legs.map(legFields) : legFields({ key: 'leg-1' }, 0)}</div>
+    {isTrain ? (
+      <button type="button" className="btn secondary" style={{ marginBottom: 12 }} onClick={addChange}>
+        <Icon name="plus" size={15} /> Add a change
+      </button>
+    ) : null}
+    {spec.showOperator ? <Field label="Operator (optional)" id="tl-operator" placeholder="Company or operator" /> : null}
+    {spec.showBooking ? <Field label="Booking reference (optional)" id="tl-ref" placeholder="Confirmation number" /> : null}
+    <TextArea label="Notes (optional)" id="tl-notes" placeholder="Anything else for this journeyÔÇª" style={{ minHeight: 64 }} />
+    <button type="button" className="btn" id="tl-save" onClick={() => call('saveTravelLeg', eid, icon)}>{spec.save}</button>
+    <Spacer />
+  </>;
+}
+export function ShowHotelSheet(props: any){
+  const e=eventOf(props), h=props.hotel || e.hotel || {};
+  const conf=call('hotelBookingRef',h) || h.conf || h.bookingRef || '';
+  return <>
+    <Field label="Accommodation name" id="ho-name" value={h.name} placeholder="Kimpton De Witt" />
+    <Field label="Address" id="ho-addr" value={h.address} placeholder="Street and number" />
+    <Field label="Address line 2" id="ho-addr2" value={h.address2} placeholder="Building, floor, unit (optional)" />
+    <div className="row-2"><Field label="City" id="ho-city" value={h.city} placeholder={e.city||'Amsterdam'} /><Field label="Region" id="ho-region" value={h.region} placeholder="North Holland" /></div>
+    <div className="row-2"><Field label="Postcode" id="ho-post" value={h.postcode} placeholder="1012 AB" /><Field label="Country" id="ho-country" value={h.country||e.country} placeholder="Netherlands" /></div>
+    <div className="row-2"><Field label="Phone" id="ho-phone" type="tel" value={h.phone} placeholder="+31 20 123 4567" /><Field label="Email" id="ho-email" type="email" value={h.email} placeholder="reservations@hotel.com" /></div>
+    <div className="row-2"><Field label="Check in" id="ho-in" type="date" value={h.checkin||e.date} /><Field label="Check out" id="ho-out" type="date" value={h.checkout} /></div>
+    <Field label="Confirmation #" id="ho-conf" value={conf} placeholder="Booking reference" />
+    <NoteItemsField label="Room notes" listId="ho-notes" value={h.notes} placeholder="Late checkout, floor, etc." />
+    <button className="btn" id="ho-save" onClick={()=>call('saveHotel',props.eid||props.id)}>Save accommodation</button>
+    {e.hotel ? <button className="btn danger" style={{marginTop:10}} onClick={()=>call('removeHotel',props.eid||props.id)}><Icon name="trash" size={16}/> Remove accommodation</button>:null}<Spacer />
+  </>;
+}
+
+export function ShowFlightsListSheet({ eid, flights }: Record<string, any>){
+  const e=eventOf({eid});
+  const raw=flights || (e && e.flights) || [];
+  const sorted=call('sortFlightsChrono', raw, e && e.date);
+  const list=Array.isArray(sorted)?sorted:raw;
+  return <><p className="sheet-lede">Flights already on this show ÔÇö tap one to edit route, gate and passengers.</p>
+    <div className="card flush">{list.map((f: any)=>{
+      const from=(f.from||'?').toString().trim().toUpperCase()||'?';
+      const to=(f.to||'?').toString().trim().toUpperCase()||'?';
+      return <div className="row" key={f.id} onClick={()=>call('openFlightFromList',eid,f.id)}>
+      <div className="ic"><Icon name="plane" size={18}/></div>
+      <div className="body">
+        <b>{f.code||'Flight'}</b>
+        <span className="flight-route" aria-label={`${from} to ${to}`} style={{marginTop:6}}>
+          <span className="flight-route-code">{from}</span>
+          <span className="flight-route-rail" aria-hidden="true">
+            <span className="flight-route-line"></span>
+            <span className="flight-route-icon is-air"><Icon name="planeTop" size={13}/></span>
+            <span className="flight-route-line"></span>
+          </span>
+          <span className="flight-route-code">{to}</span>
+        </span>
+        {(f.gate||f.terminal)?<span style={{display:'block',marginTop:4}}>{[f.gate?`Gate ${f.gate}`:'', f.terminal?`Term ${f.terminal}`:''].filter(Boolean).join(' ┬À ')}</span>:null}
+      </div>
+      <Icon name="chevR" size={15}/>
+    </div>;
+    })}</div>
+    <button className="btn secondary" style={{marginTop:14}} onClick={()=>call('openFlightFromList',eid,'__new__')}><Icon name="plus" size={16}/> Add flight</button><Spacer />
+  </>;
+}
+
+export function ShowContactsListSheet({ eid, contacts }: Record<string, any>){
+  const e=eventOf({eid});
+  const list=contacts || call('showKeyContactEntries', e) || [];
+  return <>
+    <p className="sheet-lede">Everyone saved on this show ÔÇö tap a person to edit, or remove them from here.</p>
+    {list.length ? (
+      <div className="card flush">{list.map((c: any)=>(
+        <div className="row" key={c.kind+'-'+c.id} onClick={()=>call('openKeyContactFromList',eid,c.kind,c.id)}>
+          <div className="ic"><Icon name="user" size={18}/></div>
+          <div className="body">
+            <b>{c.role||'Contact'}</b>
+            <span>{[c.name, c.phone].filter(Boolean).join(' ┬À ')||'Tap to add details'}</span>
+          </div>
+          <button
+            type="button"
+            className="header-btn"
+            title="Remove"
+            style={{ width: 34, height: 34, flexShrink: 0 }}
+            onClick={(ev: any)=>{ ev.stopPropagation(); call('removeKeyContactFromList',eid,c.kind,c.id); }}
+          >
+            <Icon name="trash" size={15}/>
+          </button>
+        </div>
+      ))}</div>
+    ) : (
+      <div className="hint" style={{padding:'8px 4px 12px'}}>No key contacts yet ÔÇö add a liaison, driver, or anyone else you need on the day.</div>
+    )}
+    <button className="btn secondary" style={{marginTop:14}} onClick={()=>call('openKeyContactFromList',eid,'new')}><Icon name="plus" size={16}/> Add contact</button>
+    <Spacer />
+  </>;
+}
+
+function PaxRow({ pax, eid, fid }: Record<string, any>){
+  const pid=pax.id || call('uid','pax') || `pax-${Math.random()}`;
+  return <div className="fl-pax-row" data-pax-id={pid} style={{border:'1px solid var(--stroke)',borderRadius:12,padding:12,marginBottom:8}}>
+    <div className="row-2"><Field label="Name"><input className="input fl-pax-name" defaultValue={pax.name||''} placeholder="Passenger name"/></Field><Field label="Seat"><input className="input fl-pax-seat" defaultValue={pax.seat||''} placeholder="4A"/></Field></div>
+    <Field label="Booking reference"><input className="input fl-pax-ref" defaultValue={pax.booking_reference||pax.bookingRef||''} placeholder="ABC123"/></Field>
+    {fid?<label className="btn secondary" style={{marginTop:8,display:'inline-flex'}}><Icon name="ticket" size={15}/> Boarding pass<input type="file" accept={getPassFileAccept()||'image/*,application/pdf'} hidden onChange={(e: any)=>call('uploadPass',eid,fid,e.currentTarget,pid)}/></label>:<div className="hint" style={{padding:'6px 2px 0'}}>Save the flight first to attach boarding passes.</div>}
+    <button type="button" className="btn secondary" style={{marginTop:8}} onClick={(e: any)=>call('removeFlightPaxFromSheet',e.currentTarget,eid,fid||'',pid)}><Icon name="trash" size={14}/> Remove person</button>
+  </div>;
+}
+export function ShowFlightSheet({ eid, fid, flight, passengers }: Record<string, any>){
+  const e=eventOf({eid}); const f=flight || (e.flights||[]).find((x: any)=>x.id===fid) || {}; const editing=!!(flight || (e.flights||[]).find((x: any)=>x.id===fid));
+  const dep=call('flightParseDep',f.dep,e.date) || {date:e.date||'',time:''};
+  const pax=passengers || f.passengers || [{id:call('uid','pax'),name:'',seat:'',booking_reference:'',passes:[]}];
+  return <>
+    <Field label="Flight number" id="fl-code" value={f.code} placeholder="KL1008" />
+    <div className="row-2"><Field label="From" id="fl-from" value={f.fromName || f.from} placeholder="LHR or Heathrow"/><Field label="To" id="fl-to" value={f.toName || f.to} placeholder="AMS or Schiphol"/></div>
+    <Field label="Airline / operator (optional)" id="fl-operator" value={f.operator} placeholder="KLM" />
+    <div className="row-2"><Field label="Date" id="fl-dep-date" type="date" value={dep.date||e.date}/><Field label="Departs" id="fl-dep-time" type="time" value={dep.time}/></div>
+    <div className="block-title" style={{margin:'6px 2px 8px'}}>Day-of flight info</div>
+    <div className="row-2"><Field label="Terminal" id="fl-term" value={f.terminal} placeholder="2"/><Field label="Gate" id="fl-gate" value={f.gate} placeholder="B12"/></div>
+    <div className="row-2"><Field label="Status" id="fl-status" value={f.fstatus} placeholder="On time / Boarding"/><Field label="Delay" id="fl-delay" value={f.delay} placeholder="+25 min"/></div>
+    <NoteItemsField label="Journey notes" listId="fl-notes" value={f.notes} placeholder="Connection tips, meeting point, baggageÔÇª" />
+    <div className="field"><label>Passengers</label><div id="fl-pax-list">{pax.map((p: any,i: any)=><PaxRow key={p.id||i} pax={p} eid={eid} fid={editing?f.id:''}/>)}</div>
+      <button type="button" className="btn secondary" style={{marginTop:8}} onClick={()=>call('addFlightPaxRow',eid,editing?f.id:'')}><Icon name="plus" size={15}/> Add person</button>
+      <div className="hint" style={{padding:'8px 2px 0'}}>Same flight for everyone ÔÇö each person has their own seat and boarding pass.</div>
+    </div>
+    <button className="btn" id="fl-save" onClick={()=>call('saveFlight',eid,editing?f.id:'')}>{editing?'Save flight':'Add flight'}</button>
+    {editing?<button className="btn danger" style={{marginTop:10}} onClick={()=>call('confirmRemoveFlight',eid,f.id)}><Icon name="trash" size={16}/> Remove flight</button>:null}<Spacer />
+  </>;
+}
+
+export function ShowFlightPassengersSheet({ eid, fid, flight, passengers }: Record<string, any>){
+  const e=eventOf({eid});
+  const f=flight || (e.flights||[]).find((x: any)=>x.id===fid) || {};
+  const pax=passengers || f.passengers || [{id:call('uid','pax'),name:'',seat:'',booking_reference:'',passes:[]}];
+  const code=f.code || 'this flight';
+  return <>
+    <p className="sheet-lede">{code} ÔÇö names, seats and boarding passes.</p>
+    <div id="fl-pax-list">{pax.length ? pax.map((p: any,i: any)=><PaxRow key={p.id||i} pax={p} eid={eid} fid={f.id||''}/>) : <PaxRow pax={{id:call('uid','pax'),name:'',seat:'',booking_reference:'',passes:[]}} eid={eid} fid={f.id||''}/>}</div>
+    <button type="button" className="btn secondary" style={{marginTop:8}} onClick={()=>call('addFlightPaxRow',eid,f.id||'')}><Icon name="plus" size={15}/> Add person</button>
+    <div className="hint" style={{padding:'8px 2px 12px'}}>Same flight for everyone ÔÇö each person has their own seat and boarding pass.</div>
+    <button className="btn" id="fl-pax-save" onClick={()=>call('saveFlightPassengers',eid,f.id)}>Save passengers</button>
+    <Spacer />
+  </>;
+}
+
+export function ShowContactDriverSheet({ eid, driver }: Record<string, any>){
+  const d=driver||eventOf({eid}).driver||{}, phone=d.phone||'', wa=d.whatsapp||phone;
+  return <>{d.name?<div className="hint" style={{textAlign:'left',padding:'0 2px 12px'}}>{d.name}{d.pickup?` ┬À ${d.pickup}`:''}</div>:null}
+    {phone?<button className="btn" onClick={()=>call('callNumber',phone)}><Icon name="phone" size={17}/> Call</button>:null}
+    {wa?<button className="btn secondary" style={{marginTop:10}} onClick={()=>call('whatsapp',wa)}><Icon name="chat" size={17}/> Message on WhatsApp</button>:null}<Spacer /></>;
+}
+export function ShowTransportListSheet({ eid, drivers }: Record<string, any>){
+  const list=drivers || call('orderedDrivers',eventOf({eid})) || [];
+  return <><div className="card flush">{list.map((x: any,i: any)=>{
+    const d=call('ensureDriverLocations', x.d||x) || (x.d||x);
+    const label=call('driverJourneyLabel', d) || d.journey || d.name || 'Transport';
+    return <div className="info-line" key={d.id||i}>
+      <div className="ic"><Icon name={d.noGround?'car':'user'} size={17}/></div>
+      <div className="tx" style={{flex:1}}>
+        <div className="k">{label}{d.time?` ┬À ${d.time}`:''}</div>
+        <div className="v">{d.noGround?(call('groundArrangeSummary',d)||'Arrange at time'):`${d.name||d.vehicle||'Pre-arranged'}${d.phone?` ┬À ${d.phone}`:''}`}</div>
+      </div>
+      {d.noGround
+        ? <button className="header-btn" onClick={()=>call('openExternal','https://m.uber.com/','uber://')}><Icon name="car" size={16}/></button>
+        : <>
+            {d.phone?<button className="header-btn" title="Call" onClick={()=>call('callNumber',d.phone)}><Icon name="phone" size={16}/></button>:null}
+            {d.whatsapp||d.phone?<button className="header-btn" title="WhatsApp" onClick={()=>call('whatsapp',d.whatsapp||d.phone)}><Icon name="chat" size={16}/></button>:null}
+            {d.phone?<button className="header-btn" title="Copy" onClick={()=>call('copyText',d.phone)}><Icon name="copy" size={16}/></button>:null}
+          </>}
+    </div>;
+  })}</div><Spacer /></>;
+}
+export function ShowContactLiaisonSheet({ eid, liaison }: Record<string, any>){
+  const p=liaison||eventOf({eid}).promoter||{}, phone=p.phone||'', wa=p.whatsapp||phone;
+  return <>{p.name?<div className="hint" style={{textAlign:'left',padding:'0 2px 12px'}}>{p.name}</div>:null}{wa?<button className="btn" onClick={()=>call('whatsapp',wa)}><Icon name="chat" size={17}/> Message on WhatsApp</button>:null}{phone?<button className="btn secondary" style={{marginTop:10}} onClick={()=>call('callNumber',phone)}><Icon name="phone" size={17}/> Call</button>:null}<Spacer /></>;
+}
+
+export function ShowReminderSheet({ eid, existing, options = [], morningAt, warning }: Record<string, any>){
+  const e=eventOf({eid}), now=Date.now(), current=existing||call('reminderFor',eid)||null;
+  const base=call('setStartMs',e.date,e.setTime);
+  const generated=base==null?[]:[[0,'At set time'],[30,'30 min before set'],[60,'1 hour before set'],[120,'2 hours before set'],[180,'3 hours before set']].map(([mins,label]: any)=>({at:base-mins*60000,label})).filter((o: any)=>o.at>now);
+  const morning=morningAt || call('parseDT',e.date,'09:00')?.getTime?.();
+  return <>{current?<div className="hint" style={{padding:'0 2px 12px'}}>A reminder is already set for this show. Pick a new time to replace it, or remove it below.</div>:null}
+    <Field label="What to remind you of" id="rem-note" value={current?.label} placeholder="e.g. Bring your USB ┬À check monitors"/>
+    {(options.length?options:generated).map((o: any,i: any)=><button key={i} className="btn secondary" style={{marginBottom:8}} onClick={()=>call('setShowReminder',eid,o.at,o.label)}><Icon name="reminder" size={15}/> {o.label}</button>)}
+    {morning>now?<button className="btn secondary" style={{marginBottom:8}} onClick={()=>call('setShowReminder',eid,morning,'Morning of show')}><Icon name="reminder" size={15}/> On the morning ┬À 9am</button>:null}
+    <Field label="Custom time" id="rem-when" type="datetime-local"/><button className="btn" onClick={()=>call('setShowReminderCustom',eid)}>Set custom reminder</button>
+    {current?<button className="btn danger" style={{marginTop:10}} onClick={()=>call('clearShowReminder',eid)}><Icon name="trash" size={16}/> Remove reminder</button>:null}
+    {warning?<div className="hint" style={{padding:'12px 2px 0',lineHeight:1.4}}>{warning}</div>:null}<Spacer /></>;
+}
+export function ShowFlightInfoSheet({ id, item }: Record<string, any>){
+  const e=item || (getStore()?.events||[]).find((x: any)=>x.id===id) || {}, has=e.flightNo||e.gate||e.terminal||e.fstatus||e.delay;
+  return <><Field label="Flight number" id="fi-no" value={e.flightNo} placeholder="KL1008"/><div className="row-2"><Field label="Terminal" id="fi-term" value={e.terminal} placeholder="2"/><Field label="Gate" id="fi-gate" value={e.gate} placeholder="B12"/></div><div className="row-2"><Field label="Status" id="fi-status" value={e.fstatus} placeholder="On time / Boarding / Delayed"/><Field label="Delay" id="fi-delay" value={e.delay} placeholder="+25 min"/></div><div className="hint" style={{padding:'6px 2px'}}>Enter what you know now.</div><button className="btn" id="fi-save" onClick={()=>call('saveFlightInfo',id)}>Save flight info</button>{has?<button className="btn danger" style={{marginTop:10}} onClick={()=>call('clearFlightInfo',id)}><Icon name="trash" size={15}/> Clear flight info</button>:null}<Spacer /></>;
+}
+
+function groundVehiclePrefill(d: any){
+  if(d.vehicle) return d.vehicle;
+  if(d.noGround) return '';
+  const gt=String(d.groundType||'').toLowerCase();
+  if(gt==='private_car') return 'Private car';
+  if(gt==='chauffeur') return 'Chauffeur';
+  if(gt==='shuttle') return 'Shuttle';
+  if(gt==='minibus') return 'Minibus';
+  if(gt==='bus') return 'Bus';
+  return '';
+}
+function groundPreferredKey(d: any){
+  if(typeof window!=='undefined' && typeof window.groundPreferredKey==='function'){
+    return window.groundPreferredKey(d);
+  }
+  const stored=String(d.preferredMethod||d.preferred_method||'').toLowerCase();
+  if(stored==='uber'||stored==='taxi'||stored==='either') return stored;
+  const gt=String(d.groundType||'').toLowerCase();
+  if(gt==='uber'||gt==='taxi') return gt;
+  return 'either';
+}
+
+function uiPlaceKind(kind: any, name: any){
+  if(typeof window!=='undefined' && typeof window.v2UiPlaceKind==='function'){
+    return window.v2UiPlaceKind(kind, name) || '';
+  }
+  const k=String(kind||'').toLowerCase();
+  if(k==='airport'||k==='hotel'||k==='venue'||k==='custom') return k;
+  const t=String(name||'').trim().toLowerCase();
+  if(t==='airport'||t==='hotel'||t==='venue') return t;
+  if(name) return 'custom';
+  return '';
+}
+
+export function ShowTransportSheet({ eid, idx, driver, journeys }: Record<string, any>){
+  const e=eventOf({eid});
+  const list=call('showDrivers',e)||[];
+  const raw=driver || (idx!=null?list[idx]:null) || {};
+  const d=call('applyGeneralDriverPlaces', Object.assign({}, raw), e) || call('ensureDriverLocations', raw) || raw;
+  const [arrange, setArrange]=useState(d.noGround || d.arrangement==='arrange_at_time'?'time':'pre');
+  const [pref, setPref]=useState(groundPreferredKey(d));
+  const [fromKind, setFromKind]=useState(uiPlaceKind(d.fromKind, d.fromName || d.from));
+  const [toKind, setToKind]=useState(uiPlaceKind(d.toKind, d.toName || d.to));
+  const presets=journeys || getDriverJourneys() || [];
+  const kinds=[
+    ['airport','Airport'],
+    ['hotel','Hotel'],
+    ['venue','Venue'],
+    ['custom','Custom']
+  ];
+  const groundTypes=[
+    ['','SelectÔÇª'],
+    ['taxi','Taxi'],
+    ['uber','Uber'],
+    ['private_car','Private car'],
+    ['chauffeur','Chauffeur'],
+    ['shuttle','Shuttle'],
+    ['minibus','Minibus'],
+    ['bus','Bus'],
+    ['other','Other']
+  ];
+  const applyPreset = (j: any) => {
+    const p = call('parseDriverJourney', j) || {};
+    setFromKind(uiPlaceKind('', p.from));
+    setToKind(uiPlaceKind('', p.to));
+  };
+  const atTime = arrange==='time';
+  const customFrom = fromKind==='custom';
+  const customTo = toKind==='custom';
+  return <>
+    <p className="sheet-lede">Already organised, or sort it when you travel.</p>
+    <Field label="Arrangement">
+      <Seg
+        id="dr-mode"
+        className="seg-wrap"
+        values={[['pre','Pre-arranged'],['time','Arrange at time']]}
+        selected={arrange}
+        onPick={setArrange}
+      />
+    </Field>
+    <Field label="Time" id="dr-time" type="time" value={d.time}/>
+    <div className="chips" style={{marginTop:2,marginBottom:10,flexWrap:'wrap',overflow:'visible'}}>
+      {presets.map((j: any)=>(
+        <button type="button" className="chip" key={j} onClick={()=>applyPreset(j)}>{j}</button>
+      ))}
+    </div>
+    <div className="row-2">
+      <Field label="From">
+        <select id="dr-from" className="input" value={fromKind} onChange={(ev: any)=>setFromKind(ev.target.value)}>
+          <option value="">SelectÔÇª</option>
+          {kinds.map(([k,l]: any)=><option value={k} key={'from-'+k}>{l}</option>)}
+        </select>
+      </Field>
+      <Field label="To">
+        <select id="dr-to" className="input" value={toKind} onChange={(ev: any)=>setToKind(ev.target.value)}>
+          <option value="">SelectÔÇª</option>
+          {kinds.map(([k,l]: any)=><option value={k} key={'to-'+k}>{l}</option>)}
+        </select>
+      </Field>
+    </div>
+    {(customFrom || customTo) ? (
+      <>
+        {customFrom ? (
+          <>
+            <Field label="From name" id="dr-from-name" value={fromKind==='custom'?(d.fromName || (!['Airport','Hotel','Venue'].includes(d.from)?d.from:'')) : ''} placeholder="Artist Entrance"/>
+            <Field label="From address (optional)" id="dr-from-addr" value={d.fromAddress || ''} placeholder="Street, cityÔÇª"/>
+          </>
+        ) : null}
+        {customTo ? (
+          <>
+            <Field label="To name" id="dr-to-name" value={toKind==='custom'?(d.toName || (!['Airport','Hotel','Venue'].includes(d.to)?d.to:'')) : ''} placeholder="Backstage gate"/>
+            <Field label="To address (optional)" id="dr-to-addr" value={d.toAddress || ''} placeholder="Street, cityÔÇª"/>
+          </>
+        ) : null}
+      </>
+    ) : null}
+    {atTime ? (
+      <>
+        <Field label="Preferred method (optional)">
+          <Seg
+            id="dr-pref"
+            values={[['uber','Uber'],['taxi','Taxi'],['either','Either']]}
+            selected={pref}
+            onPick={setPref}
+          />
+        </Field>
+        <NoteItemsField label="Notes (optional)" listId="dr-notes" value={d.notes} placeholder="Meet at Arrivals, etc." />
+      </>
+    ) : (
+      <>
+        <Field label="Transport type">
+          <select id="dr-ground-type" className="input" defaultValue={d.groundType || ''}>
+            {groundTypes.map(([k,l]: any)=><option value={k} key={'gt-'+k}>{l}</option>)}
+          </select>
+        </Field>
+        <Field label="Transport company (optional)" id="dr-company" value={d.operator || ''} placeholder="Parklife Ground Transport"/>
+        <Field label="Driver name" id="dr-name" value={d.name} placeholder="John Smith"/>
+        <Field label="Driver phone" id="dr-phone" type="tel" value={d.phone} placeholder="+31 6 12345678"/>
+        <Field label="Vehicle details (optional)" id="dr-vehicle" value={groundVehiclePrefill(d)} placeholder="Van, black car, minibusÔÇª"/>
+        <NoteItemsField label="Notes (optional)" listId="dr-notes" value={d.notes} placeholder="Plate, meeting point, etc." />
+      </>
+    )}
+    <button className="btn" id="dr-save" onClick={()=>call('saveDriver',eid,idx??null)}>{idx!=null?'Save':'Add'}</button>
+    {idx!=null?<button className="btn danger" style={{marginTop:10}} onClick={()=>call('removeDriver',eid,idx)}><Icon name="trash" size={16}/> Remove</button>:null}
+    <Spacer />
+  </>;
+}
+export function ShowVenueSheet(props: any){const e=eventOf(props),eid=props.eid||props.id;return <><Field label="Venue name" id="va-venue" value={e.venue} placeholder="Venue name"/><Field label="Address" id="va-addr" value={e.venueAddr} placeholder="Street and number"/><Field label="Address line 2" id="va-addr2" value={e.venueAddr2} placeholder="Building, floor, unit (optional)"/><div className="row-2"><Field label="City" id="va-city" value={e.city} placeholder="Amsterdam"/><Field label="Region" id="va-region" value={e.venueRegion} placeholder="North Holland"/></div><div className="row-2"><Field label="Postcode" id="va-postcode" value={e.venuePostcode} placeholder="1012 AB"/><Field label="Country" id="va-country" value={e.country} placeholder="Netherlands"/></div><button className="btn" id="va-save" onClick={()=>call('saveVenueAddr',eid)}>Save</button><Spacer /></>;}
+export function ShowArtistLiaisonSheet(props: any){const e=eventOf(props),p=props.liaison||e.promoter||{},eid=props.eid||props.id;return <><Field label="Name" id="pr-name" value={p.name} placeholder="Lena"/><Field label="Phone" id="pr-phone" type="tel" value={p.phone} placeholder="+31 6 99887766"/><Field label="WhatsApp (if different)" id="pr-wa" type="tel" value={p.whatsapp&&p.whatsapp!==p.phone?p.whatsapp:''} placeholder="Same as phone if left blank"/><div className="hint" style={{padding:'2px 2px 8px'}}>Leave WhatsApp blank to use the phone number for both.</div><button className="btn" id="pr-save" onClick={()=>call('savePromoter',eid)}>Save contact</button>{e.promoter?<button className="btn danger" style={{marginTop:10}} onClick={()=>call('removePromoter',eid)}><Icon name="trash" size={16}/> Remove contact</button>:null}<Spacer /></>;}
+
+export function ShowDayDetailsSheet(props: any){
+  const e=eventOf(props),a=props.advance||e.advance||{},eid=props.eid||props.id,schedule=a.schedule?.length?a.schedule:[{time:'',label:''}];
+  return <><Field label="Stage / area" id="ad-stage" value={a.stage} placeholder="Temple stage"/><div className="field"><label>Running order</label><div id="ad-ro">{schedule.map((s: any,i: any)=><div className="row-2 ro-edit" data-id={s.id||''} key={s.id||i}><div className="field" style={{flex:'0 0 34%'}}><input id={`ro-t-${i}`} className="input ro-t" type="time" defaultValue={s.time||''}/></div><div className="field"><input className="input ro-l" defaultValue={s.label||s.title||''} placeholder="Soundcheck / Set / Curfew"/></div></div>)}</div><button className="btn secondary" style={{padding:9,marginTop:6}} onClick={()=>call('addRoRow')}><Icon name="plus" size={14}/> Add time</button></div>
+    <div className="row-2"><Field label="Access / arrival" id="ad-access" value={a.access} placeholder="15:00 via Gate C"/><Field label="Sound check" id="ad-sc" value={a.soundcheck} placeholder="16:30"/></div><div className="row-2"><Field label="Curfew" id="ad-curfew" value={a.curfew} placeholder="23:00"/><Field label="Dressing room" id="ad-dr" value={a.dressingRoom} placeholder="Cabin 4, shared"/></div><Field label="Guest list" id="ad-gl" value={a.guestlist} placeholder="+4, email by Thu"/><Field label="Catering / rider" id="ad-cat" value={a.catering} placeholder="Backstage catering, rider in DR"/><div className="row-2"><Field label="Parking" id="ad-park" value={a.parking} placeholder="Artist lot P2"/><Field label="WiFi" id="ad-wifi" value={a.wifi} placeholder="SSID / pass"/></div><Field label="Navigation address" id="ad-nav" value={a.navAddr} placeholder="Gate for artist entrance (if different)"/><TextArea label="Remarks" id="ad-rem" value={a.remarks} placeholder="Anything else from the advance sheetÔÇª"/><button className="btn" id="ad-save" onClick={()=>call('saveAdvance',eid)}>Save details</button><Spacer /></>;
+}
+const ROLES=[['','Select roleÔÇª'],['artist_liaison','Artist Liaison'],['promoter','Promoter'],['production','Production'],['venue_manager','Venue Manager'],['driver','Driver'],['emergency','Emergency'],['__other__','Other']];
+export function ShowContactSheet({eid,cid,contact}: Record<string, any>){const e=eventOf({eid}),c=contact||(e.contacts||[]).find((x: any)=>x.id===cid)||{};const known=ROLES.some((x: any)=>x[0]===c.role),selected=known?c.role:(c.role?'__other__':'');return <><Field label="Name" id="ct-name" value={c.name} placeholder="Alex"/><Field label="Role"><select id="ct-role" className="input" defaultValue={selected} onChange={()=>call('toggleEventContactRoleOther')}>{ROLES.map(([v,l]: any)=><option value={v} key={v}>{l}</option>)}</select></Field><div className="field" id="ct-role-other-wrap" style={{display:selected==='__other__'?undefined:'none'}}><label>Custom role</label><input id="ct-role-other" className="input" defaultValue={known?'':c.role||''} placeholder="e.g. Stage manager"/></div><Field label="Phone" id="ct-phone" type="tel" value={c.phone} placeholder="+44 7ÔÇª"/><Field label="WhatsApp (if different)" id="ct-wa" type="tel" value={c.whatsapp}/><button className="btn" id="ct-save" onClick={()=>call('saveEventContact',eid,cid||'')}>Save contact</button>{cid?<button className="btn danger" style={{marginTop:10}} onClick={()=>call('delEventContact',eid,cid)}><Icon name="trash" size={16}/> Remove</button>:null}<Spacer /></>;}
+export function ShowChecklistSheet({eid,items}: Record<string, any>){const list=items||eventOf({eid}).checklist||[];return <>{list.length?<div className="card flush">{list.map((i: any)=><div className={`check${i.done?' done':''}`} data-id={i.id} key={i.id}><div className="box" onClick={()=>call('toggleEventCheck',eid,i.id)}><Icon name="check" size={15}/></div><div className="lbl" onClick={()=>call('toggleEventCheck',eid,i.id)}>{i.label}</div><button className="del" onClick={()=>call('delEventCheck',eid,i.id)}><Icon name="x" size={16}/></button></div>)}</div>:<div className="hint" style={{padding:'8px 4px 12px'}}>No items yet ÔÇö add what you need to prep.</div>}<Field label="New item" id="ck-new" placeholder="e.g. Track ID list"/><button className="btn" onClick={()=>call('addEventCheckFromSheet',eid)}><Icon name="plus" size={16}/> Add item</button><Spacer /></>;}
+function openShowTimelineRow(eid: any, s: any){
+  if(!s.auto) return call('sheetShowTimelineStep', eid, s.id);
+  if(s.kind==='flight' && s.refId) return call('sheetFlight', eid, s.refId);
+  if(s.kind==='hotel') return call('sheetHotel', eid);
+  if(s.kind==='transport'){
+    const list=call('showDrivers', eventOf({eid}))||[];
+    const idx=list.findIndex((d: any)=>String(d.id)===String(s.refId));
+    return idx>=0 ? call('sheetDriver', eid, idx) : call('sheetDriver', eid);
+  }
+  if(s.kind==='set' || s.kind==='arrival') return call('sheetEvent', eid);
+  if(s.kind==='advance') return call('sheetAdvance', eid);
+}
+export function ShowTimelineSheet({eid,steps}: Record<string, any>){
+  const e=eventOf({eid});
+  const list=steps||call('showDayTimeline',e)||e.timeline||[];
+  const grouped=call('groupShowTimelineByDay',e,list)||{ multi:false, groups:[{ steps:list }] };
+  const renderStep=(s: any)=>(
+    <div className={`check is-circle${s.done?' done':''}`} data-id={s.id} key={s.id}>
+      <div className="box" onClick={()=>call('toggleShowTimelineStep',eid,s.id)}><Icon name="check" size={15}/></div>
+      <div className="lbl" onClick={()=>openShowTimelineRow(eid,s)}>{s.time?`${s.time} ┬À `:''}{s.title}{s.sub?` ÔÇö ${s.sub}`:''}</div>
+      {!s.auto?<button className="del" onClick={()=>call('delShowTimelineStep',eid,s.id)}><Icon name="x" size={16}/></button>:null}
+    </div>
+  );
+  return <>
+    <p className="sheet-lede">Full itinerary. Tap a row for details. Tick the circle when a step is done.</p>
+    {list.length?<div className="card flush">{(grouped.groups||[]).map((g: any,i: any)=>(
+      <div key={g.date||i}>
+        {grouped.multi && g.label ? <div className={`tl-day-head${g.today?' today':''}`} style={{margin:'10px 8px 4px'}}>{g.label}</div> : null}
+        {(g.steps||[]).map(renderStep)}
+      </div>
+    ))}</div>:<div className="hint" style={{padding:'8px 4px 12px'}}>Add travel, accommodation, transport or set time to build this timeline.</div>}
+    <button className="btn secondary" style={{marginTop:12}} onClick={()=>call('sheetShowTimelineStep',eid)}><Icon name="plus" size={16}/> Add custom step</button>
+    <Spacer />
+  </>;
+}
+export function ShowTimelineStepSheet({eid,sid,step}: Record<string, any>){const e=eventOf({eid}),s=step||(e.timeline||[]).find((x: any)=>x.id===sid)||{};return <><div className="row-2"><Field label="Time" id="est-time" type="time" value={s.time}/><Field label="What" id="est-title" value={s.title} placeholder="Soundcheck"/></div><Field label="Detail (optional)" id="est-sub" value={s.sub} placeholder="Venue, noteÔÇª"/><button className="btn" id="est-save" onClick={()=>call('saveShowTimelineStep',eid,sid||'')}>{sid?'Save step':'Add step'}</button>{sid?<button className="btn danger" style={{marginTop:10}} onClick={()=>call('delShowTimelineStep',eid,sid)}><Icon name="trash" size={16}/> Remove</button>:null}<Spacer /></>;}
+export function ShowTimelineAddSheet({tid}: Record<string, any>){return <><div className="row-2"><Field label="Time" id="ts-time" type="time"/><Field label="What" id="ts-title" placeholder="Soundcheck"/></div><Field label="Detail (optional)" id="ts-sub" placeholder="Venue, noteÔÇª"/><button className="btn" id="ts-save" onClick={()=>call('saveTimelineStep',tid)}>Add step</button><Spacer /></>;}
+export function ShowEmergencySheet({tid}: Record<string, any>){return <><Field label="Name" id="em-name" placeholder="Manager ÔÇö Alex"/><Field label="Phone" id="em-phone" type="tel" placeholder="+44 7700 900123"/><button className="btn" id="em-save" onClick={()=>call('saveEmergency',tid)}>Add contact</button><Spacer /></>;}
+export function ShowDealSheet({eid,finance}: Record<string, any>){const e=eventOf({eid}),f=finance||e.finance||{},s=getStore()?.settings||{},currencies=Object.keys(s.fx||{});return <><div className="row-2"><Field label="Fee" id="fi-fee" type="number" inputMode="decimal" value={f.fee} placeholder="8000"/><Field label="Currency"><select id="fi-cur" className="input" defaultValue={f.currency||s.baseCurrency}>{currencies.map((c: any)=><option key={c}>{c}</option>)}</select></Field></div><Field label="Deal type"><Seg id="fi-deal" values={['Guarantee','Guarantee + Bonus','Door split','Fee + Travel']} selected={f.dealType||'Guarantee'}/></Field><div className="row-2"><Field label="Agent commission %" id="fi-comm" type="number" inputMode="decimal" value={f.commission} placeholder="10"/><Field label="Per diem" id="fi-pd" type="number" inputMode="decimal" value={f.perDiem} placeholder="150"/></div><Field label="Payment status"><Seg id="fi-paid" values={[['0','Unpaid'],['1','Paid']]} selected={f.paid?'1':'0'}/></Field><Field label="Fee visibility"><Seg id="fi-nd" values={[['0','Show fee'],['1','Not disclosed']]} selected={f.notDisclosed?'1':'0'}/></Field><button className="btn" id="fi-save" onClick={()=>call('saveFinance',eid)}>Save deal</button><div className="hint" style={{textAlign:'left',paddingTop:10}}>Foreign fees auto-convert to {s.baseCurrency}.</div><Spacer /></>;}
+export function ShowExpenseSheet({eid}: Record<string, any>){return <><div className="row-2"><Field label="What" id="ex-label" placeholder="Flights, accommodation, gearÔÇª"/><Field label="Amount" id="ex-amt" type="number" inputMode="decimal" placeholder="220"/></div><button className="btn" onClick={()=>call('saveExpense',eid)}>Add expense</button><Spacer /></>;}
+export function ShowDaySheet({eid,text,share=true}: Record<string, any>){const value=text ?? getDaySheetText() ?? '';return <><div className="card" style={{whiteSpace:'pre-wrap',fontSize:13.5,lineHeight:1.55,fontFamily:'ui-monospace,Menlo,monospace',color:'var(--text-2)',maxHeight:'52dvh',overflow:'auto'}}>{value}</div><Spacer/><div style={{display:'flex',gap:9}}><button className="btn" style={{flex:1}} onClick={()=>{call('copyText',value);call('closeSheet')}}><Icon name="copy" size={16}/> Copy</button>{share&&typeof navigator!=='undefined'&&typeof navigator.share==='function'?<button className="btn secondary" style={{flex:1}} onClick={()=>call('daySheetShare')}><Icon name="share" size={16}/> Share</button>:null}</div>{eid?<button className="btn secondary" style={{marginTop:9}} onClick={()=>call('printDaySheet',eid)}><Icon name="file" size={16}/> Print / Save as PDF</button>:null}<Spacer /></>;}

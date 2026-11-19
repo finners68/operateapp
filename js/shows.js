@@ -52,7 +52,9 @@ function showsModeMeta(){
   const isTours = showsMode==='tours';
   return {
     title: isTours ? 'Tours' : 'Shows',
-    sub: (isTours?(tourN+' tour'+(tourN!==1?'s':'')):(upcomingN+' upcoming'))+' · tap to open',
+    sub: isTours
+      ? (tourN+' tour'+(tourN!==1?'s':''))+' · tap to expand'
+      : (upcomingN+' upcoming')+' · tap to open',
     headBtn: `<button class="header-btn" onclick="sheetEvent()">${ICON.plus(22)}</button>`
   };
 }
@@ -97,7 +99,7 @@ function showsListBody(){
   }else{
     list.sort((a,b) => String((b.date||'')+(b.setTime||'')).localeCompare(String((a.date||'')+(a.setTime||''))));
   }
-  if(q) list = list.filter(e => `${e.eventName||''} ${e.venue||''} ${e.city||''} ${e.country||''} ${e.date||''}`.toLowerCase().includes(q));
+  if(q) list = typeof filterShowsList === 'function' ? filterShowsList(list, q) : list.filter(e => `${e.eventName||''} ${e.venue||''} ${e.city||''} ${e.country||''} ${e.date||''}`.toLowerCase().includes(q));
   if(!list.length){
     let title, span, addBtn = '';
     if(q){
@@ -282,14 +284,21 @@ function viewHome(){
 
   const nameBit = store.settings.artistName&&store.settings.artistName!=='You'?', '+esc(store.settings.artistName):'';
   const photo = store.settings._homeHeaderUrl || store.settings.homeHeader;
-  const header = `
-  <div class="home-hero${photo?'':' is-default'}"${photo?` style="background-image:url('${photo}');background-position:${typeof homeHeaderPositionCss==='function'?homeHeaderPositionCss():'center'}"`:''}>
+  const header = photo ? `
+  <div class="home-hero" style="background-image:url('${photo}');background-position:${typeof homeHeaderPositionCss==='function'?homeHeaderPositionCss():'center'}">
     <div class="home-hero-actions">
       <button class="header-btn glass" onclick="openSearch()">${ICON.search(20)}</button>
       <button class="header-btn glass" onclick="openView('settings')">${ICON.settings(20)}</button>
     </div>
     <div class="home-hero-text"><div class="hero-hello">${greeting}${nameBit}</div><div class="hero-home">Home</div><div class="hero-date">${esc(typeof homePersonaBlurb==='function'?homePersonaBlurb():'your tour dashboard')}</div></div>
-  </div>`;
+  </div>` : `
+  <header class="home-greet-header screen-pad">
+    <div class="home-hero-actions">
+      <button class="header-btn" onclick="openSearch()">${ICON.search(20)}</button>
+      <button class="header-btn" onclick="openView('settings')">${ICON.settings(20)}</button>
+    </div>
+    <div class="home-greet-copy"><div class="hero-hello">${greeting}${nameBit}</div><div class="hero-date">${esc(typeof homePersonaBlurb==='function'?homePersonaBlurb():'your tour dashboard')}</div></div>
+  </header>`;
   const st = computeStats();
   const statsBlock = st.shows ? `
     <div class="home-panel tap" onclick="openView('stats')">
@@ -436,11 +445,10 @@ function countAdvanceFields(a){
   ['access','soundcheck','curfew','dressingRoom','guestlist','catering','parking','wifi','navAddr','remarks'].forEach(k=>{ if(a[k]) n++; });
   return n;
 }
-function travelGroupSummary(e){
+function travelLegsGroupSummary(e){
   const flightLegs = showLegs(e.id).filter(x=>x.kind==='travel' && (x.icon||'plane')==='plane').length;
   const manualFlights = (e.flights&&e.flights.length)||0;
   const flightN = flightLegs + manualFlights;
-  const stay = !!(e.hotel || showLegs(e.id).some(x=>x.kind==='stay'));
   const drvList = showDrivers(e);
   const driver = !!(drvList.some(d=>!d.noGround) || showLegs(e.id).some(x=>x.kind==='travel' && isDriverItem(x)));
   const noGround = drvList.some(d=>d.noGround);
@@ -458,18 +466,33 @@ function travelGroupSummary(e){
   if(noGround) parts.push('arrange at time');
   if(typeCounts.walk) parts.push(typeCounts.walk+' walk'+(typeCounts.walk>1?'s':''));
   if(typeCounts.cycle) parts.push(typeCounts.cycle+' cycle'+(typeCounts.cycle>1?'s':''));
-  if(stay) parts.push('accommodation');
-  else if(e.noAccommodation) parts.push('no accommodation');
-  return parts.length ? parts.join(' · ') : 'Add travel or accommodation';
+  return parts.length ? parts.join(' · ') : 'Add travel';
+}
+function travelGroupSummary(e){ return travelLegsGroupSummary(e); }
+function stayGroupSummary(e){
+  const stayLegs = showLegs(e.id).filter(x=>x.kind==='stay').length;
+  const h = e.hotel;
+  if(h && (h.name || h.address || h.city)) return h.name || 'Accommodation';
+  if(stayLegs) return stayLegs+' stay leg'+(stayLegs>1?'s':'');
+  if(e.noAccommodation) return 'No accommodation';
+  return 'Add accommodation';
 }
 function venueGroupSummary(e){
   const n = countAdvanceFields(e.advance);
   const venue = cleanVenue(e.venue) || 'Venue';
-  const contacts = (e.contacts||[]).length + (e.promoter ? 1 : 0);
   const bits = [venue];
   if(n) bits.push(n+' day-of detail'+(n>1?'s':''));
-  if(contacts) bits.push(contacts+' contact'+(contacts>1?'s':''));
   return bits.join(' · ');
+}
+function contactsGroupSummary(e){
+  const cs = (e.contacts||[]).length + (e.promoter ? 1 : 0);
+  const drivers = (showDrivers(e)||[]).filter(d=>d.name && !d.noGround).length;
+  const n = cs + drivers;
+  return n ? n+' contact'+(n>1?'s':'') : 'Add contacts';
+}
+function attachmentsGroupSummary(e){
+  const n = (e.attachments||[]).length;
+  return n ? n+' file'+(n>1?'s':'') : 'Add attachments';
 }
 function prepGroupSummary(e){
   const cp = sel.eventChecklistProgress(e);
@@ -477,11 +500,9 @@ function prepGroupSummary(e){
   if(remaining) return remaining+' task'+(remaining>1?'s':'')+' remaining';
   const ideas = store.ideas.filter(x=>x.eventId===e.id).length;
   const contentN = ideas + (e.content?1:0);
-  const attachN = (e.attachments||[]).length;
   const parts = [];
   if(cp.total) parts.push('checklist '+cp.done+'/'+cp.total);
   if(contentN) parts.push(contentN+' content item'+(contentN>1?'s':''));
-  if(attachN) parts.push(attachN+' attachment'+(attachN>1?'s':''));
   if(typeof noteItemsHas==='function' ? noteItemsHas(e.notes) : (e.notes&&e.notes.trim())) parts.push('notes');
   return parts.length ? parts.join(' · ') : 'Checklist, content, notes';
 }
@@ -502,7 +523,7 @@ function flightsSubsection(e){
   const body = cards.map(card => `<div class="card flush flight-card-wrap">${
     card._kind==='leg' ? travelLegCard(card.data) : flightLine(e.id, card.data)
   }</div>`).join('');
-  return showSubsection('ss-'+e.id+'-flights', 'Flights', `<button type="button" class="add" onclick="sheetFlight('${e.id}','__new__')">Add</button>`, body, true);
+  return showSubsection('ss-'+e.id+'-flights', 'Flights', `<button type="button" class="add" onclick="sheetFlight('${e.id}','__new__')">Add</button>`, body, false);
 }
 /* A UK show — UK postcodes are granular (a postcode ≈ a building) so they land
    exactly; postcodes elsewhere cover a wide area and Maps resolves them to the
@@ -550,7 +571,7 @@ function hotelMapQuery(e){
     .filter(x=>{ if(!x) return false; const k=x.toLowerCase(); if(seen.has(k)) return false; seen.add(k); return true; })
     .join(', ');
 }
-function hotelSubsection(e){
+function hotelStayBody(e){
   const legs = showLegs(e.id).filter(x=>x.kind==='stay').sort(legSort);
   let body = '';
   if(legs.length) body += `<div class="card flush">${legs.map(journeyRow).join('')}</div>`;
@@ -572,9 +593,12 @@ function hotelSubsection(e){
   if(!body){
     body = `<div class="show-compact-row" onclick="sheetHotel('${e.id}')"><span>There is currently no accommodation</span><button type="button" class="add" onclick="event.stopPropagation();sheetHotel('${e.id}')">Add</button></div>`;
   }
-  const has = !!(legs.length || e.hotel);
+  return body;
+}
+function hotelSubsection(e){
+  const has = !!(showLegs(e.id).filter(x=>x.kind==='stay').length || e.hotel);
   const headAct = has ? `<button type="button" class="add" onclick="sheetHotel('${e.id}')">${e.hotel?'Edit':'Add'}</button>` : '';
-  return showSubsection('ss-'+e.id+'-hotel', 'Accommodation', headAct, body, !has);
+  return showSubsection('ss-'+e.id+'-hotel', 'Accommodation', headAct, hotelStayBody(e), !has);
 }
 /* Chronological rank for a driver by its journey: arrival → set → departure.
    Only used when no date/time is available. */
@@ -824,7 +848,7 @@ function driverSubsection(e){
   const body = cards.map(card => `<div class="card flush flight-card-wrap">${
     card._kind==='leg' ? travelLegCard(card.data) : driverCard(e.id, card.data.d, card.data.idx)
   }</div>`).join('');
-  return showSubsection('ss-'+e.id+'-driver', 'Ground transport', `<button type="button" class="add" onclick="sheetDriver('${e.id}')">Add</button>`, body, true);
+  return showSubsection('ss-'+e.id+'-driver', 'Ground transport', `<button type="button" class="add" onclick="sheetDriver('${e.id}')">Add</button>`, body, false);
 }
 const TRAVEL_TYPE_SECTIONS = [
   { key:'train', icon:'train', title:'Trains', mode:'train' },
@@ -917,7 +941,7 @@ function travelTypeSubsection(e, spec){
     spec.title,
     `<button type="button" class="add" onclick="sheetTravelLeg('${e.id}','${spec.mode}')">Add</button>`,
     legs.map(l=>`<div class="card flush flight-card-wrap">${travelLegCard(l)}</div>`).join(''),
-    true
+    false
   );
 }
 function travelTypeSubsections(e){
@@ -949,10 +973,43 @@ function travelGroupBody(e){
   const cycles = travelTypeSubsection(e, TRAVEL_TYPE_SECTIONS[4]);
   const types = trains+coaches+ferries+walks+cycles;
   const hasTravel = !!(flights || drivers || types);
-  const travel = hasTravel
+  return hasTravel
     ? (flights+trains+coaches+ferries+drivers+walks+cycles+`<button type="button" class="quiet-add" onclick="sheetAddTravel('${e.id}')">Add travel</button>`)
     : addTravelPickerHtml(e.id);
-  return travel+hotelSubsection(e);
+}
+function stayGroupBody(e){ return hotelStayBody(e); }
+function contactsBodyInner(e){
+  const cs = e.contacts||[];
+  const p = e.promoter;
+  const has = !!(p || cs.length);
+  if(!has){
+    return `<div class="show-compact-row" onclick="sheetEventContact('${e.id}')"><span>Add a key contact</span><button type="button" class="add" onclick="event.stopPropagation();sheetEventContact('${e.id}')">Add</button></div>`;
+  }
+  const liaisonRow = p ? `<div class="info-line info-line-stacked show-venue-row is-block">
+    <div class="ic">${ICON.user(16)}</div>
+    <div class="tx" style="flex:1;min-width:0" onclick="sheetPromoter('${e.id}')">${detailParts('Artist Liaison', esc(p.name||'Liaison'), p.phone?esc(p.phone):'')}</div>
+    ${p.phone?`<button class="show-venue-action" onclick="callNumber('${jsAttr(p.phone)}')">${ICON.phone(15)}</button>`:''}
+    ${(p.whatsapp||p.phone)?`<button class="show-venue-action" onclick="whatsapp('${jsAttr(p.whatsapp||p.phone)}')">${ICON.chat(15)}</button>`:''}
+  </div>` : '';
+  const otherRows = cs.map(ct=>`<div class="info-line info-line-stacked show-venue-row is-block">
+    <div class="ic">${ICON.user(16)}</div>
+    <div class="tx" style="flex:1;min-width:0" onclick="sheetEventContact('${e.id}','${ct.id}')">${detailParts(ct.role?esc(showContactRoleLabel(ct.role)):'Contact', esc(ct.name||'Contact'), ct.phone?esc(ct.phone):'')}</div>
+    ${ct.phone?`<button class="show-venue-action" onclick="callNumber('${jsAttr(ct.phone)}')">${ICON.phone(15)}</button>`:''}
+    ${(ct.whatsapp||ct.phone)?`<button class="show-venue-action" onclick="whatsapp('${jsAttr(ct.whatsapp||ct.phone)}')">${ICON.chat(15)}</button>`:''}
+  </div>`).join('');
+  return `<div style="padding:0 2px 8px"><button type="button" class="quiet-add" onclick="sheetKeyContacts('${e.id}')">Edit contacts</button></div><div class="show-venue-stack">${liaisonRow}${otherRows}</div>`;
+}
+function contactsGroupBody(e){ return contactsBodyInner(e); }
+function attachmentsThumbBody(e){
+  return `<div class="thumb-row">
+    ${(e.attachments||[]).map(a=>attachThumb(e.id,a)).join('')}
+    <label class="thumb thumb-add">${ICON.plus(22)}<span>Add</span><input type="file" accept="image/*,application/pdf" style="display:none" onchange="uploadAttachment('${e.id}',this)"></label>
+  </div>`;
+}
+function attachmentsGroupBody(e){
+  const n = (e.attachments||[]).length;
+  if(!n) return `<label class="show-compact-row"><span>Attachments</span><span class="add">Add</span><input type="file" accept="image/*,application/pdf" style="display:none" onchange="uploadAttachment('${e.id}',this)"></label>`;
+  return attachmentsThumbBody(e);
 }
 function venueSubsection(e){
   const addr = formatVenueAddress(e);
@@ -965,14 +1022,8 @@ function venueSubsection(e){
       ${mapQ?`<button type="button" class="show-venue-action" onclick="openMaps('${jsAttr(mapQ)}')" title="Open in Maps">${ICON.map(16)}</button>`:''}
       <button type="button" class="header-btn show-venue-edit" onclick="sheetVenueAddr('${e.id}')" title="Edit venue">${ICON.edit(15)}</button>
     </div>
-    ${e.promoter?`<div class="info-line show-venue-row is-compact">
-      <div class="ic">${ICON.user(16)}</div>
-      ${fieldTx('Artist Liaison', esc(e.promoter.name||'Liaison'))}
-      ${(e.promoter.phone||e.promoter.whatsapp)?`<button type="button" class="show-venue-action" onclick="contactPromoter('${e.id}')">${ICON.chat(15)} Contact</button>`:''}
-      <button type="button" class="header-btn show-venue-edit" onclick="sheetPromoter('${e.id}')" title="Edit liaison">${ICON.edit(15)}</button>
-    </div>`:`<div class="info-line show-venue-row" onclick="sheetPromoter('${e.id}')"><div class="ic">${ICON.plus(16)}</div><div class="tx"><div class="v" style="color:var(--accent-2)">Add artist liaison</div></div></div>`}
   </div>`;
-  return showSubsection('ss-'+e.id+'-venue', 'Venue & liaison', '', body, true);
+  return showSubsection('ss-'+e.id+'-venue', 'Venue', '', body, false);
 }
 function advanceSubsection(e){
   const a = e.advance||{};
@@ -990,7 +1041,7 @@ function advanceSubsection(e){
   const otherRows = advRow(ICON.note(16),'Remarks',a.remarks);
   const mini = (title, rows)=> rows ? `<div class="show-adv-mini"><div class="show-adv-mini-head">${esc(title)}</div><div class="show-venue-stack">${rows}</div></div>` : '';
   const body = mini('Schedule', scheduleRows)+mini('Access', accessRows)+mini('Backstage', backstageRows)+mini('Other', otherRows);
-  return showSubsection('ss-'+e.id+'-advancing', 'Show-day details', editBtn, body, true);
+  return showSubsection('ss-'+e.id+'-advancing', 'Show-day details', editBtn, body, false);
 }
 function contactsSubsection(e){
   const cs = e.contacts||[];
@@ -999,25 +1050,13 @@ function contactsSubsection(e){
   const headBtn = has
     ? `<button type="button" class="add" onclick="sheetKeyContacts('${e.id}')">Edit</button>`
     : `<button type="button" class="add" onclick="sheetEventContact('${e.id}')">Add</button>`;
-  if(!has){
-    return showSubsection('ss-'+e.id+'-contacts', 'Key contacts', headBtn, `<div class="show-venue-empty"><div class="card tap" onclick="sheetEventContact('${e.id}')" style="text-align:center;color:var(--text-3);padding:18px;font-weight:600">${ICON.users(20)} Add a key contact</div></div>`);
-  }
-  const liaisonRow = p ? `<div class="info-line info-line-stacked show-venue-row is-block">
-    <div class="ic">${ICON.user(16)}</div>
-    <div class="tx" style="flex:1;min-width:0" onclick="sheetPromoter('${e.id}')">${detailParts('Artist Liaison', esc(p.name||'Liaison'), p.phone?esc(p.phone):'')}</div>
-    ${p.phone?`<button class="show-venue-action" onclick="callNumber('${jsAttr(p.phone)}')">${ICON.phone(15)}</button>`:''}
-    ${(p.whatsapp||p.phone)?`<button class="show-venue-action" onclick="whatsapp('${jsAttr(p.whatsapp||p.phone)}')">${ICON.chat(15)}</button>`:''}
-  </div>` : '';
-  const otherRows = cs.map(ct=>`<div class="info-line info-line-stacked show-venue-row is-block">
-    <div class="ic">${ICON.user(16)}</div>
-    <div class="tx" style="flex:1;min-width:0" onclick="sheetEventContact('${e.id}','${ct.id}')">${detailParts(ct.role?esc(showContactRoleLabel(ct.role)):'Contact', esc(ct.name||'Contact'), ct.phone?esc(ct.phone):'')}</div>
-    ${ct.phone?`<button class="show-venue-action" onclick="callNumber('${jsAttr(ct.phone)}')">${ICON.phone(15)}</button>`:''}
-    ${(ct.whatsapp||ct.phone)?`<button class="show-venue-action" onclick="whatsapp('${jsAttr(ct.whatsapp||ct.phone)}')">${ICON.chat(15)}</button>`:''}
-  </div>`).join('');
-  return showSubsection('ss-'+e.id+'-contacts', 'Key contacts', headBtn, `<div class="show-venue-stack">${liaisonRow}${otherRows}</div>`, true);
+  const body = has
+    ? contactsBodyInner(e).replace(/^<div style="padding:0 2px 8px">[\s\S]*?<\/div>/,'')
+    : `<div class="show-venue-empty"><div class="card tap" onclick="sheetEventContact('${e.id}')" style="text-align:center;color:var(--text-3);padding:18px;font-weight:600">${ICON.users(20)} Add a key contact</div></div>`;
+  return showSubsection('ss-'+e.id+'-contacts', 'Key contacts', headBtn, body, false);
 }
 function venueGroupBody(e){
-  return venueSubsection(e)+advanceSubsection(e)+contactsSubsection(e);
+  return venueSubsection(e)+advanceSubsection(e);
 }
 function contentSubsection(e){
   const linked = store.ideas.filter(x=>x.eventId===e.id);
@@ -1036,7 +1075,7 @@ function checklistSubsection(e){
   const body = e.checklist&&e.checklist.length
     ? `<div class="card flush">${e.checklist.map(i=>`<div class="check ${i.done?'done':''}" data-id="${esc(i.id)}"><div class="box" onclick="toggleEventCheck('${e.id}','${i.id}')">${ICON.check(15)}</div><div class="lbl" onclick="toggleEventCheck('${e.id}','${i.id}')">${esc(i.label)}</div><button class="del" onclick="delEventCheck('${e.id}','${i.id}')">${ICON.x(16)}</button></div>`).join('')}</div>`
     : `<div class="card tap" onclick="sheetShowChecklist('${e.id}')" style="text-align:center;color:var(--text-3);padding:18px;font-weight:600">${ICON.checkList(20)} Add a checklist item</div>`;
-  return showSubsection('ss-'+e.id+'-checklist', title, addBtn, body, !!cp.total);
+  return showSubsection('ss-'+e.id+'-checklist', title, addBtn, body, false);
 }
 function timelineStepRow(e, s, opts={}){
   const eid = e.id;
@@ -1145,7 +1184,10 @@ function showTimelineOverviewCopy(tl){
   if(!tl.length) return 'Builds from flights, hotel, transport and set time';
   return tl.length+' timeline item'+(tl.length===1?'':'s')+' · Travel, stay and show details update automatically';
 }
-function dayOverviewStepRow(e, s){
+function dayOverviewDayHead(g){
+  return `<div class="tl-day-banner-row${g.today?' today':''}"><div class="tl-day-date-pill"><span class="tl-day-date-text">${esc(g.label)}</span></div></div>`;
+}
+function dayOverviewStepRow(e, s, live){
   const eid = e.id;
   const openAuto = s.auto ? timelineAutoOpen(eid, s) : '';
   const labelClick = s.auto && openAuto
@@ -1166,8 +1208,13 @@ function dayOverviewStepRow(e, s){
   const note = bits.hasNote ? `<span class="tl-note">${ICON.note(11)} Note</span>` : '';
   const sub = bits.text ? `<span class="tl-sub">${esc(bits.text)}</span>` : '';
   const typeIc = hasRoute ? '' : `<div class="tl-type-ic">${icFn(tier==='performance'?16:13)}</div>`;
-  return `<div class="tl-item is-${tier} ${s.done?'done':''}" data-id="${esc(s.id)}">
+  const isNow = live && live.activeId === s.id;
+  const isBefore = live && (live.beforeIds||[]).indexOf(s.id) >= 0;
+  const nowCls = `${isNow?' is-now':''}${isBefore?' is-before-now':''}`;
+  const nowStyle = isNow && live && live.progress ? ` style="--tl-now-progress:${live.progress}"` : '';
+  return `<div class="tl-item is-${tier}${s.done?' done':''}${nowCls}" data-id="${esc(s.id)}"${nowStyle}>
     <div class="tl-time">${esc(time)}</div>
+    <div class="tl-rail"><span class="tl-node" role="presentation"></span></div>
     <div class="tl-content is-${tier}${hasRoute?' has-route':''}" ${labelClick}>
       ${typeIc}
       <div class="tl-body">${titleHtml}${sub}${note}</div>
@@ -1177,22 +1224,19 @@ function dayOverviewStepRow(e, s){
 function dayOverviewBlock(e){
   const tl = typeof showDayTimeline==='function' ? showDayTimeline(e) : (e.timeline||[]);
   const editBtn = `<button type="button" class="show-day-overview-edit" onclick="sheetShowTimeline('${e.id}')">${tl.length?'Edit':'Add'}</button>`;
-  const fullBtn = tl.length ? `<button type="button" class="show-day-overview-link" onclick="sheetShowTimeline('${e.id}')">View full timeline</button>` : '';
   const grouped = typeof groupShowTimelineByDay==='function' ? groupShowTimelineByDay(e, tl) : { multi:false, groups:[{ steps:tl }] };
-  const compact = compactShowTimelineIds(tl);
-  const keep = new Set(compact.ids);
   const body = tl.length
     ? `<div class="timeline show-day-timeline tl-preview">${(grouped.groups||[]).map(g=>{
-        const steps=(g.steps||[]).filter(s=>keep.has(s.id));
+        const steps=g.steps||[];
         if(!steps.length) return '';
-        const head = grouped.multi && g.label ? `<div class="tl-day-row${g.today?' today':''}"><div class="tl-time"></div><div class="tl-day-head">${esc(g.label)}</div></div>` : '';
-        return head+steps.map(s=>dayOverviewStepRow(e,s)).join('');
-      }).join('')}${compact.hidden?`<div class="tl-more-row"><div class="tl-time"></div><button type="button" class="tl-more" onclick="sheetShowTimeline('${e.id}')">+${compact.hidden} more itinerary item${compact.hidden===1?'':'s'}</button></div>`:''}</div>`
+        const head = g.label ? dayOverviewDayHead(g) : '';
+        return head+steps.map(s=>dayOverviewStepRow(e,s,null)).join('');
+      }).join('')}</div>`
     : `<div class="card tap" onclick="sheetShowTimeline('${e.id}')" style="text-align:center;color:var(--text-3);padding:18px;font-weight:600">${ICON.clock(20)} Add show details — this overview fills in automatically</div>`;
   return `<section class="show-day-overview">
     <div class="show-day-overview-head">
       <div><div class="block-title">Show timeline</div><div class="show-day-overview-sub">${esc(showTimelineOverviewCopy(tl))}</div></div>
-      <div class="show-day-overview-actions">${fullBtn}${editBtn}</div>
+      <div class="show-day-overview-actions">${editBtn}</div>
     </div>
     ${body}
   </section>`;
@@ -1206,14 +1250,11 @@ function timelineSubsection(e){
   }
   const body = `<div class="card flush">${tl.map(s=>timelineStepRow(e,s)).join('')}</div>
     <div class="hint" style="text-align:left;padding:8px 4px 0">Flights, hotel, transport and set time appear here automatically. Tap Edit to add custom steps.</div>`;
-  return showSubsection('ss-'+e.id+'-timeline', 'Day timeline', addBtn, body, true);
+  return showSubsection('ss-'+e.id+'-timeline', 'Day timeline', addBtn, body, false);
 }
 function attachmentsSubsection(e){
   const has = !!(e.attachments||[]).length;
-  const body = `<div class="thumb-row">
-    ${(e.attachments||[]).map(a=>attachThumb(e.id,a)).join('')}
-    <label class="thumb thumb-add">${ICON.plus(22)}<span>Add</span><input type="file" accept="image/*,application/pdf" style="display:none" onchange="uploadAttachment('${e.id}',this)"></label>
-  </div>`;
+  const body = has ? attachmentsThumbBody(e) : '';
   return showSubsection('ss-'+e.id+'-attachments', 'Attachments', '', body, has);
 }
 function notesSubsection(e){
@@ -1230,7 +1271,7 @@ function notesSubsection(e){
   return showSubsection('ss-'+e.id+'-notes', 'Internal notes', `<button type="button" class="add" onclick="addNoteItemRow(document.querySelector('[data-note-list=\\'show-notes-${e.id}\\'] .note-items-add'),'Anything to remember about this show…')">Add</button>`, body, has);
 }
 function prepGroupBody(e){
-  return contentSubsection(e)+checklistSubsection(e)+attachmentsSubsection(e)+notesSubsection(e);
+  return contentSubsection(e)+checklistSubsection(e)+notesSubsection(e);
 }
 function moneyGroupBody(e){
   if(e.finance && e.finance.notDisclosed){
@@ -1286,7 +1327,7 @@ function viewEvent(id){
   return `
   <div class="detail-top">
     <div class="detail-bar">
-      <button class="back-btn" onclick="back()">${ICON.chevL(20)} ${trip?esc(trip.name):overlayBackLabel()}</button>
+      <button class="back-btn" onclick="back()">${ICON.chevL(20)} ${(typeof window !== 'undefined' && window.__navReturn && window.__navReturn.label) ? esc(window.__navReturn.label) : (trip ? esc(trip.name) : overlayBackLabel())}</button>
       <div style="display:flex;gap:8px">
         <button class="header-btn" style="width:36px;height:36px" onclick="shareDaySheet('${e.id}')">${ICON.share(17)}</button>
         <button class="header-btn" style="width:36px;height:36px" onclick="eventMenu('${e.id}')">${ICON.edit(18)}</button>
@@ -1320,10 +1361,13 @@ function viewEvent(id){
     ${dayOverviewBlock(e)}
 
     <div class="show-groups">
-      ${showGroup('sg-'+e.id+'-travel', 'Travel & stay', ICON.plane(20), travelGroupSummary(e), travelGroupBody(e))}
-      ${showGroup('sg-'+e.id+'-venue', 'Venue & show day', ICON.pin(20), venueGroupSummary(e), venueGroupBody(e), true, 'show-venue-panel')}
-      ${showGroup('sg-'+e.id+'-deal', 'Fee & deal', ICON.coins(20), dealGroupSummary(e), moneyGroupBody(e))}
+      ${showGroup('sg-'+e.id+'-travel', 'Travel', ICON.plane(20), travelLegsGroupSummary(e), travelGroupBody(e))}
+      ${showGroup('sg-'+e.id+'-stay', 'Stay', ICON.bed(20), stayGroupSummary(e), stayGroupBody(e))}
+      ${showGroup('sg-'+e.id+'-venue', 'Venue & show day', ICON.pin(20), venueGroupSummary(e), venueGroupBody(e), false, 'show-venue-panel')}
+      ${showGroup('sg-'+e.id+'-contacts', 'Contacts', ICON.users(20), contactsGroupSummary(e), contactsGroupBody(e))}
       ${showGroup('sg-'+e.id+'-prep', 'Day prep', ICON.checkList(20), prepGroupSummary(e), prepGroupBody(e))}
+      ${showGroup('sg-'+e.id+'-attachments', 'Attachments', ICON.file(20), attachmentsGroupSummary(e), attachmentsGroupBody(e))}
+      ${showGroup('sg-'+e.id+'-deal', 'Fee & deal', ICON.coins(20), dealGroupSummary(e), moneyGroupBody(e))}
     </div>
 
     <div class="show-detail-foot">
@@ -1868,6 +1912,7 @@ function saveFlight(eid, fid){
     e.flightNo=''; e.terminal=''; e.gate=''; e.fstatus=''; e.delay='';
     if(typeof setFoldOpen === 'function'){
       setFoldOpen('sg-'+eid+'-travel', true);
+      setFoldOpen('sg-'+eid+'-stay', true);
       setFoldOpen('ss-'+eid+'-flights', true);
     }
     persist('shows', eid);

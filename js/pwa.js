@@ -1,12 +1,16 @@
 /* ---------- PWA: register offline service worker ---------- */
-if('serviceWorker' in navigator && location.protocol.startsWith('http')){
+const operateLocalPreview = /^(localhost|127\.0\.0\.1)$/i.test(location.hostname);
+if(operateLocalPreview && 'serviceWorker' in navigator){
+  /* Local dev: drop cached shells so index.html and react-show.js stay current. */
+  navigator.serviceWorker.getRegistrations().then(regs => regs.forEach(r => r.unregister())).catch(()=>{});
+  if(typeof caches !== 'undefined'){
+    caches.keys().then(keys => keys.filter(k => /^operate-v/.test(k)).forEach(k => caches.delete(k))).catch(()=>{});
+  }
+}
+if('serviceWorker' in navigator && location.protocol.startsWith('http') && !operateLocalPreview){
   window.addEventListener('load', ()=>{ navigator.serviceWorker.register('sw.js').catch(()=>{}); });
-  let refreshing = false;
-  navigator.serviceWorker.addEventListener('controllerchange', ()=>{
-    if(refreshing) return;
-    refreshing = true;
-    location.reload();
-  });
+  /* Do not auto-reload on controllerchange — that caused a second reload after every
+     manual refresh when a new service worker activated (felt like a crash / blank flash). */
   // Tapping a reminder notification opens the relevant show
   navigator.serviceWorker.addEventListener('message', (ev)=>{
     const d=ev.data||{};

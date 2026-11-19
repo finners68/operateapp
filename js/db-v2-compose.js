@@ -595,6 +595,8 @@ async function composeViewFromV2(v2, opts){
       passes,
       from: (typeof v2JourneyCompactFrom === 'function' ? v2JourneyCompactFrom(j) : (j.departure_location_name || '')) || '',
       to: (typeof v2JourneyCompactTo === 'function' ? v2JourneyCompactTo(j) : (j.arrival_location_name || '')) || '',
+      fromCode: (typeof v2JourneyDepIata === 'function' ? v2JourneyDepIata(j) : '') || '',
+      toCode: (typeof v2JourneyArrIata === 'function' ? v2JourneyArrIata(j) : '') || '',
       fromName: (typeof v2JourneyFromName === 'function' ? v2JourneyFromName(j) : (j.departure_location_name || '')) || '',
       toName: (typeof v2JourneyToName === 'function' ? v2JourneyToName(j) : (j.arrival_location_name || '')) || '',
       fromKind: j.departure_location_kind || '',

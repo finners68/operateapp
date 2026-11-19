@@ -1,5 +1,5 @@
 /* Operate service worker — app-shell offline cache */
-const VERSION = 'operate-v311';
+const VERSION = 'operate-v321';
 const SHELL = [
   './',
   './index.html',
@@ -25,6 +25,8 @@ const SHELL = [
   './js/calendar.js',
   './js/ideas.js',
   './js/notes.js',
+  './js/search.js',
+  './js/currency.js',
   './js/app.js',
   './js/wrapped.js',
   './js/react-show.js',
@@ -37,7 +39,10 @@ const SHELL = [
   './fonts/instrument-serif-latin-ext-italic.woff2',
   './icons/icon-180.png',
   './icons/icon-192.png',
-  './icons/icon-512.png'
+  './icons/icon-512.png',
+  './assets/operate-wordmark1.png',
+  './assets/operate-wordmark.svg',
+  './assets/operate-wordmark.png'
 ];
 
 self.addEventListener('install', (e) => {

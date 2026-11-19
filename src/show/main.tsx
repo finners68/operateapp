@@ -1,0 +1,204 @@
+import { createRoot } from 'react-dom/client';
+import { flushSync } from 'react-dom';
+import App, { prepareAppBoot } from '../app/App.jsx';
+import {
+  setSheetState, setToastState, setLockState, setAuthState, setViewerState, sheetState,
+} from '../shell/chromeState.js';
+import { notifyStore, call } from '../api/operate.js';
+import * as navApi from '../app/nav.js';
+
+function paint(root: any, node: any){
+  flushSync(() => { root.render(node); });
+}
+
+let appRoot: any = null;
+let appMounted = false;
+let toastTimer: any = null;
+let sheetKey = 0;
+let sheetCloseTimer: any = null;
+
+function cancelPendingSheetClose(){
+  if(sheetCloseTimer){
+    clearTimeout(sheetCloseTimer);
+    sheetCloseTimer = null;
+  }
+}
+
+export function mountApp(el?: any){
+  prepareAppBoot();
+  const host = el || document.getElementById('react-app-root') || document.body;
+  if(!host) return;
+  if(appRoot){
+    notifyStore();
+    return;
+  }
+  /* Hidden mount host — UI is portaled into #view / #nav / chrome hosts. */
+  let mountEl = document.getElementById('react-app-root');
+  if(!mountEl){
+    mountEl = document.createElement('div');
+    mountEl.id = 'react-app-root';
+    mountEl.style.display = 'contents';
+    const app = document.getElementById('app');
+    if(app) app.insertBefore(mountEl, app.firstChild);
+    else document.body.appendChild(mountEl);
+  }
+  appRoot = createRoot(mountEl);
+  paint(appRoot, <App />);
+  appMounted = true;
+  navApi.setAppMounted(true);
+  if(typeof notifyStore === 'function') notifyStore();
+}
+
+export function isAppMounted(){
+  return appMounted;
+}
+
+export function unmountApp(){
+  if(appRoot){
+    try{ appRoot.unmount(); }catch(_){}
+  }
+  appRoot = null;
+  appMounted = false;
+  navApi.setAppMounted(false);
+}
+
+/* Back-compat aliases while vanilla still calls mountShell during boot. */
+export function mountShell(){
+  mountApp();
+}
+export function isShellMounted(){
+  return isAppMounted();
+}
+export function refreshShell(){
+  notifyStore();
+}
+
+export const nav = {
+  navigateTo: navApi.navigateTo,
+  goTab: navApi.goTab,
+  goBack: navApi.goBack,
+  pathForOverlay: navApi.pathForOverlay,
+  pathForTab: navApi.pathForTab,
+  isAppMounted: navApi.isAppMounted,
+};
+
+export function chromeToast(msg: any, icon: any = 'check'){
+  clearTimeout(toastTimer);
+  setToastState({ msg: String(msg || ''), icon: icon || 'check', on: true });
+  if(typeof call === 'function'){ /* haptic via toast caller */ }
+  toastTimer = setTimeout(() => setToastState({ on: false }), 2100);
+}
+
+export function chromeOpenSheet(title: any, bodyHTML: any, opts: any = {}){
+  cancelPendingSheetClose();
+  sheetKey += 1;
+  setSheetState({
+    key: sheetKey,
+    title: title || '',
+    bodyHTML: bodyHTML || '',
+    bodyKind: null,
+    bodyProps: null,
+    opts: opts || {},
+    open: true,
+    closing: false,
+  });
+}
+
+export function chromeOpenSheetReact(title: any, bodyKind: any, bodyProps: any = {}, opts: any = {}){
+  cancelPendingSheetClose();
+  sheetKey += 1;
+  setSheetState({
+    key: sheetKey,
+    title: title || '',
+    bodyHTML: '',
+    bodyKind: bodyKind || null,
+    bodyProps: bodyProps || {},
+    opts: opts || {},
+    open: true,
+    closing: false,
+  });
+}
+
+export function chromeCloseSheet(instant: any, onDone: any){
+  cancelPendingSheetClose();
+  const finish = () => {
+    sheetCloseTimer = null;
+    setSheetState(null);
+    if(typeof window !== 'undefined') window.sheetEl = null;
+    if(typeof onDone === 'function') onDone();
+  };
+  if(!sheetState || !sheetState.open){
+    finish();
+    return;
+  }
+  if(instant){
+    finish();
+    return;
+  }
+  setSheetState(Object.assign({}, sheetState, { closing: true }));
+  sheetCloseTimer = setTimeout(finish, 280);
+}
+
+export function chromeOpenViewer(src: any){
+  setViewerState({ open: true, src: src || '' });
+}
+
+export function chromeCloseViewer(){
+  setViewerState({ open: false, src: '' });
+}
+
+export function chromeShowLock(state: any){
+  setLockState(Object.assign({
+    open: true,
+    err: false,
+    pinLen: 0,
+  }, state || {}));
+}
+
+export function chromeUpdateLock(partial: any){
+  setLockState(partial || {});
+}
+
+export function chromeHideLock(){
+  setLockState({ open: false, pinLen: 0, err: false, purpose: null });
+}
+
+export function chromeShowAuth(partial: any){
+  setAuthState(Object.assign({ open: true }, partial || {}));
+}
+
+export function chromeHideAuth(){
+  setAuthState({ open: false, msg: '', msgKind: '', sending: false });
+}
+
+export function chromeSetAuthMsg(msg: any, isErr: any){
+  setAuthState({
+    msg: msg || '',
+    msgKind: msg ? (isErr ? 'err' : 'ok') : '',
+  });
+}
+
+function pageMounted(id: any){
+  return typeof document !== 'undefined' && !!document.getElementById(id);
+}
+
+/* Vanilla screens still ask whether a React page is live. If these are missing,
+   those scripts rewrite React-owned HTML and the tab crashes. */
+export function refreshContentTab(){ notifyStore(); }
+export function isContentTabMounted(){ return pageMounted('content-mode-page'); }
+export function refreshShowsList(){ notifyStore(); }
+export function isShowsListMounted(){ return pageMounted('shows-mode-page'); }
+export function refreshNoteFolder(){ notifyStore(); }
+export function isNoteFolderMounted(){
+  if(typeof window !== 'undefined' && window.overlay && window.overlay.type === 'noteFolder') return true;
+  try{ return /#\/notes\/folder\//.test(String(location.hash || '')); }
+  catch(_){ return false; }
+}
+export function refreshNoteDetail(){ notifyStore(); }
+export function isNoteDetailMounted(){
+  if(typeof window !== 'undefined' && window.overlay && window.overlay.type === 'note') return true;
+  try{ return /#\/notes\/(?!folder\/)/.test(String(location.hash || '')); }
+  catch(_){ return false; }
+}
+export function refreshCalendar(){ notifyStore(); }
+export function isCalendarMounted(){ return pageMounted('cal-wrap') || pageMounted('cal-page'); }
