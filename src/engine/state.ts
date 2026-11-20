@@ -730,11 +730,15 @@ function persist(scope, id?){
     }
   }
   db.write(store);
-  /* Online scoped edits: push dirty set now (single-row / partial). Offline: queue for reconnect flush. */
-  if(scoped && typeof flushDirtyNow === 'function' && typeof syncActive === 'function' && syncActive()
+  /* Online scoped edits: push dirty set now (single-row / partial). Offline: queue for reconnect flush.
+     UI prefs (tab, widgets) are debounced — avoid a failed push toast on every tab tap. */
+  if(scoped && typeof syncActive === 'function' && syncActive()
       && (typeof navigator === 'undefined' || navigator.onLine !== false)){
-    flushDirtyNow();
-    } else {
+    const prefsOnly = scope === 'user_preferences';
+    if(prefsOnly && typeof queueSync === 'function') queueSync();
+    else if(typeof flushDirtyNow === 'function') flushDirtyNow();
+    else queueSync();
+  } else {
     queueSync();
   }
   if(typeof notifyStore === 'function') notifyStore();

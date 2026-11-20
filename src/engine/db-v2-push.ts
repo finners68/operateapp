@@ -592,7 +592,7 @@ async function pushToSupabaseV2(orgId, dirtyIn){
   }
   const invoicesPush = needInvoices ? filterByDirtyIds(invoicesSnap, dirty, 'invoices') : [];
 
-  const uiPrefs = {
+  const uiPrefs: EngineRow = {
     security: settingsSnap.security || {},
     packingTemplate: packingTemplateSnap,
     homeHeaderPath: settingsSnap._homeHeaderPath
@@ -603,6 +603,22 @@ async function pushToSupabaseV2(orgId, dirtyIn){
     itineraries: itinerariesSnap,
     usbReminder: settingsSnap.usbReminder !== false
   };
+  if(settingsSnap.homeWidgets && typeof settingsSnap.homeWidgets === 'object'){
+    uiPrefs.homeWidgets = {
+      cols: Number(settingsSnap.homeWidgets.cols) > 0 ? Number(settingsSnap.homeWidgets.cols) : 12,
+      layout: Array.isArray(settingsSnap.homeWidgets.layout) ? settingsSnap.homeWidgets.layout.slice() : [],
+      grid: Array.isArray(settingsSnap.homeWidgets.grid)
+        ? settingsSnap.homeWidgets.grid.map((g: EngineRow) => ({
+          id: g.id,
+          x: g.x,
+          y: g.y,
+          w: g.w,
+          h: g.h,
+          size: g.size,
+        }))
+        : [],
+    };
+  }
 
   if(needSettings){
     const settingsRow = {
@@ -660,15 +676,17 @@ async function pushToSupabaseV2(orgId, dirtyIn){
   }
 
   if(needPrefs){
-    const user = await getAuthUser();
-    if(user){
+    const prefsUserId = await resolvePrefsUserId(sb, orgId);
+    if(prefsUserId){
       const { error } = await sb.from('user_preferences').upsert({
         organisation_id: orgId,
-        user_id: user.id,
+        user_id: prefsUserId,
         last_open_tab: tabSnap,
         ui_preferences: uiPrefs
       }, { onConflict: 'organisation_id,user_id' });
       v2Throw(error, 'user_preferences');
+    } else {
+      delete dirty.user_preferences;
     }
   }
 

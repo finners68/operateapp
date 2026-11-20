@@ -2,6 +2,23 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
+<script>
+(function(){
+  try{
+    var p=localStorage.getItem('operate.appearance');
+    var light=false;
+    if(p==='light') light=true;
+    else if(p==='dark') light=false;
+    else if(p==='system'&&window.matchMedia&&window.matchMedia('(prefers-color-scheme: light)').matches) light=true;
+    document.documentElement.setAttribute('data-theme',light?'light':'dark');
+    document.documentElement.style.colorScheme=light?'light':'dark';
+    var m=document.querySelector('meta[name="theme-color"]');
+    if(m) m.setAttribute('content',light?'#F7F7FA':'#0a0a0c');
+  }catch(e){
+    document.documentElement.setAttribute('data-theme','dark');
+  }
+})();
+</script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
@@ -15,14 +32,13 @@
 <link rel="apple-touch-icon" sizes="192x192" href="icons/icon-192.png">
 <link rel="icon" type="image/png" sizes="512x512" href="icons/icon-512.png">
 <link rel="manifest" href="manifest.json">
-<link rel="stylesheet" href="styles.css?v=378">
+<link rel="stylesheet" href="styles.css?v=405">
 </head>
 <body>
 <div id="authSheet" class="auth-sheet"></div>
 <div id="app">
   <div id="screen">
     <button id="sidebar-reveal" type="button" class="sidebar-reveal" onclick="toggleSidebar(false)" title="Show sidebar"></button>
-    <button id="desktop-refresh" type="button" class="desktop-refresh" onclick="refreshFromCloud()" title="Refresh from cloud"></button>
     <div class="top-safe"></div><div id="view"><div class="app-boot-placeholder" aria-busy="true" role="status"><b>Operate</b><span>Loading…</span></div></div></div>
   <button id="fab" class="fab" style="display:none"></button>
   <nav id="nav"></nav>
@@ -33,31 +49,32 @@
 </div>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="js/config.js"></script>
-<script src="js/supabase.js"></script>
+<script src="js/theme.js?v=1"></script>
+<script src="js/supabase.js?v=3"></script>
 <script src="js/tour-logistics-catalog.js"></script>
 <script src="js/geo.js"></script>
 <script src="js/db-v2-state.js"></script>
-<script src="js/state.js?v=331"></script>
+<script src="js/state.js?v=332"></script>
 <script src="js/currency.js?v=3"></script>
 <script src="js/db-v2-maps.js"></script>
 <script src="js/db-v2-journeys.js"></script>
 <script src="js/db-v2-repo.js"></script>
-<script src="js/db-v2-compose.js"></script>
-<script src="js/db-v2-load.js"></script>
-<script src="js/db-v2-push.js"></script>
-<script src="js/db.js?v=327"></script>
-<script src="js/sync.js"></script>
-<script src="js/auth.js"></script>
+<script src="js/db-v2-compose.js?v=2"></script>
+<script src="js/db-v2-load.js?v=2"></script>
+<script src="js/db-v2-push.js?v=2"></script>
+<script src="js/db.js?v=329"></script>
+<script src="js/sync.js?v=2"></script>
+<script src="js/auth.js?v=2"></script>
 <script src="js/shows.js?v=323"></script>
 <script src="js/trip.js?v=340"></script>
 <script src="js/calendar.js?v=4"></script>
 <script src="js/ideas.js"></script>
 <script src="js/notes.js"></script>
 <script src="js/search.js?v=3"></script>
-<script src="js/home-widgets.js?v=5"></script>
-<script src="js/app.js?v=338"></script>
+<script src="js/home-widgets.js?v=12"></script>
+<script src="js/app.js?v=342"></script>
 <script src="js/wrapped.js"></script>
-<script src="js/react-show.js?v=393"></script>
+<script src="js/react-show.js?v=423"></script>
 <script src="js/pwa.js?v=3"></script>
 <script>
   (function startOperate(){

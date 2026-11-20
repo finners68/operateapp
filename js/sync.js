@@ -383,16 +383,25 @@ async function syncPullNow(opts) {
     }
     const ui = captureQuietUi();
     syncSetStatus('syncing');
-    await loadFromSupabase(currentOrgId);
-    lastRemotePullAt = Date.now();
-    if (typeof applySavedNavToStore === 'function')
-        applySavedNavToStore();
-    renderAfterQuietSync(ui);
-    syncSetStatus('synced');
-    syncMarkLastSync();
-    if (!opts.quiet)
-        toast('Updated from cloud', 'check');
-    return true;
+    try {
+        await loadFromSupabase(currentOrgId);
+        lastRemotePullAt = Date.now();
+        if (typeof applySavedNavToStore === 'function')
+            applySavedNavToStore();
+        renderAfterQuietSync(ui);
+        syncSetStatus('synced');
+        syncMarkLastSync();
+        if (!opts.quiet)
+            toast('Updated from cloud', 'check');
+        return true;
+    }
+    catch (e) {
+        console.error('syncPullNow', e);
+        syncSetStatus('error');
+        if (!opts.quiet)
+            toast('Cloud refresh failed — try again', 'x');
+        return false;
+    }
 }
 let syncRefreshInFlight = false;
 /* Manual refresh: save any pending edits, then pull the latest cloud data. */

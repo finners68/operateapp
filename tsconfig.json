@@ -16,7 +16,11 @@
     "forceConsistentCasingInFileNames": true,
     "esModuleInterop": true,
     "allowImportingTsExtensions": false,
-    "verbatimModuleSyntax": false
+    "verbatimModuleSyntax": false,
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["src/*"]
+    }
   },
   "include": ["src"],
   "exclude": ["node_modules", "src/engine"]

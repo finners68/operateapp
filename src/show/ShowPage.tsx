@@ -19,51 +19,13 @@ function useShow(showId: any){
   return useMemo(() => getEvent(showId), [snap, showId]);
 }
 
-function todayISO(){
-  const t = new Date();
-  const p = (n: any) => String(n).padStart(2, '0');
-  return `${t.getFullYear()}-${p(t.getMonth() + 1)}-${p(t.getDate())}`;
-}
-
-function showIsPast(show: any){
-  if(!show) return false;
-  if(show.status === 'cancelled') return true;
-  const d = String(show.date || '').slice(0, 10);
-  return !!(d && d < todayISO());
-}
-
 function Foot({ show }: Record<string, any>){
-  const run = call('runOf', show.id);
-  const otherShows = run ? run.shows.length - 1 : 0;
-  const store = getStore();
-  const active = store?.activeShowId && call('runOf', store.activeShowId)?.key === (run && run.key);
-  const past = showIsPast(show);
   return (
-    <>
-      {!past || active ? (
-        <div className={`show-trip-cta${past && active ? ' is-quiet' : ''}`}>
-          {active ? (
-            <button type="button" className="btn" onClick={() => call('go', 'home')}>
-              <Icon name="play" size={18} /> Trip Mode is live — open it
-            </button>
-          ) : (
-            <button type="button" className="btn" onClick={() => call('startTripFromShow', show.id)}>
-              <Icon name="play" size={18} /> Start Trip Mode{otherShows > 0 ? ` (this run · ${run.shows.length} shows)` : ''}
-            </button>
-          )}
-          {otherShows > 0 && !past ? (
-            <div className="hint" style={{ textAlign: 'left', padding: '8px 2px 0' }}>
-              Auto-grouped with {otherShows} nearby show{otherShows > 1 ? 's' : ''} into one tour — no naming needed.
-            </div>
-          ) : null}
-        </div>
-      ) : null}
-      <div className="show-danger-zone">
-        <button type="button" className="show-danger-link" onClick={() => call('confirmDeleteEvent', show.id)}>
-          Delete show
-        </button>
-      </div>
-    </>
+    <div className="show-danger-zone">
+      <button type="button" className="show-danger-link" onClick={() => call('confirmDeleteEvent', show.id)}>
+        Delete show
+      </button>
+    </div>
   );
 }
 

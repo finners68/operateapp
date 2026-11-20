@@ -6,7 +6,17 @@ import vm from 'node:vm';
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { moveGridWidget, placeGridWidgetAtPointer, pointerToGridCell } from '../src/home/homeWidgetGrid.ts';
+import {
+  WIDGET_SIZE_PRESETS,
+  dimensionsForWidget,
+  normalizeWidgetSize,
+  reconcileGridItem,
+  compactGridItems,
+  moveGridWidget,
+  placeGridWidgetAtPointer,
+  pointerToGridCell,
+  snapGridX,
+} from '../src/home/homeWidgetGrid.ts';
 import { browserKeyProblem } from '../scripts/config-key.mjs';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -779,16 +789,62 @@ test('emptyOperateState has no bundled shows', () => {
   assert.equal((s.v2 && s.v2.shows) ? s.v2.shows.length : 0, 0);
 });
 
+test('compactGridItems removes blank rows and stops widgets overlapping', () => {
+  const grid = [
+    { id: 'a', x: 0, y: 0, w: 6, h: 4, size: 'medium' },
+    { id: 'b', x: 0, y: 12, w: 6, h: 4, size: 'medium' },
+  ];
+  const packed = compactGridItems(grid, 12);
+  assert.equal(packed.find((g) => g.id === 'b').y, 4);
+  assert.equal(packed.some((g, i, arr) => arr.some((o, j) => i !== j && g.x < o.x + o.w && g.x + g.w > o.x && g.y < o.y + o.h && g.y + g.h > o.y)), false);
+});
+
+test("today's schedule large is half width and double medium height", () => {
+  const med = dimensionsForWidget('todaySchedule', 'medium');
+  const large = dimensionsForWidget('todaySchedule', 'large');
+  assert.equal(large.w, med.w);
+  assert.equal(large.h, med.h * 2);
+  const inferred = normalizeWidgetSize('todaySchedule', undefined, 6, 8);
+  assert.equal(inferred, 'large');
+  const fixed = reconcileGridItem({ id: 'todaySchedule', x: 0, y: 4, w: 12, h: 5, size: 'large' });
+  assert.equal(fixed.w, 6);
+  assert.equal(fixed.h, 8);
+});
+
+test('two medium widgets fit side by side on a twelve-column grid', () => {
+  const grid = [
+    { id: 'a', x: 0, y: 0, w: 6, h: 4, size: 'medium' },
+    { id: 'b', x: 6, y: 0, w: 6, h: 4, size: 'medium' },
+  ];
+  const packed = compactGridItems(grid, 12);
+  assert.equal(packed.find((g) => g.id === 'a').x, 0);
+  assert.equal(packed.find((g) => g.id === 'b').x, 6);
+  assert.equal(packed.find((g) => g.id === 'a').y, 0);
+  assert.equal(packed.find((g) => g.id === 'b').y, 0);
+});
+
 test('moveGridWidget places widgets side by side on the same row', () => {
   const grid = [
-    { id: 'a', x: 0, y: 0, w: 4, h: 3, size: 'small' },
-    { id: 'b', x: 0, y: 3, w: 4, h: 3, size: 'small' },
+    { id: 'accommodation', x: 0, y: 0, w: 3, h: 2, size: 'small' },
+    { id: 'nextShow', x: 0, y: 2, w: 3, h: 2, size: 'small' },
   ];
-  const next = moveGridWidget(grid, 'b', 4, 0, 12);
-  const b = next.find((g) => g.id === 'b');
-  assert.equal(b.x, 4);
+  const next = moveGridWidget(grid, 'nextShow', 2, 0, 12);
+  const b = next.find((g) => g.id === 'nextShow');
+  assert.equal(b.x, 2);
   assert.equal(b.y, 0);
-  assert.equal(next.find((g) => g.id === 'a').x, 0);
+  assert.equal(next.find((g) => g.id === 'accommodation').x, 0);
+});
+
+test('three small widgets span one medium width; two mediums span one large width', () => {
+  assert.equal(WIDGET_SIZE_PRESETS.small.w * 3, WIDGET_SIZE_PRESETS.medium.w);
+  assert.equal(WIDGET_SIZE_PRESETS.small.h * 2, WIDGET_SIZE_PRESETS.medium.h);
+  assert.equal(WIDGET_SIZE_PRESETS.medium.w * 2, WIDGET_SIZE_PRESETS.large.w);
+});
+
+test('snapGridX aligns medium widgets to columns 0 and 6 on a twelve-wide grid', () => {
+  assert.equal(snapGridX(0, 6, 12), 0);
+  assert.equal(snapGridX(5, 6, 12), 6);
+  assert.equal(snapGridX(6, 6, 12), 6);
 });
 
 test('placeGridWidgetAtPointer snaps to grid column under the pointer', () => {

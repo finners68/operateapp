@@ -1,5 +1,5 @@
 import { createElement } from 'react';
-import { ConfirmSheetBody, PromptSheetBody } from './common.jsx';
+import { ConfirmSheetBody, HoldConfirmSheetBody, PromptSheetBody } from './common.jsx';
 import {
   ShowEventSheet, ShowAddTravelSheet, ShowTravelLegSheet, ShowHotelSheet, ShowFlightsListSheet, ShowContactsListSheet, ShowFlightSheet,
   ShowFlightPassengersSheet,
@@ -32,6 +32,7 @@ import HomeWidgetsSheet from './home/HomeWidgetsSheet.jsx';
 
 export const SHEET_KINDS = Object.freeze({
   'common.confirm': ConfirmSheetBody,
+  'common.holdConfirm': HoldConfirmSheetBody,
   'common.prompt': PromptSheetBody,
 
   'show.event': ShowEventSheet,

@@ -65,7 +65,12 @@ const DEFAULT_HOME_WIDGET_LAYOUT = [
     'upcomingTravel',
     'accommodation',
 ];
-const HOME_SIZE_PRESETS = { small: { w: 4, h: 3 }, medium: { w: 6, h: 4 }, large: { w: 12, h: 5 } };
+const HOME_SIZE_PRESETS = { small: { w: 2, h: 2 }, medium: { w: 6, h: 4 }, large: { w: 12, h: 5 } };
+const HOME_SIZE_PRESETS_BY_WIDGET = {
+    todaySchedule: {
+        large: { w: HOME_SIZE_PRESETS.medium.w, h: HOME_SIZE_PRESETS.medium.h * 2 },
+    },
+};
 const HOME_WIDGET_SIZE_OPTS = {
     nextShow: ['small', 'medium', 'large'],
     todaySchedule: ['medium', 'large'],
@@ -81,14 +86,37 @@ function homeWidgetSizeOptions(id) {
 }
 function homeWidgetDefaultSize(id) {
     const opts = homeWidgetSizeOptions(id);
+    if (id === 'todaySchedule' && opts.indexOf('large') >= 0)
+        return 'large';
     return opts.indexOf('medium') >= 0 ? 'medium' : opts[0];
+}
+function homePresetDims(id, size) {
+    const byWidget = (typeof window !== 'undefined' && window.WIDGET_SIZE_PRESETS_BY_WIDGET && window.WIDGET_SIZE_PRESETS_BY_WIDGET[id])
+        || HOME_SIZE_PRESETS_BY_WIDGET[id];
+    const base = (typeof window !== 'undefined' && window.WIDGET_SIZE_PRESETS) || HOME_SIZE_PRESETS;
+    const p = (byWidget && byWidget[size]) || base[size] || base.medium;
+    return p;
+}
+function homeInferSizeFromDims(id, w, h) {
+    const opts = homeWidgetSizeOptions(id);
+    let best = homeWidgetDefaultSize(id);
+    let bestD = Number.POSITIVE_INFINITY;
+    opts.forEach((s) => {
+        const p = homePresetDims(id, s);
+        const d = Math.abs(p.w - (w || 0)) + Math.abs(p.h - (h || 0));
+        if (d < bestD) {
+            bestD = d;
+            best = s;
+        }
+    });
+    return best;
 }
 function homeDimsForSize(id, size) {
     const opts = homeWidgetSizeOptions(id);
     let s = size;
     if (!s || opts.indexOf(s) < 0)
         s = homeWidgetDefaultSize(id);
-    const p = HOME_SIZE_PRESETS[s] || HOME_SIZE_PRESETS.medium;
+    const p = homePresetDims(id, s);
     return { w: p.w, h: p.h, size: s };
 }
 function migrateWidgetId(id) {
@@ -133,7 +161,12 @@ function normalizeHomeWidgetGrid(grid, cols) {
         const id = migrateWidgetId(item.id);
         if (!id || !set.has(id) || out.some((x) => x.id === id))
             return;
-        const dims = homeDimsForSize(id, item.size);
+        const opts = homeWidgetSizeOptions(id);
+        let size = item.size;
+        if (!size || opts.indexOf(size) < 0) {
+            size = homeInferSizeFromDims(id, Number(item.w), Number(item.h));
+        }
+        const dims = homeDimsForSize(id, size);
         const w = Math.min(dims.w, c);
         const x = Math.max(0, Math.min(c - w, Number(item.x) || 0));
         const y = Math.max(0, Number(item.y) || 0);
@@ -145,12 +178,43 @@ function defaultGridFromIds(ids, cols) {
     const c = cols || 12;
     let y = 0;
     return ids.map((id) => {
-        const dims = homeDimsForSize(id, 'medium');
+        const dims = homeDimsForSize(id, homeWidgetDefaultSize(id));
         const w = Math.min(dims.w, c);
         const item = { id, x: 0, y, w, h: dims.h, size: dims.size };
         y += dims.h;
         return item;
     });
+}
+function gridSlotNeedsRepair(raw, n) {
+    if (!raw)
+        return true;
+    if (Number(raw.w) !== n.w || Number(raw.h) !== n.h)
+        return true;
+    const storedSize = raw.size || homeInferSizeFromDims(n.id, Number(raw.w), Number(raw.h));
+    return storedSize !== n.size;
+}
+function applyHomeWidgetGridLocal(normalized, cols) {
+    if (!store.settings)
+        store.settings = {};
+    store.settings.homeWidgets = {
+        layout: normalized.map((x) => x.id),
+        grid: normalized,
+        cols,
+    };
+    if (typeof db !== 'undefined' && typeof db.write === 'function')
+        db.write(store);
+}
+/** Canonical w/h/size after cloud load — does not hit the network. */
+function canonicalizeHomeWidgets(hw) {
+    if (!hw || typeof hw !== 'object' || !Array.isArray(hw.grid))
+        return hw;
+    const cols = Number(hw.cols) > 0 ? Number(hw.cols) : 12;
+    const normalized = normalizeHomeWidgetGrid(hw.grid, cols);
+    return {
+        cols,
+        layout: normalized.map((x) => x.id),
+        grid: normalized,
+    };
 }
 function getHomeWidgetGrid() {
     if (!store || !store.settings)
@@ -158,7 +222,19 @@ function getHomeWidgetGrid() {
     const raw = store.settings.homeWidgets;
     const cols = (raw && raw.cols) || 12;
     if (raw && Array.isArray(raw.grid) && raw.grid.length) {
-        return normalizeHomeWidgetGrid(raw.grid, cols);
+        const normalized = normalizeHomeWidgetGrid(raw.grid, cols);
+        const stale = normalized.some((n) => {
+            const r = raw.grid.find((g) => migrateWidgetId(g?.id) === n.id);
+            return gridSlotNeedsRepair(r, n);
+        });
+        if (stale) {
+            applyHomeWidgetGridLocal(normalized, cols);
+            if (!store._homeWidgetGridRepairQueued) {
+                store._homeWidgetGridRepairQueued = true;
+                persist('user_preferences');
+            }
+        }
+        return normalized;
     }
     const ids = getHomeWidgetLayout();
     return defaultGridFromIds(ids, cols);
@@ -173,7 +249,7 @@ function setHomeWidgetGrid(grid, cols) {
         grid: normalized,
         cols: c,
     };
-    persist('settings');
+    persist('user_preferences');
     if (typeof notifyStore === 'function')
         notifyStore();
 }
@@ -187,7 +263,7 @@ function setHomeWidgetLayout(layout) {
         grid: defaultGridFromIds(ids, cols),
         cols,
     };
-    persist('settings');
+    persist('user_preferences');
     if (typeof notifyStore === 'function')
         notifyStore();
 }
@@ -212,4 +288,5 @@ if (typeof window !== 'undefined') {
     window.resetHomeWidgetLayout = resetHomeWidgetLayout;
     window.homeWidgetsNotInLayout = homeWidgetsNotInLayout;
     window.homeWidgetTitle = homeWidgetTitle;
+    window.canonicalizeHomeWidgets = canonicalizeHomeWidgets;
 }

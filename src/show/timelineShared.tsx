@@ -120,7 +120,7 @@ export function mapRunStepToTimelineStep(s: any){
   };
 }
 
-export function LiveTimelineStepRow({ step: s, live, onToggle, onOpen, rawStep, runKey }: Record<string, any>){
+export function LiveTimelineStepRow({ step: s, live, onToggle, onOpen, rawStep, runKey, expandOnRowClick = true }: Record<string, any>){
   const [expanded, setExpanded] = useState(false);
   const tier = timelineTier(s);
   const bits = previewSecondary(s);
@@ -169,13 +169,13 @@ export function LiveTimelineStepRow({ step: s, live, onToggle, onOpen, rawStep, 
           role="button"
           tabIndex={0}
           onClick={() => {
-            if(expandable && hasExpandBody) toggleExpand();
+            if(expandable && hasExpandBody && expandOnRowClick) toggleExpand();
             else onOpen(s);
           }}
           onKeyDown={(ev: any) => {
             if(ev.key === 'Enter' || ev.key === ' '){
               ev.preventDefault();
-              if(expandable && hasExpandBody) toggleExpand();
+              if(expandable && hasExpandBody && expandOnRowClick) toggleExpand();
               else onOpen(s);
             }
           }}

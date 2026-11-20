@@ -1058,6 +1058,20 @@ async function pushToSupabase(orgId){
     console.error('pushToSupabase', e);
     const msg = (e && e.message) ? String(e.message) : 'Sync failed';
     const code = e && e.cause && (e.cause.code || e.cause.status);
+    const rlsOrAuth = /row level security|row-level security|permission denied|42501|\b401\b|\b403\b|jwt expired|invalid jwt|PGRST301/i.test(msg)
+      || code === 401 || code === 403 || code === 42501 || code === '42501';
+    if(rlsOrAuth && typeof isDevHardwireMode === 'function' && isDevHardwireMode()
+        && typeof ensureDevHardwireAnonSession === 'function'){
+      try{
+        await ensureDevHardwireAnonSession();
+        if(typeof scheduleSyncRetry === 'function') scheduleSyncRetry(400);
+        if(typeof toast === 'function'){
+          toast('Cleared an old sign-in — retrying cloud save', 'check');
+        }
+        syncSetStatus('syncing');
+        return;
+      }catch(_){ /* fall through to error handling */ }
+    }
     const poisoned = /duplicate key|conflict|foreign key|23503|23505|\b409\b/i.test(msg)
       || code === '23503' || code === '23505' || code === 409 || code === '409';
     /* Poisoned dirty (cross-org IDs / bad FKs) retries forever. Drop it and

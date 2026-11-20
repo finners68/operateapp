@@ -135,3 +135,36 @@ async function getAuthUser(){
   const { data } = await sb.auth.getUser();
   return data.user || null;
 }
+
+/** No-login dev (JAKE/FIN): user_preferences still needs a real auth.users id. */
+const DEV_PREFS_FALLBACK_USER_ID = 'f29a6726-0960-440c-9189-b0e7d24a5b23';
+
+async function resolvePrefsUserId(sb, orgId){
+  /* Dev hardwire uses anon RLS — always the org’s prefs user, not a stale session. */
+  if(isDevHardwireMode() && sb && orgId){
+    const fromV2 = store?.v2?.user_preferences?.user_id;
+    if(fromV2) return fromV2;
+    try{
+      const { data } = await sb.from('user_preferences').select('user_id')
+        .eq('organisation_id', orgId).limit(1).maybeSingle();
+      if(data?.user_id) return data.user_id;
+    }catch(_){ /* offline */ }
+    const cfg = OPERATE_CONFIG && OPERATE_CONFIG.OPERATE_DEV_PREFS_USER_ID;
+    if(cfg && typeof isUuid === 'function' && isUuid(cfg)) return cfg;
+    return DEV_PREFS_FALLBACK_USER_ID;
+  }
+  const user = await getAuthUser();
+  if(user?.id) return user.id;
+  return null;
+}
+
+/** Drop cached JWT so dev hardwire talks to Supabase as anon (dev_anon_* RLS). */
+async function ensureDevHardwireAnonSession(){
+  if(!isDevHardwireMode()) return;
+  const sb = getSupabase();
+  if(!sb) return;
+  try{
+    const { data } = await sb.auth.getSession();
+    if(data?.session) await sb.auth.signOut();
+  }catch(_){ /* offline */ }
+}

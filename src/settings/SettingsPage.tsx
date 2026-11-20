@@ -66,6 +66,8 @@ export default function SettingsPage(){
   const showOrg = devMode || (signedIn && !!(orgName || store?.organisationId));
   const showSignOut = signedIn;
   const syncLabel = call('syncStatusLabel') || '';
+  const themePref = call('getOperateThemePreference') || 'dark';
+  const themeSub = call('operateThemeLabel', themePref) || 'Dark';
   const accountSub = signedIn
     ? (authUser.email || 'Signed in')
     : (call('isSyncEnabled') ? 'Sign in to sync' : (call('isAuthRequired') ? 'Sign in & sync' : 'Local only'));
@@ -161,6 +163,49 @@ export default function SettingsPage(){
               onClick={() => call('signOut')}
             />
           ) : null}
+        </Section>
+
+        <Section title="Appearance">
+          <div className="set-row" style={{ display: 'block', paddingBottom: 14 }}>
+            <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, marginBottom: 10 }}>
+              <div className="ic" style={{ background: 'var(--accent-soft)', color: 'var(--accent-2)' }}>
+                <Icon name="sun" size={17} />
+              </div>
+              <div className="body" style={{ flex: 1, minWidth: 0 }}>
+                <b>Theme</b>
+                <span>Light, dark or follow your device — layout stays the same</span>
+              </div>
+              <div className="trail" style={{ flexShrink: 0 }}>{themeSub}</div>
+            </div>
+            <div
+              className="seg"
+              style={{ width: '100%' }}
+              onClick={(e: any) => e.stopPropagation()}
+              onKeyDown={(e: any) => e.stopPropagation()}
+            >
+              <button
+                type="button"
+                className={themePref === 'dark' ? 'on' : ''}
+                onClick={() => call('setOperateThemePreference', 'dark')}
+              >
+                Dark
+              </button>
+              <button
+                type="button"
+                className={themePref === 'light' ? 'on' : ''}
+                onClick={() => call('setOperateThemePreference', 'light')}
+              >
+                Light
+              </button>
+              <button
+                type="button"
+                className={themePref === 'system' ? 'on' : ''}
+                onClick={() => call('setOperateThemePreference', 'system')}
+              >
+                System
+              </button>
+            </div>
+          </div>
         </Section>
 
         <Section title="Notifications">

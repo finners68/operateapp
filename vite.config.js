@@ -6,6 +6,11 @@ import { fileURLToPath, URL } from 'node:url';
    the bundle exposes window.OperateReact.mountShow / unmountShow. */
 export default defineConfig({
   plugins: [react()],
+  resolve: {
+    alias: {
+      '@': fileURLToPath(new URL('./src', import.meta.url)),
+    },
+  },
   define: {
     'process.env.NODE_ENV': JSON.stringify('production'),
   },

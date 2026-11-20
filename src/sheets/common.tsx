@@ -1,10 +1,49 @@
 import { useEffect } from 'react';
 import { call } from '../api/operate.js';
+import { HoldToConfirm } from '../components/hold-to-confirm.js';
+import { Icon } from '../show/ui.jsx';
 
 function callbacks(){
   if(typeof window === 'undefined') return {};
   window.__sheetCallbacks = window.__sheetCallbacks || {};
   return window.__sheetCallbacks;
+}
+
+export function HoldConfirmSheetBody({
+  msg = '',
+  onConfirmId,
+  onConfirmKey,
+  label = 'Hold to confirm',
+  holdingLabel = 'Keep holding…',
+  doneLabel = 'Confirmed',
+}: Record<string, any>) {
+  const key = onConfirmKey || onConfirmId;
+  const runConfirm = () => {
+    const fn = key && callbacks()[key];
+    call('closeSheet');
+    if (typeof fn === 'function') fn();
+  };
+  return (
+    <>
+      <p style={{ fontSize: 15, color: 'var(--text-2)', lineHeight: 1.5, margin: '2px 2px 18px' }}>{msg}</p>
+      <div className="sheet-hold-confirm-wrap">
+        <HoldToConfirm
+          theme="dark"
+          tone="danger"
+          size="lg"
+          duration={1600}
+          label={label}
+          holdingLabel={holdingLabel}
+          doneLabel={doneLabel}
+          icon={<Icon name="trash" size={18} />}
+          onConfirm={runConfirm}
+        />
+      </div>
+      <button type="button" className="btn secondary" style={{ width: '100%' }} onClick={() => call('closeSheet')}>
+        Cancel
+      </button>
+    </>
+  );
 }
 
 export function ConfirmSheetBody({ msg = '', confirmLabel = 'Confirm', danger = false, onConfirmId, onConfirmKey }: Record<string, any>){

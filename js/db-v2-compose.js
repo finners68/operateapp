@@ -752,6 +752,17 @@ async function composeViewFromV2(v2, opts) {
     if (uiPrefs.usbReminder === false || uiPrefs.usbReminder === true) {
         settings.usbReminder = uiPrefs.usbReminder !== false;
     }
+    const hw = uiPrefs.homeWidgets;
+    if (hw && typeof hw === 'object') {
+        let next = {
+            cols: Number(hw.cols) > 0 ? Number(hw.cols) : 12,
+            layout: Array.isArray(hw.layout) ? hw.layout.map(String) : [],
+            grid: Array.isArray(hw.grid) ? hw.grid : [],
+        };
+        if (typeof canonicalizeHomeWidgets === 'function')
+            next = canonicalizeHomeWidgets(next);
+        settings.homeWidgets = next;
+    }
     const defaultPackingList = (v2.packing_lists || [])[0];
     if (defaultPackingList) {
         settings.packingTemplate = (v2.packing_list_items || [])

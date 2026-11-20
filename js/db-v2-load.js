@@ -94,6 +94,9 @@ async function loadFromSupabaseV2(orgId, sb) {
     const prevHeaderData = (!orgChanged && typeof store?.settings?.homeHeader === 'string' && store.settings.homeHeader.startsWith('data:'))
         ? store.settings.homeHeader : null;
     const prevHeaderPos = orgChanged ? null : (store?.settings?.homeHeaderPos || null);
+    const prevHomeWidgets = orgChanged || !store?.settings?.homeWidgets
+        ? null
+        : JSON.parse(JSON.stringify(store.settings.homeWidgets));
     /* Keep dirty local rows across cloud reload so mid-edit work is not wiped
        — but only within the same organisation. */
     const prevNotes = orgChanged ? [] : (store?.notes || []).slice();
@@ -146,6 +149,13 @@ async function loadFromSupabaseV2(orgId, sb) {
     store.settings = view.settings;
     if (prevUsbOff && store.settings.usbReminder !== false)
         store.settings.usbReminder = false;
+    if (prevHomeWidgets) {
+        const prefsDirty = keepDirtySnap
+            && (isTableDirty(keepDirtySnap, 'user_preferences') || isTableDirty(keepDirtySnap, 'settings'));
+        if (prefsDirty || !store.settings.homeWidgets) {
+            store.settings.homeWidgets = prevHomeWidgets;
+        }
+    }
     store.artists = view.artists.length ? view.artists : store.artists;
     store.events = view.events;
     store.trips = view.trips;

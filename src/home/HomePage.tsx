@@ -2,9 +2,7 @@ import { useSyncExternalStore, useEffect, useLayoutEffect, useState, useCallback
 import { createPortal } from 'react-dom';
 import { call, countdown, flightHasDetails, fmtDate, fmtDateLong, getSel, getStore, notifyStore, pad, parseDT, showTitle, subscribeStore, tickCountdowns } from '../api/operate.js';
 import { Icon } from '../show/ui.jsx';
-import {
-  activityKindLabel, buildTodayScheduleRows, stepLocation, todayScheduleLiveState, todayStepDetail, todayStepStatus,
-} from './todaySchedule.js';
+import { buildTodayScheduleRows, todayScheduleLiveState } from './todaySchedule.js';
 import {
   collectAccommodationBookings, formatStayWhen, hotelConfirmationPass, pickAccommodation, statusLabel,
 } from './accommodation.js';
@@ -22,10 +20,11 @@ import {
   addHomeReminder, addHomeTask, collectHomeTasks, completeHomeTask, formatTaskDue,
   openHomeTask, priorityLabel, statusLabel as taskStatusLabel,
 } from './tasksReminders.js';
-import { previewTime, timelineIcon } from '../show/timelineShared.jsx';
+import { LiveTimelineStepRow, TimelineDayRow } from '../show/timelineShared.jsx';
+import { openTimelineStep } from '../show/openTimelineStep.js';
 import {
-  HOME_GRID_BASE_COLS, HOME_GRID_ROW_PX, appendGridWidget, colsForViewportWidth,
-  displayGridItem, listCapForWidget,
+  HOME_GRID_BASE_COLS, HOME_GRID_ROW_PX, appendGridWidget, compactGridItems, colsForViewportWidth,
+  dimensionsForWidget, displayGridItem, listCapForWidget, reconcileGridItem,
   placeGridWidgetAtPointer,
   removeGridWidget, replaceGridWidgetId, setWidgetSize, sizeTitle, sizeToDensity,
   sortGridItems, storeGridItem, widgetSizeOptions,
@@ -66,10 +65,10 @@ function HomeActions(){
       <button type="button" className="home-action" onClick={() => call('sheetEvent')}>
         <Icon name="plus" size={15} /> Add show
       </button>
-      <button type="button" className="home-action is-strong" onClick={() => call('sheetItineraryStart')}>
+      <button type="button" className="home-action" onClick={() => call('sheetItineraryStart')}>
         <Icon name="file" size={15} /> Upload itinerary
       </button>
-      <button type="button" className="home-action is-strong" onClick={() => call('sheetCalendarUpload')}>
+      <button type="button" className="home-action" onClick={() => call('sheetCalendarUpload')}>
         <Icon name="calendar" size={15} /> Upload calendar
       </button>
       <div className="home-create">
@@ -100,14 +99,14 @@ function HomeActions(){
   );
 }
 
-function HomePanel({ title, link, children }: Record<string, any>){
+function HomePanel({ title, link, children, className = '' }: Record<string, any>){
   return (
-    <div className="home-panel">
+    <div className={`home-panel${className ? ` ${className}` : ''}`}>
       <div className="home-panel-head home-panel-head-flex">
         <span>{title}</span>
         {link || null}
       </div>
-      {children}
+      <div className="home-panel-body">{children}</div>
     </div>
   );
 }
@@ -157,6 +156,17 @@ function showStatusTag(show: any){
   return null;
 }
 
+function nextShowMediumStatus(show: any){
+  const st = show?.status || 'confirmed';
+  if(st === 'hold'){
+    return <span className="home-next-show-medium-status is-hold">Tentative</span>;
+  }
+  if(st === 'confirmed'){
+    return <span className="home-next-show-medium-status is-confirmed">Confirmed</span>;
+  }
+  return null;
+}
+
 function nextShowCountdownMs(show: any){
   const setMs = call('setStartMs', show.date, show.setTime);
   if(setMs) return setMs;
@@ -173,85 +183,293 @@ function findNextShow(sel: any){
   }) || null;
 }
 
+/** Small Next Show widget — e.g. "In 3 days" from calendar day of `show.date`. */
+function nextShowSnippetCountdown(show: any){
+  const d = parseDT ? parseDT(show?.date) : null;
+  if(!d) return '';
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const showDay = new Date(d);
+  showDay.setHours(0, 0, 0, 0);
+  const diff = Math.round((showDay.getTime() - today.getTime()) / 86400000);
+  if(diff < 0) return '';
+  if(diff === 0) return 'Today';
+  if(diff === 1) return 'Tomorrow';
+  return `In ${diff} days`;
+}
+
+function nextShowExtraDetails(show: any){
+  const a = show?.advance;
+  if(!a) return [];
+  const rows: any[] = [];
+  if(a.access){
+    rows.push({ key: 'access', label: 'Doors / access', value: String(a.access), icon: 'clock' });
+  }
+  if(a.soundcheck){
+    rows.push({ key: 'soundcheck', label: 'Sound check', value: String(a.soundcheck), icon: 'music' });
+  }
+  if(a.curfew){
+    rows.push({ key: 'curfew', label: 'Curfew', value: String(a.curfew), icon: 'clock' });
+  }
+  (a.schedule || []).forEach((s: any, i: number) => {
+    if(!(s?.time || s?.label || s?.title)) return;
+    const title = s.label || s.title || 'Schedule';
+    const value = [s.time, s.title && s.title !== title ? s.title : ''].filter(Boolean).join(' · ') || title;
+    rows.push({ key: `sched-${i}`, label: title, value, icon: 'clock' });
+  });
+  return rows.slice(0, 6);
+}
+
 function NextShowHero({ show, density = 'default' }: Record<string, any>){
   const compact = density === 'compact';
-  const artwork = showArtworkUrl(show);
+  const expanded = density === 'expanded';
   const title = show.eventName || show.venue || 'Show';
   const venueLine = show.eventName && show.venue ? show.venue : (!show.eventName && show.venue ? null : (show.venue && show.venue !== title ? show.venue : null));
   const location = [show.city, show.country].filter(Boolean).join(', ');
   const dateLine = fmtDateLong ? fmtDateLong(show.date) : (fmtDate ? fmtDate(show.date) : show.date);
-  const timeNote = showVenueTimeNote(show);
-  const setMs = nextShowCountdownMs(show);
-  const cS = setMs && countdown ? countdown(setMs) : null;
-  const countdownLive = !!(setMs && cS && !cS.done);
   const drivers = call('showDrivers', show) || [];
   const hasContacts = showKeyContacts(show).length > 0
     || drivers.some((d: any) => !d.noGround && (d.phone || d.whatsapp));
   const venueQ = call('venueMapQuery', show)
     || call('formatVenueAddress', show)
     || location;
-  const hasSet = !!(show.setTime || show.endTime);
+
+  if(compact){
+    const countdownLine = nextShowSnippetCountdown(show);
+    const dateShort = show.date
+      ? (fmtDate ? fmtDate(show.date) : show.date)
+      : '';
+    return (
+      <div
+        className="hero tap nextshow home-next-show is-compact is-snippet"
+        onClick={() => call('openView', 'event', show.id)}
+      >
+        <div className="home-next-show-snippet-top">
+          <span className="home-next-show-snippet-label">
+            <Icon name="music" size={13} /> Next Show
+          </span>
+          {countdownLine ? (
+            <span className="home-next-show-snippet-cd">{countdownLine}</span>
+          ) : null}
+        </div>
+        <h2 className="home-next-show-snippet-title">{title}</h2>
+        {location ? <p className="home-next-show-snippet-loc">{location}</p> : null}
+        {dateShort || show.setTime ? (
+          <div className="home-next-show-snippet-meta">
+            {dateShort ? (
+              <span className="home-next-show-snippet-date">
+                <Icon name="calendar" size={13} />
+                <span>{dateShort}</span>
+              </span>
+            ) : null}
+            {dateShort && show.setTime ? <span className="home-next-show-snippet-dot" aria-hidden>·</span> : null}
+            {show.setTime ? <span className="home-next-show-snippet-time">{show.setTime}</span> : null}
+          </div>
+        ) : null}
+      </div>
+    );
+  }
+
+  if(!expanded){
+    const countdownLine = nextShowSnippetCountdown(show);
+    const dateShort = show.date
+      ? (fmtDate ? fmtDate(show.date) : show.date)
+      : '';
+    const setLine = show.setTime
+      ? (show.endTime ? `${show.setTime} – ${show.endTime}` : show.setTime)
+      : '';
+    const placeParts = [venueLine, location].filter(Boolean);
+    const placeLine = placeParts.join(placeParts.length > 1 ? ' · ' : '');
+    const statusChip = nextShowMediumStatus(show);
+
+    return (
+      <div className="hero nextshow home-next-show is-medium-panel">
+        <div
+          className="home-next-show-medium-main tap"
+          onClick={() => call('openView', 'event', show.id)}
+        >
+          <div className="home-next-show-snippet-top">
+            <span className="home-next-show-snippet-label">
+              <Icon name="music" size={13} /> Next Show
+            </span>
+            {countdownLine ? (
+              <span className="home-next-show-snippet-cd">{countdownLine}</span>
+            ) : null}
+          </div>
+          <h2 className="home-next-show-snippet-title home-next-show-medium-title">{title}</h2>
+          {placeLine ? <p className="home-next-show-medium-place">{placeLine}</p> : null}
+          {dateShort || setLine ? (
+            <div className="home-next-show-medium-datetime">
+              {dateShort ? (
+                <span className="home-next-show-medium-dt">
+                  <Icon name="calendar" size={13} />
+                  <span>{dateShort}</span>
+                </span>
+              ) : null}
+              {setLine ? (
+                <span className="home-next-show-medium-dt">
+                  <Icon name="music" size={13} />
+                  <span>{setLine}</span>
+                </span>
+              ) : null}
+            </div>
+          ) : null}
+          {statusChip ? <div className="home-next-show-medium-status-wrap">{statusChip}</div> : null}
+        </div>
+        {(venueQ || hasContacts) ? (
+          <div className="home-next-show-medium-actions">
+            {venueQ ? (
+              <button
+                type="button"
+                className="home-next-show-medium-action"
+                onClick={(e: any) => { e.stopPropagation(); call('openMaps', venueQ); }}
+              >
+                <Icon name="map" size={14} /> Directions
+              </button>
+            ) : null}
+            {hasContacts ? (
+              <button
+                type="button"
+                className="home-next-show-medium-action"
+                onClick={(e: any) => { e.stopPropagation(); call('openTourContacts', show.id); }}
+              >
+                <Icon name="users" size={14} /> Key contacts
+              </button>
+            ) : null}
+          </div>
+        ) : null}
+      </div>
+    );
+  }
+
+  const countdownLine = nextShowSnippetCountdown(show);
+  const setLine = show.setTime
+    ? (show.endTime ? `${show.setTime} – ${show.endTime}` : show.setTime)
+    : '';
+  const venueAddress = call('formatVenueAddress', show) || '';
+  const extraDetails = nextShowExtraDetails(show);
+  const contacts = showKeyContacts(show);
+  const primaryContact = contacts[0] || null;
+  const statusChip = nextShowMediumStatus(show);
 
   return (
-    <div className={`hero tap nextshow home-next-show${artwork ? ' has-art' : ''}${compact ? ' is-compact' : ''}`} onClick={() => call('openView', 'event', show.id)}>
-      <div className="home-next-show-head">
-        <div className="home-next-show-intro">
-          <span className="hero-label home-next-show-kicker"><Icon name="music" size={14} /> Next show</span>
-          <div className="home-next-show-tags">{showStatusTag(show)}</div>
+    <div className="hero nextshow home-next-show is-large-panel">
+      <div
+        className="home-next-show-large-main tap"
+        onClick={() => call('openView', 'event', show.id)}
+      >
+        <div className="home-next-show-large-top">
+          <span className="home-next-show-snippet-label">
+            <Icon name="music" size={13} /> Next Show
+          </span>
+          <div className="home-next-show-large-top-meta">
+            {countdownLine ? (
+              <span className="home-next-show-snippet-cd">{countdownLine}</span>
+            ) : null}
+            {statusChip}
+          </div>
         </div>
-        {artwork && !compact ? (
-          <div className="home-next-show-art" aria-hidden>
-            <img src={artwork} alt="" />
+        <h2 className="home-next-show-large-title">{title}</h2>
+        {venueLine ? <p className="home-next-show-large-venue">{venueLine}</p> : null}
+        {location ? <p className="home-next-show-large-loc">{location}</p> : null}
+        {(show.date || setLine) ? (
+          <div className="home-next-show-medium-datetime home-next-show-large-datetime">
+            {show.date ? (
+              <span className="home-next-show-medium-dt">
+                <Icon name="calendar" size={14} />
+                <span>{dateLine}</span>
+              </span>
+            ) : null}
+            {setLine ? (
+              <span className="home-next-show-medium-dt">
+                <Icon name="music" size={14} />
+                <span>{setLine}</span>
+              </span>
+            ) : null}
+          </div>
+        ) : null}
+        {venueAddress ? (
+          <p className="home-next-show-large-address">
+            <Icon name="pin" size={14} />
+            <span>{venueAddress}</span>
+          </p>
+        ) : null}
+        {(extraDetails.length > 0 || primaryContact) ? (
+          <div className="home-next-show-large-secondary">
+            {extraDetails.length > 0 ? (
+              <ul className="home-next-show-large-details">
+                {extraDetails.map((row) => (
+                  <li key={row.key} className="home-next-show-large-detail">
+                    <Icon name={row.icon || 'clock'} size={13} />
+                    <span className="home-next-show-large-detail-lab">{row.label}</span>
+                    <span className="home-next-show-large-detail-val">{row.value}</span>
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+            {primaryContact ? (
+              <div
+                className="home-next-show-large-contact"
+                onClick={(e: any) => e.stopPropagation()}
+              >
+                <div className="home-next-show-large-contact-body">
+                  <span className="home-next-show-large-contact-name">{primaryContact.name}</span>
+                  <span className="home-next-show-large-contact-role">{primaryContact.label}</span>
+                </div>
+                <div className="home-next-show-large-contact-act">
+                  {primaryContact.phone ? (
+                    <button
+                      type="button"
+                      className="home-next-show-large-icon-btn"
+                      title="Call"
+                      onClick={() => call('callNumber', primaryContact.phone)}
+                    >
+                      <Icon name="phone" size={15} />
+                    </button>
+                  ) : null}
+                  {(primaryContact.whatsapp || primaryContact.phone) ? (
+                    <button
+                      type="button"
+                      className="home-next-show-large-icon-btn"
+                      title="WhatsApp"
+                      onClick={() => call('whatsapp', primaryContact.whatsapp || primaryContact.phone)}
+                    >
+                      <Icon name="whatsapp" size={15} />
+                    </button>
+                  ) : null}
+                </div>
+              </div>
+            ) : null}
           </div>
         ) : null}
       </div>
-      <h2 className="hero-venue home-next-show-title">{title}</h2>
-      {venueLine ? <div className="hero-venue-sub home-next-show-venue">{venueLine}</div> : null}
-      {location ? (
-        <div className="hero-city home-next-show-loc">
-          <Icon name="pin" size={14} /> {location}
-        </div>
-      ) : null}
-      {show.date ? <div className="home-next-show-date">{dateLine}</div> : null}
-      <div className={`count-row home-next-show-stats${!hasSet ? ' is-single' : ''}`}>
-        {hasSet ? (
-          <div className="count">
-            <div className="count-k"><Icon name="music" size={12} /> Set time</div>
-            <div className="count-v home-next-show-set">
-              {show.setTime || 'TBA'}{show.endTime ? <small> – {show.endTime}</small> : null}
-            </div>
-            {timeNote ? <div className="home-next-show-tz">{timeNote}</div> : null}
-          </div>
-        ) : timeNote ? (
-          <div className="count">
-            <div className="count-k"><Icon name="clock" size={12} /> Time zone</div>
-            <div className="count-v" style={{ fontSize: 15 }}>{timeNote}</div>
-          </div>
+      <div className="home-next-show-medium-actions home-next-show-large-actions">
+        {venueQ ? (
+          <button
+            type="button"
+            className="home-next-show-medium-action"
+            onClick={() => call('openMaps', venueQ)}
+          >
+            <Icon name="map" size={14} /> Directions
+          </button>
         ) : null}
-        {setMs ? (
-          <div className="count">
-            <div className="count-k"><Icon name="clock" size={12} /> {countdownLive ? 'Starts in' : 'Show time'}</div>
-            <div className="count-v" {...(countdownLive ? { 'data-countdown-ms': setMs } : {})}>
-              <span className="cd-txt">{countdownLive ? cS.txt : 'Today'}</span>
-              <small className="cd-unit">{countdownLive ? cS.unit : ''}</small>
-            </div>
-          </div>
+        {hasContacts ? (
+          <button
+            type="button"
+            className="home-next-show-medium-action"
+            onClick={() => call('openTourContacts', show.id)}
+          >
+            <Icon name="users" size={14} /> Key contacts
+          </button>
         ) : null}
+        <button
+          type="button"
+          className="home-next-show-medium-action"
+          onClick={() => call('openView', 'event', show.id)}
+        >
+          <Icon name="chevR" size={14} /> View show
+        </button>
       </div>
-      {(venueQ || hasContacts) ? (
-        <div className="hero-links home-next-show-links">
-          {venueQ ? (
-            <button type="button" className="hero-link" onClick={(e: any) => { e.stopPropagation(); call('openMaps', venueQ); }}>
-              <Icon name="map" size={14} /> Directions
-            </button>
-          ) : null}
-          {hasContacts ? (
-            <button type="button" className="hero-link" onClick={(e: any) => { e.stopPropagation(); call('openTourContacts', show.id); }}>
-              <Icon name="users" size={14} /> Key contacts
-            </button>
-          ) : null}
-        </div>
-      ) : null}
     </div>
   );
 }
@@ -519,82 +737,24 @@ function AccommodationWidget({ booking, show, density = 'default' }: Record<stri
   );
 }
 
-function HomeTodayCompactRow({ row, live, focusRun, onRefresh }: Record<string, any>){
-  const step = row.timelineStep;
-  const raw = row.runStep;
-  const status = todayStepStatus(step, live);
-  const time = previewTime(step) || '—';
-  const kind = activityKindLabel(step?.kind);
-  const loc = stepLocation(step, row.show, raw);
-  const detail = todayStepDetail(step, raw);
-  const icon = timelineIcon(step?.kind, step?.icon);
-  const rowStyle = status === 'now' && live?.progress
-    ? { '--tl-now-progress': String(live.progress) }
-    : undefined;
-
-  const open = () => {
-    if(raw && focusRun?.key){
-      call('timelineStepOptions', focusRun.key, raw.id);
-      return;
-    }
-    if(row.showId) call('openView', 'event', row.showId);
-  };
-
-  const toggle = (ev: any) => {
-    ev.stopPropagation();
-    if(raw && focusRun?.key){
-      call('completeRunStep', focusRun.key, raw.id);
-      onRefresh?.();
-      return;
-    }
-    if(row.show && row.showStep && call('toggleShowAutoTimelineStep', row.show, row.showStep.id)){
-      call('persist', 'shows', row.show.id);
-      onRefresh?.();
-    }
-  };
-
-  return (
-    <div
-      className={`tl-item home-today-item is-${status}${step?.done ? ' done' : ''}${status === 'now' ? ' is-now' : ''}${status === 'done' ? ' is-before-now' : ''}`}
-      style={rowStyle}
-      onClick={open}
-      role="button"
-      tabIndex={0}
-      onKeyDown={(ev: any) => { if(ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); open(); } }}
-    >
-      <div className="tl-time">{time}</div>
-      <div className="tl-rail">
-        <button type="button" className="tl-node" aria-label={step?.done ? 'Mark not done' : 'Mark done'} onClick={toggle} />
-      </div>
-      <div className="tl-content is-logistics home-today-content">
-        <div className="tl-type-ic" aria-hidden><Icon name={icon} size={13} /></div>
-        <div className="tl-body">
-          <span className="home-today-kind">{kind}</span>
-          <b className="home-today-title">{step?.title || 'Activity'}</b>
-          {loc ? <span className="home-today-loc"><Icon name="pin" size={11} /> {loc}</span> : null}
-          {detail ? <span className="tl-sub home-today-detail">{detail}</span> : null}
-          {status === 'now' ? <span className="home-today-now-pill">Now</span> : null}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function TodayScheduleWidget({ today, sel, focusRun, storeTick, density = 'default', size = 'medium' }: Record<string, any>){
+function TodayScheduleWidget({ today, sel, focusRun, storeTick, density = 'default', size = 'medium', gridH }: Record<string, any>){
   const [minuteTick, setMinuteTick] = useState(0);
+  const timelineRef = useRef<HTMLDivElement | null>(null);
+  const tallSlot = size === 'large' || (Number(gridH) || 0) >= 6;
   useEffect(() => {
     const id = setInterval(() => setMinuteTick((t: any) => t + 1), 60000);
     return () => clearInterval(id);
   }, []);
 
-  const rowCap = listCapForWidget('todaySchedule', size);
-  const rows = useMemo(() => {
-    const all = buildTodayScheduleRows({ today, sel, focusRun });
-    return rowCap >= all.length ? all : all.slice(0, rowCap);
-  }, [today, sel, focusRun, storeTick, minuteTick, rowCap]);
+  const rows = useMemo(
+    () => buildTodayScheduleRows({ today, sel, focusRun }),
+    [today, sel, focusRun, storeTick, minuteTick],
+  );
   const live = useMemo(
     () => todayScheduleLiveState(today, rows),
-  [today, rows, minuteTick, storeTick]);
+    [today, rows, minuteTick, storeTick],
+  );
+  const dayLabel = fmtDateLong ? fmtDateLong(today) : (fmtDate ? fmtDate(today) : today);
 
   const bump = useCallback(() => {
     if(typeof call === 'function') try{ call('haptic'); }catch(_){}
@@ -602,12 +762,45 @@ function TodayScheduleWidget({ today, sel, focusRun, storeTick, density = 'defau
   }, []);
 
   return (
-    <HomePanel title="Today's schedule">
+    <HomePanel title="Today's schedule" className={`home-today-panel${tallSlot ? ' home-today-panel--full' : ''}`}>
       {rows.length ? (
-        <div className={`card flush home-inset home-today-timeline show-day-timeline tl-preview${live?.activeId ? ' has-now' : ''}`}>
-          {rows.map((row: any) => (
-            <HomeTodayCompactRow key={row.key} row={row} live={live} focusRun={focusRun} onRefresh={bump} />
-          ))}
+        <div
+          ref={timelineRef}
+          className={`card flush home-inset home-today-timeline home-today-timeline--agenda show-day-timeline tl-preview${
+            tallSlot ? ' home-today-timeline--full home-today-timeline-fill' : ''
+          }${live?.activeId ? ' has-now' : ''}`}
+        >
+          <TimelineDayRow label={`${dayLabel} · Today`} today />
+          {rows.map((row: any) => {
+            const isRun = !!row.runStep;
+            const raw = isRun ? row.runStep : undefined;
+            const runKey = isRun && focusRun?.key ? focusRun.key : undefined;
+            return (
+              <LiveTimelineStepRow
+                key={row.key}
+                step={row.timelineStep}
+                rawStep={raw}
+                runKey={runKey}
+                expandOnRowClick={false}
+                live={live}
+                onToggle={() => {
+                  if(row.runStep && focusRun?.key){
+                    call('completeRunStep', focusRun.key, row.runStep.id);
+                  } else if(row.show && row.showStep && call('toggleShowAutoTimelineStep', row.show, row.showStep.id)){
+                    call('persist', 'shows', row.show.id);
+                  }
+                  bump();
+                }}
+                onOpen={() => {
+                  if(row.runStep && focusRun?.key){
+                    call('timelineStepOptions', focusRun.key, row.runStep.id);
+                  } else if(row.show && row.showStep){
+                    openTimelineStep(row.show, row.showStep);
+                  }
+                }}
+              />
+            );
+          })}
         </div>
       ) : (
         <div className="home-today-empty">
@@ -1013,7 +1206,8 @@ export default function HomePage(){
   }, []);
 
   const startWidgetEdit = useCallback(() => {
-  setGridDraft(readHomeWidgetGrid().map((g: any) => displayGridItem(g, gridCols)));
+    const display = readHomeWidgetGrid().map((g: any) => displayGridItem(g, gridCols));
+    setGridDraft(compactGridItems(display, gridCols));
     setWidgetEditing(true);
   }, [gridCols]);
 
@@ -1028,16 +1222,18 @@ export default function HomePage(){
     setDraggingWidgetId(null);
     widgetDragRef.current = null;
     setDragFloat(null);
-    const stored = gridDraftRef.current.map((item: any) => storeGridItem(item, gridCols));
+    const packed = compactGridItems(gridDraftRef.current, gridCols);
+    const stored = packed.map((item: any) => storeGridItem(item, gridCols));
     writeHomeWidgetGrid(stored, HOME_GRID_BASE_COLS);
     setGridDraft(readHomeWidgetGrid());
     setWidgetEditing(false);
   };
 
   const persistGrid = useCallback((next: any) => {
-    const stored = next.map((item: any) => storeGridItem(item, gridCols));
-    gridDraftRef.current = stored;
+    const packed = compactGridItems(next, gridCols);
+    const stored = packed.map((item: any) => storeGridItem(item, gridCols));
     const display = stored.map((g: any) => displayGridItem(g, gridCols));
+    gridDraftRef.current = display;
     setGridDraft(display.slice());
     writeHomeWidgetGrid(stored, HOME_GRID_BASE_COLS);
   }, [gridCols]);
@@ -1082,9 +1278,11 @@ export default function HomePage(){
             }
           : prev
       ));
-      const displayGrid = gridDraftRef.current.map((g: any) => displayGridItem(g, gridCols));
+      const layoutGrid = widgetEditing
+        ? gridDraftRef.current.slice()
+        : gridDraftRef.current.map((g: any) => displayGridItem(g, gridCols));
       const next = placeGridWidgetAtPointer(
-        displayGrid,
+        layoutGrid,
         d.id,
         widgetListRef.current,
         d.clientX,
@@ -1092,7 +1290,7 @@ export default function HomePage(){
         gridCols,
         HOME_GRID_ROW_PX,
       );
-      const samePlace = displayGrid.every((g: any) => {
+      const samePlace = layoutGrid.every((g: any) => {
         const n = next.find((x: any) => x.id === g.id);
         return n && n.x === g.x && n.y === g.y;
       });
@@ -1102,7 +1300,7 @@ export default function HomePage(){
       setGridDraft(next.slice());
       if(typeof call === 'function') try{ call('haptic'); }catch(_){}
     });
-  }, [gridCols, queueWidgetFlip]);
+  }, [gridCols, queueWidgetFlip, widgetEditing]);
 
   const onWidgetDragEnd = useCallback((e: any) => {
     const drag = widgetDragRef.current;
@@ -1163,8 +1361,10 @@ export default function HomePage(){
 
   const changeWidgetSize = (id: any, size: any) => {
     queueWidgetFlip(null, id);
-    const base = gridDraftRef.current.map((g: any) => displayGridItem(g, gridCols));
-    const next = setWidgetSize(base, id, size, gridCols);
+    const base = widgetEditing
+      ? gridDraftRef.current.slice()
+      : gridDraftRef.current.map((g: any) => displayGridItem(g, gridCols));
+    const next = compactGridItems(setWidgetSize(base, id, size, gridCols), gridCols);
     gridDraftRef.current = next;
     setGridDraft(next.slice());
     if(widgetEditing){
@@ -1237,14 +1437,26 @@ export default function HomePage(){
   const upcomingTitle = persona === 'agent' ? 'Confirmed shows' : persona === 'tm' ? 'Show schedule' : 'Upcoming shows';
 
   const sourceGrid = widgetEditing ? gridDraft : readHomeWidgetGrid();
-  const widgetGrid = useMemo(
-    () => sortGridItems(sourceGrid.map((g: any) => displayGridItem(g, gridCols))),
-    [sourceGrid, gridCols, widgetEditing, gridDraft, tick],
-  );
+  const widgetGrid = useMemo(() => {
+    if (widgetEditing) {
+      return sortGridItems(
+        sourceGrid.map((g: any) => {
+          const dims = dimensionsForWidget(g.id, g.size);
+          const w = Math.min(dims.w, gridCols);
+          const x = Math.min(Math.max(0, g.x || 0), Math.max(0, gridCols - w));
+          return { ...g, x, y: Math.max(0, g.y || 0), w, h: dims.h, size: dims.size };
+        }),
+      );
+    }
+    return compactGridItems(
+      sortGridItems(sourceGrid.map((g: any) => displayGridItem(reconcileGridItem(g), gridCols))),
+      gridCols,
+    );
+  }, [sourceGrid, gridCols, widgetEditing, gridDraft, tick]);
   const widgetsToAdd = widgetEditing ? availableHomeWidgets(widgetGrid) : [];
   const gridMaxRow = widgetGrid.reduce((m: any, g: any) => Math.max(m, g.y + g.h), 0);
 
-  const widgetNode = (id: any, density: any, size: any) => {
+  const widgetNode = (id: any, density: any, size: any, gridH?: number) => {
     switch(id){
       case 'nextShow':
         return liveRun
@@ -1259,6 +1471,7 @@ export default function HomePage(){
             storeTick={tick}
             density={density}
             size={size}
+            gridH={gridH}
           />
         );
       case 'upcomingTravel':
@@ -1319,13 +1532,13 @@ export default function HomePage(){
     </div>
   );
 
-  const header = photo ? (
+  const header = (
     <div
-      className="home-hero"
-      style={{
+      className={`home-hero${photo ? '' : ' is-default'}`}
+      style={photo ? {
         backgroundImage: `url('${photo}')`,
         backgroundPosition: call('homeHeaderPositionCss') || 'center',
-      }}
+      } : undefined}
     >
       {heroActions}
       <div className="home-hero-text">
@@ -1334,20 +1547,12 @@ export default function HomePage(){
         <div className="hero-date">{blurb}</div>
       </div>
     </div>
-  ) : (
-    <header className="home-greet-header screen-pad">
-      {heroActions}
-      <div className="home-greet-copy">
-        <div className="hero-hello">{greet}{nameBit}</div>
-        <div className="hero-date">{blurb}</div>
-      </div>
-    </header>
   );
 
   return (
     <div className="tab-page">
       {header}
-      <div className={`screen-pad home-screen tab-page-body${widgetEditing ? ' home-screen--edit' : ''}`} style={{ marginTop: photo ? 12 : 8 }}>
+      <div className={`screen-pad home-screen tab-page-body${widgetEditing ? ' home-screen--edit' : ''}`} style={{ marginTop: 12 }}>
         {!widgetEditing ? <HomeActions /> : null}
         {widgetEditing ? (
           <div className="home-widget-edit-bar">
@@ -1373,7 +1578,7 @@ export default function HomePage(){
           {widgetGrid.map((item: any) => {
             const id = item.id;
             const density = sizeToDensity(item.size);
-            const node = widgetNode(id, density, item.size);
+            const node = widgetNode(id, density, item.size, item.h);
             const meta = homeWidgetMeta(id);
             if(!node && !widgetEditing) return null;
             const body = node || (
@@ -1479,6 +1684,7 @@ export default function HomePage(){
                 }}
                 data-widget={id}
                 data-density={density}
+                data-size={item.size || 'medium'}
               >
                 {floatLayer}
                 <div

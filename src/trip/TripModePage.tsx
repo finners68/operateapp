@@ -1,4 +1,4 @@
-import { useSyncExternalStore, useEffect, useState } from 'react';
+import { useSyncExternalStore, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { call, fmtDate, fmtDateLong, getCats, getStore, pad, parseDT, relDay, showTitle, subscribeStore, tickCountdowns } from '../api/operate.js';
 import { Icon, isOpen, setFold } from '../show/ui.jsx';
 import { RunDayTimeline } from './RunDayTimeline.jsx';
@@ -130,19 +130,89 @@ export function writeTourDashView(mode: any){
   try{ sessionStorage.setItem(TOUR_DASH_VIEW_KEY, mode === 'day' ? 'day' : 'upnext'); }catch(_){}
 }
 
-/** One control, two choices — purple ring on the active side. */
 export function TourModeViewToggle({ value, onChange }: Record<string, any>){
+  const trackRef = useRef<HTMLButtonElement>(null);
+  const optRefs = useRef<Record<string, HTMLSpanElement | null>>({});
+  const [thumb, setThumb] = useState<{ x: number; w: number } | null>(null);
+  const [thumbReady, setThumbReady] = useState(false);
+
+  const measure = useCallback(() => {
+    const el = optRefs.current[value === 'day' ? 'day' : 'upnext'];
+    if (el) setThumb({ x: el.offsetLeft, w: el.offsetWidth });
+  }, [value]);
+
+  useLayoutEffect(measure, [measure]);
+  useEffect(() => {
+    const t = window.setTimeout(() => setThumbReady(true), 32);
+    const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(measure) : null;
+    if (ro && trackRef.current) ro.observe(trackRef.current);
+    return () => {
+      window.clearTimeout(t);
+      ro?.disconnect();
+    };
+  }, [measure]);
+
   const flip = () => onChange(value === 'day' ? 'upnext' : 'day');
+
   return (
     <button
+      ref={trackRef}
       type="button"
-      className="tour-mode-seg"
-      aria-label={value === 'day' ? 'Tour timeline — click for up next' : 'Up next — click for tour timeline'}
+      className={`tour-mode-seg${thumbReady ? ' is-ready' : ''}`}
+      aria-label={value === 'day' ? 'Tour timeline — tap to show up next' : 'Up next — tap to show tour timeline'}
       onClick={flip}
     >
-      <span className={`tour-mode-seg-opt${value === 'upnext' ? ' active' : ''}`}>Up next</span>
-      <span className={`tour-mode-seg-opt${value === 'day' ? ' active' : ''}`}>Tour timeline</span>
+      {thumb ? (
+        <span
+          className="tour-mode-seg-thumb"
+          aria-hidden="true"
+          style={{ transform: `translateX(${thumb.x}px)`, width: thumb.w }}
+        />
+      ) : null}
+      <span
+        ref={(n) => { optRefs.current.upnext = n; }}
+        className={`tour-mode-seg-opt${value === 'upnext' ? ' active' : ''}`}
+      >
+        Up next
+      </span>
+      <span
+        ref={(n) => { optRefs.current.day = n; }}
+        className={`tour-mode-seg-opt${value === 'day' ? ' active' : ''}`}
+      >
+        Tour timeline
+      </span>
     </button>
+  );
+}
+
+function TourDashViewPanel({ view, run, tl }: Record<string, any>){
+  const [shown, setShown] = useState(view);
+  const [visible, setVisible] = useState(true);
+
+  useEffect(() => {
+    if (view === shown) return;
+    setVisible(false);
+    const swap = window.setTimeout(() => {
+      setShown(view);
+      requestAnimationFrame(() => setVisible(true));
+    }, 200);
+    return () => window.clearTimeout(swap);
+  }, [view, shown]);
+
+  return (
+    <div className={`tour-dash-view${visible ? ' is-visible' : ' is-leaving'}`}>
+      {shown === 'upnext' ? (
+        <UpNextTimelineCarousel run={run} timeline={tl} />
+      ) : (
+        <>
+          <div className="section-head" style={{ marginTop: 0 }}>
+            <div className="section-title">Tour timeline</div>
+            <div className="section-link">{run.shows.length} day{run.shows.length !== 1 ? 's' : ''}</div>
+          </div>
+          <RunDayTimeline run={run} />
+        </>
+      )}
+    </div>
   );
 }
 
@@ -205,18 +275,8 @@ export function TripDashboard({
         <TourModeViewToggle value={dashView} onChange={setDashView} />
       ) : null}
 
-      <div className="section" style={{ marginTop: 14 }}>
-        {dashView === 'upnext' ? (
-          <UpNextTimelineCarousel run={run} timeline={tl} />
-        ) : (
-          <>
-            <div className="section-head" style={{ marginTop: 0 }}>
-              <div className="section-title">Tour timeline</div>
-              <div className="section-link">{run.shows.length} day{run.shows.length !== 1 ? 's' : ''}</div>
-            </div>
-            <RunDayTimeline run={run} />
-          </>
-        )}
+      <div className="section tour-dash-view-section" style={{ marginTop: 14 }}>
+        <TourDashViewPanel view={dashView} run={run} tl={tl} />
       </div>
 
       <TourKeyContactsCompact run={run} contacts={contacts} />

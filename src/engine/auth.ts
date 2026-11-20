@@ -109,6 +109,10 @@ async function sendMagicLink(){
 
 async function devHardwireBoot(){
   hideAuthSheet();
+  authUser = null;
+  if(typeof ensureDevHardwireAnonSession === 'function'){
+    await ensureDevHardwireAnonSession();
+  }
   try{
     await bootstrapRemoteData();
     startRealtime(currentOrgId);

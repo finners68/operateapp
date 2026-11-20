@@ -1,4 +1,4 @@
-/** Home widget grid — fixed Small / Medium / Large presets on a 12-column base grid. */
+/** Home widget grid — 12 columns: Large = 12; two Medium (6+6) = Large width; three Small (2+2+2) = one Medium width; Small height = half Medium. */
 
 import type {
   GridCell,
@@ -13,9 +13,21 @@ export const HOME_GRID_ROW_PX = 76;
 export const HOME_GRID_BASE_COLS = 12;
 
 export const WIDGET_SIZE_PRESETS: Record<WidgetSize, { w: number; h: number }> = {
-  small: { w: 4, h: 3 },
+  small: { w: 2, h: 2 },
   medium: { w: 6, h: 4 },
   large: { w: 12, h: 5 },
+};
+
+/** Widget-specific sizes (e.g. Today's schedule Large = medium width, double medium height). */
+export const WIDGET_SIZE_PRESETS_BY_WIDGET: Partial<
+  Record<HomeWidgetId, Partial<Record<WidgetSize, { w: number; h: number }>>>
+> = {
+  todaySchedule: {
+    large: {
+      w: WIDGET_SIZE_PRESETS.medium.w,
+      h: WIDGET_SIZE_PRESETS.medium.h * 2,
+    },
+  },
 };
 
 /** Which preset sizes each widget may use (per product spec). */
@@ -47,14 +59,16 @@ export function widgetSizeOptions(id: HomeWidgetId): WidgetSize[] {
 
 export function defaultSizeForWidget(id: HomeWidgetId): WidgetSize {
   const opts = widgetSizeOptions(id);
+  if (id === 'todaySchedule' && opts.includes('large')) return 'large';
   return opts.includes('medium') ? 'medium' : opts[0];
 }
 
-function inferSizeFromDims(w?: number, h?: number): WidgetSize {
-  const entries = Object.entries(WIDGET_SIZE_PRESETS) as [WidgetSize, { w: number; h: number }][];
-  let best: WidgetSize = 'medium';
+function inferSizeFromDims(id: HomeWidgetId, w?: number, h?: number): WidgetSize {
+  const opts = widgetSizeOptions(id);
+  let best: WidgetSize = defaultSizeForWidget(id);
   let bestD = Number.POSITIVE_INFINITY;
-  entries.forEach(([key, p]: any) => {
+  opts.forEach((key) => {
+    const p = dimensionsForWidget(id, key);
     const d = Math.abs(p.w - (w || 0)) + Math.abs(p.h - (h || 0));
     if (d < bestD) {
       bestD = d;
@@ -72,7 +86,7 @@ export function normalizeWidgetSize(
 ): WidgetSize {
   const opts = widgetSizeOptions(id);
   let s = size;
-  if (!s || !opts.includes(s)) s = inferSizeFromDims(w, h);
+  if (!s || !opts.includes(s)) s = inferSizeFromDims(id, w, h);
   if (!opts.includes(s)) s = defaultSizeForWidget(id);
   return s;
 }
@@ -82,7 +96,8 @@ export function dimensionsForWidget(
   size?: WidgetSize | null,
 ): { w: number; h: number; size: WidgetSize } {
   const s = normalizeWidgetSize(id, size);
-  const preset = WIDGET_SIZE_PRESETS[s] || WIDGET_SIZE_PRESETS.medium;
+  const preset =
+    WIDGET_SIZE_PRESETS_BY_WIDGET[id]?.[s] || WIDGET_SIZE_PRESETS[s] || WIDGET_SIZE_PRESETS.medium;
   return { w: preset.w, h: preset.h, size: s };
 }
 
@@ -115,7 +130,7 @@ export function listCapForWidget(widgetId: HomeWidgetId, size?: WidgetSize | str
   const caps: Record<string, Partial<Record<WidgetSize, number>>> = {
     tasksReminders: { small: 3, medium: 5, large: 7 },
     keyContacts: { small: 4, medium: 6, large: 8 },
-    todaySchedule: { medium: 5, large: 7 },
+    todaySchedule: { medium: 5, large: 10 },
     upcomingShows: { medium: 4, large: 6 },
   };
   const byWidget = caps[widgetId];
@@ -143,6 +158,29 @@ export function sortGridItems(grid: HomeWidgetGridItem[] | null | undefined): Ho
 
 function rectsOverlap(a: GridRect, b: GridRect): boolean {
   return a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
+}
+
+/** Remove empty rows between widgets while keeping each widget’s column when it still fits. */
+export function compactGridItems(
+  grid: HomeWidgetGridItem[] | null | undefined,
+  cols: number,
+): HomeWidgetGridItem[] {
+  const items = sortGridItems((grid || []).map((g) => ({ ...g })));
+  const out: HomeWidgetGridItem[] = [];
+  items.forEach((raw) => {
+    const size = normalizeWidgetSize(raw.id, raw.size, raw.w, raw.h);
+    const dims = dimensionsForWidget(raw.id, size);
+    const w = Math.min(dims.w, cols);
+    const x = clamp(Number(raw.x) || 0, 0, Math.max(0, cols - w));
+    let y = 0;
+    const place: GridRect = { x, y, w, h: dims.h };
+    while (out.some((o) => rectsOverlap(place, o))) {
+      y += 1;
+      place.y = y;
+    }
+    out.push({ id: raw.id, x: place.x, y: place.y, w, h: dims.h, size: dims.size });
+  });
+  return out;
 }
 
 /** Place items without overlap — pushes widgets down like making room on the home screen. */
@@ -207,6 +245,23 @@ export function findWidgetIdAtPoint(
   return hit;
 }
 
+function itemRect(item: HomeWidgetGridItem, cols: number): GridRect {
+  const dims = dimensionsForWidget(item.id, item.size);
+  const w = Math.min(dims.w, cols);
+  return { x: item.x || 0, y: item.y || 0, w, h: dims.h };
+}
+
+/** Snap the left column so multi-column widgets line up (e.g. w=6 → columns 0 and 6 on a 12-wide grid). */
+export function snapGridX(x: number, w: number, cols: number): number {
+  const max = Math.max(0, cols - w);
+  if (w < 1 || cols < 1) return clamp(x, 0, max);
+  if (cols % w === 0) {
+    const snapped = Math.round(x / w) * w;
+    return clamp(snapped, 0, max);
+  }
+  return clamp(x, 0, max);
+}
+
 export function moveGridWidget(
   grid: HomeWidgetGridItem[],
   id: HomeWidgetId,
@@ -214,16 +269,20 @@ export function moveGridWidget(
   y: number,
   cols: number,
 ): HomeWidgetGridItem[] {
-  const items = grid.slice();
+  const items = grid.slice().map((g) => {
+    const dims = dimensionsForWidget(g.id, g.size);
+    const w = Math.min(dims.w, cols);
+    return { ...g, w, h: dims.h };
+  });
   const idx = items.findIndex((g: any) => g.id === id);
   if (idx < 0) return items;
-  const item = { ...items[idx] };
-  const w = Math.min(item.w, cols);
-  const nx = clamp(x, 0, Math.max(0, cols - w));
+  const item = items[idx];
+  const w = item.w;
+  const nx = snapGridX(x, w, cols);
   const ny = Math.max(0, y);
   const next: HomeWidgetGridItem = { ...item, x: nx, y: ny, w };
-  const target: GridRect = { x: nx, y: ny, w, h: item.h };
-  const hit = items.find((o: any) => o.id !== id && rectsOverlap(target, o));
+  const target = itemRect(next, cols);
+  const hit = items.find((o: any) => o.id !== id && rectsOverlap(target, itemRect(o, cols)));
   if (hit) {
     return items.map((g: any) => {
       if (g.id === id) return { ...next, x: hit.x, y: hit.y };
@@ -403,10 +462,11 @@ export function placeGridWidgetAtPointer(
   const item = items.find((g: any) => g.id === id);
   if (!item || !containerEl) return items;
   const cell = pointerToGridCell(containerEl, clientX, clientY, cols, rowPx);
-  const w = Math.min(item.w, cols);
-  const nx = clamp(cell.x, 0, Math.max(0, cols - w));
+  const dims = dimensionsForWidget(item.id, item.size);
+  const w = Math.min(dims.w, cols);
+  const nx = snapGridX(cell.x, w, cols);
   const ny = Math.max(0, cell.y);
-  const next = moveGridWidget(items, id, nx, ny, cols);
+  const next = packGridItems(moveGridWidget(items, id, nx, ny, cols), cols);
   const unchanged =
     items.length === next.length &&
     items.every((g: any) => {
@@ -418,16 +478,33 @@ export function placeGridWidgetAtPointer(
 
 export function displayGridItem(item: HomeWidgetGridItem, cols: number): HomeWidgetGridItem;
 export function displayGridItem(item: HomeWidgetGridItem | null | undefined, cols: number): HomeWidgetGridItem | null | undefined;
+/** Snap stored grid items to canonical w/h/size for the widget’s preset (12-col storage). */
+export function reconcileGridItem(item: HomeWidgetGridItem): HomeWidgetGridItem {
+  const size = normalizeWidgetSize(item.id, item.size, item.w, item.h);
+  const dims = dimensionsForWidget(item.id, size);
+  const w = Math.min(dims.w, HOME_GRID_BASE_COLS);
+  const x = clamp(Number(item.x) || 0, 0, Math.max(0, HOME_GRID_BASE_COLS - w));
+  return {
+    id: item.id,
+    x,
+    y: Math.max(0, Number(item.y) || 0),
+    w,
+    h: dims.h,
+    size,
+  };
+}
+
 export function displayGridItem(item: HomeWidgetGridItem | null | undefined, cols: number): HomeWidgetGridItem | null | undefined {
   if (!item) return item;
+  const base = reconcileGridItem(item);
   const ratio = cols / HOME_GRID_BASE_COLS;
-  const size = normalizeWidgetSize(item.id, item.size, item.w, item.h);
-  const base = WIDGET_SIZE_PRESETS[size] || WIDGET_SIZE_PRESETS.medium;
-  let w = Math.max(1, Math.round(base.w * ratio));
+  const size = base.size;
+  const dims = dimensionsForWidget(item.id, size);
+  let w = Math.max(1, Math.round(dims.w * ratio));
   w = Math.min(w, cols);
-  let x = Math.round((item.x || 0) * ratio);
+  let x = Math.round((base.x || 0) * ratio);
   x = clamp(x, 0, Math.max(0, cols - w));
-  return { ...item, x, w, h: base.h, size };
+  return { ...item, x, w, h: dims.h, size };
 }
 
 export function storeGridItem(item: HomeWidgetGridItem, cols: number): HomeWidgetGridItem {
@@ -449,6 +526,7 @@ export function storeGridItem(item: HomeWidgetGridItem, cols: number): HomeWidge
 
 if (typeof window !== 'undefined') {
   window.WIDGET_SIZE_PRESETS = WIDGET_SIZE_PRESETS;
+  window.WIDGET_SIZE_PRESETS_BY_WIDGET = WIDGET_SIZE_PRESETS_BY_WIDGET;
   window.WIDGET_SIZE_OPTIONS = WIDGET_SIZE_OPTIONS;
   window.HOME_WIDGET_GRID_SPECS = undefined;
 }

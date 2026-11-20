@@ -6,10 +6,9 @@ import {
   mapRunStepToTimelineStep
 } from '../show/timelineShared.jsx';
 
-function previewRows(grouped: any){
-  const groups = grouped?.groups || [];
+function previewRows(groups: any[]){
   const rows: any[] = [];
-  groups.forEach((g: any, i: any) => {
+  (groups || []).forEach((g: any, i: any) => {
     const steps = g.steps || [];
     if(!steps.length) return;
     if(g.label){
@@ -20,7 +19,12 @@ function previewRows(grouped: any){
   return rows;
 }
 
-export function RunDayTimeline({ run }: Record<string, any>){
+export function RunDayTimeline({
+  run,
+  todayOnly = false,
+  className = '',
+  onAfterToggle,
+}: Record<string, any>){
   const [tick, setTick] = useState(0);
   useEffect(() => {
     const id = setInterval(() => setTick((t: any) => t + 1), 60000);
@@ -29,23 +33,40 @@ export function RunDayTimeline({ run }: Record<string, any>){
 
   const tl = call('runTimeline', run) || [];
   const grouped = call('groupRunTimelineForPreview', run) || { groups: [] };
-  const rows = tl.length ? previewRows(grouped) : [];
+  const todayKey = String(call('todayISO') || '').slice(0, 10);
+  let groups = grouped.groups || [];
+  if(todayOnly && todayKey){
+    groups = groups.filter((g: any) => g.today || String(g.date || '').slice(0, 10) === todayKey);
+  }
+  const stepsForLive = todayOnly
+    ? tl.filter((s: any) => String(s.trueDate || s.date || s.showDate || '').slice(0, 10) === todayKey)
+    : tl;
+  const rows = (todayOnly ? groups.some((g: any) => (g.steps || []).length) : tl.length) ? previewRows(groups) : [];
   const live = useMemo(
-    () => call('runTimelineLiveState', run, tl) || { showDay: false, activeId: null, beforeIds: [], progress: 0 },
-    [run, tl, tick]
+    () => call('runTimelineLiveState', run, stepsForLive) || { showDay: false, activeId: null, beforeIds: [], progress: 0 },
+    [run, stepsForLive, tick],
   );
   const hasNow = !!(live.showDay && live.activeId);
 
-  if(!tl.length){
-    return <div className="hint">Add flights &amp; hotels inside each show</div>;
+  if(!rows.length){
+    return <div className="hint">Nothing on today&apos;s tour timeline yet — add travel and show day details to your shows.</div>;
   }
 
+  const rootClass = [
+    'timeline',
+    'show-day-timeline',
+    'tl-preview',
+    hasNow ? 'has-now' : '',
+    className,
+  ].filter(Boolean).join(' ');
+
   return (
-    <div className={`timeline show-day-timeline tl-preview${hasNow ? ' has-now' : ''}`}>
+    <div className={rootClass}>
       {rows.map((row: any) => {
         if(row.type === 'day'){
           return <TimelineDayRow key={row.key} label={row.label} today={row.today} />;
         }
+        const stepId = row.rawStep?.id || row.step.id;
         return (
           <LiveTimelineStepRow
             key={row.key}
@@ -53,8 +74,11 @@ export function RunDayTimeline({ run }: Record<string, any>){
             rawStep={row.rawStep}
             runKey={run.key}
             live={live}
-            onToggle={() => call('completeRunStep', run.key, row.rawStep?.id || row.step.id)}
-            onOpen={() => call('timelineStepOptions', run.key, row.rawStep?.id || row.step.id)}
+            onToggle={() => {
+              call('completeRunStep', run.key, stepId);
+              onAfterToggle?.();
+            }}
+            onOpen={() => call('timelineStepOptions', run.key, stepId)}
           />
         );
       })}

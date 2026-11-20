@@ -560,18 +560,40 @@ function toggleSidebar(force) {
     if (overlay && overlay.type === 'settings')
         renderView();
 }
+function desktopSidebarOpen() {
+    return typeof matchMedia === 'function'
+        && matchMedia('(min-width:900px)').matches
+        && !isSidebarHidden();
+}
 function initSidebar() {
     const btn = document.getElementById('sidebar-reveal');
     if (btn && !btn.dataset.init) {
         btn.innerHTML = ICON.chevR(18);
         btn.dataset.init = '1';
     }
-    const refreshBtn = document.getElementById('desktop-refresh');
-    if (refreshBtn && !refreshBtn.dataset.init) {
-        refreshBtn.innerHTML = ICON.refresh(18);
-        refreshBtn.dataset.init = '1';
-    }
     applySidebar();
+    if (typeof document !== 'undefined' && !document.documentElement.dataset.sidebarDismissInit) {
+        document.documentElement.dataset.sidebarDismissInit = '1';
+        document.addEventListener('pointerdown', (e) => {
+            if (!desktopSidebarOpen())
+                return;
+            const nav = document.getElementById('nav');
+            const t = e.target;
+            if (!(t instanceof Node) || (nav && nav.contains(t)))
+                return;
+            if (typeof sheetEl !== 'undefined' && sheetEl)
+                return;
+            if (typeof dtPickerEl !== 'undefined' && dtPickerEl)
+                return;
+            const scrim = document.getElementById('scrim');
+            if (scrim && scrim.classList.contains('on'))
+                return;
+            const viewer = document.getElementById('viewer');
+            if (viewer && viewer.classList.contains('on'))
+                return;
+            toggleSidebar(true);
+        }, true);
+    }
 }
 /* ---------- Navigation ---------- */
 const TABS = [
@@ -1623,6 +1645,17 @@ function confirmSheet(title, msg, confirmLabel, onConfirm, danger) {
         danger: !!danger,
         onConfirmKey: key,
     });
+}
+function confirmHoldSheet(title, msg, labels, onConfirm) {
+    const key = 'confirm_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7);
+    sheetCallback(key, onConfirm);
+    openSheetReact(title, 'common.holdConfirm', {
+        msg: msg || '',
+        onConfirmKey: key,
+        label: labels?.label || 'Hold to confirm',
+        holdingLabel: labels?.holdingLabel || 'Keep holding…',
+        doneLabel: labels?.doneLabel || 'Confirmed',
+    }, { danger: true });
 }
 function promptSheet(title, placeholder, onSave, initial = '') {
     const key = 'prompt_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7);
@@ -3604,8 +3637,8 @@ function eventMenu(eid) {
 function tripMenu(tid) {
     openSheetReact('Trip options', 'menu.trip', { tid });
 }
-function confirmDeleteEvent(eid) { confirmSheet('Delete show?', 'This removes the show and its details permanently.', 'Delete', () => { store.events = store.events.filter(e => e.id !== eid); persist('shows', eid); if (typeof showsMode !== 'undefined')
-    showsMode = 'shows'; go('shows'); toast('Show deleted', 'trash'); }, true); }
+function confirmDeleteEvent(eid) { confirmHoldSheet('Delete show?', 'This removes the show and its details permanently.', { label: 'Hold to delete show', holdingLabel: 'Keep holding…', doneLabel: 'Deleted' }, () => { store.events = store.events.filter(e => e.id !== eid); persist('shows', eid); if (typeof showsMode !== 'undefined')
+    showsMode = 'shows'; go('shows'); toast('Show deleted', 'trash'); }); }
 function confirmDeleteTrip(tid) { confirmSheet('Delete trip?', 'Shows in this trip are kept, but the trip itself is removed.', 'Delete trip', () => { store.events.forEach(e => { if (e.tripId === tid)
     e.tripId = null; }); if (store.activeTripId === tid)
     store.activeTripId = null; store.trips = store.trips.filter(t => t.id !== tid); persist('tours', tid); back(); toast('Trip deleted', 'trash'); }, true); }
@@ -4346,7 +4379,7 @@ function resetAllLocalAppData() {
     return typeof idbClearAll === 'function' ? idbClearAll() : Promise.resolve();
 }
 function confirmReset() {
-    confirmSheet('Delete all app data?', 'Permanently removes all shows, tours, notes, contacts and other data stored on this device. Your Supabase cloud data is not deleted — sign in again to reload from the cloud, or keep working with an empty app.', 'Delete all data', () => {
+    confirmHoldSheet('Delete all app data?', 'Permanently removes all shows, tours, notes, contacts and other data stored on this device. Your Supabase cloud data is not deleted — sign in again to reload from the cloud, or keep working with an empty app.', { label: 'Hold to delete all data', holdingLabel: 'Keep holding…', doneLabel: 'Deleted' }, () => {
         const finish = () => {
             closeSheet(true, { noReturn: true });
             if (typeof go === 'function')
@@ -4359,7 +4392,7 @@ function confirmReset() {
             p.then(finish).catch(finish);
         else
             finish();
-    }, true);
+    });
 }
 /* ---------- Finance overview (overlay) ---------- */
 function viewFinance() {

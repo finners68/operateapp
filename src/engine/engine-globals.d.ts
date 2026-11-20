@@ -14,6 +14,13 @@ interface OperateConfig {
   OPERATE_ORGS?: { id?: string; name?: string }[];
   OPERATE_ALLOWED_USER_ID?: string;
   OPERATE_ALLOWED_EMAIL?: string;
+  ensureDevHardwireAnonSession?: () => Promise<void>;
+  getOperateThemePreference?: () => 'dark' | 'light' | 'system';
+  setOperateThemePreference?: (pref: 'dark' | 'light' | 'system') => void;
+  applyOperateTheme?: (pref?: 'dark' | 'light' | 'system') => void;
+  operateThemeLabel?: (pref?: 'dark' | 'light' | 'system') => string;
+  /** Optional auth.users id for user_preferences when using no-login dev sync. */
+  OPERATE_DEV_PREFS_USER_ID?: string;
 }
 
 interface OperateReactApi {

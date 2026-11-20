@@ -48,6 +48,14 @@ function scheduleRowKey(kind: any, showId: any, id: any){
   return `${kind}:${showId || 'x'}:${id}`;
 }
 
+/** Dedupe run vs show timeline rows that describe the same activity. */
+function scheduleContentKey(showId: any, step: any){
+  const kind = String(step?.kind || '');
+  const time = previewTime(step) || String(step?.time || '');
+  const title = String(step?.title || '').trim();
+  return `${showId || 'x'}:${kind}:${time}:${title}`;
+}
+
 /**
  * All activities for `today` from tour run timeline and/or per-show day timelines.
  */
@@ -55,6 +63,7 @@ export function buildTodayScheduleRows({ today, sel, focusRun }: Record<string, 
   if(!today) return [];
   const rows: any[] = [];
   const seen = new Set();
+  const seenContent = new Set();
   const shows = sel?.events ? sel.events() : [];
   const showById = (id: any) => (sel?.event ? sel.event(id) : shows.find((s: any) => s.id === id)) || null;
 
@@ -64,6 +73,7 @@ export function buildTodayScheduleRows({ today, sel, focusRun }: Record<string, 
     const key = scheduleRowKey('show', show.id, step.id);
     if(seen.has(key)) return;
     seen.add(key);
+    seenContent.add(scheduleContentKey(show.id, step));
     rows.push({
       key,
       showId: show.id,
@@ -77,11 +87,14 @@ export function buildTodayScheduleRows({ today, sel, focusRun }: Record<string, 
     if(!step) return;
     const d = String(step.trueDate || step.date || step.showDate || '').slice(0, 10);
     if(d !== today) return;
+    const show = showById(step.showId);
+    const timelineStep = mapRunStepToTimelineStep(step);
+    const contentKey = scheduleContentKey(step.showId, timelineStep);
+    if(seenContent.has(contentKey)) return;
     const key = scheduleRowKey('run', step.showId, step.id);
     if(seen.has(key)) return;
     seen.add(key);
-    const show = showById(step.showId);
-    const timelineStep = mapRunStepToTimelineStep(step);
+    seenContent.add(contentKey);
     rows.push({
       key,
       showId: step.showId,
@@ -91,21 +104,14 @@ export function buildTodayScheduleRows({ today, sel, focusRun }: Record<string, 
     });
   };
 
+  // Every show — full day timeline for today (flights, hotel, set, advance, etc.).
+  shows.forEach((show: any) => {
+    (call('showDayTimeline', show) || []).forEach((step: any) => addShowStep(show, step));
+  });
+
+  // Tour legs dated today (may use different ids than show-day rows).
   if(focusRun){
     (call('runTimeline', focusRun) || []).forEach(addRunStep);
-    (focusRun.shows || []).forEach((show: any) => {
-      (call('showDayTimeline', show) || []).forEach((step: any) => {
-        if(stepDay(step, show) !== today) return;
-        const k = String(step.kind || '');
-        if(k === 'flight' || k === 'transport' || k === 'hotel' || k === 'set') return;
-        addShowStep(show, step);
-      });
-    });
-  }else{
-    shows.forEach((show: any) => {
-      const tl = call('showDayTimeline', show) || [];
-      tl.forEach((step: any) => addShowStep(show, step));
-    });
   }
 
   rows.sort((a: any, b: any) => {
@@ -120,8 +126,15 @@ export function buildTodayScheduleRows({ today, sel, focusRun }: Record<string, 
 
 export function todayScheduleLiveState(today: any, rows: any){
   const steps = (rows || []).map((r: any) => r.timelineStep).filter(Boolean);
-  const live = call('showTimelineLiveState', { date: today }, steps);
-  return live || { showDay: false, activeId: null, beforeIds: [], progress: 0, upcoming: false };
+  const live = call('showTimelineLiveState', { date: today }, steps) || {
+    showDay: false, activeId: null, beforeIds: [], progress: 0, upcoming: false,
+  };
+  const day = String(today || '').slice(0, 10);
+  const appToday = String(call('todayISO') || '').slice(0, 10);
+  if(day && appToday && day === appToday){
+    live.showDay = true;
+  }
+  return live;
 }
 
 export function todayStepDetail(step: any, rawRunStep: any){

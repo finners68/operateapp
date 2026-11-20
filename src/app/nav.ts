@@ -179,7 +179,6 @@ export function goTab(tab: any, opts: any = {}){
   }
   doNavigate(pathForTab(t), opts);
   if(typeof window !== 'undefined'){
-    if(typeof window.persist === 'function') window.persist('user_preferences');
     if(typeof window.saveNavState === 'function') window.saveNavState();
     if(typeof window.haptic === 'function') window.haptic();
     if(typeof window.notifyStore === 'function') window.notifyStore();
