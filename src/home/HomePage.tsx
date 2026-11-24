@@ -2,12 +2,17 @@ import { useSyncExternalStore, useEffect, useLayoutEffect, useState, useCallback
 import { createPortal } from 'react-dom';
 import { call, countdown, flightHasDetails, fmtDate, fmtDateLong, getSel, getStore, notifyStore, pad, parseDT, showTitle, subscribeStore, tickCountdowns } from '../api/operate.js';
 import { Icon } from '../show/ui.jsx';
-import { buildTodayScheduleRows, todayScheduleLiveState } from './todaySchedule.js';
+import {
+  buildTodayScheduleRows, stepLocation, todayScheduleLiveState, todayScheduleVisibleRows,
+} from './todaySchedule.js';
 import {
   collectAccommodationBookings, formatStayWhen, hotelConfirmationPass, pickAccommodation, statusLabel,
 } from './accommodation.js';
 import {
-  collectJourneys, formatJourneyWhen, journeyBoardingPass, journeyCountdown, journeyStatusLabel, pickNextJourney,
+  collectJourneys, formatJourneyWhen, journeyBoardingPass, journeyCountdown, journeyDurationText,
+  journeyDetailLines, journeyEndpointHints,
+  journeyPassengerSummary, journeyPlaceDisplay, journeyRoutePlaceLabel, journeyStatusLabel,
+  journeySupportingChips, pickNextJourney,
 } from './upcomingTravel.js';
 import {
   collectUpcomingShows, showCountdownLabel, showCountdownMs, showListStatus, showLocationLine,
@@ -23,8 +28,8 @@ import {
 import { LiveTimelineStepRow, TimelineDayRow } from '../show/timelineShared.jsx';
 import { openTimelineStep } from '../show/openTimelineStep.js';
 import {
-  HOME_GRID_BASE_COLS, HOME_GRID_ROW_PX, appendGridWidget, compactGridItems, colsForViewportWidth,
-  dimensionsForWidget, displayGridItem, listCapForWidget, reconcileGridItem,
+  HOME_GRID_BASE_COLS, HOME_GRID_ROW_PX, appendGridWidget,   compactGridItems, colsForViewportWidth,
+  dimensionsForWidget, displayGridItem, displayGridLayout, listCapForWidget, reconcileGridItem,
   placeGridWidgetAtPointer,
   removeGridWidget, replaceGridWidgetId, setWidgetSize, sizeTitle, sizeToDensity,
   sortGridItems, storeGridItem, widgetSizeOptions,
@@ -33,6 +38,7 @@ import {
   availableHomeWidgets, homeWidgetMeta, readHomeWidgetGrid, resetHomeWidgetLayout,
   swapOptionsForWidget, writeHomeWidgetGrid,
 } from './homeWidgetMeta.js';
+import { DailyOverview, buildDailyOverviewLines } from './dailyOverview.jsx';
 
 function useStoreTick(){
   return useSyncExternalStore(
@@ -47,7 +53,7 @@ function greeting(){
   return h < 12 ? 'Good morning' : h < 18 ? 'Good afternoon' : 'Good evening';
 }
 
-function HomeActions(){
+function HomeActions({ className = '' }: { className?: string }){
   const [open, setOpen] = useState(false);
   const [on, setOn] = useState('');
   useEffect(() => {
@@ -61,7 +67,7 @@ function HomeActions(){
     fn();
   };
   return (
-    <div className="home-actions">
+    <div className={`home-actions${className ? ` ${className}` : ''}`}>
       <button type="button" className="home-action" onClick={() => call('sheetEvent')}>
         <Icon name="plus" size={15} /> Add show
       </button>
@@ -354,48 +360,53 @@ function NextShowHero({ show, density = 'default' }: Record<string, any>){
 
   return (
     <div className="hero nextshow home-next-show is-large-panel">
-      <div
-        className="home-next-show-large-main tap"
-        onClick={() => call('openView', 'event', show.id)}
-      >
-        <div className="home-next-show-large-top">
-          <span className="home-next-show-snippet-label">
-            <Icon name="music" size={13} /> Next Show
-          </span>
-          <div className="home-next-show-large-top-meta">
-            {countdownLine ? (
-              <span className="home-next-show-snippet-cd">{countdownLine}</span>
-            ) : null}
-            {statusChip}
-          </div>
+      <div className="home-next-show-large-top">
+        <span className="home-next-show-snippet-label">
+          <Icon name="music" size={13} /> Next Show
+        </span>
+        <div className="home-next-show-large-top-meta">
+          {countdownLine ? (
+            <span className="home-next-show-snippet-cd">{countdownLine}</span>
+          ) : null}
+          {statusChip}
         </div>
-        <h2 className="home-next-show-large-title">{title}</h2>
-        {venueLine ? <p className="home-next-show-large-venue">{venueLine}</p> : null}
-        {location ? <p className="home-next-show-large-loc">{location}</p> : null}
-        {(show.date || setLine) ? (
-          <div className="home-next-show-medium-datetime home-next-show-large-datetime">
-            {show.date ? (
-              <span className="home-next-show-medium-dt">
-                <Icon name="calendar" size={14} />
-                <span>{dateLine}</span>
-              </span>
-            ) : null}
-            {setLine ? (
-              <span className="home-next-show-medium-dt">
-                <Icon name="music" size={14} />
-                <span>{setLine}</span>
-              </span>
-            ) : null}
-          </div>
-        ) : null}
-        {venueAddress ? (
-          <p className="home-next-show-large-address">
-            <Icon name="pin" size={14} />
-            <span>{venueAddress}</span>
-          </p>
-        ) : null}
+      </div>
+      <div className="home-next-show-large-cols">
+        <div
+          className="home-next-show-large-col home-next-show-large-col--primary tap"
+          onClick={() => call('openView', 'event', show.id)}
+        >
+          <h2 className="home-next-show-large-title">{title}</h2>
+          {venueLine ? <p className="home-next-show-large-venue">{venueLine}</p> : null}
+          {location ? <p className="home-next-show-large-loc">{location}</p> : null}
+          {(show.date || setLine) ? (
+            <div className="home-next-show-medium-datetime home-next-show-large-datetime">
+              {show.date ? (
+                <span className="home-next-show-medium-dt">
+                  <Icon name="calendar" size={14} />
+                  <span>{dateLine}</span>
+                </span>
+              ) : null}
+              {setLine ? (
+                <span className="home-next-show-medium-dt">
+                  <Icon name="music" size={14} />
+                  <span>{setLine}</span>
+                </span>
+              ) : null}
+            </div>
+          ) : null}
+          {venueAddress ? (
+            <p className="home-next-show-large-address">
+              <Icon name="pin" size={14} />
+              <span>{venueAddress}</span>
+            </p>
+          ) : null}
+        </div>
         {(extraDetails.length > 0 || primaryContact) ? (
-          <div className="home-next-show-large-secondary">
+          <div
+            className="home-next-show-large-col home-next-show-large-col--secondary"
+            onClick={(e: any) => e.stopPropagation()}
+          >
             {extraDetails.length > 0 ? (
               <ul className="home-next-show-large-details">
                 {extraDetails.map((row) => (
@@ -408,10 +419,7 @@ function NextShowHero({ show, density = 'default' }: Record<string, any>){
               </ul>
             ) : null}
             {primaryContact ? (
-              <div
-                className="home-next-show-large-contact"
-                onClick={(e: any) => e.stopPropagation()}
-              >
+              <div className="home-next-show-large-contact">
                 <div className="home-next-show-large-contact-body">
                   <span className="home-next-show-large-contact-name">{primaryContact.name}</span>
                   <span className="home-next-show-large-contact-role">{primaryContact.label}</span>
@@ -541,8 +549,178 @@ function showKeyContacts(show: any){
   return out.filter((c: any) => c.phone || c.whatsapp);
 }
 
+function UpcomingTravelActions({ journey, pass, onNavigate }: Record<string, any>){
+  return (
+    <div className="home-travel-journey-actions" onClick={(e: any) => e.stopPropagation()}>
+      {journey.mapsQuery ? (
+        <button type="button" className="home-next-show-medium-action" onClick={() => call('openMaps', journey.mapsQuery)}>
+          <Icon name="map" size={14} /> Directions
+        </button>
+      ) : null}
+      {pass?.showId ? (
+        <button
+          type="button"
+          className="home-next-show-medium-action"
+          onClick={() => call('openPassByRef', pass.showId, pass.pass?.id, pass.flightId)}
+        >
+          <Icon name="ticket" size={14} /> View booking
+        </button>
+      ) : pass?.legId ? (
+        <button type="button" className="home-next-show-medium-action" onClick={() => call('viewItemPass', pass.legId, pass.pass?.id)}>
+          <Icon name="ticket" size={14} /> View booking
+        </button>
+      ) : journey.showId ? (
+        <button type="button" className="home-next-show-medium-action" onClick={onNavigate}>
+          <Icon name="chevR" size={14} /> View booking
+        </button>
+      ) : null}
+      {(journey.phone || journey.whatsapp) ? (
+        <button type="button" className="home-next-show-medium-action" onClick={() => call('whatsapp', journey.whatsapp || journey.phone)}>
+          <Icon name="chat" size={14} /> Contact driver
+        </button>
+      ) : null}
+      {journey.phone ? (
+        <button type="button" className="home-next-show-medium-action" onClick={() => call('callNumber', journey.phone)}>
+          <Icon name="phone" size={14} /> Call
+        </button>
+      ) : null}
+      {journey.bookingRef ? (
+        <button type="button" className="home-next-show-medium-action" onClick={() => call('copyText', journey.bookingRef)}>
+          <Icon name="copy" size={14} /> Copy ref
+        </button>
+      ) : null}
+    </div>
+  );
+}
+
+function UpcomingTravelJourneyCard({ journey, onOpen }: Record<string, any>){
+  const status = journey.status || 'upcoming';
+  const stClass = status === 'ongoing' ? 'is-ongoing' : 'is-upcoming';
+  const cd = status === 'upcoming' && journey.depMs ? journeyCountdown(journey.depMs) : null;
+  const pass = journeyBoardingPass(journey);
+  const duration = journeyDurationText(journey) || journey.typeLabel || '';
+  const chips = journeySupportingChips(journey);
+  const detailLines = journeyDetailLines(journey);
+  const passengers = journeyPassengerSummary(journey);
+  const raw = journey.rawFlight || journey.rawLeg || journey.rawDriver || journey.rawStep?.ref;
+  const depPlaceLabel = journeyRoutePlaceLabel(journey.depPlace, raw, 'from');
+  const arrPlaceLabel = journeyRoutePlaceLabel(journey.arrPlace, raw, 'to');
+  const dep = journeyPlaceDisplay(depPlaceLabel);
+  const arr = journeyPlaceDisplay(arrPlaceLabel);
+  const depWhen = formatJourneyWhen(journey.depDate, journey.depTime);
+  const arrWhen = formatJourneyWhen(journey.arrDate, journey.arrTime);
+  const depHints = journeyEndpointHints(journey, 'dep');
+  const arrHints = journeyEndpointHints(journey, 'arr');
+
+  return (
+    <div className={`home-travel-journey tap${stClass}`} onClick={onOpen}>
+      <div className="home-travel-journey-top">
+        <span className="home-travel-journey-heading">Upcoming travel</span>
+        <div className="home-travel-journey-top-meta">
+          <span className="home-travel-journey-type">
+            <Icon name={journey.icon || 'planeTop'} size={15} />
+            {journey.typeLabel}
+          </span>
+          <span className={`home-travel-journey-status ${stClass}`}>{journeyStatusLabel(status)}</span>
+          {journey.showId ? (
+            <button type="button" className="home-travel-journey-details" onClick={(e: any) => { e.stopPropagation(); onOpen(); }}>
+              Details
+            </button>
+          ) : null}
+        </div>
+      </div>
+      <div className="home-travel-journey-main">
+        <div className="home-travel-journey-route-wrap">
+          <div className="home-travel-journey-route">
+            <div className="home-travel-journey-end is-dep">
+              {dep.code ? <span className="home-travel-journey-code">{dep.code}</span> : null}
+              <span className="home-travel-journey-place">{dep.label || depPlaceLabel || 'Departure'}</span>
+              {depWhen ? <span className="home-travel-journey-when">{depWhen}</span> : null}
+              {depHints.length ? (
+                <div className="home-travel-journey-end-meta">
+                  {depHints.map((hint) => (
+                    <span key={hint} className="home-travel-journey-end-hint">{hint}</span>
+                  ))}
+                </div>
+              ) : null}
+            </div>
+            <div className="home-travel-journey-mid" aria-hidden>
+              <Icon name={journey.icon || 'planeTop'} size={20} />
+              {duration ? <span className="home-travel-journey-dur">{duration}</span> : null}
+            </div>
+            <div className="home-travel-journey-end is-arr">
+              {arr.code ? <span className="home-travel-journey-code">{arr.code}</span> : null}
+              <span className="home-travel-journey-place">{arr.label || arrPlaceLabel || 'Arrival'}</span>
+              {arrWhen ? <span className="home-travel-journey-when">{arrWhen}</span> : null}
+              {arrHints.length ? (
+                <div className="home-travel-journey-end-meta">
+                  {arrHints.map((hint) => (
+                    <span key={hint} className="home-travel-journey-end-hint">{hint}</span>
+                  ))}
+                </div>
+              ) : null}
+            </div>
+          </div>
+          {(cd || chips.length) ? (
+            <div className="home-travel-journey-meta">
+              {cd ? (
+                <span className="home-travel-journey-countdown" {...(journey.depMs ? { 'data-countdown-ms': journey.depMs } : {})}>
+                  <span className="home-travel-journey-countdown-k">Departs in</span>
+                  <span className="home-travel-journey-countdown-v">
+                    <span className="cd-txt">{cd.txt}</span>
+                    {cd.unit ? <small className="cd-unit">{cd.unit}</small> : null}
+                  </span>
+                </span>
+              ) : null}
+              {chips.map((chip) => (
+                <span key={chip.key} className="home-travel-journey-chip">
+                  <span className="home-travel-journey-chip-k">{chip.label}</span>
+                  <span className="home-travel-journey-chip-v">{chip.value}</span>
+                </span>
+              ))}
+            </div>
+          ) : null}
+        </div>
+        <aside className="home-travel-journey-side" onClick={(e: any) => e.stopPropagation()}>
+          {detailLines.length ? (
+            <div className="home-travel-journey-details">
+              <span className="home-travel-journey-side-title">Travel details</span>
+              <ul className="home-travel-journey-detail-list">
+                {detailLines.map((line) => (
+                  <li key={line.key} className="home-travel-journey-detail-row">
+                    <span className="home-travel-journey-detail-k">{line.label}</span>
+                    <span className="home-travel-journey-detail-v">{line.value}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
+          <div className="home-travel-journey-pax">
+            <span className="home-travel-journey-side-title">Passengers</span>
+            {passengers.length ? (
+              <ul className="home-travel-journey-pax-list">
+                {passengers.map((p) => (
+                  <li key={p.key} className="home-travel-journey-pax-row">
+                    <span className="home-travel-journey-pax-name">{p.name}</span>
+                    {p.seat ? <span className="home-travel-journey-pax-seat">Seat {p.seat}</span> : null}
+                    {p.extra ? <span className="home-travel-journey-pax-extra">{p.extra}</span> : null}
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="home-travel-journey-pax-empty">No passenger names on this booking yet.</p>
+            )}
+          </div>
+        </aside>
+      </div>
+      <UpcomingTravelActions journey={journey} pass={pass} onNavigate={onOpen} />
+    </div>
+  );
+}
+
 function UpcomingTravelWidget({ journey, show, density = 'default' }: Record<string, any>){
   const compact = density === 'compact';
+  const expanded = density === 'expanded';
   if(!journey){
     return (
       <HomePanel title="Upcoming travel">
@@ -566,6 +744,10 @@ function UpcomingTravelWidget({ journey, show, density = 'default' }: Record<str
     if(journey.showId) call('openView', 'event', journey.showId);
   };
 
+  if(expanded){
+    return <UpcomingTravelJourneyCard journey={journey} onOpen={openDetails} />;
+  }
+
   return (
     <HomePanel
       title="Upcoming travel"
@@ -578,68 +760,38 @@ function UpcomingTravelWidget({ journey, show, density = 'default' }: Record<str
           </button>
           <span className={`tag home-travel-status ${stClass}`}>{journeyStatusLabel(status)}</span>
         </div>
-        {cd ? (
-          <div className="home-travel-countdown" {...(journey.depMs ? { 'data-countdown-ms': journey.depMs } : {})}>
-            <span className="home-travel-countdown-k">Departs in</span>
-            <span className="home-travel-countdown-v">
-              <span className="cd-txt">{cd.txt}</span>
-              {cd.unit ? <small className="cd-unit">{cd.unit}</small> : null}
-            </span>
+        <div className="home-travel-body">
+          {cd ? (
+            <div className="home-travel-countdown" {...(journey.depMs ? { 'data-countdown-ms': journey.depMs } : {})}>
+              <span className="home-travel-countdown-k">Departs in</span>
+              <span className="home-travel-countdown-v">
+                <span className="cd-txt">{cd.txt}</span>
+                {cd.unit ? <small className="cd-unit">{cd.unit}</small> : null}
+              </span>
+            </div>
+          ) : null}
+          <div className="home-travel-legs">
+            <div className="home-travel-end">
+              <span className="home-travel-end-k">Departure</span>
+              {journey.depPlace ? <b className="home-travel-place">{journey.depPlace}</b> : null}
+              {journey.depDate || journey.depTime ? (
+                <span className="home-travel-when">{formatJourneyWhen(journey.depDate, journey.depTime)}</span>
+              ) : null}
+            </div>
+            <div className="home-travel-mid" aria-hidden><Icon name="chevR" size={16} /></div>
+            <div className="home-travel-end">
+              <span className="home-travel-end-k">Arrival</span>
+              {journey.arrPlace ? <b className="home-travel-place">{journey.arrPlace}</b> : null}
+              {journey.arrDate || journey.arrTime ? (
+                <span className="home-travel-when">{formatJourneyWhen(journey.arrDate, journey.arrTime)}</span>
+              ) : null}
+            </div>
           </div>
-        ) : null}
-        <div className="home-travel-legs">
-          <div className="home-travel-end">
-            <span className="home-travel-end-k">Departure</span>
-            {journey.depPlace ? <b className="home-travel-place">{journey.depPlace}</b> : null}
-            {journey.depDate || journey.depTime ? (
-              <span className="home-travel-when">{formatJourneyWhen(journey.depDate, journey.depTime)}</span>
-            ) : null}
-          </div>
-          <div className="home-travel-mid" aria-hidden><Icon name="chevR" size={16} /></div>
-          <div className="home-travel-end">
-            <span className="home-travel-end-k">Arrival</span>
-            {journey.arrPlace ? <b className="home-travel-place">{journey.arrPlace}</b> : null}
-            {journey.arrDate || journey.arrTime ? (
-              <span className="home-travel-when">{formatJourneyWhen(journey.arrDate, journey.arrTime)}</span>
-            ) : null}
-          </div>
+          {detailLine ? <div className="home-travel-detail">{detailLine}</div> : null}
+          {journey.bookingRef ? <div className="home-line home-travel-ref"><b>Booking ref</b><span>{journey.bookingRef}</span></div> : null}
         </div>
-        {detailLine ? <div className="home-travel-detail">{detailLine}</div> : null}
-        {journey.bookingRef ? <div className="home-line home-travel-ref"><b>Booking ref</b><span>{journey.bookingRef}</span></div> : null}
-        <div className="hero-links home-travel-links" onClick={(e: any) => e.stopPropagation()}>
-          {journey.mapsQuery ? (
-            <button type="button" className="hero-link" onClick={() => call('openMaps', journey.mapsQuery)}>
-              <Icon name="map" size={14} /> Directions
-            </button>
-          ) : null}
-          {(journey.phone || journey.whatsapp) ? (
-            <button type="button" className="hero-link" onClick={() => call('whatsapp', journey.whatsapp || journey.phone)}>
-              <Icon name="chat" size={14} /> Driver
-            </button>
-          ) : null}
-          {journey.phone ? (
-            <button type="button" className="hero-link" onClick={() => call('callNumber', journey.phone)}>
-              <Icon name="phone" size={14} /> Call
-            </button>
-          ) : null}
-          {pass?.showId ? (
-            <button
-              type="button"
-              className="hero-link"
-              onClick={() => call('openPassByRef', pass.showId, pass.pass?.id, pass.flightId)}
-            >
-              <Icon name="ticket" size={14} /> Ticket
-            </button>
-          ) : pass?.legId ? (
-            <button type="button" className="hero-link" onClick={() => call('viewItemPass', pass.legId, pass.pass?.id)}>
-              <Icon name="ticket" size={14} /> Ticket
-            </button>
-          ) : null}
-          {journey.bookingRef ? (
-            <button type="button" className="hero-link" onClick={() => call('copyText', journey.bookingRef)}>
-              <Icon name="copy" size={14} /> Copy ref
-            </button>
-          ) : null}
+        <div className="hero-links home-travel-links">
+          <UpcomingTravelActions journey={journey} pass={pass} onNavigate={openDetails} />
         </div>
       </div>
     </HomePanel>
@@ -678,34 +830,38 @@ function AccommodationWidget({ booking, show, density = 'default' }: Record<stri
       link={booking.showId ? <button type="button" className="home-panel-link" onClick={openDetails}>Details</button> : null}
     >
       <div className={`home-acc-card tap${stClass}${compact ? ' is-compact' : ''}`} onClick={openDetails}>
-        <div className="home-acc-head">
-          <div className="home-acc-icon" aria-hidden><Icon name="bed" size={18} /></div>
-          <div className="home-acc-head-text">
-            <span className={`tag home-acc-status ${stClass}`}>{statusLabel(status)}</span>
-            <h3 className="home-acc-name">{booking.name}</h3>
-            {booking.location ? <div className="home-acc-loc"><Icon name="pin" size={13} /> {booking.location}</div> : null}
+        <div className={`home-acc-layout${!compact ? ' is-wide' : ''}`}>
+          <div className="home-acc-head">
+            <div className="home-acc-icon" aria-hidden><Icon name="bed" size={18} /></div>
+            <div className="home-acc-head-text">
+              <span className={`tag home-acc-status ${stClass}`}>{statusLabel(status)}</span>
+              <h3 className="home-acc-name">{booking.name}</h3>
+              {booking.location ? <div className="home-acc-loc"><Icon name="pin" size={13} /> {booking.location}</div> : null}
+            </div>
+          </div>
+          <div className="home-acc-facts">
+            {(checkInLine || checkOutLine) ? (
+              <div className="home-acc-dates">
+                {checkInLine ? (
+                  <div className="home-acc-date">
+                    <span className="home-acc-date-k">Check-in</span>
+                    <span className="home-acc-date-v">{checkInLine}</span>
+                  </div>
+                ) : null}
+                {checkOutLine ? (
+                  <div className="home-acc-date">
+                    <span className="home-acc-date-k">Check-out</span>
+                    <span className="home-acc-date-v">{checkOutLine}</span>
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
+            {booking.address ? <div className="home-acc-addr">{booking.address}</div> : null}
+            {roomBits ? <div className="home-line home-acc-room"><b>Room</b><span>{roomBits}</span></div> : null}
+            {booking.bookingRef ? <div className="home-line home-acc-ref"><b>Booking ref</b><span>{booking.bookingRef}</span></div> : null}
+            {booking.phone ? <div className="home-line home-acc-phone"><b>Hotel</b><span>{booking.phone}</span></div> : null}
           </div>
         </div>
-        {(checkInLine || checkOutLine) ? (
-          <div className="home-acc-dates">
-            {checkInLine ? (
-              <div className="home-acc-date">
-                <span className="home-acc-date-k">Check-in</span>
-                <span className="home-acc-date-v">{checkInLine}</span>
-              </div>
-            ) : null}
-            {checkOutLine ? (
-              <div className="home-acc-date">
-                <span className="home-acc-date-k">Check-out</span>
-                <span className="home-acc-date-v">{checkOutLine}</span>
-              </div>
-            ) : null}
-          </div>
-        ) : null}
-        {booking.address ? <div className="home-acc-addr">{booking.address}</div> : null}
-        {roomBits ? <div className="home-line home-acc-room"><b>Room</b><span>{roomBits}</span></div> : null}
-        {booking.bookingRef ? <div className="home-line home-acc-ref"><b>Booking ref</b><span>{booking.bookingRef}</span></div> : null}
-        {booking.phone ? <div className="home-line home-acc-phone"><b>Hotel</b><span>{booking.phone}</span></div> : null}
         <div className="hero-links home-acc-links" onClick={(e: any) => e.stopPropagation()}>
           {booking.mapsQ ? (
             <button type="button" className="hero-link" onClick={() => call('openMaps', booking.mapsQ)}>
@@ -740,7 +896,8 @@ function AccommodationWidget({ booking, show, density = 'default' }: Record<stri
 function TodayScheduleWidget({ today, sel, focusRun, storeTick, density = 'default', size = 'medium', gridH }: Record<string, any>){
   const [minuteTick, setMinuteTick] = useState(0);
   const timelineRef = useRef<HTMLDivElement | null>(null);
-  const tallSlot = size === 'large' || (Number(gridH) || 0) >= 6;
+  const isLarge = size === 'large' || density === 'expanded';
+  const rowCap = listCapForWidget('todaySchedule', size);
   useEffect(() => {
     const id = setInterval(() => setMinuteTick((t: any) => t + 1), 60000);
     return () => clearInterval(id);
@@ -754,7 +911,12 @@ function TodayScheduleWidget({ today, sel, focusRun, storeTick, density = 'defau
     () => todayScheduleLiveState(today, rows),
     [today, rows, minuteTick, storeTick],
   );
+  const visibleRows = useMemo(
+    () => (isLarge ? rows : todayScheduleVisibleRows(rows, live, rowCap)),
+    [rows, live, isLarge, rowCap],
+  );
   const dayLabel = fmtDateLong ? fmtDateLong(today) : (fmtDate ? fmtDate(today) : today);
+  const hiddenCount = Math.max(0, rows.length - visibleRows.length);
 
   const bump = useCallback(() => {
     if(typeof call === 'function') try{ call('haptic'); }catch(_){}
@@ -762,19 +924,20 @@ function TodayScheduleWidget({ today, sel, focusRun, storeTick, density = 'defau
   }, []);
 
   return (
-    <HomePanel title="Today's schedule" className={`home-today-panel${tallSlot ? ' home-today-panel--full' : ''}`}>
+    <HomePanel title="Today's schedule" className={`home-today-panel${isLarge ? ' home-today-panel--full' : ''}`}>
       {rows.length ? (
         <div
           ref={timelineRef}
-          className={`card flush home-inset home-today-timeline home-today-timeline--agenda show-day-timeline tl-preview${
-            tallSlot ? ' home-today-timeline--full home-today-timeline-fill' : ''
+          className={`timeline show-day-timeline tl-preview home-today-timeline${
+            isLarge ? ' home-today-timeline--scroll' : ''
           }${live?.activeId ? ' has-now' : ''}`}
         >
           <TimelineDayRow label={`${dayLabel} · Today`} today />
-          {rows.map((row: any) => {
+          {visibleRows.map((row: any) => {
             const isRun = !!row.runStep;
             const raw = isRun ? row.runStep : undefined;
             const runKey = isRun && focusRun?.key ? focusRun.key : undefined;
+            const loc = stepLocation(row.timelineStep, row.show, row.runStep);
             return (
               <LiveTimelineStepRow
                 key={row.key}
@@ -783,6 +946,7 @@ function TodayScheduleWidget({ today, sel, focusRun, storeTick, density = 'defau
                 runKey={runKey}
                 expandOnRowClick={false}
                 live={live}
+                location={loc}
                 onToggle={() => {
                   if(row.runStep && focusRun?.key){
                     call('completeRunStep', focusRun.key, row.runStep.id);
@@ -801,6 +965,13 @@ function TodayScheduleWidget({ today, sel, focusRun, storeTick, density = 'defau
               />
             );
           })}
+          {hiddenCount > 0 ? (
+            <div className="tl-more-row">
+              <span />
+              <span />
+              <span className="home-today-more hint">{hiddenCount} more later today — switch to Large or open a show</span>
+            </div>
+          ) : null}
         </div>
       ) : (
         <div className="home-today-empty">
@@ -1399,7 +1570,7 @@ export default function HomePage(){
   const store = getStore();
   const sel = getSel();
   const persona = call('homePersona') || 'dj';
-  const blurb = call('homePersonaBlurb') || 'Your next show and travel at a glance';
+  const personaBlurb = call('homePersonaBlurb') || '';
   const liveRun = call('activeRun');
   const show = findNextShow(sel);
   const focusRun = liveRun || (show ? call('runOf', show.id) : null);
@@ -1448,13 +1619,24 @@ export default function HomePage(){
         }),
       );
     }
-    return compactGridItems(
-      sortGridItems(sourceGrid.map((g: any) => displayGridItem(reconcileGridItem(g), gridCols))),
-      gridCols,
-    );
+    return displayGridLayout(sourceGrid, gridCols);
   }, [sourceGrid, gridCols, widgetEditing, gridDraft, tick]);
   const widgetsToAdd = widgetEditing ? availableHomeWidgets(widgetGrid) : [];
   const gridMaxRow = widgetGrid.reduce((m: any, g: any) => Math.max(m, g.y + g.h), 0);
+  const dailyOverviewLines = useMemo(
+    () => buildDailyOverviewLines({
+      today,
+      sel,
+      focusRun,
+      liveRun,
+      nextShow: show,
+      nextJourney,
+      tasks: homeTasks,
+      personaBlurb,
+    }),
+    [today, sel, focusRun, liveRun, show, nextJourney, homeTasks, personaBlurb, tick],
+  );
+  const dateLine = useMemo(() => fmtDateLong(today), [today, tick]);
 
   const widgetNode = (id: any, density: any, size: any, gridH?: number) => {
     switch(id){
@@ -1543,17 +1725,31 @@ export default function HomePage(){
       {heroActions}
       <div className="home-hero-text">
         <div className="hero-hello">{greet}{nameBit}</div>
-        <div className="hero-home">Home</div>
-        <div className="hero-date">{blurb}</div>
+        <div className="hero-date">{dateLine}</div>
       </div>
     </div>
   );
 
   return (
-    <div className="tab-page">
-      {header}
-      <div className={`screen-pad home-screen tab-page-body${widgetEditing ? ' home-screen--edit' : ''}`} style={{ marginTop: 12 }}>
-        {!widgetEditing ? <HomeActions /> : null}
+    <div className="tab-page home-tab">
+      <section className="home-permanent" aria-label="Home">
+        {header}
+        <div className="home-permanent-body screen-pad">
+          {!widgetEditing ? (
+            <>
+              <DailyOverview lines={dailyOverviewLines} />
+              <HomeActions className="home-quick-actions" />
+            </>
+          ) : null}
+        </div>
+      </section>
+      <section
+        className={`screen-pad home-screen home-workspace tab-page-body${widgetEditing ? ' home-screen--edit' : ''}`}
+        aria-label="Your widgets"
+      >
+        {!widgetEditing ? (
+          <p className="home-workspace-eyebrow" aria-hidden>Your workspace</p>
+        ) : null}
         {widgetEditing ? (
           <div className="home-widget-edit-bar">
             <span className="home-widget-edit-bar-title">Editing widgets</span>
@@ -1712,15 +1908,8 @@ export default function HomePage(){
             </div>
           </div>
         ) : null}
-        {!widgetEditing ? (
-          <div className="home-widgets-foot">
-            <button type="button" className="home-panel-link" onClick={startWidgetEdit}>
-              <Icon name="edit" size={14} /> Edit widgets
-            </button>
-          </div>
-        ) : null}
         <div className="spacer" />
-      </div>
+      </section>
     </div>
   );
 }

@@ -153,3 +153,17 @@ export function todayStepStatus(step: any, live: any){
   if((live.beforeIds || []).includes(step?.id)) return 'done';
   return 'upcoming';
 }
+
+/** Medium home widget: keep rows around now / next when the list is long. */
+export function todayScheduleVisibleRows(rows: any, live: any, max: number){
+  const list = rows || [];
+  if(!max || list.length <= max) return list;
+  let anchor = list.findIndex((r: any) => todayStepStatus(r.timelineStep, live) === 'now');
+  if(anchor < 0){
+    anchor = list.findIndex((r: any) => todayStepStatus(r.timelineStep, live) === 'upcoming');
+  }
+  if(anchor < 0) anchor = 0;
+  const lead = anchor > 0 ? 1 : 0;
+  const start = Math.max(0, anchor - lead);
+  return list.slice(start, start + max);
+}

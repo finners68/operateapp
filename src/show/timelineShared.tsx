@@ -120,7 +120,7 @@ export function mapRunStepToTimelineStep(s: any){
   };
 }
 
-export function LiveTimelineStepRow({ step: s, live, onToggle, onOpen, rawStep, runKey, expandOnRowClick = true }: Record<string, any>){
+export function LiveTimelineStepRow({ step: s, live, onToggle, onOpen, rawStep, runKey, expandOnRowClick = true, location = '' }: Record<string, any>){
   const [expanded, setExpanded] = useState(false);
   const tier = timelineTier(s);
   const bits = previewSecondary(s);
@@ -186,6 +186,7 @@ export function LiveTimelineStepRow({ step: s, live, onToggle, onOpen, rawStep, 
           <div className="tl-body">
             <TimelineStepTitle step={s} />
             {bits.text ? <span className="tl-sub">{bits.text}</span> : null}
+            {location ? <span className="tl-sub tl-loc">{location}</span> : null}
             {bits.hasNote ? (
               <span className="tl-note"><Icon name="note" size={11} /> Note</span>
             ) : null}

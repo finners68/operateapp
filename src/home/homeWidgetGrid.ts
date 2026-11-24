@@ -15,14 +15,41 @@ export const HOME_GRID_BASE_COLS = 12;
 export const WIDGET_SIZE_PRESETS: Record<WidgetSize, { w: number; h: number }> = {
   small: { w: 2, h: 2 },
   medium: { w: 6, h: 4 },
-  large: { w: 12, h: 5 },
+  large: { w: 12, h: 4 },
 };
 
-/** Widget-specific sizes (e.g. Today's schedule Large = medium width, double medium height). */
+/** Per-widget footprints — height matches typical content (not one tall box for all). */
 export const WIDGET_SIZE_PRESETS_BY_WIDGET: Partial<
   Record<HomeWidgetId, Partial<Record<WidgetSize, { w: number; h: number }>>>
 > = {
+  nextShow: {
+    small: { w: 2, h: 2 },
+    medium: { w: 6, h: 3 },
+    large: { w: 12, h: 3 },
+  },
+  upcomingTravel: {
+    medium: { w: 6, h: 3 },
+    large: { w: 12, h: 4 },
+  },
+  accommodation: {
+    small: { w: 2, h: 2 },
+    medium: { w: 6, h: 3 },
+  },
+  upcomingShows: {
+    medium: { w: 6, h: 4 },
+    large: { w: 12, h: 4 },
+  },
+  keyContacts: {
+    medium: { w: 6, h: 3 },
+    large: { w: 6, h: 5 },
+  },
+  tasksReminders: {
+    small: { w: 2, h: 2 },
+    medium: { w: 6, h: 4 },
+    large: { w: 12, h: 4 },
+  },
   todaySchedule: {
+    medium: { w: 6, h: 4 },
     large: {
       w: WIDGET_SIZE_PRESETS.medium.w,
       h: WIDGET_SIZE_PRESETS.medium.h * 2,
@@ -492,6 +519,18 @@ export function reconcileGridItem(item: HomeWidgetGridItem): HomeWidgetGridItem 
     h: dims.h,
     size,
   };
+}
+
+/** View mode: honour saved x/y/w/h without re-packing the user’s layout. */
+export function displayGridLayout(
+  grid: HomeWidgetGridItem[] | null | undefined,
+  cols: number,
+): HomeWidgetGridItem[] {
+  return sortGridItems(
+    (grid || [])
+      .map((g) => displayGridItem(reconcileGridItem(g), cols))
+      .filter(Boolean) as HomeWidgetGridItem[],
+  );
 }
 
 export function displayGridItem(item: HomeWidgetGridItem | null | undefined, cols: number): HomeWidgetGridItem | null | undefined {

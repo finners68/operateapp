@@ -477,6 +477,8 @@ async function composeViewFromV2(v2, opts) {
                 arr: flightDateTimeLocal(j.arrival_at),
                 terminal: (j.flight_details && j.flight_details.departure_terminal) || '',
                 gate: (j.flight_details && j.flight_details.departure_gate) || '',
+                arrTerminal: (j.flight_details && j.flight_details.arrival_terminal) || '',
+                arrGate: (j.flight_details && j.flight_details.arrival_gate) || '',
                 fstatus: j.journey_status || '',
                 delay: j.delay_description || '',
                 fiUpdated: j.status_updated_at ? Date.parse(j.status_updated_at) : null,

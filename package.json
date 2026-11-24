@@ -9,8 +9,9 @@
     "test": "node --experimental-strip-types --test",
     "build:engine": "tsc -p tsconfig.engine.json",
     "build:react": "vite build",
-    "preview": "npm run build:react && npx --yes serve . -l 3000",
-    "preview:4180": "npm run build:react && npx --yes serve . -l 4180",
+    "preview": "npm run build:react && npx --yes serve . -l 3000 --no-port-switching",
+    "preview:4180": "npm run build:react && npx --yes serve . -l 4180 --no-port-switching",
+    "serve": "npx --yes serve . -l 3000 --no-port-switching",
     "ci": "npm run check && npm run typecheck && npm test && npm run build:engine && npm run build:react"
   },
   "dependencies": {

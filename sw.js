@@ -1,5 +1,5 @@
 /* Operate service worker — app-shell offline cache */
-const VERSION = 'operate-v322';
+const VERSION = 'operate-v323';
 const SHELL = [
   './',
   './index.html',
@@ -42,7 +42,6 @@ const SHELL = [
   './icons/icon-192.png',
   './icons/icon-512.png',
   './assets/operate-wordmark1.png',
-  './assets/operate-wordmark.svg',
   './assets/operate-wordmark.png'
 ];
 
